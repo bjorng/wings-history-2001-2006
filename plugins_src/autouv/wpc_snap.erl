@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_snap.erl,v 1.3 2004/03/22 20:13:04 bjorng Exp $
+%%     $Id: wpc_snap.erl,v 1.4 2004/03/23 05:07:07 bjorng Exp $
 
 -module(wpc_snap).
 
@@ -36,14 +36,16 @@ menu({tools}, Menu) ->
 		  "Start snap mode for \"snapping\" UV coordinates onto an image"};
 	     true ->
 		 {"Exit Snap Mode",exit_snap_mode,
-		  "Exit the snap mode"}
+		  "Exit snap mode"}
 	 end];
 menu({face}, Menu) ->
     case active() of
 	false ->
 	    Menu;
 	true ->
-	    [{"Snap Image",snap_image,"Put Image on selected faces"}|
+	    [{"Snap Image",snap_image,
+	      "Put background image on selected faces by assigning "
+	      "UV coordinates to them"}|
 	     snap_menu()] ++ Menu    
     end;
 menu({Type}, Menu) when Type == vertex; Type == edge;
@@ -55,16 +57,16 @@ menu({Type}, Menu) when Type == vertex; Type == edge;
 menu(_, Menu) -> Menu.
 
 snap_menu() ->
-    ScaleMenu = [{"Horizontal", x, "Scale SnapImage horizontally"},
-		 {"Vertical",   y, "Scale SnapImage vertically"},
-		 {"Free", free,    "Scale SnapImage free"},
-		 {"Uniform", uniform, "Scale SnapImage uniform"}],
-    MoveMenu = [{"Horizontal", x, "Move SnapImage horizontally"},
-		{"Vertical",   y, "Move SnapImage vertically"},
-		{"Free", free,    "Move SnapImage free"}], 
+    ScaleMenu = [{"Horizontal",x,"Scale the background image horizontally"},
+		 {"Vertical",y,"Scale the background image vertically"},
+		 {"Free",free,"Scale the background image freely"},
+		 {"Uniform",uniform,"Scale the background image uniformly"}],
+    MoveMenu = [{"Horizontal",x,"Move the background image horizontally"},
+		{"Vertical",y,  "Move the background image vertically"},
+		{"Free",free,   "Move the background image freely"}], 
 
-    [{"Scale Snap Image", {auv_snap_scale, ScaleMenu}, "Scale SnapImage"},
-     {"Move Snap Image",  {auv_snap_move,  MoveMenu}, "Move SnapImage"},
+    [{"Scale Snap Image",{auv_snap_scale,ScaleMenu},"Scale the background image"},
+     {"Move Snap Image",{auv_snap_move,MoveMenu},"Move the background image"},
      {"Exit Snap Mode",exit_snap_mode,"Exit the snap mode"},
      separator].
 
