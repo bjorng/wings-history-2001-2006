@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.23 2002/01/27 15:50:18 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.24 2002/01/27 22:01:27 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -206,6 +206,10 @@ handle_menu_event(Event, #mi{new=New}=Mi0) ->
 	    wings_io:putback_event(Resize),
 	    pop;
 	#mi{}=Mi -> get_menu_event(Mi);
+	quit ->
+	    wings_io:clear_menu_sel(),
+	    wings_io:putback_event(quit),
+	    pop;
 	IgnoreMe ->
 	    get_menu_event(Mi0#mi{new=false})
     end.
