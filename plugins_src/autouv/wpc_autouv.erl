@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.101 2003/02/24 14:00:53 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.102 2003/02/26 20:04:05 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -101,8 +101,9 @@ start_uvmap_1(#st{sel=[{Id,_}],shapes=Shs}=St0,Mode) ->
     St2 = seg_create_materials(St0),
     St = St2#st{sel=[],selmode=face,shapes=gb_trees:from_orddict([{Id,We}])},
     Ss = seg_init_message(#seg{selmodes=Modes,st=St,we=OrigWe}),
+    Active = wings_wm:active_window(),
     wings_wm:callback(fun() ->
-			      wings_util:menu_restriction(geom,[view,select,window])
+			      wings_util:menu_restriction(Active, [view,select,window])
 		      end),
     {seq,push,get_seg_event(Ss)}.
 
@@ -341,7 +342,7 @@ seg_map_charts(Method, #seg{st=#st{shapes=Shs},we=OrigWe}=Ss) ->
 
 seg_map_charts_1(Cs, Type, Extra, I, N, Acc, Ss) when I =< N ->
     MapChart = fun() -> seg_map_chart(Cs, Type, Extra, I, N, Acc, Ss) end,
-    wings_wm:send(geom, {callback,MapChart}),
+    wings_wm:later({callback,MapChart}),
     Msg = io_lib:format("Mapping chart ~w of ~w", [I,N]),
     get_seg_event(Ss#seg{msg=Msg});
 seg_map_charts_1(_, _, OrigWe, _, _, MappedCharts, #seg{st=St0=#st{shapes=Shs0}}) ->
@@ -349,7 +350,7 @@ seg_map_charts_1(_, _, OrigWe, _, _, MappedCharts, #seg{st=St0=#st{shapes=Shs0}}
     #we{id=Id}=OrigWe,
     Shs = gb_trees:update(Id, OrigWe, Shs0),
     St = St0#st{shapes=Shs},
-    wings_wm:send(geom,{new_state,St}),
+    wings_wm:send(geom, {new_state,St}),
     wings_wm:send(geom, {action,{body,{?MODULE,show_map,Info}}}),
     pop.
 
