@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu_util.erl,v 1.27 2003/08/16 17:50:35 bjorng Exp $
+%%     $Id: wings_menu_util.erl,v 1.28 2003/09/12 12:40:42 bjorng Exp $
 %%
 
 -module(wings_menu_util).
@@ -100,7 +100,7 @@ scale(help, _, []) ->
     {"Scale along std. axis","Pick axis to scale along",
      "Pick axis and point to scale from"};
 scale(help, _, [radial]) ->
-    {"Scale outward from std. axis","Pick axis to scale outwards from",
+    {"Scale outward from std. axis","Pick axis to scale out from",
      "Pick axis and point to scale from"};
 scale(1, Ns, Flags) ->
     [scale_fun(x, Ns, Flags),
@@ -146,7 +146,7 @@ rotate(_) ->
     {"Rotate",{rotate,fun rotate/2},[],[magnet]}.
 
 rotate(help, _) ->
-    {"Rotate along std. axis","Pick axis to rotate around",
+    {"Rotate around std. axis","Pick axis to rotate around",
      "Pick axis and point to rotate through"};
 rotate(1, [rotate,Mode]=Ns) when Mode == vertex; Mode == body ->
     [rotate_fun(free, Ns),
