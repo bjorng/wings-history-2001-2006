@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_lang.erl,v 1.9 2004/11/14 13:06:12 bjorng Exp $
+%%     $Id: wings_lang.erl,v 1.10 2004/12/05 08:10:40 bjorng Exp $
 %%
 %%  Totally rewritten but Riccardo is still the one who did the hard work.
 %%
@@ -183,9 +183,8 @@ generate_template(Dir) ->
 	       end,
     OutFile = OutFile0 ++ "_en.lang",
     {ok, Fd} = file:open(OutFile, [write]),
-    io:format("Writing ~p~n", [filename:absname(OutFile)]),
+    io:format("Writing: ~p\n", [filename:absname(OutFile)]),
     Write = fun(File) -> 
-		    io:format("Scanning ~p~n", [File]),
 		    scan_file(File, Fd)
 	    end,
     try lists:foreach(Write, reverse(Fs))
@@ -202,25 +201,33 @@ search_and_gen_strs([], Mod, Out, Acc0) ->
     generate_strs(lists:usort(Acc0), Mod, Out);
 search_and_gen_strs(File0, Mod, Out, Acc0) ->
     File1 = skip(File0),
-    {File, Acc} = get_args(File1, Acc0),
-    search_and_gen_strs(File,Mod,Out,Acc).
+    {File,Acc} = get_args(File1, Acc0),
+    search_and_gen_strs(File, Mod, Out, Acc).
 
-generate_strs([],Mod,_Out) -> 
-    io:format("No strings in ~p~n", [Mod]),
-    skip;
-generate_strs(Refs,Mod,Out) -> 
-    io:format(Out,"{~p,~n [~n",[Mod]),
-    format_lang(Refs,Mod,undefined,Out).
+generate_strs(Refs, Mod, Out) ->
+    ModStr = atom_to_list(Mod),
+    io:format("~s~s", [ModStr,dots(20-length(ModStr))]),
+    case length(Refs) of
+	0 ->
+	    io:put_chars(" none\n");
+	N ->
+	    io:format("~5w\n", [N]),
+	    io:format(Out,"{~p,~n [~n",[Mod]),
+	    format_lang(Refs, Mod, undefined, Out)
+    end.
 
-format_lang([This={Func,Id,Str}|R], Mod, Func, Fd) ->
+dots(N) when N < 0 -> dots(0);
+dots(N) -> lists:duplicate(3+N, $.).
+
+format_lang([{Func,Id,Str}=This|R], Mod, Func, Fd) ->
     io:format(Fd,"    {~p,~p}",[Id,Str]),
-    close_expr(This,R,Fd),
-    format_lang(R,Mod,Func,Fd);
-format_lang([This={Func,Id,Str}|R], Mod, _, Fd) ->
+    close_expr(This, R, Fd),
+    format_lang(R, Mod, Func, Fd);
+format_lang([{Func,Id,Str}=This|R], Mod, _, Fd) ->
     io:format(Fd,"  {~p,~n   [{~p,~p}",[Func,Id,Str]),
-    close_expr(This,R,Fd),
-    format_lang(R,Mod,Func,Fd);
-format_lang([],_,_,_) -> ok.
+    close_expr(This, R, Fd),
+    format_lang(R, Mod, Func, Fd);
+format_lang([], _, _, _) -> ok.
 
 close_expr({Func,_,_}, [{Func,_,_}|_],Fd) ->
     io:format(Fd,",~n",[]);
