@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.96 2003/11/20 23:40:45 raimo_niskanen Exp $
+%%     $Id: wings_camera.erl,v 1.97 2003/11/25 08:09:58 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -113,10 +113,7 @@ mouse_buttons(DI) ->
 			       {2,_} -> nendo;
 			       {3,_} -> Mode0
 			   end,
-		    case Mode of
-			Mode0 -> keep;
-			_ -> {store,gb_trees:update(I+DI, Mode, Sto)}
-		    end;
+		    {store,gb_trees:update(I+DI, Mode, Sto)};
 		(_, _) -> void
 	    end}]}.
 
