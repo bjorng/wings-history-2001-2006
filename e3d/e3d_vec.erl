@@ -8,14 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_vec.erl,v 1.13 2003/03/28 14:09:23 bjorng Exp $
+%%     $Id: e3d_vec.erl,v 1.14 2003/04/12 06:35:44 bjorng Exp $
 %%
 
 -module(e3d_vec).
 
 -export([zero/0,is_zero/1,add/1,add/2,sub/1,sub/2,mul/2,divide/2,neg/1,
 	 dot/2,cross/2,norm_cross/2,len/1,dist/2,norm/1,norm/3,
-	 normal/3,normal/1,average/1]).
+	 normal/3,normal/1,average/1,average/2,average/4]).
 
 -compile(inline).
 -compile({inline_size,24}).
@@ -190,3 +190,22 @@ average([{V10,V11,V12}|T], A0, A1, A2, L)
 average([], A0, A1, A2, L0) ->
     L = 1.0/float(L0),
     {A0*L,A1*L,A2*L}.
+
+average({V10,V11,V12}, {V20,V21,V22}) ->
+    V0 = if
+	     V10 =:= V20 -> V10;
+	     is_float(V10) -> 0.5*(V10+V20)
+	 end,
+    V1 = if
+	     V11 =:= V21 -> V11;
+	     is_float(V11) -> 0.5*(V11+V21)
+	 end,
+    if
+	V12 =:= V22 -> {V0,V1,V12};
+	is_float(V12) -> {V0,V1,0.5*(V12+V22)}
+    end.
+
+average({V10,V11,V12}, {V20,V21,V22}, {V30,V31,V32}, {V40,V41,V42})
+    when is_float(V10), is_float(V11), is_float(V12) ->
+    L = 0.25,
+    {L*(V10+V20+V30+V40),L*(V11+V21+V31+V41),L*(V12+V22+V32+V42)}.
