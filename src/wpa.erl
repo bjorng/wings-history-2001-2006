@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.48 2004/06/23 11:25:34 raimo_niskanen Exp $
+%%     $Id: wpa.erl,v 1.49 2004/06/27 11:55:10 bjorng Exp $
 %%
 -module(wpa).
 -export([ask/3,ask/4,dialog/3,dialog/4,error/1,
@@ -18,7 +18,7 @@
 	 export/3,export_selected/3,
 	 export_filename/2,export_filename/3,
 	 save_images/3,
-	 dialog_template/2,
+	 dialog_template/2,import_matrix/1,export_matrix/1,
 	 send_command/1,
 	 pref_get/2,pref_get/3,pref_set/2,pref_set/3,
 	 pref_set_default/3,pref_delete/2,
@@ -202,20 +202,30 @@ save_images(E3DFile, Directory, Filetype) ->
 
 %% dialog_template(Module, Type) -> Template
 %%  Return a template for a standard dialog.
-%%  Module = caller's module (used a preference key)
+%%  Module = caller's module (used as preference key)
 %%  Type = import|export
 dialog_template(Mod, import) ->
-    {label_column,
-     [{"Import scale",{text,pref_get(Mod, import_scale, 1.0),[{key,import_scale}]}},
-      {"(Export scale)",{text,pref_get(Mod, export_scale, 1.0),[{key,export_scale}]}}]};
+    {vframe,
+     [{"Swap X and Y Axes",pref_get(Mod, swap_x_y, false),
+       [{key,swap_x_y}]},
+      {label_column,
+       [{"Import Scale",{text,pref_get(Mod, import_scale, 1.0),
+			 [{key,import_scale}]}},
+	{"(Export Scale)",{text,pref_get(Mod, export_scale, 1.0),
+			   [{key,export_scale}]}}]}
+     ]};
 dialog_template(Mod, export) ->
     FileTypes = [{lists:flatten([Val," (*",Key,")"]),Key} ||
 		    {Key,Val} <- image_formats()],
     DefFileType = pref_get(Mod, default_filetype, ".bmp"),
     {vframe,
-     [{label_column,
-       [{"(Import scale)",{text,pref_get(Mod, import_scale, 1.0),[{key,import_scale}]}},
-	{"Export scale",{text,pref_get(Mod, export_scale, 1.0),[{key,export_scale}]}},
+     [{"Swap X and Y Axes",pref_get(Mod, swap_x_y, false),
+       [{key,swap_x_y}]},
+      {label_column,
+       [{"(Import Scale)",{text,pref_get(Mod, import_scale, 1.0),
+			   [{key,import_scale}]}},
+	{"Export Scale",{text,pref_get(Mod, export_scale, 1.0),
+			 [{key,export_scale}]}},
 	{"Sub-division Steps",{text,pref_get(Mod, subdivisions, 0),
 			       [{key,subdivisions},{range,0,4}]}}]},
       panel,
@@ -223,6 +233,23 @@ dialog_template(Mod, export) ->
        [{menu,FileTypes,DefFileType,[{key,default_filetype}]}],
        [{title,"Default texture file type"}]} ]}.
 
+import_matrix(Attr) ->
+    Scale = e3d_mat:scale(proplists:get_value(import_scale, Attr, 1.0)),
+    case proplists:get_bool(swap_x_y, Attr) of
+	false -> Scale;
+	true ->
+	    Rot = e3d_mat:rotate(-90, {1.0,0.0,0.0}),
+	    e3d_mat:mul(Scale, Rot)
+    end.
+
+export_matrix(Attr) ->
+    Scale = e3d_mat:scale(proplists:get_value(export_scale, Attr, 1.0)),
+    case proplists:get_bool(swap_x_y, Attr) of
+	false -> Scale;
+	true ->
+	    Rot = e3d_mat:rotate(90, {1.0,0.0,0.0}),
+	    e3d_mat:mul(Scale, Rot)
+    end.
 
 %% Send a command to the plugin parent window (geometry window) 
 %% from any erlang process. The command is sent to the non-deletable
