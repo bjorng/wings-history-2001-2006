@@ -3,12 +3,12 @@
 %%
 %%     Utilities for shape records.
 %%
-%%  Copyright (c) 2001-2003 Bjorn Gustavsson
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.70 2004/03/08 11:10:41 raimo_niskanen Exp $
+%%     $Id: wings_shape.erl,v 1.71 2004/03/21 06:52:27 bjorng Exp $
 %%
 
 -module(wings_shape).
@@ -19,7 +19,8 @@
 -define(NEED_ESDL, 1).
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
--import(lists, [map/2,reverse/1,reverse/2,keymember/3,keysearch/3,sort/1]).
+-import(lists, [map/2,foldl/3,reverse/1,reverse/2,
+		keymember/3,keysearch/3,sort/1]).
 -compile(inline).
 
 new(Name, We0, #st{shapes=Shapes0,onext=Oid}=St) ->
@@ -408,7 +409,7 @@ toggle_sel_all_1(#we{id=Id,perm=P}, #ost{st=St}) when ?IS_SELECTABLE(P) ->
     send_client({new_state,wings_sel:select_object(Id, St#st{sel=[]})});
 toggle_sel_all_1(_, _) -> ok.
 
-toggle_wire(#we{id=Id}, _) ->
+toggle_wire(#we{id=Id}, #ost{st=St}) ->
     {_,Client} = wings_wm:this(),
     W0 = wings_wm:get_prop(Client, wireframed_objects),
     W = case gb_sets:is_member(Id, W0) of
@@ -416,6 +417,7 @@ toggle_wire(#we{id=Id}, _) ->
 	    true -> gb_sets:delete(Id, W0)
 	end,
     wings_wm:set_prop(Client, wireframed_objects, W),
+    wings_draw:refresh_dlists(St),
     wings_wm:dirty().
 
 toggle_wire_all(#we{id=Id}, #ost{st=St}) ->
@@ -431,6 +433,7 @@ toggle_wire_all(#we{id=Id}, #ost{st=St}) ->
 	    true -> gb_sets:add(Id, W1)
 	end,
     wings_wm:set_prop(Client, wireframed_objects, W),
+    wings_draw:refresh_dlists(St),
     wings_wm:dirty().
 
 %%%
@@ -485,16 +488,15 @@ draw_objects_1(N, [#we{name=Name}|Wes],
 draw_icons(N, Objs, Ost, R, I, Y) ->
     {_,Client} = wings_wm:this(),
     Wires = wings_wm:get_prop(Client, wireframed_objects),
-    DrawData = {N,Objs,Ost,R,I,Y,Wires},
+    DrawData = {N,Ost,R,I,Y,Wires},
     wings_io:draw_icons(fun() ->
-				wings_draw_util:fold(fun draw_icons_1/2, DrawData)
+				foldl(fun draw_icons_1/2, DrawData, Objs)
 			end).
 
 draw_icons_1(_, done) -> done;
-draw_icons_1(_, {0,_,_,_,_,_,_}) -> done;
-draw_icons_1(#dlo{src_we=#we{id=Id}},
-	     {N,[#we{id=Id,perm=Perm}=We|Wes],#ost{sel=Sel,lh=Lh}=Ost,
-	      R,Active,Y,Wires}) ->
+draw_icons_1(_, {0,_,_,_,_,_}) -> done;
+draw_icons_1(#we{id=Id,perm=Perm}=We, {N,#ost{sel=Sel,lh=Lh}=Ost,
+				       R,Active,Y,Wires}) ->
     EyePos = eye_pos(),
     LockPos = lock_pos(),
     SelPos = sel_pos(),
@@ -529,7 +531,7 @@ draw_icons_1(#dlo{src_we=#we{id=Id}},
 	true ->
 	    wings_io:draw_icon(SelPos, IconY, small_sel)
     end,
-    {N-1,Wes,Ost,R,Active-1,Y+Lh,Wires};
+    {N-1,Ost,R,Active-1,Y+Lh,Wires};
 draw_icons_1(_, Acc) -> Acc.
 
 sel_pos() ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.170 2004/03/20 20:17:39 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.171 2004/03/21 06:52:26 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -38,6 +38,8 @@
 %%%
 %%% Refresh the display lists from the contents of St.
 %%%
+%%% Invisible objects no longer have any #dlo{} entries.
+%%%
 
 refresh_dlists(St) ->
     invalidate_dlists(St),
@@ -60,15 +62,18 @@ invalidate_dlists(Update, #st{selmode=Mode,sel=Sel}=St) ->
 			end, Sel).
 
 prepare_dlists(Update, #st{shapes=Shs}) ->
-    wings_draw_util:update(fun(D, A) -> prepare_fun(D, Update, A) end,
-			   gb_trees:values(Shs)).
+    wings_draw_util:update(fun(D, A) ->
+				   prepare_fun(D, Update, A)
+			   end, gb_trees:values(Shs)).
 
-prepare_fun(eol, Update, [#we{perm=Perm}=We|Wes]) when ?IS_NOT_VISIBLE(Perm) ->
-    {new_we(#dlo{src_we=empty_we(We)}, Update),Wes};
+prepare_fun(eol, Update, [#we{perm=Perm}|Wes]) when ?IS_NOT_VISIBLE(Perm) ->
+    prepare_fun(eol, Update, Wes);
 prepare_fun(eol, Update, [We|Wes]) ->
     {new_we(#dlo{src_we=We}, Update),Wes};
 prepare_fun(eol, _, []) ->
     eol;
+prepare_fun(#dlo{}, _Update, [#we{perm=Perm}|Wes]) when ?IS_NOT_VISIBLE(Perm) ->
+    {deleted,Wes};
 prepare_fun(#dlo{src_we=We,split=#split{}=Split}=D, _, [We|Wes]) ->
     {D#dlo{src_we=We,split=Split#split{orig_we=We}},Wes};
 prepare_fun(#dlo{src_we=We}=D, _, [We|Wes]) ->
@@ -91,13 +96,8 @@ prepare_fun_1(#dlo{src_we=#we{perm=Perm0}=We0}=D, Update, #we{perm=Perm1}=We, We
 	false -> prepare_fun_2(D, Update, We, Wes)
     end.
 
-prepare_fun_2(#dlo{proxy_data=Proxy}=D, Update, #we{perm=Perm}=We, Wes) ->
-    if 
-	?IS_VISIBLE(Perm) ->
-	    {changed_we(D, Update, #dlo{src_we=We,mirror=none,proxy_data=Proxy}),Wes};
-	true ->
-	    {changed_we(D, Update, #dlo{src_we=empty_we(We),proxy_data=Proxy}),Wes}
-    end.
+prepare_fun_2(#dlo{proxy_data=Proxy}=D, Update, We, Wes) ->
+    {changed_we(D, Update, #dlo{src_we=We,mirror=none,proxy_data=Proxy}),Wes}.
 
 only_permissions_changed(#we{perm=P}, #we{perm=P}) -> false;
 only_permissions_changed(We0, We1) -> We0#we{perm=0} =:= We1#we{perm=0}.
@@ -115,10 +115,6 @@ invalidate_by_mat(#dlo{src_we=We}=D, Changed) ->
 	true -> D;
 	false -> D#dlo{work=none,edges=none,vs=none,smooth=none,proxy_faces=none}
     end.
-
-empty_we(We) ->
-    Et = gb_trees:empty(),
-    We#we{es=Et,fs=Et,vc=Et,vp=Et,he=gb_sets:empty()}.
 
 sel_fun(#dlo{src_we=#we{id=Id},src_sel=SrcSel}=D, [{Id,Items}|Sel], Mode) ->
     case SrcSel of
