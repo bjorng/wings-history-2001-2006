@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_getline.erl,v 1.5 2001/10/03 09:24:11 bjorng Exp $
+%%     $Id: wings_getline.erl,v 1.6 2001/10/21 07:53:11 bjorng Exp $
 %%
 
 -module(wings_getline).
@@ -150,6 +150,11 @@ key(?SDLK_KP_PLUS, _, #text{number=true}=Ts) ->
     increment(Ts, 1);
 key(?SDLK_KP_MINUS, _, #text{number=true}=Ts) ->
     increment(Ts, -1);
+key(?SDLK_HOME, _, Ts) -> key(1, Ts);
+key(?SDLK_END, _, Ts) -> key(5, Ts);
+key(?SDLK_LEFT, _, Ts) -> key(2, Ts);
+key(?SDLK_RIGHT, _, Ts) -> key(6, Ts);
+key(?SDLK_DELETE, _, Ts) -> key(4, Ts);
 key(_, Unicode, Ts) ->
     key(Unicode, Ts).
 
