@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.91 2003/02/11 15:27:58 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.92 2003/02/13 09:24:09 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -183,7 +183,7 @@ seg_event_5(Ev, #seg{st=St0}=Ss) ->
     case wings_hotkey:event(Ev, St0) of
 	next -> seg_event_6(Ev, Ss);
 	Action ->
-	    wings_io:putback_event({action,Action}),
+	    wings_wm:send(geom, {action,Action}),
 	    keep
     end.
 
@@ -246,10 +246,10 @@ seg_command(no_cut_edges, #seg{st=St0}=Ss) ->
     St = wings_edge:hardness(soft, St0),
     get_seg_event(Ss#seg{st=St});
 seg_command(select_hard_edges, _) ->
-    wings_io:putback_event({action,{select,{by,hard_edges}}}),
+    wings_wm:send(geom, {action,{select,{by,hard_edges}}}),
     keep;
 seg_command({select,Mat}, _) ->
-    wings_io:putback_event({action,{material,{select,[atom_to_list(Mat)]}}}),
+    wings_wm:send(geom, {action,{material,{select,[atom_to_list(Mat)]}}}),
     keep;
 seg_command({segment,Type}, #seg{st=St0}=Ss) ->
     St = segment(Type, St0),
@@ -322,12 +322,12 @@ seg_map_charts(Method, #seg{st=#st{shapes=Shs},we=OrigWe}=Ss) ->
 
 seg_map_charts_1(Cs, Type, Extra, I, N, Acc, Ss) when I =< N ->
     MapChart = fun() -> seg_map_chart(Cs, Type, Extra, I, N, Acc, Ss) end,
-    wings_io:putback_event({callback,MapChart}),
+    wings_wm:send(geom, {callback,MapChart}),
     Msg = io_lib:format("Mapping chart ~w of ~w", [I,N]),
     get_seg_event(Ss#seg{msg=Msg});
 seg_map_charts_1(_, _, OrigWe, _, _, MappedCharts, _) ->
     Info = {MappedCharts,OrigWe},
-    wings_io:putback_event({action,{body,{?MODULE,show_map,Info}}}),
+    wings_wm:send(geom, {action,{body,{?MODULE,show_map,Info}}}),
     pop.
 
 seg_map_chart([{Fs,Vmap,We0}|Cs], Type, Extra, I, N, Acc0, Ss) ->
@@ -342,7 +342,7 @@ seg_map_chart([{Fs,Vmap,We0}|Cs], Type, Extra, I, N, Acc0, Ss) ->
     end.
 
 seg_error(Message, Ss) ->
-    wings_io:putback_event({message,Message}),
+    wings_wm:send(geom, {message,Message}),
     get_seg_event(seg_init_message(Ss)).
 
 make_mat(Diff) ->
@@ -362,7 +362,7 @@ check_for_defects(We) ->
 %%% Edit interface.
 %%%
 
-start_edit(_Id, We, St) ->
+start_edit(_Id, We, St0) ->
     DefVar = {answer,edit},
     Qs = [{vframe,[{alt,DefVar,"Edit existing UV mapping",edit},
 		   {alt,DefVar,"Discard existing UV mapping and start over",discard}],
@@ -371,11 +371,13 @@ start_edit(_Id, We, St) ->
 		     fun([Reply]) ->
 			     case Reply of
 				 edit ->
-				     start_edit_1(We, St);
+				     start_edit_1(We, St0);
 				 discard ->
 				     Act = {action,{body,?MODULE}},
-				     wings_io:putback_event(Act),
-				     discard_uvmap(We, St)
+				     St = discard_uvmap(We, St0),
+				     wings_wm:send(geom, {new_state,St}),
+				     wings_wm:send(geom, Act),
+				     ignore
 			     end
 		     end).
 
@@ -394,7 +396,7 @@ start_edit_1(#we{name=ObjName,fs=Ftab}=We, St) ->
 	    gen_edit_event(MatName, Faces, We);
 	[{First,_}|_]=Ms ->
 	    Act = {callback,fun() -> start_edit_cb(First, Ms, We) end},
-	    wings_io:putback_event(Act),
+	    wings_wm:send(geom, Act),
 	    ignore
     end.
 
@@ -411,7 +413,7 @@ start_edit_cb(First, Ms, We) ->
 
 gen_edit_event(MatName, Faces, We) ->
     Act = {action,{body,{?MODULE,do_edit,{We,MatName,Faces}}}},
-    wings_io:putback_event(Act),
+    wings_wm:send(geom, Act),
     ignore.
 
 discard_uvmap(#we{fs=Ftab}=We0, St) ->
@@ -1252,7 +1254,7 @@ handle_mousemotion(#mousemotion{xrel = DX0, yrel = DY0, x=MX0,y=MY0}, Uvs0) ->
 	    keep
     end.
 
-remap({Id, Ch0=#ch{we=We0,vmap=Vmap,size={W,H}}}, stretch_opt, #we{vp=Orig}) ->
+remap({Id, Ch0=#ch{we=We0,vmap=Vmap}}, stretch_opt, #we{vp=Orig}) ->
     Vs3d = map(fun({V0,_Pos}) ->
 		       case gb_trees:lookup(V0, Vmap) of
 			   none -> 
