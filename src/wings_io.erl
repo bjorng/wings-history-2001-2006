@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.45 2002/04/25 15:14:36 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.46 2002/05/04 05:58:19 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -48,7 +48,6 @@
 	 sel,					%Selected item in menubar.
 	 message,				%Message to show (or undefined).
 	 right,					%Message to the right.
-	 info="",				%Information message.
 	 eq,					%Event queue.
 	 icons=[],				%Position for Icons.
 	 tex=[],				%Textures.
@@ -149,9 +148,9 @@ progress_tick() ->
     end.
 
 info(Info) ->
-    Io = get_state(),
-    put_state(Io#io{info=Info}).
-
+    ortho_setup(),
+    text_at(4, 2*?LINE_HEIGHT+3, Info).
+    
 message(Message) ->
     Io = get_state(),
     put_state(Io#io{message=Message}).
@@ -217,16 +216,13 @@ display(F, Buf) ->
     cleanup_after_drawing(),
     ok.
 
-update(#io{message=Msg,right=Right,info=Info,w=W}=Io0, St) ->
+update(#io{message=Msg,right=Right,w=W,h=H}=Io0, St) ->
     draw_icons(Io0, St),
     draw_panes(Io0),
-    Text = case Msg of
-	       undefined -> maybe_show_mem_used(Info);
-	       _Other -> Msg
-	   end,
+    maybe_show_mem_used(H),
     draw_message(
       fun() ->
-	      text_at(0, Text),
+	      text_at(0, Msg),
 	      if
 		  Right == undefined -> ok;
 		  length(Msg)+length(Right) < W div ?CHAR_WIDTH-3 ->
@@ -242,7 +238,7 @@ update(#io{message=Msg,right=Right,info=Info,w=W}=Io0, St) ->
       end),
     Io0.
 
-maybe_show_mem_used(Info) ->
+maybe_show_mem_used(H) ->
     case wings_pref:get_value(show_memory_used) of
 	true ->
 	    {memory,Sz} = process_info(self(), memory),
@@ -254,8 +250,10 @@ maybe_show_mem_used(Info) ->
 			true ->
 			    {(Sz+1024*512) div 1024 div 1024,"Mb"}
 		    end,
-	    lists:concat(["[mem:",integer_to_list(N),M,"] ",Info]);
-	false -> Info
+	    Mem = lists:concat(["Memory: ",integer_to_list(N),M]),
+	    ortho_setup(),
+	    text_at(4, H-5*?LINE_HEIGHT+5, Mem);
+	false -> ok
     end.
 
 draw_panes(#io{w=W,h=H,menubar=Bar,sel=Sel}) ->
