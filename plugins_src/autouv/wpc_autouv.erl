@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.201 2004/03/13 09:08:55 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.202 2004/03/14 05:48:39 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -217,6 +217,7 @@ create_uv_state(Charts0, MatName0, We, GeomSt0) ->
     wings_view:set_current(View),
 
     wings_wm:set_prop(Name, drag_filter, fun drag_filter/1),
+    wings_wm:set_prop(show_wire_backfaces, true),
     wings_wm:set_prop(show_info_text, false),
     wings_wm:set_prop(orthogonal_view, true),
     wings_wm:set_prop(show_axes, false),
