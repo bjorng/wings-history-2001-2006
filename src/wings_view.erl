@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.19 2001/11/22 20:38:48 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.20 2001/11/24 18:36:17 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -17,6 +17,7 @@
 	 model_transformations/1,eye_point/0,
 	 aim/1,along/2,align_to_selection/1]).
 
+-define(NEED_ESDL, 1).
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
 
@@ -48,7 +49,9 @@ menu(X, Y, St) ->
 				  {"-Y","Y",neg_y},
 				  {"-Z","Z",neg_z}}}},
 	    separator,
-	    {"Align to Selection",align_to_selection}},
+	    {"Align to Selection",align_to_selection},
+	    separator,
+	    {"Auto Rotate","u",auto_rotate}},
     wings_menu:menu(X, Y, view, Menu).
 
 command(reset, St) ->
@@ -67,12 +70,8 @@ command(aim, St) ->
 command({along,Axis}, St) ->
     along(Axis, St),
     St;
-command(flyaround, St) ->
-    case wings_io:has_periodic_event() of
-	true -> wings_io:cancel_periodic_event();
-	false -> wings_io:periodic_event(60, {view,rotate_left})
-    end,
-    St;
+command(auto_rotate, St) ->
+    {seq,{push,dummy},set_auto_rotate_timer(St)};
 command(rotate_left, St) ->
     #view{azimuth=Az0} = View = wings_view:current(),
     Az = Az0 + 1.0,
@@ -83,6 +82,20 @@ command(align_to_selection, St) ->
 command(Key, St) ->
     toggle_option(Key),
     St.
+
+auto_rotate_event(#mousemotion{}, Timer, St) -> keep;
+auto_rotate_event(#mousebutton{state=?SDL_PRESSED}, Timer, ST) -> keep;
+auto_rotate_event({view,rotate_left=Cmd}, Timer, St) ->
+    command(Cmd, dummy),
+    wings:redraw(St),
+    set_auto_rotate_timer(St);
+auto_rotate_event(Other, Timer, St) ->
+    wings_io:cancel_timer(Timer),
+    pop.
+
+set_auto_rotate_timer(St) ->
+    Timer = wings_io:set_timer(60, {view,rotate_left}),
+    {replace,fun(Ev) -> auto_rotate_event(Ev, Timer, St) end}.
 
 toggle_option(Key) ->
     wings_pref:set_value(Key, not wings_pref:get_value(Key)).

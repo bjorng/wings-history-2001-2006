@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_hotkey.erl,v 1.2 2001/11/17 07:02:37 bjorng Exp $
+%%     $Id: wings_hotkey.erl,v 1.3 2001/11/24 18:36:17 bjorng Exp $
 %%
 
 -module(wings_hotkey).
@@ -63,7 +63,7 @@ translate_key($l) -> {select,edge_loop};
 translate_key($o) -> {view,orthogonal_view};
 translate_key($r) -> {view,reset};
 translate_key($s) -> {body,auto_smooth};
-translate_key($u) -> {view,flyaround};
+translate_key($u) -> {view,auto_rotate};
 translate_key($v) -> {select,vertex};
 translate_key($w) -> {view,wire_mode};
 translate_key($x) -> {view,{along,x}};
