@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.81 2003/01/27 13:57:49 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.82 2003/01/28 08:27:23 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -438,7 +438,7 @@ do_edit(MatName0, Faces, We, St) ->
 		   matname=MatName,
 		   option=#setng{color=false,texbg=true,texsz=TexSz}},
     Op = {seq,push,get_event(Uvs)},
-    wings_wm:toplevel(autouv, "AutoUV", {X,Y,?Z_GEOM+10}, {W,H}, [resizable], Op),
+    wings_wm:toplevel(autouv, "AutoUV", {X,Y,highest}, {W,H}, [resizable], Op),
     wings_wm:callback(fun() -> wings_util:menu_restriction(autouv, []) end),
     keep.
 
@@ -511,7 +511,7 @@ init_show_maps(Map0, Vmap, OrigWe, St0) ->
 		   vmap=Vmap,
 		   matname=none},
     Op = {seq,push,get_event(Uvs)},
-    wings_wm:toplevel(autouv, "AutoUV", {X,Y,?Z_GEOM+10}, {W,H}, [resizable], Op),
+    wings_wm:toplevel(autouv, "AutoUV", {X,Y,highest}, {W,H}, [resizable], Op),
     wings_wm:callback(fun() -> wings_util:menu_restriction(autouv, []) end),
     keep.
    
