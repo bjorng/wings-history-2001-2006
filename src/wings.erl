@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.319 2004/10/17 05:57:29 bjorng Exp $
+%%     $Id: wings.erl,v 1.320 2004/10/29 15:55:03 bjorng Exp $
 %%
 
 -module(wings).
@@ -80,17 +80,6 @@ init(File) ->
     wings_pref:init(),
     wings_lang:init(),
     
-    case OsType of
-	{win32,_} ->
-	    io:format(?STR(init,1,
-			   "\n\nNote: The above messages about failing "
-			   "to locate TCP/IP parameters are normal.\n"
-			   "It is done to prevent Erlang from contacting "
-			   "DNS name servers on the Internet\n"
-			   "(harmless, but no need for Wings to do it)\n\n"));
-	_-> ok
-    end,
-
     group_leader(wings_console:start(), self()),
     wings_init:init(),
     wings_text:init(),
