@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_rotate.erl,v 1.24 2002/03/14 07:51:22 bjorng Exp $
+%%     $Id: wings_rotate.erl,v 1.25 2002/03/18 06:15:00 bjorng Exp $
 %%
 
 -module(wings_rotate).
@@ -27,31 +27,34 @@ setup(Vec, Center, Magnet, #st{selmode=vertex}=St) ->
 	    fun(Vs, We, Acc) ->
 		    rotate(Vec, Center, Magnet, gb_sets:to_list(Vs), We, Acc)
 	    end, [], St),
-    init_drag(Tvs, Vec, St);
+    init_drag(Tvs, Vec, Magnet, St);
 setup(Vec, Center, Magnet, #st{selmode=edge}=St) ->
     Tvs = wings_sel:fold(
 	    fun(Edges, We, Acc) ->
 		    edges_to_vertices(Vec, Center, Magnet, Edges, We, Acc)
 	    end, [], St),
-    init_drag(Tvs, Vec, St);
+    init_drag(Tvs, Vec, Magnet, St);
 setup(Vec, Center, Magnet, #st{selmode=face}=St) ->
     Tvs = wings_sel:fold(
 	    fun(Faces, We, Acc) ->
 		    faces_to_vertices(Vec, Center, Magnet, Faces, We, Acc)
 	    end, [], St),
-    init_drag(Tvs, Vec, St);
+    init_drag(Tvs, Vec, Magnet, St);
 setup(Vec, Center, _Magnet, #st{selmode=body}=St) ->
     Tvs = wings_sel:fold(
 	    fun(_, #we{id=Id}=We, Acc) ->
 		    [{Id,body_rotate(Vec, Center, We)}|Acc]
 	    end, [], St),
-    init_drag({matrix,Tvs}, Vec, St).
+    init_drag({matrix,Tvs}, Vec, none, St).
 
-init_drag(Tvs, Vec, St) ->
-    wings_drag:setup(Tvs, [angle], flags(Vec), St).
+init_drag(Tvs, Vec, Magnet, St) ->
+    wings_drag:setup(Tvs, [angle|magnet_unit(Magnet)], flags(Vec), St).
 
 flags(free) -> [screen_relative];
 flags(_) -> [].
+
+magnet_unit(none) -> [];
+magnet_unit(_) -> [falloff].
 
 %%
 %% Conversion of edge selections to vertices.
@@ -151,24 +154,25 @@ view_vector() ->
     e3d_vec:norm(wings_view:eye_point()).
 
 magnet(_Vec, _Center, none, _Vs, _We, Tv, Acc) -> [Tv|Acc];
-magnet(Vec, Center, Magnet, Vs0, #we{id=Id}=We, _, Acc) ->
-    VsInf0 = wings_magnet:influences(Magnet, Vs0, We),
-    VsInf = pre_transform(VsInf0, Center, []),
-    Affected = [V || {V,_,_} <- VsInf],
-    [{Id,{Affected,magnet_rotate_fun(Vec, Center, VsInf)}}|Acc].
+magnet(Vec, Center, Magnet0, Vs0, #we{id=Id}=We, _, Acc) ->
+    {Magnet1,Affected} = wings_magnet:setup(Magnet0, Vs0, We),
+    Magnet = pre_transform(Center, Magnet1),
+    [{Id,{Affected,magnet_rotate_fun(Vec, Center, Magnet)}}|Acc].
 
-pre_transform([{V,#vtx{pos=Pos0}=Vtx,Inf}|T], Center, Acc) ->
-    Pos = e3d_vec:sub(Pos0, Center),
-    pre_transform(T, Center, [{V,Vtx#vtx{pos=Pos},Inf}|Acc]);
-pre_transform([], _, Acc) -> Acc.
+pre_transform(Center, Magnet) ->
+    wings_magnet:transform(fun(Pos) ->
+				   e3d_vec:sub(Pos, Center)
+			   end, Magnet).
 
-magnet_rotate_fun(Axis0, Center, VsInf0) ->
+magnet_rotate_fun(Axis0, Center, Magnet0) ->
     fun(view_changed, NewWe) ->
 	    Axis = view_vector(),
-	    VsInf1 = wings_util:update_vpos(VsInf0, NewWe),
-	    VsInf = pre_transform(VsInf1, Center, []),
-	    magnet_rotate_fun(Axis, Center, VsInf);
-       ([Dx], A) -> magnet_rotate(Axis0, Center, Dx, VsInf0, A)
+	    Magnet1 = wings_magnet:update_vpos(Magnet0, NewWe),
+	    Magnet = pre_transform(Center, Magnet1),
+	    magnet_rotate_fun(Axis, Center, Magnet);
+       ([Dx,R], A) ->
+	    VsInf = wings_magnet:influences(R, Magnet0),
+	    magnet_rotate(Axis0, Center, Dx, VsInf, A)
     end.
     
 magnet_rotate(Axis, {Cx,Cy,Cz}, Angle, VsPos, Acc0) ->

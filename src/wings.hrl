@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.50 2002/03/17 16:59:16 bjorng Exp $
+%%     $Id: wings.hrl,v 1.51 2002/03/18 06:15:00 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -90,7 +90,7 @@
 	 file,					%Current filename.
 	 saved,					%True if model has been saved.
 	 onext,					%Next object id to use.
-	 inf_r,					%Radius of influence (for magnet).
+	 padding0,				%XXX
 	 bb=none,				%Saved bounding box.
 	 edge_loop=none,			%Previous edge loop.
     	 hilite=none,				%Highlight fun.
@@ -107,7 +107,7 @@
 
 	 %% Vectors.
 	 vec=none,				%Currently visible vector.
-	 padding,				%XXX To avoid breaking
+	 padding2,				%XXX To avoid breaking
 						%plug-ins.
 
 	 %% Extension field.

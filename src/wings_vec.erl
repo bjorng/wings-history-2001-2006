@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.21 2002/03/17 16:59:16 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.22 2002/03/18 06:15:00 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -212,7 +212,7 @@ handle_event_5(_Event, Ss, St) ->
     get_event(Ss, St).
 
 secondary_selection(abort, _Ss, _St) ->
-    pick_cleanup(),
+    wings_draw:clear_orig_sel(),
     wings_io:clear_message(),
     wings_io:putback_event(redraw),
     pop;
@@ -225,11 +225,6 @@ secondary_selection({set,Sti}, Ss, #st{vec=Vec}=St) ->
 secondary_selection({magnet_type,Type}, Ss, St) ->
     wings_pref:set_value(magnet_type, Type),
     get_event(Ss, St).
-
-pick_cleanup() ->
-    #dl{orig_sel={_,DlistSel}}= DL = wings_draw:get_dlist(),
-    gl:deleteLists(DlistSel, 1),
-    wings_draw:put_dlist(DL#dl{orig_sel=none}).
 			       
 filter_sel_command(#ss{selmodes=Modes}=Ss, #st{selmode=Mode}=St) ->
     case member(Mode, Modes) of

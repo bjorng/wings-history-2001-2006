@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.62 2002/03/13 11:57:39 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.63 2002/03/18 06:15:00 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -54,12 +54,12 @@ setup(Tvs, Unit, St) ->
 
 setup(Tvs, Unit, Flags, St) ->
     {_,X,Y} = sdl_mouse:getMouseState(),
-    Drag = #drag{x=X,y=Y,unit=Unit,flags=Flags,falloff=falloff(Unit, St)},
+    Drag = #drag{x=X,y=Y,unit=Unit,flags=Flags,falloff=falloff(Unit)},
     init_1(Tvs, Drag, St).
 
-falloff([falloff|_], #st{inf_r=Falloff}) -> Falloff;
-falloff([_|T], St) -> falloff(T, St);
-falloff([], _St) -> none.
+falloff([falloff|_]) -> 1.0;
+falloff([_|T]) -> falloff(T);
+falloff([]) -> none.
     
 init_1(Tvs0, Drag0, #st{selmode=Mode,sel=Sel0}=St0) ->
     St = wings_draw:model_changed(St0),
@@ -293,8 +293,12 @@ make_move_1([_U|Units], [V|Vals]) ->
     [float(V)|make_move_1(Units, Vals)];
 make_move_1([], []) -> [].
 
-cleanup(#drag{matrices=none}) -> ok;
-cleanup(#drag{matrices=Mtxs}) ->
+cleanup(Drag) ->
+    wings_magnet:cleanup(),
+    cleanup_1(Drag).
+
+cleanup_1(#drag{matrices=none}) -> ok;
+cleanup_1(#drag{matrices=Mtxs}) ->
     foreach(fun({Id,_Matrix}) ->
 		    gl:deleteLists(?DL_DYNAMIC+Id, 1)
 	    end, Mtxs).
@@ -302,7 +306,7 @@ cleanup(#drag{matrices=Mtxs}) ->
 magnet_radius(_Sign, #drag{falloff=none}=Drag) -> Drag;
 magnet_radius(Sign, #drag{falloff=Falloff0}=Drag0) ->
     {_,X,Y} = sdl_mouse:getMouseState(),
-    case Falloff0+Sign*?GROUND_GRID_SIZE/5 of
+    case Falloff0+Sign*?GROUND_GRID_SIZE/10 of
 	Falloff when Falloff > 0 ->
 	    {Drag,_} = motion(X, Y, Drag0#drag{falloff=Falloff}),
 	    Drag;
@@ -361,7 +365,7 @@ mouse_range(X0, Y0, #drag{x=OX,y=OY,xs=Xs0,ys=Ys0, xt=Xt0, yt=Yt0}=Drag) ->
 	     Drag#drag{xs=Xs,ys=Ys,xt=XD0, yt=YD0}}
     end.
 
-constrain(Dx0, _Dy, #drag{unit=[angle]}) ->
+constrain(Dx0, _Dy, #drag{unit=[angle|_]}=Drag) ->
     Dx = case sdl_keyboard:getModState() of
 	     Mod when Mod band ?SHIFT_BITS =/= 0,
 		      Mod band ?CTRL_BITS =/= 0 ->
@@ -372,7 +376,7 @@ constrain(Dx0, _Dy, #drag{unit=[angle]}) ->
 		 float(trunc(Dx0));
 	     Mod -> Dx0
 	 end,
-    [15*Dx];
+    [15*Dx|maybe_falloff(Drag)];
 constrain(Dx0, Dy0, #drag{unit=Unit}=Drag) ->
     {Dx,Dy} = case sdl_keyboard:getModState() of
 		  Mod when Mod band ?SHIFT_BITS =/= 0,
@@ -400,6 +404,9 @@ constrain_1([U1,U2], Dx, Dy, _Drag) ->
 constrain_range({_,{Min,_Max}}, D) when D < Min -> Min;
 constrain_range({_,{_Min,Max}}, D) when D > Max -> Max;
 constrain_range(_, D) -> D.
+
+maybe_falloff(#drag{unit=[_,falloff],falloff=Falloff}) -> [Falloff];
+maybe_falloff(_) -> [].
 
 %%%
 %%% Update selection for new mouse position.

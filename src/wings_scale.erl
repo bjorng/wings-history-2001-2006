@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_scale.erl,v 1.32 2002/03/14 07:51:22 bjorng Exp $
+%%     $Id: wings_scale.erl,v 1.33 2002/03/18 06:15:00 bjorng Exp $
 %%
 
 -module(wings_scale).
@@ -26,28 +26,32 @@ setup({Vec,Point}, St) ->
 
 setup(Vec, Point, Magnet, #st{selmode=vertex}=St) ->
     Tvs = scale_vertices(Vec, Point, Magnet, St),
-    init_drag(Tvs, St);
+    init_drag(Tvs, Magnet, St);
 setup(Vec, Point, Magnet, #st{selmode=edge}=St) ->
     Tvs = wings_sel:fold(
 	    fun(Edges, We, Acc) ->
 		    edges_to_vertices(Vec, Point, Magnet, Edges, We, Acc)
 	    end, [], St),
-    init_drag(Tvs, St);
+    init_drag(Tvs, Magnet, St);
 setup(Vec, Point, Magnet, #st{selmode=face}=St) ->
     Tvs = wings_sel:fold(
 	    fun(Faces, We, Acc) ->
 		    faces_to_vertices(Vec, Point, Magnet, Faces, We, Acc)
 	    end, [], St),
-    init_drag(Tvs, St);
+    init_drag(Tvs, Magnet, St);
 setup(Vec, Point, _Magnet, #st{selmode=body}=St) ->
     Tvs = wings_sel:fold(
 	    fun(_, #we{id=Id}=We, Acc) ->
 		    [{Id,body_to_vertices(Vec, Point, We)}|Acc]
 	    end, [], St),
-    init_drag({matrix,Tvs}, St).
+    init_drag({matrix,Tvs}, none, St).
 
-init_drag(Tvs, St) ->
-    wings_drag:setup(Tvs, [{percent,{-1.0,?HUGE}}], [], St).
+init_drag(Tvs, Magnet, St) ->
+    wings_drag:setup(Tvs, [{percent,{-1.0,?HUGE}}|magnet_unit(Magnet)],
+		     [], St).
+
+magnet_unit(none) -> [];
+magnet_unit(_) -> [falloff].
 
 inset(St) ->
     Tvs = wings_sel:fold(
@@ -192,24 +196,31 @@ scale(Vec0, Center, Magnet, Vs, #we{id=Id}=We, Acc) ->
     magnet(Vec, Magnet, Pre, Post, Vs, We, {Id,{Vs,Fun}}, Acc).
 
 magnet(_Vec, none, _Pre, _Post, _Vs, _We, Tv, Acc) -> [Tv|Acc];
-magnet(Vec, Magnet, Pre, Post, Vs0, #we{id=Id}=We, _, Acc) ->
-    VsInf = wings_magnet:influences(Magnet, Vs0, We),
-    {Vs,VsPos} = magnet_1(VsInf, Post, [], []),
-    [{Id,{Vs,magnet_scale_fun(Vec, Pre, VsPos)}}|Acc].
+magnet(Vec, Magnet0, Pre, Post, Vs0, #we{id=Id}=We, _, Acc) ->
+    {Magnet1,Affected} = wings_magnet:setup(Magnet0, Vs0, We),
+    %%{Vs,VsPos} = magnet_1(VsInf, Post, [], []),
+    Magnet = pre_transform(Post, Magnet1),
+    [{Id,{Affected,magnet_scale_fun(Vec, Pre, Magnet)}}|Acc].
 
-magnet_1([{V,#vtx{pos=Pos0}=Vtx,Inf}|T], Matrix, Vacc, Pacc) ->
-    Pos = e3d_mat:mul_point(Matrix, Pos0),
-    magnet_1(T, Matrix, [V|Vacc], [{V,Vtx#vtx{pos=Pos},Inf}|Pacc]);
-magnet_1([], _, Vs, VsPos) -> {Vs,VsPos}.
+pre_transform(Matrix, Magnet) ->
+      wings_magnet:transform(fun(Pos) ->
+				     e3d_mat:mul_point(Matrix, Pos)
+			     end, Magnet).
+
+% magnet_1([{V,#vtx{pos=Pos0}=Vtx,Inf}|T], Matrix, Vacc, Pacc) ->
+%     Pos = e3d_mat:mul_point(Matrix, Pos0),
+%     magnet_1(T, Matrix, [V|Vacc], [{V,Vtx#vtx{pos=Pos},Inf}|Pacc]);
+% magnet_1([], _, Vs, VsPos) -> {Vs,VsPos}.
     
-magnet_scale_fun(Vec, Pre, VsPos) ->
-    fun([Dx], A0) ->
+magnet_scale_fun(Vec, Pre, Magnet) ->
+    fun([Dx,R], A0) ->
+	    VsInf = wings_magnet:influences(R, Magnet),
 	    foldl(fun({V,#vtx{pos={Px,Py,Pz}}=Vtx,Inf}, A) ->
 			  {Sx,Sy,Sz} = make_scale(Dx*Inf+1.0, Vec),
 			  Pos0 = {Px*Sx,Py*Sy,Pz*Sz},
 			  Pos = e3d_mat:mul_point(Pre, Pos0),
 			  [{V,Vtx#vtx{pos=Pos}}|A]
-		  end, A0, VsPos)
+		  end, A0, VsInf)
     end.
 
 make_vector({radial,{_,_,_}}=Vec) -> Vec;

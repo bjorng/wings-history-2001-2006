@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_move.erl,v 1.30 2002/03/14 07:51:22 bjorng Exp $
+%%     $Id: wings_move.erl,v 1.31 2002/03/18 06:15:00 bjorng Exp $
 %%
 
 -module(wings_move).
@@ -32,17 +32,19 @@ setup(Vec0, Magnet, #st{selmode=Mode}=St) ->
     Tvs = wings_sel:fold(fun(Items, We, Acc) ->
 				 setup_1(Vec, Magnet, Mode, We, Items, Acc)
 			 end, [], St),
-    wings_drag:setup(Tvs, unit(Vec0), flags(Vec0), St).
+    wings_drag:setup(Tvs, unit(Vec0, magnet_unit(Magnet)), flags(Vec0), St).
 
 setup_1(Vec, Magnet, Mode, #we{id=Id}=We, Items, Acc) ->
     Tv = setup_we(Mode, Vec, Items, We),
     magnet_move(Tv, Vec, Magnet, We, {Id,Tv}, Acc).
 
+magnet_unit(none) -> [];
+magnet_unit(_) -> [falloff].
+     
 plus_minus(Type, Tvs0, #st{selmode=Mode}=St) ->
     Vec = wings_util:make_vector(Type),
     Tvs = plus_minus_2(Mode, Vec, Tvs0, []),
-    wings_drag:setup(Tvs, unit(Type, [falloff]),
-		     flags(Type), St#st{inf_r=1.0}).
+    wings_drag:setup(Tvs, unit(Type, [falloff]), flags(Type), St).
 
 plus_minus_2(Mode, Vec, [{Items,NewVs,We}|T], Acc0) ->
     Tv = setup_we(Mode, Vec, Items, We),
@@ -316,14 +318,14 @@ translate_fun({Xt0,Yt0,Zt0}) ->
 %%%
 
 magnet_move(_, _Vec, none, _, Tv, Acc) -> [Tv|Acc];
-magnet_move(Tv0, Vec, Magnet, #we{id=Id}=We, _, Acc) ->
+magnet_move(Tv0, Vec, Magnet0, #we{id=Id}=We, _, Acc) ->
     Vs0 = affected(Tv0),
-    VsInf = wings_magnet:influences(Magnet, Vs0, We),
-    Affected = [V || {V,_,_} <- VsInf],
-    [{Id,{Affected,magnet_move_fun(Vec, VsInf)}}|Acc].
+    {Magnet,Affected} = wings_magnet:setup(Magnet0, Vs0, We),
+    [{Id,{Affected,magnet_move_fun(Vec, Magnet)}}|Acc].
 
-magnet_move_fun({Xt0,Yt0,Zt0}, VsInf) ->
-    fun([Dx0], A0) ->
+magnet_move_fun({Xt0,Yt0,Zt0}, Magnet) ->
+    fun([Dx0,R], A0) ->
+	    VsInf = wings_magnet:influences(R, Magnet),
 	    foldl(fun({V,#vtx{pos={Px,Py,Pz}}=Vtx,Inf}, A) ->
 			  Dx = Dx0*Inf,
 			  Xt = Xt0*Dx, Yt = Yt0*Dx, Zt = Zt0*Dx,
@@ -331,10 +333,11 @@ magnet_move_fun({Xt0,Yt0,Zt0}, VsInf) ->
 			  [{V,Vtx#vtx{pos=Pos}}|A]
 		  end, A0, VsInf)
     end;
-magnet_move_fun(free, VsInf) ->
+magnet_move_fun(free, Magnet) ->
     fun(view_changed, NewWe) ->
-	    magnet_move_fun(free, wings_util:update_vpos(VsInf, NewWe));
-       ([Dx,Dy|_], Acc) ->
+	    magnet_move_fun(free, wings_magnet:update_vpos(Magnet, NewWe));
+       ([Dx,Dy,R|_], Acc) ->
+	    VsInf = wings_magnet:influences(R, Magnet),
 	    #view{azimuth=Az,elevation=El} = wings_view:current(),
 	    M0 = e3d_mat:rotate(-Az, {0.0,1.0,0.0}),
 	    M = e3d_mat:mul(M0, e3d_mat:rotate(-El, {1.0,0.0,0.0})),

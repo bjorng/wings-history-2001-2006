@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu_util.erl,v 1.6 2002/03/16 10:31:40 bjorng Exp $
+%%     $Id: wings_menu_util.erl,v 1.7 2002/03/18 06:15:00 bjorng Exp $
 %%
 
 -module(wings_menu_util).
@@ -102,7 +102,7 @@ scale_axis_fun(Axis, Names) ->
 	end,
     Help0 = dir_help(Axis, Names),
     Help = {Help0,[],"Pick point to scale to"},
-    {DirString,F,Help,[magnet]}.
+    {advanced,{DirString,F,Help,[magnet]}}.
 
 stringify_dir({radial,Axis}) -> "Radial " ++ wings_util:stringify(Axis);
 stringify_dir(Dir) -> wings_util:stringify(Dir).
@@ -159,7 +159,7 @@ rotate_axis_fun(Axis, Names) ->
 	end,
     Help0 = dir_help(Axis, Names),
     Help = {Help0,[],"Pick point to rotate through"},
-    {DirString,F,Help,magnet_props(Axis, Names)}.
+    {advanced,{DirString,F,Help,magnet_props(Axis, Names)}}.
 
 %%%
 %%% Flatten submenu.
