@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.104 2003/09/18 13:17:42 dgud Exp $
+%%     $Id: wings_material.erl,v 1.105 2003/09/18 19:38:36 dgud Exp $
 %%
 
 -module(wings_material).
@@ -436,10 +436,13 @@ edit(Name, Assign, #st{mat=Mtab0}=St) ->
     Shine0 = prop_get(shininess, OpenGL0),
     {Emiss0,_} = ask_prop_get(emission, OpenGL0),
     Maps0 = show_maps(Mat0),
+    Preview = fun(A,S,D,F,G) ->
+		      mat_preview(A,S,D,F,G,prop_get(maps,Mat0))
+	      end,
     Qs1 = [{vframe,
 	    [
 	     {hframe, 
-	      [{custom,?PREVIEW_SIZE,?PREVIEW_SIZE+5,fun mat_preview/5},
+	      [{custom,?PREVIEW_SIZE,?PREVIEW_SIZE+5,Preview},
 	       {vframe,
 		[{label,"Diffuse"},
 		 {label,"Ambient"},
@@ -521,7 +524,7 @@ show_map({Type,Image}) ->
 		Label = flatten(io_lib:format("~p [~px~px~p]",
 					      [Name,W,H,PP*8])),
 		[{label, Label}, 
-		 {menu,[{"Diffuse", diffuse}, {"Bump", bumpmap}], Type, [{key,{texture_mode,Image}}]}];
+		 {menu,[{"Diffuse", diffuse}, {"Bump", bump}], Type, [{key,{texture_mode,Image}}]}];
 	    #e3d_image{name=Name,width=W,height=H,bytes_pp=PP} ->
 		Label = flatten(io_lib:format("~p: ~p [~px~px~p]",
 					      [Type,Name,W,H,PP*8])),
@@ -538,7 +541,7 @@ ask_prop_put(specular=Key, {R,G,B}, _) ->
 ask_prop_put(Key, {R,G,B}, Opacity) ->
     {Key,{R,G,B,Opacity}}.
     
-mat_preview(X, Y, _W, _H, Common) ->
+mat_preview(X, Y, _W, _H, Common, Maps) ->
     wings_io:border(X, Y, ?PREVIEW_SIZE, ?PREVIEW_SIZE, ?PANE_COLOR),
     MM = gl:getDoublev(?GL_MODELVIEW_MATRIX),
     PM = gl:getDoublev(?GL_PROJECTION_MATRIX),
@@ -569,14 +572,19 @@ mat_preview(X, Y, _W, _H, Common) ->
     gl:enable(?GL_LIGHTING),
     gl:enable(?GL_BLEND),
     gl:enable(?GL_CULL_FACE),
-%    apply_texture(prop_get(diffuse, prop_get(maps, Common, []), none)),
-%    io:format("~p: ~p ~n", [{?MODULE,?LINE}, gb_trees:to_list(Common)]),
+    gl:rotatef(-90,1,0,0),
     Obj = glu:newQuadric(),
     glu:quadricDrawStyle(Obj, ?GLU_FILL),
     glu:quadricNormals(Obj, ?GLU_SMOOTH),
-%    glu:quadricTexture(Obj, ?GLU_TRUE),
+    case apply_texture(prop_get(diffuse, Maps, none)) of
+	true -> 
+	    glu:quadricTexture(Obj, ?GLU_TRUE);
+	false -> 
+	    ignore
+    end,
     glu:sphere(Obj, 0.9, 50, 50),
     glu:deleteQuadric(Obj),
+    no_texture(),
     gl:disable(?GL_LIGHTING),
     gl:disable(?GL_BLEND),
     gl:shadeModel(?GL_FLAT),
