@@ -2,12 +2,18 @@
 #
 # Script for checking out the Wings source from CVS.
 #
-# $Id: wings_src_rel,v 1.1 2002/11/24 17:59:47 bjorng Exp $
+# $Id: wings_src_rel,v 1.2 2003/09/06 06:59:10 bjorng Exp $
 #
 use strict;
-my $CVSROOT = ':pserver:anonymous@cvs.wings.sourceforge.net:/cvsroot/wings';
-
+#my $CVSROOT = ':pserver:anonymous@cvs.wings.sourceforge.net:/cvsroot/wings';
+my $CVSROOT = 'bjorng@cvs.wings.sourceforge.net:/cvsroot/wings';
 my $cmd;
+my $ver;
+
+if (@ARGV) {
+    $ver = shift;
+    $ver =~ m/^\d+/ or die "$0: '$ver' does not look like a version number\n";
+}
 
 #
 # Check current directory.
@@ -28,15 +34,24 @@ if (@garbage) {
 # Extract from CVS and pack.
 #
 
-print "Press ENTER when the password prompt appears.\n";
-$cmd = "cvs -d$CVSROOT login";
-system $cmd;
+if ($CVSROOT =~ m/^:pserver/) {
+    print "Press ENTER when the password prompt appears.\n";
+    $cmd = "cvs -d$CVSROOT login";
+    system $cmd;
+}
 
 $cmd = "cvs -z8 -d$CVSROOT export -D today wings";
 system $cmd;
 
 my $vsn_file = "wings/vsn.mk";
 my $vsn;
+
+if (defined $ver) {
+    open(VSN, ">$vsn_file") or die "$0: Could not write $vsn_file\n";
+    print VSN "WINGS_VSN=$ver\n";
+    close VSN;
+}
+
 open(VSN, $vsn_file) or die "$0: Could not find $vsn_file\n";
 while (<VSN>) {
     next if m/^\s*$/;
