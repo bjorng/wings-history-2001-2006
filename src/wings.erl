@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.52 2001/11/22 09:02:41 bjorng Exp $
+%%     $Id: wings.erl,v 1.53 2001/11/23 14:37:53 bjorng Exp $
 %%
 
 -module(wings).
 -export([start/0,start_halt/0]).
--export([caption/1]).
+-export([caption/1,redraw/1]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -38,7 +38,7 @@ start_halt() ->
 init() ->
     register(wings, self()),
     case
-%%	catch
+	catch
 	init_1() of
 	{'EXIT',Reason} -> io:format("Crasched: ~P\n", [Reason,30]);
 	ok -> ok
@@ -184,28 +184,25 @@ handle_event(Event, St) ->
     end.
 
 handle_event_1({reactivate_menu,Mi}, St) -> wings_menu:reactivate(Mi);
-handle_event_1(drag_aborted=S, St) -> return_to_top(S);
+handle_event_1(drag_aborted=S, _) -> return_to_top(S);
 handle_event_1({drag_ended,St}, _) -> return_to_top(St);
-handle_event_1(Event, St1) ->
-    case translate_event(Event, St1) of
+handle_event_1({new_selection,St}, _) -> return_to_top(St);
+handle_event_1(Event, St0) ->
+    case translate_event(Event, St0) of
 	ignore -> keep;
-	redraw -> main_loop(St1);
-	{left_click,X,Y} ->
-	    #st{sel=Sel} = St1,
-	    case wings_pick:pick(St1, X, Y) of
-		#st{sel=Sel}=St -> main_loop(St);
-		St -> return_to_top(St)
-	    end;
+	redraw -> main_loop(St0);
+ 	{left_click,X,Y} ->
+	    wings_pick:pick(X, Y, St0);
  	{right_click,X,Y} ->
-	    popup_menu(X, Y, St1);
+	    popup_menu(X, Y, St0);
  	{resize,W,H} ->
- 	    resize(W, H, St1),
- 	    main_loop(model_changed(St1));
- 	{edit,undo_toggle} -> execute_or_ignore(undo_toggle, St1);
- 	{edit,undo} -> execute_or_ignore(undo, St1);
- 	{edit,redo} -> execute_or_ignore(redo, St1);
+ 	    resize(W, H, St0),
+ 	    main_loop(model_changed(St0));
+ 	{edit,undo_toggle} -> execute_or_ignore(undo_toggle, St0);
+ 	{edit,undo} -> execute_or_ignore(undo, St0);
+ 	{edit,redo} -> execute_or_ignore(redo, St0);
 	{crash,_}=Crash -> next;
-	Cmd -> do_command(Cmd, St1)
+	Cmd -> do_command(Cmd, St0)
     end.
 
 execute_or_ignore(Cmd, #st{drag=Drag}=St) when Drag =/= none ->
@@ -525,7 +522,9 @@ command({_,{rotate,Type}}, St) ->
 command({_,{scale,Type}}, St) ->
     wings_scale:setup(Type, St).
 
-popup_menu(X, Y, #st{selmode=Mode,sel=Sel}=St) ->
+popup_menu(X0, Y0, #st{selmode=Mode,sel=Sel}=St) ->
+    X = X0 + 5,
+    Y = Y0 + 5,
     case {Sel,Mode} of
  	{[],_} -> shape_menu(X, Y, St);
  	{_,vertex} -> vertex_menu(X, Y, St);
@@ -955,17 +954,17 @@ translate_event(#keyboard{}=Event, St) ->
     translate_key(Event, St);
 translate_event(quit, St) -> {file,quit};
 translate_event(ignore, St) -> ignore;
-translate_event(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED}, St) ->
+translate_event(#mousebutton{button=1,x=X,y=Y,state=?SDL_RELEASED}, St) ->
     ignore;
-translate_event(#mousebutton{button=1,x=X,y=Y,state=?SDL_RELEASED}=Mb, St) ->
+translate_event(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED}=Mb, St) ->
     case wings_io:button(X, Y) of
 	none -> {left_click,X,Y};
 	Other -> Other
     end;
 translate_event(#mousebutton{button=3,x=X,y=Y,state=?SDL_PRESSED}, St) ->
-    ignore;
-translate_event(#mousebutton{button=3,x=X,y=Y,state=?SDL_RELEASED}, St) ->
     {right_click,X,Y};
+translate_event(#mousebutton{button=3,x=X,y=Y,state=?SDL_RELEASED}, St) ->
+    ignore;
 translate_event(#mousebutton{}, St) ->
     %% Some mouse drivers map the scroll wheel to button 4 and 5.
     ignore;

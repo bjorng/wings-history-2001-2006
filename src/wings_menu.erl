@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.9 2001/11/16 12:20:28 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.10 2001/11/23 14:37:53 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -28,8 +28,10 @@
 	 sel=none,				%Selected item (1..size(Menu))
 	 name,					%Name of menu (atom)
 	 menu,					%Original menu term
-	 top_level=true}).			%Top-level menu or not.
-
+	 top_level=true,			%Top-level menu or not.
+	 new=true				%If just opened, ignore
+						%button release.
+	 }).
 menu(X, Y, Name, Menu0) ->
     Menu = wings_plugin:menu(Name, Menu0),
     Mi = menu_setup(X, Y, Name, Menu, #mi{}),
@@ -85,7 +87,7 @@ max(A, B) -> B.
 get_menu_event(Mi) ->
     {replace,fun(Ev) -> handle_menu_event(Ev, Mi) end}.
 
-handle_menu_event(Event, #mi{name=Name,top_level=TopLevel}=Mi0) ->
+handle_menu_event(Event, #mi{name=Name,top_level=TopLevel,new=New}=Mi0) ->
     case Event of
 	{reactivate_menu,Mi} ->
 	    reactivate(Mi);
@@ -94,17 +96,10 @@ handle_menu_event(Event, #mi{name=Name,top_level=TopLevel}=Mi0) ->
 	    wings_io:putback_event(redraw),
 	    next;
 	#mousemotion{x=X,y=Y} ->
-%%	    case wings_io:button(X, Y) of
-%%		none ->
-		    Mi = highlight_item(X, Y, Mi0),
-		    get_menu_event(Mi);
-%%		ButtonHit ->
-% 		    wings_io:putback_event({action,ButtonHit}),
-% 		    wings_io:putback_event(#keyboard{keysym=#keysym{sym=27}}),
-% 		    keep
-% 	    end;
+	    Mi = highlight_item(X, Y, Mi0),
+	    get_menu_event(Mi#mi{new=false});
 	#mousebutton{button=B,x=X,y=Y,state=?SDL_RELEASED}=Button
-	when B == 1; B == 3 ->
+	when not New and ((B == 1) or (B == 3)) ->
 	    Mi1 = highlight_item(X, Y, Mi0),
 	    case select_item(X, Y, Mi1) of
 		{seq,_,_}=Seq -> Seq;
@@ -140,7 +135,7 @@ handle_menu_event(Event, #mi{name=Name,top_level=TopLevel}=Mi0) ->
 	    wings_io:cleanup_after_drawing(),
 	    wings_io:putback_event({reactivate_menu,Mi0}),
 	    next;
-	IgnoreMe -> get_menu_event(Mi0)
+	IgnoreMe -> get_menu_event(Mi0#mi{new=false})
     end.
 
 highlight_item(X0, Y0, Mi) ->

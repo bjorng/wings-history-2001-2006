@@ -8,18 +8,65 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.8 2001/11/22 20:38:48 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.9 2001/11/23 14:37:53 bjorng Exp $
 %%
 
 -module(wings_pick).
 -export([pick/3]).
 
 -define(NEED_OPENGL, 1).
+-define(NEED_ESDL, 1).
 -include("wings.hrl").
 
--import(lists, [foreach/2,last/1,reverse/1,sort/1,foldl/3,map/2,min/1]).
+-import(lists, [foreach/2,last/1,reverse/1,reverse/2,
+		sort/1,foldl/3,map/2,min/1]).
 
-pick(#st{hit_buf=HitBuf,shapes=Shapes,selmode=Mode}=St0, X0, Y0) ->
+-record(pick,
+	{st,					%Saved state.
+	 op					%add/delete
+	}).
+
+pick(X, Y, St0) ->
+    case do_pick(X, Y, St0) of
+	none ->
+	    Pick = #pick{st=St0},
+	    {seq,{push,dummy},get_marque_event(Pick)};
+	{Op,St} ->
+	    wings:redraw(St),
+	    Pick = #pick{st=St,op=Op},
+	    {seq,{push,dummy},get_pick_event(Pick)}
+    end.
+
+%%
+%% Marque picking.
+%%
+get_marque_event(Pick) ->
+    {replace,fun(Ev) -> marque_event(Ev, Pick) end}.
+
+marque_event(#mousebutton{button=1,state=?SDL_RELEASED}, Pick) -> pop;
+marque_event(Event, Pick) -> keep.
+
+%%
+%% Drag picking.
+%%
+
+get_pick_event(Pick) ->
+    {replace,fun(Ev) -> pick_event(Ev, Pick) end}.
+
+pick_event(#mousemotion{x=X,y=Y}, #pick{op=Op,st=St0}=Pick) ->
+    case do_pick(X, Y, St0) of
+	none -> keep;
+	{Op,St} ->
+	    wings:redraw(St),
+	    get_pick_event(Pick#pick{st=St});
+	{_,_} -> keep
+    end;
+pick_event(#mousebutton{button=1,state=?SDL_RELEASED}, #pick{st=St}) ->
+    wings_io:putback_event({new_selection,St}),
+    pop;
+pick_event(Event, Pick) -> keep.
+
+do_pick(X0, Y0, #st{hit_buf=HitBuf,shapes=Shapes,selmode=Mode}=St0) ->
     gl:selectBuffer(?HIT_BUF_SIZE, HitBuf),
     gl:renderMode(?GL_SELECT),
     gl:initNames(),
@@ -40,60 +87,60 @@ pick(#st{hit_buf=HitBuf,shapes=Shapes,selmode=Mode}=St0, X0, Y0) ->
     gl:popMatrix(),
     gl:flush(),
     case gl:renderMode(?GL_RENDER) of
-	0 -> St;
+	0 -> none;
 	NumHits ->
 	    HitData = sdl_util:readBin(HitBuf, ?HIT_BUF_SIZE),
-	    Hits0 = get_hits(NumHits, HitData, []),
-	    Hits = filter_hits(Hits0, St),
-	    case Hits of
-		[] -> St;
-		[{_,Hit}|_] -> update_selection(Hit, X, Y, St)
+	    Hits = get_hits(NumHits, HitData, []),
+	    case filter_hits(Hits, X, Y, St) of
+		none -> none;
+		Hit -> update_selection(Hit, St)
 	    end
     end.
 
-filter_hits(Hits, #st{selmode=body}) -> Hits;
-filter_hits(Hits, #st{shapes=Shs}) ->
-    EyePoint = wings_view:eye_point(),
-    filter_hits_1(Hits, Shs, EyePoint).
+update_selection({Id,Item}, #st{sel=Sel0}=St) ->
+    {Type,Sel} = update_selection(Id, Item, Sel0, []),
+    {Type,St#st{sel=Sel}}.
 
-filter_hits_1([{_,[Id,Face]}|Hits]=Hits0, Shs, EyePoint) ->
+update_selection(Id, Item, [{I,_}=H|T], Acc) when Id > I ->
+    update_selection(Id, Item, T, [H|Acc]);
+update_selection(Id, Item, [{I,_}|_]=T, Acc) when Id < I ->
+    {add,reverse(Acc, [{Id,gb_sets:singleton(Item)}|T])};
+update_selection(Id, Item, [{I,Items0}|T0], Acc) -> %Id == I
+    ?ASSERT(Id == I),
+    case gb_sets:is_member(Item, Items0) of
+	true ->
+	    Items = gb_sets:delete(Item, Items0),
+	    T = case gb_sets:is_empty(Items) of
+		    true -> T0;
+		    false -> [{Id,Items}|T0]
+		end,
+	    {delete,reverse(Acc, T)};
+	false ->
+	    Items = gb_sets:insert(Item, Items0),
+	    {add,reverse(Acc, [{Id,Items}|T0])}
+    end;
+update_selection(Id, Item, [], Acc) ->
+    {add,reverse(Acc, [{Id,gb_sets:singleton(Item)}])}.
+
+%%%
+%%% Filter hits to obtain just one hit.
+%%%
+
+filter_hits(Hits, X, Y, #st{selmode=Mode,shapes=Shs}) ->
+    EyePoint = wings_view:eye_point(),
+    filter_hits_1(Hits, Shs, Mode, X, Y, EyePoint).
+
+filter_hits_1([{_,[Id,Face]}|Hits], Shs, Mode, X, Y, EyePoint) ->
     #shape{sh=We} = gb_trees:get(Id, Shs),
     Vs = [V|_] = wings_face:surrounding_vertices(Face, We),
     N = wings_face:face_normal(Vs, We),
     D = e3d_vec:dot(wings_vertex:pos(V, We), N),
     case e3d_vec:dot(EyePoint, N) of
-	S when S < D -> filter_hits_1(Hits, Shs, EyePoint);
-	S -> Hits0
+	S when S < D -> filter_hits_1(Hits, Shs, Mode, X, Y, EyePoint);
+	S -> convert_hit(Mode, X, Y, Id, Face, We)
     end;
-filter_hits_1([], St, EyePoint) -> [].
+filter_hits_1([], St, Mode, X, Y, EyePoint) -> none.
     
-update_selection([Id,Item], X, Y, #st{sel=Sel0}=St) ->
-    Sel = update_selection(Id, Item, Sel0, X, Y, St),
-    St#st{sel=Sel}.
-
-update_selection(Id, Item, [{I,_}=H|T], X, Y, St) when Id > I ->
-    [H|update_selection(Id, Item, T, X, Y, St)];
-update_selection(Id, Item0, [{I,_}|_]=T, X, Y, St) when Id < I ->
-    Item = find_item(Id, Item0, X, Y, St),
-    [{Id,gb_sets:singleton(Item)}|T];
-update_selection(Id, Item0, [{I,Items0}|T], X, Y, St) -> %Id == I
-    ?ASSERT(Id == I),
-    Item = find_item(Id, Item0, X, Y, St),
-    case gb_sets:is_member(Item, Items0) of
-	true ->
-	    Items = gb_sets:delete(Item, Items0),
-	    case gb_sets:is_empty(Items) of
-		true -> T;
-		false -> [{Id,Items}|T]
-	    end;
-	false ->
-	    Items = gb_sets:insert(Item, Items0),
-	    [{Id,Items}|T]
-    end;
-update_selection(Id, Item0, [], X, Y, St) ->
-    Item = find_item(Id, Item0, X, Y, St),
-    [{Id,gb_sets:singleton(Item)}].
-
 get_hits(0, _, Acc) -> sort(Acc);
 get_hits(N, <<NumNames:32,Z0:32,_:32,Tail0/binary>>, Acc) ->
     <<Names:NumNames/binary-unit:32,Tail/binary>> = Tail0,
@@ -108,19 +155,18 @@ get_name(N, <<Name:32,Names/binary>>, Acc) ->
 %% Given a selection hit, return the correct vertex/edge/face/body.
 %%
 
-find_item(Id, Face, X, Y, #st{selmode=body}) -> 0;
-find_item(Id, Face, X, Y, #st{selmode=face}) -> Face;
-find_item(Id, Face, X, Y, #st{selmode=Mode,shapes=Shapes}=St) ->
-    #shape{sh=#we{}=We} = gb_trees:get(Id, Shapes),
+convert_hit(body, X, Y, Id, Face, We) -> {Id,0};
+convert_hit(face, X, Y, Id, Face, We) -> {Id,Face};
+convert_hit(Mode, X, Y, Id, Face, We) ->
     wings_view:projection(),
-    wings_view:model_transformations(St),
+    wings_view:model_transformations(dummy),
     ViewPort = gl:getIntegerv(?GL_VIEWPORT),
     ModelMatrix = gl:getDoublev(?GL_MODELVIEW_MATRIX),
     ProjMatrix = gl:getDoublev(?GL_PROJECTION_MATRIX),
     Trans = {ModelMatrix,ProjMatrix,ViewPort},
     case Mode of
-	vertex -> find_vertex(Face, We, X, Y, Trans);
-	edge ->   find_edge(Face, We, X, Y, Trans)
+	vertex -> {Id,find_vertex(Face, We, X, Y, Trans)};
+	edge ->   {Id,find_edge(Face, We, X, Y, Trans)}
     end.
 
 find_vertex(Face, We, X, Y, Trans) ->
@@ -145,7 +191,7 @@ find_edge(Face, We, Cx, Cy, Trans) ->
 			   Xdist = Bx-Ax,
 			   Ydist = By-Ay,
 			   L = math:sqrt(Xdist*Xdist+Ydist*Ydist),
-			   S = ((Ay-Cy)*Xdist-(Ax-Cx)*Ydist)/L*L,
+			   S = ((Ay-Cy)*Xdist-(Ax-Cx)*Ydist)/L/L,
 			   Dist = abs(S)*L,
 			   [{Dist,Edge}|A]
 		   end
