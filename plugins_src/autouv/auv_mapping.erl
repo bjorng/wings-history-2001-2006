@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.51 2004/05/04 06:21:48 bjorng Exp $
+%%     $Id: auv_mapping.erl,v 1.52 2004/05/05 13:57:55 dgud Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -62,7 +62,7 @@ tc(Module, Line, Fun) ->
 -include("auv.hrl").
 -include("e3d.hrl").
 
--import(lists, [foldl/3]).
+-import(lists, [foldl/3,reverse/1]).
 
 %%% From camera would look something like this!! 
 %%% It actually worked once :-) 
@@ -890,11 +890,6 @@ stretch_opt(We0, OVs) ->
     %% {FaceToStretchMean, FaceToStretchWorst,FaceToVerts,VertToFaces,VertToUvs}
     {F2S2,_F2S8,Uvs,State,Scale} = stretch_setup(Fs,We0,OVs),
 
- %    ?DBG("F2S2 ~w~n",[gb_trees:to_list(F2S2)]),
- %    ?DBG("F2S8 ~w~n",[gb_trees:to_list(F2S8)]),
- %    ?DBG("F2Vs ~w~n",[gb_trees:to_list(F2Vs)]),
- %    ?DBG("UVs ~w~n", [gb_trees:to_list(Uvs)]),
-
     S2V = stretch_per_vertex(gb_trees:to_list(State#s.v2f),F2S2,State,gb_trees:empty()),
 %    MaxI = 5,     %% Max iterations
     MaxI = 50,    %% Max iterations
@@ -908,9 +903,6 @@ stretch_opt(We0, OVs) ->
     
     Suvs = [{Id,{S0/Scale,T0/Scale,0.0}} || {Id,{S0,T0}} <- SUvs1],
     We0#we{vp=gb_trees:from_orddict(Suvs)}.
-
-%     stretch_setup(Fs, Res#ch.we,OVs),
-%     Res.
 
 stretch_setup(Fs, We0, OVs) ->
     Be = wings_face:outer_edges(Fs, We0),
@@ -950,12 +942,10 @@ stretch_iter2({[{V,Val}|R],V2S0},I,MaxI,MinS,F2S20,Uvs0,State,Acc)
 	    Fs   = gb_trees:get(V,V2Fs),
 	    Max  = 1.0 - I/MaxI,
 	    Step = Max/10.0,
-	    %%    ?DBG("S ~.2f:",[Val]),
+%	    ?DBG("~p ~.4f:",[V,Val]),
 	    {PVal,Uvs,F2S2} = ?TC(opt_v(Val,Step,Step,Max,V,Line,Fs,F2S20,Uvs0,State)),
 	    case PVal == Val of 
 		true -> 
-%		    ?DBG("Unchanged value for ~p ~p ~p ~n",[{V,Val}, I, R]),
-		    %%?DBG("~p ~p ~p~n",[V,gb_trees:get(V,Uvs0),gb_trees:get(V,Uvs)]),
 		    stretch_iter2({R,V2S0},I,MaxI,MinS,F2S20,Uvs0,State, 
 				  gb_sets:insert(V,Acc));
 		false ->
@@ -964,9 +954,7 @@ stretch_iter2({[{V,Val}|R],V2S0},I,MaxI,MinS,F2S20,Uvs0,State,Acc)
 					 [{Vtx,gb_trees:get(Vtx, V2Fs)}|New]
 				 end, [], Vs0),
 		    Upd = ?TC(stretch_per_vertex(Upd0,F2S2,State,V2S0)),
-%		    ?DBG("Update value for ~p ~p~n ~w~n ~w ~n",
-%			[{V,Val},PVal,gb_sets:to_list(Acc),element(1,Upd)]),
-		    stretch_iter2(Upd,I,MaxI,MinS,F2S2,Uvs,State,Acc)
+		    stretch_iter2(Upd,I,MaxI,MinS,F2S2,Uvs,State,gb_sets:insert(V,Acc))
 	    end
     end;
 stretch_iter2({_,S2V},_,_,_,F2S2,Uvs,State=#s{v2f=V2Fs},Acc0) ->
@@ -982,40 +970,93 @@ random_line() ->
     Len = math:sqrt(X*X+Y*Y),
     {X/Len,Y/Len}.
 
-opt_v(PVal,I,Step,Max,V,L={X,Y},Fs,F2S0,Uvs0,State=#s{f2v=F2Vs,f2ov=F2OV,f2a=F2A}) 
-  when I =< Max, Step > 0.00001 ->
-    %%    ?DBG("~w ~w ~w ~w~n",[V, I,Step,Max]),
+opt_v(PVal,I,Step,Max,V,L,Fs,F2S0,Uvs0,_State=#s{f2v=F2Vs,f2ov=F2OV,f2a=F2A}) ->
+%    io:format("~p=>~.3f ", [V,PVal]),
+    UV = gb_trees:get(V, Uvs0),
+    {Data,F2S1} = 
+	foldl(fun(Face, {Acc,Fs0}) ->
+		      Vs = [V1,V2,V3] = gb_trees:get(Face, F2Vs),
+		      {[{Vs,
+			 {gb_trees:get(V1,Uvs0),
+			  gb_trees:get(V2,Uvs0),
+			  gb_trees:get(V3,Uvs0)},
+			 gb_trees:get(Face, F2OV),
+			 Face,
+			 gb_trees:get(Face, F2A)}|Acc],
+		       [{Face,gb_trees:get(Face,F2S0)}|Fs0]}
+	      end, {[],[]}, Fs),
+    {Stretch,St,F2S2} = opt_v2(PVal,I,Step,Max,V,UV,L,Data,F2S1),
+    case Stretch < PVal of
+	true ->
+	    F2S = update_fs(F2S2,F2S0),
+	    {Stretch,gb_trees:update(V,St,Uvs0),F2S};
+	false ->
+	    {PVal,Uvs0,F2S0}
+    end.
+
+update_fs([{Face,S}|Ss],F2S) ->
+    update_fs(Ss,gb_trees:update(Face,S,F2S));
+update_fs([],F2S) -> F2S.
+
+opt_v2(PVal,I,Step,Max,V,UV={S0,T0},L={X,Y},Data,FS0) 
+  when I =< Max, Step > 0.00001 ->    
+    St = {S0+X*Step,T0+Y*Step},
+    {Stretch,FS} = calc_stretch(V,Data,St,0.0,0.0,[]),
+    if 
+	Stretch < PVal ->
+	    opt_v2(Stretch,I+Step,Step,Max,V,St,L,Data,FS);
+	true ->
+	    NewStep = Step/10,
+	    opt_v2(PVal,I-Step+NewStep,NewStep,Step,V,UV,L,Data,FS0)
+    end;
+opt_v2(PVal,_I,_Step,_Max,_V,St,_L,_,FS) ->
+    {PVal,St,FS}.
+       
+calc_stretch(V,[{[V,_,_],{_,UV2,UV3},{Q1,Q2,Q3},Face,FA}|R],UV1,Mean,Area,FS) ->
+    S = l2(UV1,UV2,UV3,Q1,Q2,Q3),
+    calc_stretch(V,R,UV1,S*S*FA+Mean,FA+Area,[{Face,S}|FS]);
+calc_stretch(V,[{[_,V,_],{UV1,_,UV3},{Q1,Q2,Q3},Face,FA}|R],UV2,Mean,Area,FS) ->
+    S = l2(UV1,UV2,UV3,Q1,Q2,Q3),
+    calc_stretch(V,R,UV2,S*S*FA+Mean,FA+Area,[{Face,S}|FS]);
+calc_stretch(V,[{[_,_,V],{UV1,UV2,_},{Q1,Q2,Q3},Face,FA}|R],UV3,Mean,Area,FS) ->
+    S = l2(UV1,UV2,UV3,Q1,Q2,Q3),
+    calc_stretch(V,R,UV3,S*S*FA+Mean,FA+Area,[{Face,S}|FS]);
+calc_stretch(_,[],_,Mean,Area,FS) ->
+    {math:sqrt(Mean/Area),reverse(FS)}.
+
+%% THIS IS KEPT AS A REFERENCE IMPLIMENTATION FOR NOW
+old(PVal,I,Step,Max,V,L={X,Y},Fs,F2S0,Uvs0,State=#s{f2v=F2Vs,f2ov=F2OV,f2a=F2A}) 
+   when I =< Max, Step > 0.00001 ->
+     %%    ?DBG("~w ~w ~w ~w~n",[V, I,Step,Max]),
     {S0,T0} = gb_trees:get(V, Uvs0),
     St = {S0+X*I,T0+Y*I},
     Uvs = gb_trees:update(V,St,Uvs0),
     F2S = foldl(fun(Face,Acc) ->
-			[V1,V2,V3] = gb_trees:get(Face, F2Vs),
-			{Q1,Q2,Q3} = gb_trees:get(Face, F2OV),
-			S = l2(gb_trees:get(V1,Uvs),
-			       gb_trees:get(V2,Uvs),
-			       gb_trees:get(V3,Uvs),
-			       Q1,Q2,Q3),
-			gb_trees:update(Face, S, Acc)
-		end, F2S0, Fs),
-    Stretch = model_l2(Fs,F2S,F2A,0.0,0.0),
-    
-%%    io:format("~.2f ",[Stretch]),
+ 			[V1,V2,V3] = gb_trees:get(Face, F2Vs),
+ 			{Q1,Q2,Q3} = gb_trees:get(Face, F2OV),
+ 			S = l2(gb_trees:get(V1,Uvs),
+ 			       gb_trees:get(V2,Uvs),
+ 			       gb_trees:get(V3,Uvs),
+ 			       Q1,Q2,Q3),
+			io:format("~p ~.2f ", [Face,S]),
+ 			gb_trees:update(Face, S, Acc)
+ 		end, F2S0, Fs),
+    Stretch = model_l2(Fs,F2S,F2A,0.0,0.0),    
+    io:format("Old ~p ~.2f ~.2f~n", [St,Stretch,PVal]),
     if 
-	Stretch < PVal ->
-%	    ?DBG("Found better ~p ~p ~p ~p ~n",[I,Step,Stretch,PVal]),
-	    opt_v(Stretch,I+Step,Step,Max,V,L,Fs,F2S,Uvs,State);
+ 	Stretch < PVal ->
+ %	    ?DBG("Found better ~p ~p ~p ~p ~n",[I,Step,Stretch,PVal]),
+	     old(Stretch,I+Step,Step,Max,V,L,Fs,F2S,Uvs,State);
 	true ->
-	    NewStep = Step/10,
-	    opt_v(PVal,I-Step+NewStep,NewStep,Step,V,L,Fs,F2S0,Uvs0,State)
-%	    ?DBG("Miss ~p ~p ~p ~p ~n",[I,Step,Stretch,PVal]),
-%%	    opt_v(PVal,I+Step,Step,Max,V,L,Fs,F2Vs,Uvs0,Ovs)
-    end;
-opt_v(PVal,_I,_Step,_Max,_V,_L,_Fs,F2S,Uvs0,_) ->
-%%    io:format("I ~p", [_I]),
+	     NewStep = Step/10,
+	     old(PVal,I-Step+NewStep,NewStep,Step,V,L,Fs,F2S0,Uvs0,State)
+ %	    ?DBG("Miss ~p ~p ~p ~p ~n",[I,Step,Stretch,PVal]),
+	     %%	    opt_v(PVal,I+Step,Step,Max,V,L,Fs,F2Vs,Uvs0,Ovs)
+     end;
+old(PVal,_I,_Step,_Max,_V,_L,_Fs,F2S,Uvs0,_) ->
+    %%    io:format("I ~p", [_I]),
     {PVal,Uvs0,F2S}.
 
-
-%% Hmm, I just sum this up... should this be calc'ed as model_XX ??
 stretch_per_vertex([{V,Fs}|R],F2S,State=#s{bv=Bv,f2a=F2A},Tree) ->
     case gb_sets:is_member(V,Bv) of
 	false ->
@@ -1076,33 +1117,11 @@ model_l2([Face|R], F2S2, F2A, Mean, Area)  ->
 model_l2([],_,_,Mean,Area) ->
     math:sqrt(Mean/Area).
 
-l2(P1,P2,P3,Q1,Q2,Q3) ->  %% Mean stretch value
-    A2 = area2d2(P1,P2,P3),
-    if A2 > 0.00000001 ->
-	    SS0 = ss(P1,P2,P3,Q1,Q2,Q3),
-	    ST0 = st(P1,P2,P3,Q1,Q2,Q3),
-	    SS = e3d_vec:divide(SS0,A2),
-	    ST = e3d_vec:divide(ST0,A2),
-	    A = e3d_vec:dot(SS,SS),
-	    C = e3d_vec:dot(ST,ST),
-	    Temp = (A+C)/2.0,
-	    if Temp < 1.0 ->
-		    %% 1.0+1.0-math:sqrt(Temp);  %% This or 
-		    1.0;  %% that
-	       true ->
-		    math:sqrt(Temp)
-	    end;
-       true -> 
-	    9999999999.9
-    end.
-    
 l8(P1,P2,P3,Q1,Q2,Q3) ->  %% Worst stretch value
     A2 = area2d2(P1,P2,P3),
     if A2 > 0.00000001 ->
-	    SS0 = ss(P1,P2,P3,Q1,Q2,Q3),
-	    ST0 = st(P1,P2,P3,Q1,Q2,Q3),
-	    SS = e3d_vec:divide(SS0,A2),
-	    ST = e3d_vec:divide(ST0,A2),
+	    SS = ss(P1,P2,P3,Q1,Q2,Q3,A2),
+	    ST = st(P1,P2,P3,Q1,Q2,Q3,A2),
 	    A = e3d_vec:dot(SS,SS),
 	    B = e3d_vec:dot(SS,ST),
 	    C = e3d_vec:dot(ST,ST),
@@ -1111,20 +1130,51 @@ l8(P1,P2,P3,Q1,Q2,Q3) ->  %% Worst stretch value
 	    9999999999.9
     end.
 
-ss({_,T1},{_,T2},{_,T3},Q1,Q2,Q3) 
-  when is_float(T1),is_float(T2),is_float(T3) ->
-    M1 = e3d_vec:mul(Q1, T2-T3),
-    M2 = e3d_vec:mul(Q2, T3-T1),
-    M3 = e3d_vec:mul(Q3, T1-T2),
-%%    ?DBG("~p ~p~n", [[M1,M2,M3],e3d_vec:add([M1,M2,M3])]),
-    e3d_vec:add([M1,M2,M3]).
+l2(P1,P2,P3,Q1,Q2,Q3) ->  %% Mean stretch value
+    A2 = area2d2(P1,P2,P3),
+    if A2 > 0.00000001 ->
+	    SS = ss(P1,P2,P3,Q1,Q2,Q3,A2),
+	    ST = st(P1,P2,P3,Q1,Q2,Q3,A2),
+	    A = e3d_vec:dot(SS,SS),
+	    C = e3d_vec:dot(ST,ST),
+	    Temp = (A+C)/2.0,
+	    if Temp < 1.0 ->
+		    1.0;
+	       true ->
+		    math:sqrt(Temp)
+	    end;
+       true -> 
+	    9999999999.9
+    end.
     
-st({S1,_},{S2,_},{S3,_},Q1,Q2,Q3) 
-  when is_float(S1),is_float(S2),is_float(S3) ->
-    M1 = e3d_vec:mul(Q1, S3-S2),
-    M2 = e3d_vec:mul(Q2, S1-S3),
-    M3 = e3d_vec:mul(Q3, S2-S1),
-    e3d_vec:add([M1,M2,M3]).
+ss({_,T1},{_,T2},{_,T3},{Q1x,Q1y,Q1z},{Q2x,Q2y,Q2z},{Q3x,Q3y,Q3z},A) 
+  when is_float(T1),is_float(T2),is_float(T3),
+       is_float(Q1x),is_float(Q1y),is_float(Q1z),
+       is_float(Q2x),is_float(Q2y),is_float(Q2z),
+       is_float(Q3x),is_float(Q3y),is_float(Q3z) ->
+%     M1 = e3d_vec:mul(Q1, T2-T3),
+%     M2 = e3d_vec:mul(Q2, T3-T1),
+%     M3 = e3d_vec:mul(Q3, T1-T2),
+%     e3d_vec:divide(e3d_vec:add([M1,M2,M3]),A).
+    T23 = T2-T3,    T31 = T3-T1,    T12 = T1-T2,
+    {(Q1x*T23+Q2x*T31+Q3x*T12)/A,
+     (Q1y*T23+Q2y*T31+Q3y*T12)/A,
+     (Q1z*T23+Q2z*T31+Q3z*T12)/A}.
+    
+    
+st({S1,_},{S2,_},{S3,_},{Q1x,Q1y,Q1z},{Q2x,Q2y,Q2z},{Q3x,Q3y,Q3z},A) 
+  when is_float(S1),is_float(S2),is_float(S3),
+       is_float(Q1x),is_float(Q1y),is_float(Q1z),
+       is_float(Q2x),is_float(Q2y),is_float(Q2z),
+       is_float(Q3x),is_float(Q3y),is_float(Q3z) ->
+%     M1 = e3d_vec:mul(Q1, S3-S2),
+%     M2 = e3d_vec:mul(Q2, S1-S3),
+%     M3 = e3d_vec:mul(Q3, S2-S1),
+%     e3d_vec:divide(e3d_vec:add([M1,M2,M3]),A).
+    S32 = S3-S2,    S13 = S1-S3,    S21 = S2-S1,
+    {(Q1x*S32+Q2x*S13+Q3x*S21)/A,
+     (Q1y*S32+Q2y*S13+Q3y*S21)/A,
+     (Q1z*S32+Q2z*S13+Q3z*S21)/A}.
 
 triangulate([Face|Fs], I, We,Tris) ->
     Vs0 = wpa:face_vertices(Face, We),
