@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.109 2003/08/31 07:21:15 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.110 2003/08/31 11:00:26 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -16,10 +16,10 @@
 	 update/2,map/2,fold/2,changed_materials/1,
 	 render/1,call/1,call_one_of/2,
 	 prepare/3,
-	 plain_face/2,plain_face/3,uv_face/2,uv_face/3,vcol_face/2,vcol_face/3,
-	 smooth_mat_faces/1,smooth_uv_faces/1,smooth_vcol_faces/1,
+	 plain_face/2,plain_face/3,uv_face/3,vcol_face/2,vcol_face/3,
+	 smooth_plain_faces/2,smooth_uv_faces/2,smooth_vcol_faces/2,
 	 unlit_face/2,unlit_face/3,
-	 force_flat_color/2,consistent_normal/4,good_triangulation/5]).
+	 force_flat_color/2,good_triangulation/5]).
 
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
@@ -552,7 +552,7 @@ vtx_color_split_3([], C) -> C.
 vtx_smooth_color_split(Ftab) ->
     vtx_smooth_color_split_1(Ftab, [], []).
 
-vtx_smooth_color_split_1([{_,{_,Vs}}=Face|Fs], SameAcc, DiffAcc) ->
+vtx_smooth_color_split_1([{_,Vs}=Face|Fs], SameAcc, DiffAcc) ->
     case vtx_smooth_face_color(Vs) of
 	different -> vtx_smooth_color_split_1(Fs, SameAcc, [Face|DiffAcc]);
 	Col -> vtx_smooth_color_split_1(Fs, [{Col,Face}|SameAcc], DiffAcc)
@@ -560,10 +560,10 @@ vtx_smooth_color_split_1([{_,{_,Vs}}=Face|Fs], SameAcc, DiffAcc) ->
 vtx_smooth_color_split_1([], SameAcc, DiffAcc) ->
     {wings_util:rel2fam(SameAcc),DiffAcc}.
 
-vtx_smooth_face_color([{_,Col,_}|T]) ->
+vtx_smooth_face_color([[Col|_]|T]) ->
     vtx_smooth_face_color_1(T, Col).
 
-vtx_smooth_face_color_1([{_,Col,_}|T], Col) ->
+vtx_smooth_face_color_1([[Col|_]|T], Col) ->
     vtx_smooth_face_color_1(T, Col);
 vtx_smooth_face_color_1([_|_], _) -> different;
 vtx_smooth_face_color_1([], Col) -> Col.
@@ -612,20 +612,6 @@ plain_face_1([], _, VsPos) ->
 %%
 %% Tesselate and draw face. Include UV coordinates.
 %%
-
-uv_face(Face, #dlo{src_we=We,ns=Ns}) ->
-    UVs = wings_face:vertex_info(Face, We),
-    case gb_trees:get(Face, Ns) of
-	[N|VsPos] ->
-	    gl:normal3fv(N),
-	    wings__du:uv_face(VsPos, UVs);
-	{N,VsPos} ->
-	    gl:normal3fv(N),
-	    wings__du:uv_face(N, VsPos, UVs)
-    end;
-uv_face(Face, #we{fs=Ftab}=We) ->
-    Edge = gb_trees:get(Face, Ftab),
-    uv_face(Face, Edge, We).
 
 uv_face(Face, Edge, #dlo{src_we=We,ns=Ns}) ->
     UVs = wings_face:vertex_info(Face, Edge, We),
@@ -723,21 +709,6 @@ good_triangulation({Nx,Ny,Nz}, {Ax,Ay,Az}, {Bx,By,Bz}, {Cx,Cy,Cz}, {Dx,Dy,Dz})
 good_triangulation_1(D1, D2) when D1 > 0, D2 > 0 -> true;
 good_triangulation_1(_, _) -> false.
 
-%% consistent_normal(Point1, Point2, Point3, Normal) -> true|false
-%%  Return true if the normal for the triangle Point1-Point2-Point3
-%%  points in approximately the same direction as the normal Normal.
-consistent_normal({A0,A1,A2}, {B0,B1,B2}, {C0,C1,C2}, {X,Y,Z})
-  when is_float(A0), is_float(A1), is_float(A2),
-       is_float(B0), is_float(B1), is_float(B2),
-       is_float(C0), is_float(C1), is_float(C2) ->
-    D10 = A0-B0,
-    D11 = A1-B1,
-    D12 = A2-B2,
-    D20 = B0-C0,
-    D21 = B1-C1,
-    D22 = B2-C2,
-    X*(D11*D22-D12*D21) + Y*(D12*D20-D10*D22) + Z*(D10*D21-D11*D20) > 0.
-
 %% force_flat_color(OriginalDlist, Color) -> NewDlist.
 %%  Wrap a previous display list (that includes gl:color*() calls)
 %%  into a new display lists that forces the flat color Color
@@ -766,59 +737,29 @@ force_flat_color(OriginalDlist, {R,G,B}) ->
     gl:endList(),
     {call,Dl,OriginalDlist}.
 
-smooth_mat_faces([{_,{_,[_,_,_]=Vs}}|Fs]) ->
-    wings__du:smooth_plain_face(Vs),
-    smooth_mat_faces(Fs);
-smooth_mat_faces([{_,{N,[A,B,C,D]=Vs}}|Fs]) ->
-    Ap = element(1, A),
-    Bp = element(1, B),
-    Cp = element(1, C),
-    Dp = element(1, D),
-    case wings_draw_util:good_triangulation(N, Ap, Bp, Cp, Dp) of
-	false -> wings__du:smooth_plain_face(N, Vs);
-	true -> wings__du:smooth_plain_face(Vs)
+smooth_plain_faces([{Face,VsInfo}|Fs], Ns) ->
+    case gb_trees:get(Face, Ns) of
+	[_|Pos] -> wings__du:smooth_plain_face(Pos, VsInfo);
+	{N,Pos} -> wings__du:smooth_plain_face(N, Pos, VsInfo)
     end,
-    smooth_mat_faces(Fs);
-smooth_mat_faces([{_,{N,Vs}}|Fs]) ->
-    wings__du:smooth_plain_face(N, Vs),
-    smooth_mat_faces(Fs);
-smooth_mat_faces([]) -> ok.
+    smooth_plain_faces(Fs, Ns);
+smooth_plain_faces([], _) -> ok.
 
-smooth_uv_faces([{_,{_,[_,_,_]=Vs}}|Fs]) ->
-    wings__du:smooth_uv_face(Vs),
-    smooth_uv_faces(Fs);
-smooth_uv_faces([{_,{N,[A,B,C,D]=Vs}}|Fs]) ->
-    Ap = element(1, A),
-    Bp = element(1, B),
-    Cp = element(1, C),
-    Dp = element(1, D),
-    case wings_draw_util:good_triangulation(N, Ap, Bp, Cp, Dp) of
-	false -> wings__du:smooth_uv_face(N, Vs);
-	true -> wings__du:smooth_uv_face(Vs)
+smooth_uv_faces([{Face,VsInfo}|Fs], Ns) ->
+    case gb_trees:get(Face, Ns) of
+	[_|Pos] -> wings__du:smooth_uv_face(Pos, VsInfo);
+	{N,Pos} -> wings__du:smooth_uv_face(N, Pos, VsInfo)
     end,
-    smooth_uv_faces(Fs);
-smooth_uv_faces([{_,{N,Vs}}|Fs]) ->
-    wings__du:smooth_uv_face(N, Vs),
-    smooth_uv_faces(Fs);
-smooth_uv_faces([]) -> ok.
+    smooth_uv_faces(Fs, Ns);
+smooth_uv_faces([], _) -> ok.
 
-smooth_vcol_faces([{_,{_,[_,_,_]=Vs}}|Fs]) ->
-    wings__du:smooth_vcol_face(Vs),
-    smooth_vcol_faces(Fs);
-smooth_vcol_faces([{_,{N,[A,B,C,D]=Vs}}|Fs]) ->
-    Ap = element(1, A),
-    Bp = element(1, B),
-    Cp = element(1, C),
-    Dp = element(1, D),
-    case wings_draw_util:good_triangulation(N, Ap, Bp, Cp, Dp) of
-	false -> wings__du:smooth_vcol_face(N, Vs);
-	true -> wings__du:smooth_vcol_face(Vs)
+smooth_vcol_faces([{Face,VsInfo}|Fs], Ns) ->
+    case gb_trees:get(Face, Ns) of
+	[_|Pos] -> wings__du:smooth_vcol_face(Pos, VsInfo);
+	{N,Pos} -> wings__du:smooth_vcol_face(N, Pos, VsInfo)
     end,
-    smooth_vcol_faces(Fs);
-smooth_vcol_faces([{_,{N,Vs}}|Fs]) ->
-    wings__du:smooth_vcol_face(N, Vs),
-    smooth_vcol_faces(Fs);
-smooth_vcol_faces([]) -> ok.
+    smooth_vcol_faces(Fs, Ns);
+smooth_vcol_faces([], _) -> ok.
 
 %% Draw a face without any lighting.
 unlit_face(Face, #dlo{ns=Ns}) ->

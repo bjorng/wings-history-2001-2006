@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.148 2003/08/31 07:21:15 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.149 2003/08/31 11:00:26 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -710,7 +710,7 @@ draw_uv_faces([], _) -> ok.
 %%% Smooth drawing.
 %%%
 
-smooth_dlist(#dlo{src_we=#we{he=Htab0,fs=Ftab,mirror=Face}=We,ns=Ns0}, St) ->
+smooth_dlist(#dlo{src_we=#we{he=Htab0,fs=Ftab,mirror=Face}=We,ns=Ns0}=D, St) ->
     Ns1 = foldl(fun({F,[N|_]}, A) -> [{F,N}|A];
 		   ({F,{N,_}}, A) -> [{F,N}|A]
 		end, [], gb_trees:to_list(Ns0)),
@@ -718,54 +718,52 @@ smooth_dlist(#dlo{src_we=#we{he=Htab0,fs=Ftab,mirror=Face}=We,ns=Ns0}, St) ->
     case gb_trees:is_defined(Face, Ftab) of
 	false ->
 	    Flist = wings_we:normals(Ns, We),
-	    smooth_faces(Flist, We, St);
+	    smooth_faces(Flist, D, St);
 	true ->
 	    Edges = wings_face:outer_edges([Face], We),
 	    Htab = gb_sets:union(Htab0, gb_sets:from_list(Edges)),
 	    Flist = wings_we:normals(Ns, We#we{he=Htab}),
-	    smooth_faces(Flist, We, St)
+	    smooth_faces(Flist, D, St)
     end;
-smooth_dlist(#we{he=Htab0,fs=Ftab,mirror=Face}=We, St) ->
-    case gb_trees:is_defined(Face, Ftab) of
-	false ->
-	    Flist = wings_we:normals(We),
-	    smooth_faces(Flist, We, St);
-	true ->
-	    Edges = wings_face:outer_edges([Face], We),
-	    Htab = gb_sets:union(Htab0, gb_sets:from_list(Edges)),
-	    Flist = wings_we:normals(We#we{he=Htab}),
-	    smooth_faces(Flist, We, St)
-    end.
+smooth_dlist(We, St) ->
+    %% Only called by wpc_opengl. Does not need to be terribly efficient.
+    D = changed_we(#dlo{}, #dlo{src_we=We}),
+    smooth_dlist(D, St).
 
-smooth_faces(Ftab, We, St) ->
-    smooth_faces(wings_draw_util:prepare(Ftab, We, St)).
+smooth_faces(Ftab, D, St) ->
+    smooth_faces(wings_draw_util:prepare(Ftab, D, St), D).
 
-smooth_faces({material,MatFaces,St}) ->
-    draw_smooth_faces(fun draw_smooth_mat_faces/2, MatFaces, St);
-smooth_faces({color,{Same,Diff},#st{mat=Mtab}}) ->
+smooth_faces({material,MatFaces,St}, #dlo{ns=Ns}) ->
+    Draw = fun(false, Fs) ->
+		   wings_draw_util:smooth_plain_faces(Fs, Ns);
+	      (true, Fs) ->
+		   wings_draw_util:smooth_uv_faces(Fs, Ns)
+	   end,
+    draw_smooth_faces(Draw, MatFaces, St);
+smooth_faces({color,{Same,Diff},#st{mat=Mtab}}, #dlo{ns=Ns}) ->
     ListOp = gl:genLists(1),
     gl:newList(ListOp, ?GL_COMPILE),
     wings_material:apply_material(default, Mtab),
     gl:enable(?GL_COLOR_MATERIAL),
     gl:colorMaterial(?GL_FRONT_AND_BACK, ?GL_AMBIENT_AND_DIFFUSE),
     Draw = fun() ->
-		   draw_smooth_vtx_faces_1(Same),
-		   wings_draw_util:smooth_vcol_faces(Diff)
+		   draw_smooth_vtx_faces_1(Same, Ns),
+		   wings_draw_util:smooth_vcol_faces(Diff, Ns)
 	   end,
     wings_draw_util:begin_end(Draw),
     gl:disable(?GL_COLOR_MATERIAL),
     gl:endList(),
     {[ListOp,none],false}.
 
-draw_smooth_vtx_faces_1([{none,Faces}|MatFaces]) ->
+draw_smooth_vtx_faces_1([{none,Faces}|MatFaces], Ns) ->
     gl:color3f(1.0, 1.0, 1.0),
-    wings_draw_util:smooth_mat_faces(Faces),
-    draw_smooth_vtx_faces_1(MatFaces);
-draw_smooth_vtx_faces_1([{Col,Faces}|MatFaces]) ->
+    wings_draw_util:smooth_plain_faces(Faces, Ns),
+    draw_smooth_vtx_faces_1(MatFaces, Ns);
+draw_smooth_vtx_faces_1([{Col,Faces}|MatFaces], Ns) ->
     gl:color3fv(Col),
-    wings_draw_util:smooth_mat_faces(Faces),
-    draw_smooth_vtx_faces_1(MatFaces);
-draw_smooth_vtx_faces_1([]) -> ok.
+    wings_draw_util:smooth_plain_faces(Faces, Ns),
+    draw_smooth_vtx_faces_1(MatFaces, Ns);
+draw_smooth_vtx_faces_1([], _) -> ok.
 
 draw_smooth_faces(DrawFace, Flist, #st{mat=Mtab}) ->
     ListOp = gl:genLists(1),
@@ -806,11 +804,6 @@ do_draw_smooth(DrawFaces, Mat, Faces, Mtab) ->
 	      DrawFaces(IsTxMaterial, Faces)
       end),
     gl:popAttrib().
-
-draw_smooth_mat_faces(false, Fs) ->
-    wings_draw_util:smooth_mat_faces(Fs);
-draw_smooth_mat_faces(true, Fs) ->
-    wings_draw_util:smooth_uv_faces(Fs).
 
 %%
 %% Draw normals for the selected elements.

@@ -8,15 +8,15 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings__du.erl,v 1.6 2003/08/30 18:18:50 bjorng Exp $
+%%     $Id: wings__du.erl,v 1.7 2003/08/31 11:00:25 bjorng Exp $
 %%
 
 -module(wings__du).
 -export([is_quirky_loaded/0,init_cb/1,begin_end/2,
 	 plain_face/1,plain_face/2,uv_face/2,uv_face/3,vcol_face/2,vcol_face/3,
-	 smooth_plain_face/1,smooth_plain_face/2,
-	 smooth_uv_face/1,smooth_uv_face/2,
-	 smooth_vcol_face/1,smooth_vcol_face/2]).
+	 smooth_plain_face/2,smooth_plain_face/3,
+	 smooth_uv_face/2,smooth_uv_face/3,
+	 smooth_vcol_face/2,smooth_vcol_face/3]).
 
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
@@ -207,134 +207,134 @@ vcol_face_1(Tess, [], []) ->
 
 %% smooth_plain_face([{Position,_,VertexNormal}]) -> ok
 %%  Draw a smooth tri or quad with neither UV coordinates nor vertex colors.
-smooth_plain_face([A,B,C]) ->
+smooth_plain_face([A,B,C], [Na,Nb,Nc]) ->
     ?GL__BEGIN(?GL_TRIANGLES),
-    smooth_plain_face_vtx(A),
-    smooth_plain_face_vtx(B),
-    ?GL__END(smooth_plain_face_vtx(C));
-smooth_plain_face([A,B,C,D]) ->
+    smooth_plain_face_vtx(A, Na),
+    smooth_plain_face_vtx(B, Nb),
+    ?GL__END(smooth_plain_face_vtx(C, Nc));
+smooth_plain_face([A,B,C,D], [Na,Nb,Nc,Nd]) ->
     ?GL__BEGIN(?GL_TRIANGLES),
-    smooth_plain_face_vtx(A),
-    smooth_plain_face_vtx(B),
-    ?GL__END(smooth_plain_face_vtx(C)),
+    smooth_plain_face_vtx(A, Na),
+    smooth_plain_face_vtx(B, Nb),
+    ?GL__END(smooth_plain_face_vtx(C, Nc)),
     ?GL__BEGIN(?GL_TRIANGLES),
-    smooth_plain_face_vtx(A),
-    smooth_plain_face_vtx(C),
-    ?GL__END(smooth_plain_face_vtx(D)).
+    smooth_plain_face_vtx(A, Na),
+    smooth_plain_face_vtx(C, Nc),
+    ?GL__END(smooth_plain_face_vtx(D, Nd)).
 
-smooth_plain_face_vtx({P,_,N}) ->
+smooth_plain_face_vtx(P, [_|N]) ->
     gl:normal3fv(N),
     gl:vertex3dv(P).
 
-%% smooth_plain_face(FaceNormal, [{Position,_,VertexNormal}]) -> ok
+%% smooth_plain_face(FaceNormal, [Position], [[_|VertexNormal]]) -> ok
 %%  Draw a smooth face with neither UV coordinates nor vertex colors.
-smooth_plain_face(N, Vs) ->
+smooth_plain_face(N, VsPos, Ns) ->
     Tess = wings_draw_util:tess(),
     {X,Y,Z} = N,
     glu:tessNormal(Tess, X, Y, Z),
     glu:tessBeginPolygon(Tess),
     glu:tessBeginContour(Tess),
-    smooth_plain_face_1(Tess, Vs).
+    smooth_plain_face_1(Tess, VsPos, Ns).
 
-smooth_plain_face_1(Tess, [{P,_,N}|Vs]) ->
+smooth_plain_face_1(Tess, [P|Ps], [[_|N]|Ns]) ->
     glu:tessVertex(Tess, P, [{normal,N}]),
-    smooth_plain_face_1(Tess, Vs);
-smooth_plain_face_1(Tess, []) ->
+    smooth_plain_face_1(Tess, Ps, Ns);
+smooth_plain_face_1(Tess, [], []) ->
     glu:tessEndContour(Tess),
     glu:tessEndPolygon(Tess).
 
 %% smooth_uv_face([{Position,UV,VertexNormal}]) -> ok
 %%  Draw a smoth tri or quad with UV coordinates. For vertices without
 %%  UV coordinates, (0, 0) will be used.
-smooth_uv_face([A,B,C]) ->
+smooth_uv_face([A,B,C], [Ai,Bi,Ci]) ->
     ?GL__BEGIN(?GL_TRIANGLES),
-    smooth_uv_face_vtx(A),
-    smooth_uv_face_vtx(B),
-    ?GL__END(smooth_uv_face_vtx(C));
-smooth_uv_face([A,B,C,D]) ->
+    smooth_uv_face_vtx(A, Ai),
+    smooth_uv_face_vtx(B, Bi),
+    ?GL__END(smooth_uv_face_vtx(C, Ci));
+smooth_uv_face([A,B,C,D], [Ai,Bi,Ci,Di]) ->
     ?GL__BEGIN(?GL_TRIANGLES),
-    smooth_uv_face_vtx(A),
-    smooth_uv_face_vtx(B),
-    ?GL__END(smooth_uv_face_vtx(C)),
+    smooth_uv_face_vtx(A, Ai),
+    smooth_uv_face_vtx(B, Bi),
+    ?GL__END(smooth_uv_face_vtx(C, Ci)),
     ?GL__BEGIN(?GL_TRIANGLES),
-    smooth_uv_face_vtx(A),
-    smooth_uv_face_vtx(C),
-    ?GL__END(smooth_uv_face_vtx(D)).
+    smooth_uv_face_vtx(A, Ai),
+    smooth_uv_face_vtx(C, Ci),
+    ?GL__END(smooth_uv_face_vtx(D, Di)).
 
-smooth_uv_face_vtx({P,{U,V},N}) ->
+smooth_uv_face_vtx(P, [{U,V}|N]) ->
     gl:texCoord2f(U, V),
     gl:normal3fv(N),
     gl:vertex3dv(P);
-smooth_uv_face_vtx({P,_,N}) ->
+smooth_uv_face_vtx(P, [_|N]) ->
     gl:texCoord2i(0, 0),
     gl:normal3fv(N),
     gl:vertex3dv(P).
 
-%% smooth_uv_face(FaceNormal, [{Position,UV,VertexNormal}]) -> ok
+%% smooth_uv_face(FaceNormal, [Position], [[UV|VertexNormal]]) -> ok
 %%  Draw a smoth face with UV coordinates. For vertices without
 %%  UV coordinates, (0, 0) will be used.
-smooth_uv_face(N, Vs) ->
+smooth_uv_face(N, VsPos, Info) ->
     Tess = wings_draw_util:tess(),
     {X,Y,Z} = N,
     glu:tessNormal(Tess, X, Y, Z),
     glu:tessBeginPolygon(Tess),
     glu:tessBeginContour(Tess),
-    smooth_uv_face_1(Tess, Vs).
+    smooth_uv_face_1(Tess, VsPos, Info).
 
-smooth_uv_face_1(Tess, [{P,{_,_}=UV,N}|Vs]) ->
+smooth_uv_face_1(Tess, [P|Ps], [[{_,_}=UV|N]|Info]) ->
     glu:tessVertex(Tess, P, [{normal,N},{texcoord2,UV}]),
-    smooth_uv_face_1(Tess, Vs);
-smooth_uv_face_1(Tess, [{P,_,N}|Vs]) ->
+    smooth_uv_face_1(Tess, Ps, Info);
+smooth_uv_face_1(Tess, [P|Ps], [[_|N]|Info]) ->
     glu:tessVertex(Tess, P, [{normal,N},{texcoord2,{0.0,0.0}}]),
-    smooth_uv_face_1(Tess, Vs);
-smooth_uv_face_1(Tess, []) ->
+    smooth_uv_face_1(Tess, Ps, Info);
+smooth_uv_face_1(Tess, [], []) ->
     glu:tessEndContour(Tess),
     glu:tessEndPolygon(Tess).
 
-%% smooth_vcol_face([{Position,UV,VertexNormal}]) -> ok
+%% smooth_vcol_face([Position], [[UV|VertexNormal]]) -> ok
 %%  Draw a smooth tri or quad with vertex colors. For vertices without
 %%  vertex colors, (1.0, 1.0, 1.0) will be used.
-smooth_vcol_face([A,B,C]) ->
+smooth_vcol_face([A,B,C], [Ai,Bi,Ci]) ->
     ?GL__BEGIN(?GL_TRIANGLES),
-    smooth_vcol_face_vtx(A),
-    smooth_vcol_face_vtx(B),
-    ?GL__END(smooth_vcol_face_vtx(C));
-smooth_vcol_face([A,B,C,D]) ->
+    smooth_vcol_face_vtx(A, Ai),
+    smooth_vcol_face_vtx(B, Bi),
+    ?GL__END(smooth_vcol_face_vtx(C, Ci));
+smooth_vcol_face([A,B,C,D], [Ai,Bi,Ci,Di]) ->
     ?GL__BEGIN(?GL_TRIANGLES),
-    smooth_vcol_face_vtx(A),
-    smooth_vcol_face_vtx(B),
-    ?GL__END(smooth_vcol_face_vtx(C)),
+    smooth_vcol_face_vtx(A, Ai),
+    smooth_vcol_face_vtx(B, Bi),
+    ?GL__END(smooth_vcol_face_vtx(C, Ci)),
     ?GL__BEGIN(?GL_TRIANGLES),
-    smooth_vcol_face_vtx(A),
-    smooth_vcol_face_vtx(C),
-    ?GL__END(smooth_vcol_face_vtx(D)).
+    smooth_vcol_face_vtx(A, Ai),
+    smooth_vcol_face_vtx(C, Ci),
+    ?GL__END(smooth_vcol_face_vtx(D, Di)).
 
-smooth_vcol_face_vtx({P,{R,G,B},N}) ->
+smooth_vcol_face_vtx(P, [{R,G,B}|N]) ->
     gl:color3f(R, G, B),
     gl:normal3fv(N),
     gl:vertex3dv(P);
-smooth_vcol_face_vtx({P,_,N}) ->
+smooth_vcol_face_vtx(P, [_|N]) ->
     gl:color3f(1, 1, 1),
     gl:normal3fv(N),
     gl:vertex3dv(P).
 
-%% smooth_vcol_face(FaceNormal, [{Position,UV,VertexNormal}]) -> ok
+%% smooth_vcol_face(FaceNormal, [Position], [[Color|VertexNormal]]) -> ok
 %%  Draw a smooth face with vertex colors. For vertices without
 %%  vertex colors, (1.0, 1.0, 1.0) will be used.
-smooth_vcol_face(N, Vs) ->
+smooth_vcol_face(N, VsPos, Cols) ->
     Tess = wings_draw_util:tess(),
     {X,Y,Z} = N,
     glu:tessNormal(Tess, X, Y, Z),
     glu:tessBeginPolygon(Tess),
     glu:tessBeginContour(Tess),
-    smooth_vcol_face_1(Tess, Vs).
+    smooth_vcol_face_1(Tess, VsPos, Cols).
 
-smooth_vcol_face_1(Tess, [{P,{_,_,_}=Color,N}|Vs]) ->
-    glu:tessVertex(Tess, P, [{color,Color},{normal,N}]),
-    smooth_vcol_face_1(Tess, Vs);
-smooth_vcol_face_1(Tess, [{P,_,N}|Vs]) ->
+smooth_vcol_face_1(Tess, [P|Ps], [[{_,_,_}=C|N]|Cols]) ->
+    glu:tessVertex(Tess, P, [{color,C},{normal,N}]),
+    smooth_vcol_face_1(Tess, Ps, Cols);
+smooth_vcol_face_1(Tess, [P|Ps], [[_|N]|Cols]) ->
     glu:tessVertex(Tess, P, [{color,{1.0,1.0,1.0}},{normal,N}]),
-    smooth_vcol_face_1(Tess, Vs);
-smooth_vcol_face_1(Tess, []) ->
+    smooth_vcol_face_1(Tess, Ps, Cols);
+smooth_vcol_face_1(Tess, [], []) ->
     glu:tessEndContour(Tess),
     glu:tessEndPolygon(Tess).
