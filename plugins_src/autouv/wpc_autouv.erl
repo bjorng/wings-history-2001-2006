@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.194 2004/03/11 05:12:44 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.195 2004/03/11 05:28:52 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -416,6 +416,7 @@ option_menu() ->
 %%% Event handling
 
 get_event(#st{}=St) ->
+    update_dlists(St),
     wings_wm:dirty(),
     get_event_nodraw(St).
 
@@ -536,6 +537,7 @@ handle_command(Cmd, St) ->
 -define(SS, 2.0).  % Scale mouse motion
 
 get_cmd_event(Op, X, Y, #st{}=St) ->
+    update_dlists(St),
     wings_wm:dirty(),
     get_cmd_event_noredraw(Op, X, Y, St).
 
@@ -751,8 +753,6 @@ broken_event(Ev, _) ->
 %%%
 
 redraw(#st{mat=Mats,bb=Uvs}=St) ->
-    update_dlists(St#st{selmode=body}),
-
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
 
     %% Draw background of AutoUV window.
@@ -764,8 +764,6 @@ redraw(#st{mat=Mats,bb=Uvs}=St) ->
     gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
     gl:disable(?GL_SCISSOR_TEST),
 
-    #uvstate{matname=MatN} = Uvs,
-
     gl:disable(?GL_CULL_FACE),
     gl:disable(?GL_LIGHTING),
 
@@ -775,6 +773,7 @@ redraw(#st{mat=Mats,bb=Uvs}=St) ->
 
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
     gl:color3f(1, 1, 1),			%Clear
+    #uvstate{matname=MatN} = Uvs,
     case has_texture(MatN, Mats) of
 	false -> ok;
 	_ -> wings_material:apply_material(MatN, Mats)
