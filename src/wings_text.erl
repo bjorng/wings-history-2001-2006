@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_text.erl,v 1.27 2004/04/20 06:11:50 bjorng Exp $
+%%     $Id: wings_text.erl,v 1.28 2004/04/23 12:44:54 bjorng Exp $
 %%
 
 -module(wings_text).
@@ -148,6 +148,7 @@ skip_blanks(T) -> T.
 %%% Special characters.
 %%%
 
+cw_small(bullet) -> 5;
 cw_small(option_box) -> 6;
 cw_small(command) -> 8;
 cw_small(folder) -> 12;
@@ -156,6 +157,7 @@ cw_small(shift) -> 13;
 cw_small(caret) -> 2;
 cw_small(crossmark) -> 8.
 
+cw_large(bullet) -> 6;
 cw_large(option_box) -> 7;
 cw_large(command) -> 8;
 cw_large(folder) -> 14;
@@ -172,6 +174,13 @@ special(C) ->
 	    special_large(C)
     end.
 
+special_small(bullet) ->
+    B = <<
+	 2#01100000,
+	 2#11110000,
+	 2#01100000
+	 >>,
+    gl:bitmap(4, 3, 0, -2, 5, 0, B);
 special_small(option_box) ->
     B = <<
 	 2#11111100,
@@ -260,6 +269,14 @@ special_small(folder) ->
        	 2#0000000000000000:16>>,
     gl:bitmap(11, 9, 0, 0, 12, 0, B).
 
+special_large(bullet) ->
+    B = <<
+	 2#01110000,
+	 2#11111000,
+	 2#11111000,
+	 2#01110000
+	 >>,
+    gl:bitmap(5, 4, 0, -2, 6, 0, B);
 special_large(option_box) ->
     B = <<
 	 2#11111100,
