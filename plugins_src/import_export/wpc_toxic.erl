@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_toxic.erl,v 1.5 2004/06/11 15:01:36 dgud Exp $
+%%     $Id: wpc_toxic.erl,v 1.6 2004/06/11 20:37:57 dgud Exp $
 %%
 
 -module(wpc_toxic).
@@ -810,7 +810,7 @@ export_settings(#files{settings=File}, Attr) ->
     end,
     case pget(indirect_light, Attr) of
 	true ->
-	    println(F, " <InDirectLighting>"),
+	    println(F, " <IndirectLighting>"),
 	    println(F, "  <PhotonTracing photons=\"~s\" />",
 		    [format(pget(idlnoPhotons,Attr))]),
 	    println(F, "  <RadianceEstimate maxphotons=\"~s\" maxdistance=\"~s\"/>",
@@ -838,7 +838,7 @@ export_settings(#files{settings=File}, Attr) ->
 		    println(F, " </SecondaryFinalGathering>");
 		false -> ok
 	    end,
-	    println(F," </InDirectLighting>");
+	    println(F," </IndirectLighting>");
 	false -> ok
     end,
     case pget(specular_refl, Attr) of
@@ -1034,15 +1034,16 @@ export_camera(F, Scale, Attr) ->
 %     io:format("Dir ~p DirDeg ~p DirAxis ~p~n", [Dir,DirDeg,DirAxis]),
 %     io:format("Up ~p UpRot ~p UpDeg ~p UpAxis ~p~n", [Up,UpRot,UpDeg,UpAxis]),
 
-%%%%%%%%%%% Same as wings %%%%%%%%%%%%
+%%%%%%%%%%% Almost Same as wings %%%%%%%%%%%%
+%%% After trial and error, This works..
     println(F,"      <Translation value=\"~s ~s ~s\"/>", 
-	    [format(PanX*Scale),format(PanY*Scale),format(-Dist*Scale)]),
+	    [format(-PanX*Scale),format(-PanY*Scale),format(Dist*Scale)]),
     println(F,"      <Rotation angle=\"~s\" axis=\"1.0 0.0 0.0\"/>", 
-	    [format(El)]),
+	    [format(-El)]),
     println(F,"      <Rotation angle=\"~s\" axis=\"0.0 1.0 0.0\"/>", 
-	    [format(Az)]),
+	    [format(-Az)]),
     println(F,"      <Translation value=\"~s ~s ~s\"/>", 
-	    vector_to_list(Origin,Scale)),
+	    vector_to_list(Origin,-Scale)),
     println(F,"    </Transform>"),
     println(F,"  </Object>"),
     ok.
