@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.141 2004/04/15 20:35:55 raimo_niskanen Exp $
+%%     $Id: wings_wm.erl,v 1.142 2004/04/17 19:02:07 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -69,7 +69,7 @@
 	 w,h,					%Size.
 	 name,					%Name of window.
 	 stk,					%Event handler stack.
-	 props=gb_trees:empty(),		%Window properties.
+	 props,					%Window properties.
 	 links=[]			  %Windows linked to this one.
 	}).
 
@@ -209,7 +209,8 @@ new(Name, {X,Y,Z0}, {W,H}, Op) when is_integer(X), is_integer(Y),
 				    is_integer(W), is_integer(H) ->
     Z = new_resolve_z(Z0),
     Stk = handle_response(Op, dummy_event, default_stack(Name)),
-    Win = #win{x=X,y=Y,z=Z,w=W,h=H,name=Name,stk=Stk},
+    Props = gb_trees:from_orddict([{font,wings_pref:get_value(system_font)}]),
+    Win = #win{x=X,y=Y,z=Z,w=W,h=H,name=Name,stk=Stk,props=Props},
     put(wm_windows, gb_trees:insert(Name, Win, get(wm_windows))),
     dirty().
 

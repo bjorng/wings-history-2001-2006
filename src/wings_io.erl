@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.133 2004/04/09 05:30:15 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.134 2004/04/17 19:02:06 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -22,7 +22,7 @@
 	 sunken_gradient/7,
 	 raised_rect/4,raised_rect/5,raised_rect/6,
 	 gradient_rect/5,
-	 text_at/2,text_at/3,unclipped_text/3,space_at/2,
+	 use_font/2,text_at/2,text_at/3,unclipped_text/3,
 	 draw_icons/1,draw_icon/3,draw_char/1,
 	 set_color/1]).
 -export([putback_event/1,putback_event_once/1,get_event/0,get_matching_events/1,
@@ -243,16 +243,38 @@ gradient_rect(X, Y, W, H, Color) ->
     gl:'end'(),
     gl:shadeModel(?GL_FLAT).
 
-space_at(X, Y) ->
-    set_color(?PANE_COLOR),
-    gl:recti(X, Y-?LINE_HEIGHT+3, X+?CHAR_WIDTH, Y+3),
-    gl:color3b(0, 0, 0).
+
+use_font(Font, Fun) ->
+    case wings_wm:this() of
+	none ->
+	    OldFont = wings_pref:get_value(system_font),
+	    wings_pref:set_value(system_font, Font),
+	    Res = Fun(),
+	    wings_pref:set_value(system_font, OldFont),
+	    Res;
+	This ->
+	    OldFont = wings_wm:get_prop(This, font),
+	    wings_wm:set_prop(This, font, Font),
+	    Res = Fun(),
+	    wings_wm:set_prop(This, font, OldFont),
+	    Res
+    end.
 
 text_at(X, S) ->
     text_at(X, 0, S).
 
 text_at(X, Y, S) ->
-    setup_scissor(fun() -> unclipped_text(X, Y, S) end).
+    case wings_util:is_gl_restriction(broken_scissor) of
+	true ->
+	    %% Scissor cannot clip text, but slows down text drawing.
+	    unclipped_text(X, Y, S);
+	false ->
+	    {Vx,Vy,W,H} = wings_wm:viewport(),
+	    gl:scissor(Vx, Vy, W, H),
+	    gl:enable(?GL_SCISSOR_TEST),
+	    unclipped_text(X, Y, S),
+	    gl:disable(?GL_SCISSOR_TEST)
+    end.
 
 unclipped_text(X, Y, S) ->
     gl:rasterPos2i(X, Y),
@@ -301,19 +323,6 @@ text([L|Cs], X0, Y, Acc) when is_list(L) ->
     draw_reverse(Acc),
     text(L++Cs, X, Y, []);
 text([], _, _, Acc) -> draw_reverse(Acc).
-
-setup_scissor(DrawText) ->
-    case wings_util:is_gl_restriction(broken_scissor) of
-	true ->
-	    %% Scissor cannot clip text, but slows down text drawing.
-	    DrawText();
-	false ->
-	    {X,Y,W,H} = wings_wm:viewport(),
-	    gl:scissor(X, Y, W, H),
-	    gl:enable(?GL_SCISSOR_TEST),
-	    DrawText(),
-	    gl:disable(?GL_SCISSOR_TEST)
-    end.
 
 draw_reverse([]) -> ok;
 draw_reverse(S0) ->

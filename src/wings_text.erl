@@ -8,51 +8,37 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_text.erl,v 1.25 2004/04/15 20:35:55 raimo_niskanen Exp $
+%%     $Id: wings_text.erl,v 1.26 2004/04/17 19:02:07 bjorng Exp $
 %%
 
 -module(wings_text).
 -export([init/0,resize/0,width/0,width/1,height/0,draw/1,char/1,bold/1]).
 -export([break_lines/2]).
--export([font_module/1,choose_font/0,fonts/0]).
+-export([font_module/1,fonts/0]).
 
 -define(NEED_ESDL, 1).
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
 -compile({parse_transform,ms_transform}).
 
--import(lists, [reverse/1,foldl/3]).
+-import(lists, [reverse/1,foldl/3,foreach/2]).
 
 init() ->
     ets:new(wings_fonts, [named_table,ordered_set]),
-    wings_pref:set_default(system_font, wpf_7x14).
+    wings_pref:set_default(system_font, wpf_7x14),
+    wings_pref:set_default(console_font, wpf_terminal8x12).
 
 resize() ->
-    Base = gl:genLists(256),
-    make_font_dlists(0, Base),
-    gl:listBase(Base).
-
-make_font_dlists(256, _) -> ok;
-make_font_dlists(C, Base) ->
-    gl:newList(Base+C, ?GL_COMPILE),
-    catch char(C),
-    gl:endList(),
-    make_font_dlists(C+1, Base).
+    %% Force rebuild of display lists next time each font
+    %% is needed.
+    foreach(fun({_,Font}) -> erase(Font) end, fonts()).
 
 font_module(Mod) ->
     Desc = Mod:desc(),
     ets:insert(wings_fonts, {Mod,Desc}).
 
-choose_font() ->
-    Font0 = wings_pref:get_value(system_font),
-    Font = case ets:member(wings_fonts, Font0) of
-	       true -> Font0;
-	       false -> ets:first(wings_fonts)
-	   end,
-    put(?MODULE, Font).
-
 width(S) ->
-    Mod = get(?MODULE),
+    Mod = current_font(),
     CwFun = case width() of
 		W when W < 7 -> fun cw_small/1;
 		_ -> fun cw_large/1
@@ -65,23 +51,48 @@ width(S) ->
 	 end,
     foldl(WF, 0, S).
 
-width() -> (get(?MODULE)):width().
+width() -> (current_font()):width().
 
-height() -> (get(?MODULE)):height().
+height() -> (current_font()):height().
 
 draw(S) ->
+    Font = current_font(),
     case wings_pref:get_value(text_display_lists, false) of
-	true -> gl:callLists(length(S), ?GL_UNSIGNED_BYTE, S);
-	false -> (get(?MODULE)):draw(S)
+	true ->
+	    gl:listBase(case get(Font) of
+			    undefined -> make_font_dlists(Font);
+			    Base -> Base
+			end),
+	    gl:callLists(length(S), ?GL_UNSIGNED_BYTE, S);
+	false ->
+	    Font:draw(S)
     end.
+
+make_font_dlists(Font) ->
+    Base = gl:genLists(256),
+    put(Font, Base),
+    make_font_dlists_1(0, Base).
+
+make_font_dlists_1(256, _) -> ok;
+make_font_dlists_1(C, Base) ->
+    gl:newList(Base+C, ?GL_COMPILE),
+    catch char(C),
+    gl:endList(),
+    make_font_dlists_1(C+1, Base).
 
 char(C) when is_atom(C) ->
     special(C);
 char(C) ->
-    (get(?MODULE)):char(C).
+    (current_font()):char(C).
 
 bold(S) ->
-    (get(?MODULE)):bold(S).
+    (current_font()):bold(S).
+
+current_font() ->
+    case wings_wm:this() of
+	none -> wings_pref:get_value(system_font);
+	This -> wings_wm:get_prop(This, font)
+    end.
 
 fonts() ->
     MatchSpec = ets:fun2ms(fun({Font,Desc}) -> {Desc,Font} end),
@@ -205,20 +216,6 @@ special_small(shift) ->
 
 special_small(caret) ->
     caret();
-%%%     B = <<
-%%%        	 2#11011000,
-%%%        	 2#00100000,
-%%%        	 2#00100000,
-%%% 	 2#00100000,
-%%%        	 2#00100000,
-%%% 	 2#00100000,
-%%% 	 2#00100000,
-%%% 	 2#00100000,
-%%% 	 2#00100000,
-%%% 	 2#00100000,
-%%% 	 2#11011000
-%%% 	 >>,
-%%%     gl:bitmap(5, 11, 2, 2, 2, 0, B);
 
 special_small(crossmark) ->
     B = <<
@@ -312,23 +309,6 @@ special_large(shift) ->
 
 special_large(caret) ->
     caret();
-%%%     B = <<
-%%%        	 2#11011000,
-%%%        	 2#00100000,
-%%%        	 2#00100000,
-%%% 	 2#00100000,
-%%%        	 2#00100000,
-%%% 	 2#00100000,
-%%% 	 2#00100000,
-%%% 	 2#00100000,
-%%% 	 2#00100000,
-%%% 	 2#00100000,
-%%% 	 2#00100000,
-%%% 	 2#00100000,
-%%% 	 2#00100000,
-%%% 	 2#11011000
-%%% 	 >>,
-%%%     gl:bitmap(5, 14, 2, 1, 2, 0, B);
 
 special_large(crossmark) ->
     B = <<

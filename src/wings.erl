@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.299 2004/04/15 20:35:55 raimo_niskanen Exp $
+%%     $Id: wings.erl,v 1.300 2004/04/17 19:02:06 bjorng Exp $
 %%
 
 -module(wings).
@@ -94,7 +94,6 @@ init(File) ->
     wings_text:init(),
     wings_image:init(),
     wings_plugin:init(),
-    wings_text:choose_font(),
     wings_color:init(),
     wings_io:init(),
 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_console.erl,v 1.2 2004/04/16 10:20:33 raimo_niskanen Exp $
+%%     $Id: wings_console.erl,v 1.3 2004/04/17 19:02:06 bjorng Exp $
 %%
 
 -module(wings_console).
@@ -172,8 +172,13 @@ do_window(Name) ->
     Height0 = wings_pref:get_value(console_height),
     wings_wm:delete(Name),
     {X1,_,W1,H1} = wings_wm:viewport(desktop),
-    Cw = ?CHAR_WIDTH,
-    Lh = ?LINE_HEIGHT,
+    Font = wings_pref:get_value(console_font),
+    CwLh = wings_io:use_font(Font,
+			     fun() ->
+				     {wings_text:width(),
+				      wings_text:height()}
+			     end),
+    {Cw,Lh} = CwLh,
     Sw = wings_wm:vscroller_width(),
     Th = wings_wm:title_height(),
     %%
@@ -181,11 +186,18 @@ do_window(Name) ->
     H = min(1 + (Height0*Lh) + 4, H1-Th),
     Size = {W,H},
     PosUR = {X1+W+Sw,H1-(H+Th)},
-    do_window(Name, PosUR, Size).
+    do_window(Name, Font, CwLh, PosUR, Size).
 
-do_window(Name, {X,Y}, {W,H}=Size) -> % {X,Y} is upper right
-    Cw = ?CHAR_WIDTH,
-    Lh = ?LINE_HEIGHT,
+do_window(Name, Pos, Size) ->
+    Font = wings_pref:get_value(console_font),
+    CwLh = wings_io:use_font(Font,
+			     fun() ->
+				     {wings_text:width(),
+				      wings_text:height()}
+			     end),
+    do_window(Name, Font, CwLh, Pos, Size).
+
+do_window(Name, Font, {Cw,Lh}, {X,Y}, {W,H}=Size) -> % {X,Y} is upper right
     Width = (-3+W-3) div Cw,
     Height = (-1+H-4) div Lh,
     setopts([{width,Width},{height,Height},
@@ -196,8 +208,11 @@ do_window(Name, {X,Y}, {W,H}=Size) -> % {X,Y} is upper right
 	   cursor_color=wings_pref:get_value(console_cursor_color)},
     Op = {seq,push,get_event(S)},
     Title = "Console "++integer_to_list(Width)++"x"++integer_to_list(Height),
+    Props = [{font,Font}],
     wings_wm:toplevel(Name, Title, {X,Y,highest}, Size,
-		      [closable,vscroller,{anchor,ne}], Op),
+		      [closable,vscroller,{anchor,ne},
+		       {properties,Props}],
+		      Op),
     wings_wm:dirty().
 
 get_event(S) ->

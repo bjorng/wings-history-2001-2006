@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.119 2004/04/17 06:33:04 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.120 2004/04/17 19:02:07 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -27,6 +27,7 @@
 
 init() ->
     ets:new(wings_state, [named_table,public,ordered_set]),
+    ets:new(wings_delayed_update, [named_table,public,ordered_set]),
     ets:insert(wings_state, defaults()),
     wings_hotkey:set_default(),
     case old_pref_file() of
@@ -43,6 +44,9 @@ init() ->
     end.
 
 finish() ->
+    foreach(fun({Key,Val}) ->
+		    set_value(Key, Val)
+	    end, ets:tab2list(wings_delayed_update)),
     PrefFile = new_pref_file(),
     List0 = ets:tab2list(wings_state),
     List = prune_defaults(List0),
@@ -201,11 +205,12 @@ advanced_prefs() ->
      ]}.
 
 ui_prefs() ->
+    Fonts = wings_text:fonts(),
     {hframe,
      [{vframe,
        [{vframe,
-	 [{menu,wings_text:fonts(),system_font}],
-	 [{title,"Font"}]},
+	 [{menu,Fonts,system_font}],
+	 [{title,"System Font"}]},
 	{hframe,
 	 [{vframe,
 	   [{label,"Desktop/Geometry Background"},
@@ -235,7 +240,10 @@ ui_prefs() ->
 	{"No Progress Bar",no_progress_bar}
        ]},
       {vframe,
-       [{hframe,[{vframe,[{label,"Width"},
+       [{vframe,
+	 [{menu,Fonts,console_font}],
+	 [{title,"Console Font"}]},
+	{hframe,[{vframe,[{label,"Width"},
 			  {label,"Height"},
 			  {label,"Save Lines"},
 			  {label,"Background"},
@@ -329,7 +337,7 @@ smart_set_value_1(Key, Val, St) ->
     case ets:lookup(wings_state, Key) of
 	[] -> set_value(Key, Val);
 	[{Key,Val}] -> ok;
-	[_] ->
+	[{Key,OldVal}] ->
 	    set_value(Key, Val),
 	    case Key of
 		vertex_size ->
@@ -342,8 +350,12 @@ smart_set_value_1(Key, Val, St) ->
 		proxy_shaded_edge_style ->
 		    clear_proxy_edges(St);
 		system_font ->
-		    wings_wm:reinit_opengl(),
-		    wings_text:choose_font();
+		    delayed_set_value(Key, OldVal, Val),
+		    wings_util:message("The change to the system font "
+				       "will take effect the next time "
+				       "Wings 3D is started.");
+		console_font ->
+		    wings_console:window();
 		camera_mode ->
 		    wings_wm:translation_change();
 		num_buttons ->
@@ -353,6 +365,10 @@ smart_set_value_1(Key, Val, St) ->
 		_Other -> ok
 	    end
     end.
+
+delayed_set_value(Key, OldVal, NewVal) ->
+    set_value(Key, OldVal),
+    ets:insert(wings_delayed_update, {Key,NewVal}).
 
 clear_vertex_dlist() ->
     wings_draw_util:map(fun clear_vertex_dlist/2, []).

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pb.erl,v 1.11 2004/02/28 03:35:27 bjorng Exp $
+%%     $Id: wings_pb.erl,v 1.12 2004/04/17 19:02:07 bjorng Exp $
 %%
 
 -module(wings_pb).
@@ -116,7 +116,6 @@ loop(#state{refresh=After,level=Level}=S0) ->
 	    S = #state{refresh=?REFRESH_T,level=1,
 		       msg=["",Msg],t0=now()},
 	    put(wm_viewport, {X,Y,W-17,H}),
-	    wings_text:choose_font(),
 	    loop(draw_position(S));
 	{?PB,{update,Msg,Time}} when Level =:= 1 ->
 	    S1 = update(Msg, Time, S0),
