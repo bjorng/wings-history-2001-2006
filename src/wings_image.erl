@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.38 2004/03/17 18:06:10 bjorng Exp $
+%%     $Id: wings_image.erl,v 1.39 2004/03/18 06:55:02 bjorng Exp $
 %%
 
 -module(wings_image).
@@ -495,8 +495,8 @@ window_props() ->
 		 distance=0.65,
 		 azimuth=0.0,
 		 elevation=0.0,
-		 pan_x=-0.5,
-		 pan_y=-0.5,
+		 pan_x=0.0,
+		 pan_y=0.0,
 		 fov=90.0,
 		 hither=0.001,
 		 yon=100.0},
@@ -548,10 +548,12 @@ event_1(Ev, _) ->
 
 command(Percent, Id) when is_integer(Percent) ->
     View = wings_view:current(),
-    #e3d_image{height=Ih} = info(Id),
-    {W,H} = wings_wm:win_size(),
+    #e3d_image{width=Iw,height=Ih} = info(Id),
+    {_,H} = wings_wm:win_size(),
     Dist = 100/2*H/Ih/Percent,
-    wings_view:set_current(View#view{distance=Dist,pan_x=-W/H/2,pan_y=-0.5}),
+    PanX = -(Iw/Ih/2),
+    PanY = -0.5,
+    wings_view:set_current(View#view{distance=Dist,pan_x=PanX,pan_y=PanY}),
     wings_wm:dirty(),
     keep.
     
@@ -571,7 +573,7 @@ redraw_1(Id, #e3d_image{width=Iw,height=Ih}) ->
     gl:enable(?GL_TEXTURE_2D),
     gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
     gl:disable(?GL_DEPTH_TEST),
-    %%draw_background(0, 0, Iw/Ih, 1),
+    draw_background(0, 0, Iw/Ih, 1),
     gl:enable(?GL_BLEND),
     gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
     draw_image(Iw/Ih, 1, txid(Id)),
@@ -583,26 +585,30 @@ redraw_1(Id, #e3d_image{width=Iw,height=Ih}) ->
     {W,H} = wings_wm:win_size(),
     gl:rectf(0.5, 0.5, W-0.5, H-0.5),
     #view{distance=Dist} = wings_view:current(),
-    Percent = 100/2*H/Ih/Dist,
-    wings_io:info(io_lib:format("~.2f%  ", [Percent])),
-    gl:popAttrib().
 
-% draw_background(X, Y, W, H) ->
-%     Ua = 0,
-%     Ub = 16*(W div 16)/16,
-%     Va = 0,
-%     Vb = 16*(H div 16)/16,
-%     gl:bindTexture(?GL_TEXTURE_2D, txid(background)),
-%     gl:'begin'(?GL_QUADS),
-%     gl:texCoord2f(Ua, Va),
-%     gl:vertex2f(X, Y),
-%     gl:texCoord2f(Ua, Vb),
-%     gl:vertex2f(X, Y+H),
-%     gl:texCoord2f(Ub, Vb),
-%     gl:vertex2f(X+W, Y+H),
-%     gl:texCoord2f(Ub, Va),
-%     gl:vertex2f(X+W, Y),
-%     gl:'end'().
+    gl:popAttrib(),
+
+    %% Info line.
+    Percent = 100/2*H/Ih/Dist,
+    wings_io:info(io_lib:format("~.2f%", [Percent])).
+
+draw_background(X, Y, W, H) ->
+    {Wwin,Hwin} = wings_wm:win_size(),
+    Ua = 0,
+    Va = 0,
+    Ub = Wwin div 16,
+    Vb = Hwin div 16,
+    gl:bindTexture(?GL_TEXTURE_2D, txid(background)),
+    gl:'begin'(?GL_QUADS),
+    gl:texCoord2f(Ua, Va),
+    gl:vertex2f(X, Y),
+    gl:texCoord2f(Ua, Vb),
+    gl:vertex2f(X, Y+H),
+    gl:texCoord2f(Ub, Vb),
+    gl:vertex2f(X+W, Y+H),
+    gl:texCoord2f(Ub, Va),
+    gl:vertex2f(X+W, Y),
+    gl:'end'().
 
 draw_image(W, H, TxId) ->
     Ua = 0, Ub = 1,
