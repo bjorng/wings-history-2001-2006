@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.88 2005/01/09 10:48:13 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.89 2005/01/09 20:33:04 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -143,11 +143,8 @@ cut_edges_1([], _Hard, Id, Etab, Htab) ->
 fast_cut(Edge, Template, NewV=NewEdge, Etab0) ->
     #edge{a=ACol,b=BCol,lf=Lf,rf=Rf,
 	  ltpr=EdgeA,rtsu=EdgeB,rtpr=NextBCol} = Template,
-    AColOther = get_vtx_color(EdgeA, Lf, Etab0),
-    NewColA = wings_color:average(AColOther, ACol),
-    BColOther = get_vtx_color(NextBCol, Rf, Etab0),
-    NewColB = wings_color:average(BColOther, BCol),
-
+    NewColA = mix_color(EdgeA, Etab0, Lf, ACol),
+    NewColB = mix_color(NextBCol, Etab0, Rf, BCol),
     NewEdgeRec = Template#edge{vs=NewV,a=NewColA,ltsu=Edge,rtpr=Edge},
     Etab1 = gb_trees:update(NewEdge, NewEdgeRec, Etab0),
     EdgeRec = Template#edge{ve=NewV,b=NewColB,rtsu=NewEdge,ltpr=NewEdge},
@@ -155,11 +152,13 @@ fast_cut(Edge, Template, NewV=NewEdge, Etab0) ->
     Etab = wings_edge:patch_edge(EdgeA, NewEdge, Edge, Etab2),
     wings_edge:patch_edge(EdgeB, NewEdge, Edge, Etab).
 
-get_vtx_color(Edge, Face, Etab) ->
-    case gb_trees:get(Edge, Etab) of
-	#edge{lf=Face,a=Col} -> Col;
-	#edge{rf=Face,b=Col} -> Col
-    end.
+mix_color(_, _, _, none) -> none;
+mix_color(E, Etab, Face, OtherColor) ->
+    wings_color:average(OtherColor,
+			case gb_trees:get(E, Etab) of
+			    #edge{lf=Face,a=Col} -> Col;
+			    #edge{rf=Face,b=Col} -> Col
+			end).
 
 smooth_faces(FacePos, Id, We0) ->
     We = smooth_faces_1(FacePos, Id, [], We0),
