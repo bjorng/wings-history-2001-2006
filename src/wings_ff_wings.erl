@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.40 2003/04/23 13:06:18 bjorng Exp $
+%%     $Id: wings_ff_wings.erl,v 1.41 2003/06/10 05:45:11 bjorng Exp $
 %%
 
 -module(wings_ff_wings).
@@ -461,6 +461,8 @@ export_edge(Rec, Mode, Acc) ->
     Data = edge_data(Mode, Rec, Data0),
     [Data|Acc].
 
+export_perm(#we{perm=[]}) ->
+    [{state,hidden_locked}];	     %Only for backward compatibility.
 export_perm(#we{perm=0}) -> [];
 export_perm(#we{perm=1}) -> [{state,locked}];
 export_perm(#we{perm=2}) -> [{state,hidden}];
