@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.73 2003/02/07 10:52:52 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.74 2003/03/01 17:01:25 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -654,10 +654,12 @@ smooth_connect_2(IterCw0, IterCcw0, V, Face, We0) ->
 bridge(#st{shapes=Shapes0,sel=[{IdA,FacesA},{IdB,FacesB}]}=St0) ->
     case {gb_sets:to_list(FacesA),gb_sets:to_list(FacesB)} of
 	{[FA],[FB0]} ->
-	    #we{next_id=Id}=WeA = gb_trees:get(IdA, Shapes0),
+	    #we{next_id=Id}=WeA0 = gb_trees:get(IdA, Shapes0),
 	    #we{}=WeB0 = gb_trees:get(IdB, Shapes0),
-	    {WeB,[{face,FB}]} = wings_we:renumber(WeB0, Id, [{face,FB0}]),
-	    Mode = unify_modes(WeA, WeB),
+	    {WeB1,[{face,FB}]} = wings_we:renumber(WeB0, Id, [{face,FB0}]),
+	    Mode = unify_modes(WeA0, WeB1),
+	    WeA = bridge_null_uvs(Mode, WeA0),
+	    WeB = bridge_null_uvs(Mode, WeB1),
 	    We = (wings_we:merge(WeA, WeB))#we{mode=Mode},
 	    Shapes1 = gb_trees:delete(IdB, Shapes0),
 	    Shapes = gb_trees:update(IdA, We, Shapes1),
@@ -690,6 +692,16 @@ unify_modes(#we{mode=ModeA}, #we{mode=ModeB}) ->
 		   "and/or textures."});
 	[material,uv] -> uv
     end.
+
+bridge_null_uvs(Mode, #we{mode=Mode}=We) -> We;
+bridge_null_uvs(uv, #we{es=Etab0}=We) ->
+    Etab = bridge_null_uvs_1(gb_trees:to_list(Etab0), {0.0,0.0}, []),
+    We#we{es=Etab}.
+
+bridge_null_uvs_1([{E,Rec}|Es], UV, Acc) ->
+    bridge_null_uvs_1(Es, UV, [{E,Rec#edge{a=UV,b=UV}}|Acc]);
+bridge_null_uvs_1([], _, Acc) ->
+    gb_trees:from_orddict(reverse(Acc)).
 
 bridge(FaceA, FaceB, #we{vp=Vtab}=We) ->
     VsA = wings_face:surrounding_vertices(FaceA, We),
