@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.9 2002/10/13 21:25:42 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.10 2002/10/14 14:46:11 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -59,9 +59,9 @@ menu({What}, Menu0)
 		case What of
 		    edge ->
 			[separator,
-			 {"Chart Boundry",{hardness,
-					   [{"Delete Boundry",soft},
-					    {"Set Boundry",hard}]}}];
+			 {"Chart Clipping",
+			  {hardness,[{"Do not cut edges",soft},
+				     {"Cut edges",hard}]}}];
 		    face ->
 			{value, Mat0} = %% HACK :-) 
 			    lists:keysearch("Set Material",1,Menu0), 
@@ -89,7 +89,7 @@ command({body, {uvmap, create}}, St0) ->
 		   {alt,DefVar,"I'll segment the model myself", one}
 		  ],
 	   [{title,"Segmentation type"}]}],
-    Text = "Set charts, place faces into charts",
+    Text = "Make charts, put faces into charts",
     wings_ask:dialog(Qs,
 		     fun([Mode]) ->
 			     St1 = segment(Mode, St0),
@@ -102,7 +102,7 @@ command({_, uvmap_cancel}, _St0) ->
     erase(auv_state),
     S1;
 command({_State, continue_param}, _St) ->
-    DefVar = {seg_type,project},
+    DefVar = {seg_type,lsqcm},
     Qs = [{vframe,[{alt,DefVar,"Projection",project},
 		   {alt,DefVar,"Parametrization", lsqcm}
 		  ],
@@ -198,7 +198,7 @@ segment(Mode, St0) ->
 
 mark_segments(Charts, Bounds, We0, St) ->
     %% Use HardEdges to mark Boundries
-    We1 = We0#we{he = gb_sets:from_list(Bounds)},
+    We1 = We0#we{he = Bounds},
     %% Use materials to mark different charts
     Max = length(Charts),
     ColorMe = [create_diffuse(This, Max) || This <- Charts],
@@ -527,8 +527,9 @@ remove_winged_vs(Cs0) ->
 %%%%%%%%% 
 init_uvmap2(We0 = #we{id=Id,name = Name}, {A, St0}, Type) ->
     Clusters = auv_segment:segment_by_material(We0),
-    We1 = gb_trees:get(Id, St0#st.shapes),
     ?DBG("Found ~p Charts~n", [length(Clusters)]),
+    Cuts = auv_segment:cleanup_bounds(We0#we.he, Clusters, We0),
+    We1 = gb_trees:get(Id, St0#st.shapes),
     {We2,ChangedByCut} = cut_edges(We0#we.he, We1),
     ?DBG("Changed by cut ~p ~n", [ChangedByCut]),
     Areas = init_areas(Clusters, [], Type, We2),
@@ -569,11 +570,19 @@ insert_uvcoords(#areas{we=We0, as = Map0, matname = MatName}) ->
 	       {_, A = #a{center = {CX,CY}, scale = S, vpos = Vtxs}} 
 		   <- gb_trees:to_list(Map0)],
     %% Insert UV coords to WE structure
-    We1 = gen_coords(Map1, We0),
-    Ftab1 = [{Face,Rec#face{mat=MatName}} ||
-		{Face,Rec} <- gb_trees:to_list(We0#we.fs)],
-    Ftab = gb_trees:from_orddict(Ftab1),
-    We = We1#we{mode=uv,fs=Ftab},
+    %% Set everyone to {0,0} first we don't want to mix vertex cols and uv's.
+    %% wings can't handle that..
+%    Zero = {0.0,0.0}, 
+%    NewEs = [{Id,E#edge{a=Zero,b=Zero}}||
+%		{Id,E}<-gb_trees:to_list(We0#we.es)],
+%    We1 = We0#we{es= gb_trees:from_orddict(NewEs)},
+    We1 = We0, %% temp
+    We2 = gen_coords(Map1, We1),
+%    Ftab1 = lists:append([[{Face,Rec#face{mat=MatName}} ||
+%		 {Face,Rec} <- Fs] || #a{fs=Fs} <- Map1]),
+    Ftab1 = [{Face,Rec#face{mat=MatName}} || {Face,Rec} <- gb_trees:to_list(We0#we.fs)],
+    Ftab = gb_trees:from_orddict(lists:sort(Ftab1)),
+    We = We2#we{mode=uv,fs=Ftab},
     %% Done
     We.
 

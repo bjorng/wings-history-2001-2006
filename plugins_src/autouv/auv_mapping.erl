@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.7 2002/10/10 20:34:47 dgud Exp $
+%%     $Id: auv_mapping.erl,v 1.8 2002/10/14 14:46:10 dgud Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -26,6 +26,9 @@
 -include("auv.hrl").
 -include("e3d.hrl").
 -export([projectFromChartNormal/2, project2d/3, lsqcm/2]).
+
+
+-export([lsq/3]).
 
 %%% From camera would look something like this!! 
 %%% It actually worked once :-) 
@@ -233,6 +236,7 @@ lsq_int(L, {P1,{U1,V1}} = PUV1, {P2,{U2,V2}} = PUV2) ->
 	?TC(build_matrixes(N,M,Mf1c,Mp1c,Mf2c,Mp2c,Mf2nc,Mp2nc,UVa,UVb)),
     ?DBG("Solving matrises~n", []),
     X = solve(Af,B),
+    ?DBG("X=~p~n", [X]),
     %% Extract the vector of previously unknown points,
     %% and insert the pinned points. Re-translate the
     %% original point identities.

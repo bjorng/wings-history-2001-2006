@@ -9,13 +9,11 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.5 2002/10/10 14:39:26 dgud Exp $
-
-
+%%     $Id: auv_segment.erl,v 1.6 2002/10/14 14:46:11 dgud Exp $
 
 -module(auv_segment).
 
--export([create/2, segment_by_material/1]).
+-export([create/2, segment_by_material/1, cleanup_bounds/3]).
 -export([degrees/0]). %% Debug
 -include("wings.hrl").
 -include("auv.hrl").
@@ -26,17 +24,52 @@
 create(Mode, We0) ->
     case Mode of 
 	feature ->
-	    {_Distances,Charts0,Bounds0} = segment_by_feature(We0),
-	    {Charts0, Bounds0};
+	    {_Distances,Charts0,Cuts0} = segment_by_feature(We0),
+	    {Charts0, Cuts0};
 	autouvmap ->
 	    Charts0 = segment_by_direction(We0),
-	    {Charts0, []};
+	    {Charts0, gb_sets:empty()};
 	mat_uvmap ->
 	    Charts0 = segment_by_material(We0),
-	    {Charts0, []};
+	    {Charts0, gb_sets:empty()};
 	one ->
-	    {[{0, gb_trees:keys(We0#we.fs)}], []}
+	    {[{0, gb_trees:keys(We0#we.fs)}], gb_sets:empty()}
     end.
+
+
+%% Removes all boundery edges, i.e. only keeps edges that cut 
+%% a cluster. 
+cleanup_bounds(Bounds, Charts, We) when is_list(Charts) ->    
+    case gb_sets:is_empty(Bounds) of
+	true ->
+	    Bounds;
+	false ->
+	    Tree = build_face_group(Charts, gb_trees:empty()),
+	    cleanup_bounds(gb_sets:to_list(Bounds), Tree, We#we.es, [])
+    end;
+cleanup_bounds(Bounds, Charts, We) ->    
+    cleanup_bounds(gb_sets:to_list(Bounds), Charts, We#we.es, []).
+
+cleanup_bounds([Edge|R], Tree, Es, Acc) ->
+    #edge{lf=LF,rf=RF} = gb_trees:get(Edge, Es),
+    case catch (gb_trees:get(LF, Tree) == gb_trees:get(RF,Tree)) of
+	true ->
+	    cleanup_bounds(R,Tree,Es,[Edge|Acc]);
+	false ->
+	    cleanup_bounds(R,Tree,Es,Acc);
+	Else ->
+	    ?DBG("~p ~p ~p ~p", [Edge, LF, RF, Tree])	 
+    end;
+cleanup_bounds([],_,_,Acc) ->
+    gb_sets:from_list(Acc).
+
+build_face_group([{Chart, [H|R]}|Rest], Tree) ->
+    New = gb_trees:insert(H, Chart, Tree),
+    build_face_group([{Chart, R}|Rest], New);
+build_face_group([_|R],Tree) ->
+    build_face_group(R,Tree);
+build_face_group([], Tree) ->
+    Tree.
 
 %%%%%% Feature detection Algorithm %%%%%%%%%%%%
 %% Algorithms based on the paper, now probably totally ruined by me..
@@ -271,16 +304,16 @@ find_extremities(#we{vs= Vs}) ->
     E2 = (gb_trees:get(V2, Vs))#vtx.edge,
     [E1,E2].
 
-
 build_charts(Features0, VEG, EWs, We0) ->
     FaceGraph = build_face_graph(gb_trees:keys(We0#we.fs), We0, gb_trees:empty()), 
     Distances = [{Max, _}|_] = calc_distance(Features0, FaceGraph, We0),
     {DistTree,LocalMaxs} = find_local_max(Distances, Features0, FaceGraph, We0),
     ?DBG("local max ~p ~p ~n", [length(LocalMaxs), LocalMaxs]),
-    {Charts0,Bounds} = expand_charts(LocalMaxs, Max + 1, DistTree, VEG,EWs, We0),
-    Charts1 = fix_charts(Charts0, undefined, -1, []),
-%%    ?DBG("Charts ~p ~p ~n", [Charts1,Bounds]),
-    {Distances, Charts1, Bounds}.
+    {Charts0,Bounds0} = expand_charts(LocalMaxs, Max + 1, DistTree, VEG,EWs, We0),
+    Charts1 = fix_charts(lists:keysort(2,gb_trees:to_list(Charts0)), undefined, -1, []),
+    %%    ?DBG("Charts ~p ~p ~n", [Charts1,Bounds]),
+    Bounds1 = cleanup_bounds(Bounds0, Charts0, We0),
+    {Distances, Charts1, Bounds1}.
 
 fix_charts([{Face,Chart}|Rest], Chart, G, [{G,Old}|Acc]) -> 
     fix_charts(Rest, Chart, G, [{G,[Face|Old]}|Acc]);
@@ -317,7 +350,7 @@ expand_charts(LocalMaxs, Max, Dt, VEG,EWs, We0) ->
 expand_charts(Heap0, Charts0, ChartBds0, Max, Dt, VEG,EWs, We) ->
     case gb_trees:is_empty(Heap0) of
 	true ->  
-	    {lists:keysort(2,gb_trees:to_list(Charts0)), gb_sets:to_list(ChartBds0)};
+	    {Charts0, ChartBds0};
 	false ->	    
 	    {{_Dist,_,Edge},{Face,Fopp},Heap1} = gb_trees:take_smallest(Heap0),
 	    Chart0 = gb_trees:get(Face, Charts0),
@@ -520,11 +553,15 @@ determine_dir({Face, {X0,Y0,Z0}}) ->
 segment_by_material(We0) ->
     Ftab = We0#we.fs,
     Faces = gb_trees:keys(We0#we.fs),
-    Clustered  = sort(map(fun(Face) ->
-				  #face{mat=MatName} =
-				      gb_trees:get(Face, Ftab),
-				  {MatName, Face}
-			  end, Faces)),
+    Collect = fun(Face, Acc) ->
+		      #face{mat=MatName} =gb_trees:get(Face, Ftab),
+		      case MatName of
+			  '_hole_' -> Acc;
+			  _ ->
+			      [{MatName, Face}|Acc]
+		      end
+	      end,
+    Clustered  = sort(lists:foldl(Collect, [], Faces)),
     segment_by_cluster(Clustered, We0).
 %% Common segmentation algo   
 segment_by_cluster(Sorted, We) ->
