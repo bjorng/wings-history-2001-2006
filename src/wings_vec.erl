@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.95 2003/10/30 09:50:44 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.96 2003/10/30 12:25:13 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -44,26 +44,28 @@ init() ->
     wings_pref:set_default(magnet_distance_route, shortest),
     wings_pref:set_default(magnet_radius, 1.0).
 
-%% Call wings:pick/3; DO NOT call this function directly.
-do_ask({[_|_]=Modes,Fun}, St, Cb) when is_function(Fun) ->
-    wings_wm:later(pick_init_special),
-    Ss = #ss{selmodes=Modes,cb=Cb,f=Fun},
-    {seq,push,get_event(Ss, St)};
-do_ask({PickList,Done}, St, Cb) ->
-    do_ask_1(PickList, Done, [], St, Cb);
-do_ask({PickList,Done,Flags}, St, Cb) ->
-    do_ask_1(PickList, Done, Flags, St, Cb).
-
-do_ask_1(Do0, Done, Flags, St0, Cb) ->
-    pick_init(St0),
+%% Call wings:ask/3; DO NOT call this function directly.
+do_ask({Do,Done}, St, Cb) ->
     Modes = [vertex,edge,face],
-    St = mode_restriction(Modes, St0),
+    do_ask_1(Modes, Do, Done, [], St, Cb);
+do_ask({Do,Done,Flags}, St, Cb) ->
+    Modes = [vertex,edge,face],
+    do_ask_1(Modes, Do, Done, Flags, St, Cb);
+do_ask({Do,Done,Flags,Modes}, St, Cb) ->
+    do_ask_1(Modes, Do, Done, Flags, St, Cb).
+
+do_ask_1(Modes, Do0, Done, Flags, #st{selmode=Mode}=St, Cb) ->
     Do = add_help_text(Do0),
     Mag = member(magnet, Flags),
-    Ss = #ss{cb=Cb,mag=Mag,selmodes=Modes},
-    {seq,push,pick_next(Do, Done, Ss, St)}.
+    Ss = #ss{cb=Cb,mag=Mag,selmodes=Modes,f=fun(_, _) -> keep end},
+    wings_draw_util:map(fun(#dlo{orig_sel=none,sel=Dlist}=D, _) ->
+				D#dlo{orig_sel=Dlist,orig_mode=Mode}
+			end, []),
+    wings_wm:later({ask_init,Do,Done}),
+    erase_vector(),
+    {seq,push,get_event(Ss, St)}.
 
-add_help_text([{Atom,_Desc}=Pair|T]) when is_atom(Atom) ->
+add_help_text([{_,_}=Pair|T]) ->
     [Pair|add_help_text(T)];
 add_help_text([Type|T]) ->
     Val = {Type,
@@ -85,12 +87,12 @@ magnet_possible_now(Pl, _) ->
 	_ -> inactive
     end.
 
-common_message(Msg, [], MagnetPossible) ->
-    Message = wings_util:join_msg(wings_util:button_format(Msg, [], "Execute "),
-				  common_magnet_message(MagnetPossible)),
-    wings_wm:message(Message, "");
-common_message(Msg, [_|_], MagnetPossible) ->
-    Message = wings_util:join_msg(wings_util:button_format(Msg, [], "Continue"),
+common_message(Msg, More, MagnetPossible) ->
+    Rmb = case More of
+	      [] -> "Execute";
+	      [_|_] -> "Continue"
+	  end,
+    Message = wings_util:join_msg(wings_util:button_format(Msg, [], Rmb),
 				  common_magnet_message(MagnetPossible)),
     wings_wm:message(Message, "").
 
@@ -111,19 +113,6 @@ mode_restriction(Modes, #st{selmode=Mode}=St) ->
 	true -> St;
 	false -> St#st{selmode=last(Modes)}
     end.
-
-pick_init(#st{selmode=Mode}) ->
-    erase_vector(),				%Just in case to avoid
-						% a display list leak.
-    Active = wings_wm:this(),
-    wings_wm:callback(fun() ->
-			      wings_util:menu_restriction(Active, [view,select])
-		      end),
-    wings_draw_util:map(fun(D, _) -> pick_init_1(D, Mode) end, []).
-
-pick_init_1(#dlo{orig_sel=none,sel=SelDlist}=D, Mode) ->
-    D#dlo{orig_sel=SelDlist,orig_mode=Mode};
-pick_init_1(D, _) -> D.
 
 pick_finish() ->
     wings_wm:dirty(),
@@ -146,6 +135,15 @@ get_event(Ss, St) ->
     wings_wm:dirty(),
     {replace,fun(Ev) -> handle_event(Ev, Ss, St) end}.
 
+handle_event({ask_init,Do,Done}, #ss{selmodes=Modes}=Ss, St0) ->
+    erase_vector(),				%Just in case to avoid
+						% a display list leak.
+    wings_util:menu_restriction(wings_wm:this(), [view,select]),
+    St = wings_sel:reset(mode_restriction(Modes, St0)),
+    wings_wm:later({ask_init2,Do,Done}),
+    get_event(Ss, St);
+handle_event({ask_init2,Do,Done}, Ss, St) ->
+    pick_next(Do, Done, Ss, St);
 handle_event(Event, Ss, St) ->
     case wings_camera:event(Event, St) of
 	next -> handle_event_1(Event, Ss, St);
@@ -213,10 +211,6 @@ handle_event_4({action,{secondary_selection,abort}}, _, _) ->
     wings_wm:later(revert_state),
     pick_finish(),
     pop;
-handle_event_4(pick_init_special, #ss{selmodes=Modes}=Ss, St0) ->
-    pick_init(St0),
-    St = wings_sel:reset(mode_restriction(Modes, St0)),
-    get_event(Ss, St);
 handle_event_4(quit, _Ss, _St) ->
     erase_vector(),
     wings_io:putback_event(quit),
@@ -238,6 +232,11 @@ pick_next([], Res0, #ss{cb=Cb}, _) ->
     wings_io:putback_event({command,fun(St) -> Cb(Res, St) end}),
     wings:clear_mode_restriction(),
     pop;
+pick_next([{Fun0,Desc}|More], _Done, Ss, St) when is_function(Fun0) ->
+    Fun = fun(message, _) -> common_message(Desc, More, no);
+	     (A, B) -> Fun0(A, B)
+	  end,
+    get_event(Ss#ss{f=Fun,is_axis=false,vec=none,info=""}, wings_sel:reset(St));
 pick_next([{Type,Desc}|More], Done, Ss, St0) ->
     MagnetPossible = magnet_possible_now(More, Ss),
     Check = case Type of
@@ -273,7 +272,6 @@ pick_next([{Type,Desc}|More], Done, Ss, St0) ->
     clear_sel(),
     set_last_axis(Ss),
     get_event(Ss#ss{f=Fun,is_axis=IsAxis,vec=none,info=""}, wings_sel:reset(St)).
-
 
 redraw(#ss{info=Info,f=Message,vec=Vec}, St) ->
     Message(message, St),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.97 2003/10/30 09:50:44 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.98 2003/10/30 12:25:13 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -846,20 +846,16 @@ bridge_color(Edge, Face, Iter) ->
 %%%
 
 lift_selection(Dir, OrigSt) ->
-    {[vertex,edge],
-     fun(check, St) ->
-	     lift_check_selection(St, OrigSt);
-	(exit, {_,_,#st{selmode=Mode,sel=Sel}=St}) ->
-	     case lift_check_selection(St, OrigSt) of
-		 {_,[]} -> {[],[{Dir,Mode,Sel}]};
-		 {_,_} -> error
-	     end;
-	(message, _) ->
-	     Left = "Select edge or vertex to act as hinge",
-	     Message = ["Lift: ",
-			wings_util:button_format(Left, [],  "Execute")],
-	     wings_wm:message(Message, "")
-     end}.
+    Desc = "Select edge or vertex to act as hinge",
+    Fun = fun(check, St) ->
+		  lift_check_selection(St, OrigSt);
+	     (exit, {_,_,#st{selmode=Mode,sel=Sel}=St}) ->
+		  case lift_check_selection(St, OrigSt) of
+		      {_,[]} -> {[],[{Dir,Mode,Sel}]};
+		      {_,_} -> error
+		  end
+	  end,
+    {[{Fun,Desc}],[],[],[vertex,edge]}.
 
 lift_check_selection(#st{selmode=edge,sel=EdgeSel}, OrigSt) ->
     Res = wings_sel:fold(
@@ -1101,19 +1097,15 @@ put_on(_) ->
     wings_util:error("There must only be one face selected.").
 
 put_on_selection(OrigSt) ->
-    {[face,edge,vertex],
-     fun(check, St) -> put_on_check_selection(St, OrigSt);
-	(exit, {_,_,#st{selmode=Mode,sel=Sel}=St}) ->
-	     case put_on_check_selection(St, OrigSt) of
-		 {_,[]} -> {[],[{Mode,Sel}]};
-		 {_,_} -> error
-	     end;
-	(message, _) ->
-	     Left = "Select target element on which to put source object",
-	     Message = ["Put On: ",
-			wings_util:button_format(Left, [],  "Execute")],
-	     wings_wm:message(Message, "")
-     end}.
+    Desc = "Select target element on which to put source object",
+    Fun = fun(check, St) -> put_on_check_selection(St, OrigSt);
+	     (exit, {_,_,#st{selmode=Mode,sel=Sel}=St}) ->
+		  case put_on_check_selection(St, OrigSt) of
+		      {_,[]} -> {[],[{Mode,Sel}]};
+		      {_,_} -> error
+		  end
+	  end,
+    {[{Fun,Desc}],[],[],[face,edge,vertex]}.
 
 put_on_check_selection(#st{sel=[{Id,_}]}, #st{sel=[{Id,_}]}) ->
     {none,"Selection must not be in the same object."};
@@ -1160,17 +1152,13 @@ clone_on(_) ->
     wings_util:error("There must only be one face selected.").
 
 clone_on_selection() ->
-    {[face,edge,vertex],
-     fun(check, _) ->
-	     {none,""};
-	(exit, {_,_,#st{selmode=Mode,sel=Sel}}) ->
-	     {[],[{Mode,Sel}]};
-	(message, _) ->
-	     Left = "Select target elements on which to put clones",
-	     Message = ["Clone On: ",
-			wings_util:button_format(Left, [],  "Execute")],
-	     wings_wm:message(Message, "")
-     end}.
+    Desc = "Select target elements on which to put clones",
+    Fun = fun(check, _) ->
+		  {none,""};
+	     (exit, {_,_,#st{selmode=Mode,sel=Sel}}) ->
+		  {[],[{Mode,Sel}]}
+	  end,
+    {[{Fun,Desc}],[],[],[face,edge,vertex]}.
 
 clone_on({Mode,Sel}, #st{sel=[{Id,Faces}],shapes=Shs0}=St) ->
     We = gb_trees:get(Id, Shs0),
