@@ -3,12 +3,12 @@
 %%
 %%     This module contains most of the face commands.
 %%
-%%  Copyright (c) 2001-2002 Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.70 2003/01/15 07:36:03 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.71 2003/01/15 07:38:12 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
