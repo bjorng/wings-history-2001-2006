@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_lang.erl,v 1.13 2005/03/02 11:54:32 dgud Exp $
+%%     $Id: wings_lang.erl,v 1.14 2005/03/04 09:17:57 dgud Exp $
 %%
 %%  Totally rewritten but Riccardo is still the one who did the hard work.
 %%
@@ -150,7 +150,8 @@ diff(LangFile, EngTmplFile) ->
 	[] -> ok;
 	Miss ->
 	    io:format("%% Missing translations in ~s~n", [LangFile]),
-	    lists:foreach(fun(M) -> io:format("~p.~n",[M]) end,
+	    Out = group_leader(),
+	    lists:foreach(fun(M) -> output_strings(M,Out) end,
 			  reverse(Miss))
     end.
     
@@ -234,6 +235,9 @@ output_strings(S0, Mod, Out) ->
     S1 = sofs:relation(S0),
     S2 = sofs:relation_to_family(S1),
     S = sofs:to_external(S2),
+    output_strings({Mod, S}, Out).
+
+output_strings({Mod, S}, Out) ->
     io:format(Out, "{~p,\n [\n", [Mod]),
     foldl(fun(E, Sep) -> output_strings_1(E, Sep, Out) end, [], S),
     io:put_chars(Out, "\n ]}.\n").
