@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_toxic.erl,v 1.6 2004/06/11 20:37:57 dgud Exp $
+%%     $Id: wpc_toxic.erl,v 1.7 2004/06/12 00:41:20 raimo_niskanen Exp $
 %%
 
 -module(wpc_toxic).
@@ -374,10 +374,12 @@ enable_hook_or([Key], Store) ->
 enable_hook_or([Key|Keys], Store) ->
     enable_hook_eval(Key, Store) orelse enable_hook_or(Keys, Store).
 
-light_result(_Name, Ps0, Res0) ->
+light_result(_Name, Ps0, [{{?TAG,minimized},_}|_]=Res0) ->
     {LightPs,Res} = split_list(Res0,3),
     Ps = [{?TAG,LightPs} | keydelete(?TAG, 1, Ps0)],
     %%    erlang:display({?MODULE,?LINE,[Ps,Res1]}),
+    {Ps,Res};
+light_result(_Name, Ps, Res) ->
     {Ps,Res}.
 
 pref_edit(St) ->
