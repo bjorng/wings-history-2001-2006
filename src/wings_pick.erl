@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.57 2002/08/13 21:20:11 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.58 2002/08/14 19:41:20 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -743,7 +743,8 @@ marquee_draw(St) -> select_draw(St).
 select_draw(_) ->
     wings_draw_util:map(fun select_draw_fun/2, []).
 
-select_draw_fun(#dlo{pick=none,work=Work,src_we=We}=D, _) when ?IS_LIGHT(We) ->
+select_draw_fun(#dlo{pick=none,work=Work,src_we=#we{perm=Perm}=We}=D, _)
+  when ?IS_LIGHT(We), ?IS_SELECTABLE(Perm) ->
     draw_dlist(D#dlo{pick=Work});
 select_draw_fun(#dlo{pick=none,src_we=We}=D, _) ->
     List = gl:genLists(1),
