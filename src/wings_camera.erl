@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.51 2002/11/07 07:49:41 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.52 2002/11/22 09:05:35 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -271,12 +271,12 @@ get_nendo_event(Camera, Redraw, MouseRotates) ->
 nendo_message(true) ->
     Mbutton = nendo_mbutton(),
     Help = ["[L] Accept  Move mouse to tumble  "
-	    "Drag ",Mbutton," to dolly  [Q] Mouse move will track"],
+	    "Drag ",Mbutton," to dolly  [Q] Move move to track"],
     wings_io:message(Help);
 nendo_message(false) ->
     Mbutton = nendo_mbutton(),
     Help = ["[L] Accept  Move mouse to track  "
-	    "Drag ",Mbutton," Dolly  [Q] Mouse move will rotate"],
+	    "Drag ",Mbutton," Dolly  [Q] Move mouse to rotate"],
     wings_io:message(Help).
 
 nendo_mbutton() ->
@@ -363,11 +363,11 @@ get_mirai_event(Camera, Redraw, MouseRotates, View) ->
 
 mirai_message(true) ->
     Help = ["[L] Accept  [R] Cancel/restore view  Move mouse to tumble  "
-	    "Drag [M] to dolly  [Q] Mouse move will track"],
+	    "Drag [M] to dolly  [Q] Move mouse to track"],
     wings_io:message(Help);
 mirai_message(false) ->
-    Help = ["[L] Accept  [R] Cancel  Move mouse to track  "
-	    "Drag [M] Dolly  [Q] Mouse move will rotate"],
+    Help = ["[L] Accept  [R] Cancel/restore view  Move mouse to track  "
+	    "Drag [M] Dolly  [Q] Move mouse to rotate"],
     wings_io:message(Help).
 
 %%%

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu_util.erl,v 1.13 2002/03/31 10:54:14 bjorng Exp $
+%%     $Id: wings_menu_util.erl,v 1.14 2002/11/22 09:05:35 bjorng Exp $
 %%
 
 -module(wings_menu_util).
@@ -29,14 +29,16 @@ dirs(3, _Mode, Ns) -> {vector,{pick,[axis],[],Ns}};
 dirs(help, _Mode, Ns) -> dirs_help(Ns).
 
 dirs_help([move|_]) ->
-    {"Move along std. axis",[],"Select axis to move along"};
+    {"Move along std. axis",[],"Pick axis to move along"};
 dirs_help([rotate|_]) ->
-    {"Rotate around std. axis",[],"Select axis to rotate around"};
+    {"Rotate around std. axis",[],"Pick axis to rotate around"};
 dirs_help([scale|_]) -> "Scale selected elements";
 dirs_help([extrude|_]) ->
-    {"Extrude along std. axis",[],"Select axis to extrude along"};
+    {"Extrude along std. axis",[],"Pick axis to extrude along"};
 dirs_help([extrude_region|_]) ->
-    {"Extrude along std. axis",[],"Select axis to extrude along"};
+    {"Extrude along std. axis",[],"Pick axis to extrude along"};
+dirs_help([extract_region|_]) ->
+    {"Extract along std. axis",[],"Pick axis to extract along"};
 dirs_help(_) -> "".
 
 dirs_1(body, Ns) -> directions([free,x,y,z], Ns);

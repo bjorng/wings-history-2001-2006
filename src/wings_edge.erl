@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.52 2002/11/15 12:59:19 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.53 2002/11/22 09:05:35 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -46,7 +46,8 @@ menu(X, Y, St) ->
 	    {"Extrude",{extrude,Dir}},
 	    separator,
 	    {"Cut",{cut,cut_fun()}},
-	    {"Connect",connect,"Create a new edge to connect selected edges"},
+	    {"Connect",connect,
+	     "Create a new edge by connecting midpoints of selected edges"},
 	    {"Bevel",bevel,"Round off selected edges"},
 	    separator,
 	    {"Dissolve",dissolve,"Eliminate selected edges"},

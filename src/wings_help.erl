@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.28 2002/11/07 07:49:42 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.29 2002/11/22 09:05:35 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -74,7 +74,7 @@ getting_started() ->
 one_or_two() ->
     Help = ["Using a mouse with One or Two buttons",
 	    "To use mice with only one or two buttons, "
-	    "you must inform Wings how many buttons your mouse have "
+	    "you must inform Wings how many buttons your mouse has "
 	    "in the Edit|Camera Mode dialog box."],
     help_window(Help).
 

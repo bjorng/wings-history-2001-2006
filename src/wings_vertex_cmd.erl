@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.33 2002/10/25 14:03:30 bjorng Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.34 2002/11/22 09:05:35 bjorng Exp $
 %%
 
 -module(wings_vertex_cmd).
@@ -31,7 +31,7 @@ menu(X, Y, St) ->
 	    wings_menu_util:flatten(),
 	    separator,
 	    {"Connect",connect,
-	     "Create a new edge to connect selected vertices"},
+	     "Create a new edge by connecting selected vertices"},
 	    {"Tighten",tighten,"Move selected vertices towards average "
 	     "midpoint"},
 	    {"Bevel",bevel,"Create faces of selected vertices"},
