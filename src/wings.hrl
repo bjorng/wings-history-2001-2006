@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.101 2004/05/02 09:49:38 bjorng Exp $
+%%     $Id: wings.hrl,v 1.102 2004/05/07 09:56:58 raimo_niskanen Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -119,8 +119,7 @@
 	 onext,					%Next object id to use.
 	 bb=none,				%Saved bounding box.
 	 edge_loop=none,			%Previous edge loop.
-	 views=queue:new(),			%Ring of views:
-						% next@head, current@last
+	 views={0,{}},				%{Current,TupleOfViews}
 
 	 %% Previous commands.
 	 repeatable,			        %Last repeatable command.

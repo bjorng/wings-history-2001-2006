@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.146 2004/05/03 10:33:59 raimo_niskanen Exp $
+%%     $Id: wings_view.erl,v 1.147 2004/05/07 09:56:59 raimo_niskanen Exp $
 %%
 
 -module(wings_view).
@@ -26,7 +26,7 @@
 
 -import(lists, [foreach/2,foldl/3]).
 
-menu(#st{views=Views}=St) ->
+menu(#st{views={CurrentView,Views}}=St) ->
     L = wings_pref:get_value(number_of_lights),
     [{"Ground Plane",show_groundplane,"Show the ground plane",
       crossmark(show_groundplane)},
@@ -62,8 +62,8 @@ menu(#st{views=Views}=St) ->
      {"Orthographic View",orthogonal_view,
       "Toggle between orthographic and perspective views",
       crossmark(orthogonal_view)},
-     {"Saved Views: "++integer_to_list(queue:len(Views)),
-      {views,views_submenu(Views)}},
+     {"Saved Views: "++integer_to_list(size(Views)),
+      {views,views_submenu(CurrentView, Views)}},
      separator,
      {"Camera Settings...",camera_settings,"Set field of view, and near and far clipping planes"},
      separator,
@@ -129,79 +129,133 @@ wireframe_crossmark(#st{sel=Sel0}) ->
 	{_,_} -> [grey_crossmark]
     end.
 
-views_submenu(Views) ->
-    [{"Next",next,views_submenu_help(Views, next)},
-     {"Current",current,views_submenu_help(Views, current)},
-     {"Prev",prev,views_submenu_help(Views, prev)},
-     views_jumpmenu(Views),
-     {"Save",save,"Save this view as current",[option]},
-     {"Rename...",rename,views_submenu_help(Views, rename)},
-     {"Delete",delete,views_submenu_help(Views, delete)},
-     {"Delete All...",delete_all,views_submenu_help(Views, delete_all)}].
+views_submenu(CurrentView, Views) ->
+    {_,_,_,H} = wings_wm:viewport(desktop),
+    Lines = wings_util:max((H div ?LINE_HEIGHT) - 3, 4),
+    S = size(Views),
+    C = if S > 0 -> view_index(CurrentView, S); true -> 0 end,
+    [{"Next",next,views_submenu_help(CurrentView, Views, next)},
+     {"Current",current,views_submenu_help(CurrentView, Views, current)},
+     {"Prev",prev,views_submenu_help(CurrentView, Views, prev)},
+     views_jumpmenu(CurrentView, Views, Lines),
+     {"Save",save,"Save this view at ["++integer_to_list(C+1)++"]",[option]},
+     views_movemenu(CurrentView, Views, Lines),
+     {"Rename...",rename,views_submenu_help(CurrentView, Views, rename)},
+     {"Delete",delete,views_submenu_help(CurrentView, Views, delete)},
+     {"Delete All...",delete_all,
+      views_submenu_help(CurrentView, Views, delete_all)}].
 
-views_submenu_help(Views0, Action) ->
-    case queue:is_empty(Views0) of
-	true -> "No saved views!";
-	false ->
-	    case Action of
-		next -> 
-		    {_,Legend} = queue:head(Views0),
-		    "Jump to \""++Legend++"\"";
-		current -> 
-		    {_,Legend} = queue:last(Views0),
-		    "Jump to \""++Legend++"\"";
-		prev -> 
-		    {{value,VL},Views} = queue:out_r(Views0),
-		    {_,Legend} = queue:last(queue:in_r(VL, Views)),
-		    "Jump to \""++Legend++"\"";
-		rename -> 
-		    {_,Legend} = queue:last(Views0),
-		    "Rename \""++Legend++"\"";
-		delete ->
-		    {_,Legend} = queue:last(Views0),
-		    "Delete \""++Legend++"\"";
-		delete_all ->
-		    "Delete all saved views"
-	    end
-    end.
-	    
-views_jumpmenu(Views0) ->
-    case queue:is_empty(Views0) of
-	true -> 
-	    {"Jump to",current,"No saved views!"};
-	false ->
-	    {{value,VL},Views} = queue:out_r(Views0),
-	    {"Jump to",{jump,views_jumpmenu_1(queue:in_r(VL, Views), 
-					      0, [], [])}}
-    end.
-
-views_jumpmenu_1(Views0, N, Next, Prev) ->
-    case queue:out(Views0) of
-	{empty,Views0} ->
-	    lists:reverse(Next, Prev);
-	{{value,{_,Legend}},Views} when N =:= 0 ->
-	    views_jumpmenu_1(Views, N+1, 
-			     [{Legend,N,"Current (jump +0)"}|Next], Prev);
-	{{value,{_,Legend}},Views} ->
-	    Help = if N =:= 1 -> "Next (jump +1)";
-		      true    -> "Jump +"++integer_to_list(N)
-		   end,
-	    views_jumpmenu_2(Views, N, 
-			     [{Legend,N,Help}|Next], Prev)
+views_submenu_help(_CurrentView, {}, _Action) ->
+    "No saved views!";
+views_submenu_help(CurrentView, Views, Action) ->
+    S = size(Views),
+    case Action of
+	next -> 
+	    N = view_index(CurrentView+1, S),
+	    {_,Legend} = element(N, Views),
+	    "Jump to \""++Legend++"\"["++integer_to_list(N)++"]";
+	current -> 
+	    C = view_index(CurrentView, S),
+	    {_,Legend} = element(C, Views),
+	    "Jump to \""++Legend++"\"["++integer_to_list(C)++"]";
+	prev -> 
+	    P = view_index(CurrentView-1, S),
+	    {_,Legend} = element(P, Views),
+	    "Jump to \""++Legend++"\"["++integer_to_list(P)++"]";
+	rename -> 
+	    C = view_index(CurrentView, S),
+	    {_,Legend} = element(C, Views),
+	    "Rename \""++Legend++"\"["++integer_to_list(C)++"]";
+	delete ->
+	    C = view_index(CurrentView, S),
+	    {_,Legend} = element(view_index(CurrentView, S), Views),
+	    "Delete \""++Legend++"\"["++integer_to_list(C)++"]";
+	delete_all ->
+	    "Delete all saved views"
     end.
 
-views_jumpmenu_2(_Views, N, Next, Prev) when N > 5 ->
-    lists:reverse(Next, [separator|Prev]);
-views_jumpmenu_2(Views0, N, Next, Prev) ->
-    case queue:out_r(Views0) of
-	{empty,Views0} ->
-	    lists:reverse(Next, Prev);
-	{{value,{_,Legend}},Views} ->
-	    Help = if N =:= 1 -> "Prev (jump -1)";
-		      true    -> "Jump -"++integer_to_list(N)
-		   end,
-	    views_jumpmenu_1(Views, N+1, 
-			     Next, [{Legend,-N,Help}|Prev])
+view_index(I, N) when integer(I), integer(N), N > 0 ->
+    J = (I-1) rem N,
+    if J < 0 -> J + 1 + N;
+       true -> J + 1
+    end.
+
+views_jumpmenu(_CurrentView, {}, _Lines) ->
+    {"Jump",current,"No saved views!"};
+views_jumpmenu(CurrentView, Views, Lines) ->
+    S = size(Views),
+    P = view_index(CurrentView-1, S),
+    C = view_index(CurrentView, S),
+    N = view_index(CurrentView+1, S),
+    F = fun (I) ->
+		{_,Legend} = element(I, Views),
+		Help =
+		    case I of
+			P -> "Jump to prev["++integer_to_list(I)++"]";
+			C -> "Jump to current["++integer_to_list(I)++"]";
+			N -> "Jump to next["++integer_to_list(I)++"]";
+			_ -> "Jump to ["++integer_to_list(I)++"]"
+		    end,
+		{Legend,I,Help}
+	end,
+    {"Jump",{jump,viewmenu(F, S, C, Lines)}}.
+
+views_movemenu(_CurrentView, {}, _Lines) ->
+    {"Move Current",current,"No saved views!"};
+views_movemenu(CurrentView, Views, Lines) ->
+    S = size(Views),
+    P = view_index(CurrentView-1, S),
+    C = view_index(CurrentView, S),
+    N = view_index(CurrentView+1, S),
+    Lc = integer_to_list(C),
+    {_,CL} = element(C, Views),
+    F = fun (I) ->
+		{_,Legend} = element(I, Views),
+		Li = integer_to_list(I),
+		Help =
+		    case I of
+			P -> "Move \""++CL++"\"["++Lc++"] to prev["++Li++"]";
+			C -> "Move \""++CL++"\"["++Lc++"] nowhere";
+			N -> "Move \""++CL++"\"["++Lc++"] to next["++Li++"]";
+			_ -> "Move \""++CL++"\"["++Lc++"] to ["++Li++"]"
+		    end,
+		{Legend,I,Help}
+	end,
+    {"Move Current",{move,viewmenu(F, S, C, Lines)}}.
+
+%% Build a list of F(I) values for all view_index(I, S) starting from C
+%% half of them after C and half before, no more than Lines If the
+%% list has to be limited by Lines - insert an element 'separator' 
+%% between the after and before elements, otherwise all view
+%% indexes from 1 upto S will be represented in the result with
+%% C last in the list.
+%% 
+%% Like this when Lines == 4, S > 4 ->
+%%   [F(view_index(C+1, S)), F(view_index(C+2, S)), separator,
+%%    F(view_index(C-1, S)), F(view_index(C, S))].
+%%
+viewmenu(F, S, C, Lines) ->
+    N = view_index(C+1, S),
+    viewmenu_2(F, S, N, C, Lines, [], []).
+
+viewmenu_1(F, _S, N, N, _Lines, Next, Prev) ->
+    lists:reverse(Next, [F(N)|Prev]);
+viewmenu_1(F, S, N, P, Lines, Next, Prev) ->
+    Cnt = view_index(N-P, S),
+    if Cnt >= Lines ->
+	    lists:reverse(Next, [F(N),separator|Prev]);
+       true ->
+	    viewmenu_2(F, S, view_index(N+1, S), P, Lines, [F(N)|Next], Prev)
+    end.
+
+viewmenu_2(F, _S, P, P, _Lines, Next, Prev) ->
+    lists:reverse(Next, [F(P)|Prev]);
+viewmenu_2(F, S, N, P, Lines, Next, Prev) ->
+    Cnt = view_index(N-P, S),
+    if Cnt >= Lines ->
+	    lists:reverse(Next, [separator,F(P)|Prev]);
+       true ->
+	    viewmenu_1(F, S, N, view_index(P-1, S), Lines, Next, [F(P)|Prev])
     end.
 
 command(reset, St) ->
@@ -637,120 +691,119 @@ frame_1([A,B]=BB) ->
     set_current(View#view{origin=e3d_vec:neg(C),
 			  distance=Dist,pan_x=0.0,pan_y=0.0}).
 
-views(next, #st{views=Views0}=St) ->
-    case queue:out(Views0) of
-	{empty,_} ->
-	    wings_util:message("No saved views");
-	{{value,{View,_}=VL},Views} ->
-	    set_current(View),
-	    St#st{views=queue:in(VL, Views)}
-    end;
-views(current, #st{views=Views}) ->
-    case queue:is_empty(Views) of
-	true ->
-	    wings_util:message("No saved views");
-	false ->
-	    {View,_} = queue:last(Views),
-	    set_current(View),
-	    wings_wm:dirty()
-    end;
-views(prev, #st{views=Views0}=St) ->
-    case queue:out_r(Views0) of
-	{empty,_} ->
-	    wings_util:message("No saved views");
-	{{value,VL1},Views1} ->
-	    Views = queue:in_r(VL1, Views1),
-	    {View,_} = queue:last(Views),
-	    set_current(View),
-	    St#st{views=Views}
-    end;
-views({jump,J}, #st{views=Views}=St) ->
-    views_jump(J, St, Views);
-views({save,[Legend]}, #st{views=Views}=St) ->
-    {save_state,St#st{views=queue:in({current(),Legend}, Views)}};
-views({save,Ask}, #st{views=Views}) when is_atom(Ask) ->
+views({save,[Legend]}, #st{views={_,{}}}=St) ->
+    {save_state,St#st{views={1,{{current(),Legend}}}}};
+views({save,[Legend]}, #st{views={CurrentView,Views}}=St) ->
+    J = view_index(CurrentView, size(Views)),
+    {L1,L2} = lists:split(J, tuple_to_list(Views)),
+    {save_state,St#st{views={J+1,list_to_tuple(L1++[{current(),Legend}|L2])}}};
+views({save,Ask}, #st{views={CurrentView,Views}}) when is_atom(Ask) ->
     View = current(),
-    case queue:is_empty(Views) of
-	true ->
-	    wings_ask:dialog(Ask, "Save view as", 
-			     views_rename_qs([view_legend(View)]),
-			     fun(Opts) -> {view,{views,{save,Opts}}} end);
-	false ->
-	    case queue:last(Views) of
+    S = size(Views),
+    if S > 0 ->
+	    case element(view_index(CurrentView, S), Views) of
 		{View,_} ->
 		    wings_util:message("This view is alreay the current");
 		_ ->
-		    wings_ask:dialog(Ask, "Save view as", 
-				     views_rename_qs([view_legend(View)]),
-				     fun(Opts) -> 
-					     {view,{views,{save,Opts}}} 
-				     end)
-	    end
+		    views_save_dialog(Ask, [view_legend(View)])
+	    end;
+       true ->
+	    views_save_dialog(Ask, [view_legend(View)])
     end;
-views(rename, #st{views=Views0}=St) ->
-    case queue:out_r(Views0) of 
-	{empty,Views0} ->
-	    wings_util:message("No saved views");
-	{{value,{View,Legend}},Views} ->
-	    wings_ask:dialog("Rename view",
-			     views_rename_qs([Legend]),
-			     fun([NewLegend]) ->
-				     St#st{views=queue:in({View,NewLegend},
-							  Views)}
-			     end)
+views(_, #st{views={_,{}}}) ->
+    wings_util:message("No saved views");
+views(next, #st{views={CurrentView,Views}}=St) ->
+    J = view_index(CurrentView + 1, size(Views)),
+    {View,_} = element(J, Views),
+    set_current(View),
+    St#st{views={J,Views}};
+views(current, #st{views={CurrentView,Views}}) ->
+    {View,_} = element(view_index(CurrentView, size(Views)), Views),
+    set_current(View),
+    wings_wm:dirty();
+views(prev, #st{views={CurrentView,Views}}=St) ->
+    J = view_index(CurrentView - 1, size(Views)),
+    {View,_} = element(J, Views),
+    set_current(View),
+    St#st{views={J,Views}};
+views({jump,J}, #st{views={CurrentView,Views}}=St) ->
+    views_jump(J, St, CurrentView, Views);
+views({move,J}, #st{views={CurrentView,Views}}=St) ->
+    views_move(J, St, CurrentView, Views);
+views(rename, #st{views={CurrentView,Views}}=St) ->
+    J = view_index(CurrentView, size(Views)),
+    {View,Legend} = element(J, Views),
+    wings_ask:dialog(
+      "Rename view",
+      views_rename_qs([Legend]),
+      fun([NewLegend]) ->
+	      St#st{views={CurrentView,
+			   setelement(J, Views, {View,NewLegend})}}
+      end);
+views(delete, #st{views={CurrentView,Views}}=St) ->
+    View = current(),
+    J = view_index(CurrentView, size(Views)),
+    case element(J, Views) of
+	{View,_} ->
+	    I = J - 1,
+	    {L1,[_|L2]} = lists:split(I, tuple_to_list(Views)),
+	    {save_state,St#st{views={I,list_to_tuple(L1++L2)}}};
+	_ ->
+	    wings_util:message("You have to be at the current view")
     end;
-views(delete, #st{views=Views}=St) ->
-    case queue:is_empty(Views) of
-	true ->
-	    wings_util:message("No saved views");
-	false ->
-	    View = current(),
-	    case queue:last(Views) of
-		{View,_} ->
-		    {save_state,St#st{views=queue:init(Views)}};
-		_ ->
-		    wings_util:message("You have to be at the current view")
-	    end
-    end;
-views(delete_all, #st{views=Views}=St) ->
-    case queue:is_empty(Views) of
-	true ->
-	    wings_util:message("No saved views");
-	false ->
-	    This = wings_wm:this(),
-	    wings_util:yes_no(
-	      "Are you sure you want to delete all saved views?",
-	      fun() -> 
-		      wings_wm:send(This, 
-				    {new_state,St#st{views=queue:new()}}),
-		      ignore
-	      end)
-    end.
-    
+views(delete_all, St) ->
+    This = wings_wm:this(),
+    wings_util:yes_no(
+      "Are you sure you want to delete all saved views?",
+      fun() -> 
+	      wings_wm:send(This, 
+			    {new_state,St#st{views={0,{}}}}),
+	      ignore
+      end).
 
-views_jump(0, St, Views) ->
-    views(current, St#st{views=Views});
-views_jump(1, St, Views) ->
-    views(next, St#st{views=Views});
-views_jump(-1, St, Views) ->
-    views(prev, St#st{views=Views});
-views_jump(J, St, Views0) when J > 0 ->
-    case queue:out(Views0) of
-	{empty,Views0} ->
-	    wings_util:message("No saved views");
-	{{value,VL},Views} ->
-	    views_jump(J-1, St, queue:in(VL, Views))
-    end;
-views_jump(J, St, Views0) -> % when J < 0
-    case queue:out_r(Views0) of
-	{empty,Views0} ->
-	    wings_util:message("No saved views");
-	{{value,VL},Views} ->
-	    views_jump(J+1, St, queue:in_r(VL, Views))
-    end.
+views_save_dialog(Ask, Options) ->
+    wings_ask:dialog(Ask, "Save view as", 
+		     views_rename_qs(Options),
+		     fun(Opts) -> {view,{views,{save,Opts}}} end).
 
 views_rename_qs([Legend]) ->
     [{hframe,[{label,"Name"},{text,Legend}]}].
+
+views_jump(J, St, CurrentView, Views) ->
+    S = size(Views),
+    case {view_index(J, S),view_index(CurrentView, S)} of
+	{J,J} ->
+	    {View,_} = element(J, Views),
+	    set_current(View),
+	    wings_wm:dirty();
+	{J,_} ->
+	    {View,_} = element(J, Views),
+	    set_current(View),
+	    St#st{views={J,Views}};
+	_ ->
+	    wings_util:message("No such view slot")
+    end.
+
+views_move(J, St, CurrentView, Views) ->
+    S = size(Views),
+    case {view_index(J, S),view_index(CurrentView, S)} of
+	{J,J} ->
+	    {View,_} = element(J, Views),
+	    set_current(View),
+	    wings_wm:dirty();
+	{J,C} when J < C ->
+	    {V1,[{View,_}=VL|V2]} = lists:split(C-1, tuple_to_list(Views)),
+	    {V3,V4} = lists:split(J-1, V1),
+	    set_current(View),
+	    St#st{views={J,list_to_tuple(V3++([VL|V4]++V2))}};
+	{J,C} ->
+	    {V1,[{View,_}=VL|V2]} = lists:split(C-1, tuple_to_list(Views)),
+	    {V3,V4} = lists:split(J-C, V2),
+	    set_current(View),
+	    St#st{views={J,list_to_tuple(V1++(V3++[VL|V4]))}};
+	_ ->
+	    wings_util:message("No such view ["++integer_to_list(J)++"]")
+    end.
 
 toggle_lights() ->
     Lights = case wings_pref:get_value(number_of_lights) of
@@ -774,7 +827,7 @@ along(-90.0, 0.0) -> x;
 along(0.0,  90.0) -> y;
 along(0.0,   0.0) -> z;
 along(90.0,  0.0) -> neg_x;
-along(0.0,  -0.0) -> neg_y;
+along(0.0,  -90.0) -> neg_y;
 along(180.0, 0.0) -> neg_z;
 along(_Az,   _El) -> none.
 
@@ -851,8 +904,8 @@ one_of(false,_, S) -> S.
 %%% Export and import of views.
 %%%
 
-export_views(St) ->
-    export_views_1(queue:to_list(St#st.views)).
+export_views(#st{views={_,Views}}) ->
+    export_views_1(tuple_to_list(Views)).
 
 export_views_1([{View,Name}|Views]) ->
     Tags = [aim,distance_to_aim,azimuth,elevation,tracking,fov,hither,yon],
@@ -864,8 +917,8 @@ zip([H1|T1], [H2|T2]) ->
     [{H1,H2}|zip(T1, T2)];
 zip([], []) -> [].
 
-import_views(Views, St) ->
-    St#st{views=queue:from_list(import_views_1(Views))}.
+import_views(Views, #st{views={CurrentView,_}}=St) ->
+    St#st{views={CurrentView,list_to_tuple(import_views_1(Views))}}.
 
 import_views_1([{view,As}|Views]) ->
     [import_view(As)|import_views_1(Views)];
