@@ -3,12 +3,12 @@
 %%
 %%     7x14 bitmap font.
 %%
-%%  Copyright (c) 2001-2002 Bjorn Gustavsson.
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson.
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpf_7x14.erl,v 1.9 2003/12/27 08:39:35 bjorng Exp $
+%%     $Id: wpf_7x14.erl,v 1.10 2004/02/27 05:29:59 bjorng Exp $
 %%
 
 -module(wpf_7x14).
@@ -18,16 +18,20 @@ desc() ->
     "Large (7x14)".
 
 width(S) ->
-    len(S, 0).
+    width_1(S, 0).
 
-len([folder|Cs], L) -> len(Cs, L+14);
-len([option|Cs], L) -> len(Cs, L+14);
-len([shift|Cs], L) -> len(Cs, L+14);
-len([space2|Cs], L) -> len(Cs, L+14);
-len([32|Cs], L) -> len(Cs, L+5);
-len([160|Cs], L) -> len(Cs, L+3);
-len([_|Cs], L) -> len(Cs, L+7);
-len([], L) -> L.
+width_1([C|Cs], W) ->
+    width_1(Cs, W+cw(C));
+width_1([], W) -> W.
+
+cw(command) -> 8;
+cw(folder) -> 14;
+cw(option) -> 14;
+cw(shift) -> 14;
+cw(space2) -> 14;
+cw(32) -> 5;
+cw(160) -> 3;
+cw(_) -> 7.
 
 width() -> 7.
 height() -> 14.
@@ -36,17 +40,19 @@ draw([C|T]) -> char(C), draw(T);
 draw([]) -> ok.
 
 char(option_box) ->
-    gl:bitmap(6, 10, 4, 2, 7, 0,
-	      <<2#11111100,
-	        2#10000100,
-	        2#10000100,
-	        2#10000100,
-	        2#10000100,
-	        2#10000100,
-	        2#10000100,
-	        2#10000100,
-	        2#11111100,
-	        2#11111100>>);
+    B = <<
+	 2#11111100,
+	 2#10000100,
+	 2#10000100,
+	 2#10000100,
+	 2#10000100,
+	 2#10000100,
+	 2#10000100,
+	 2#10000100,
+	 2#11111100,
+	 2#11111100
+	 >>,
+    gl:bitmap(6, 10, 0, 4, 7, 0, B);
 
 char(command) ->
     B = <<
@@ -59,7 +65,7 @@ char(command) ->
        	 2#10101010,
        	 2#10101010,
        	 2#01000100>>,
-    gl:bitmap(7, 9, -1, 0, 8, 0, B);
+    gl:bitmap(7, 9, 0, 0, 8, 0, B);
 
 char(option) ->
     B = <<
@@ -70,7 +76,7 @@ char(option) ->
        	 2#0000010000000000:16,
        	 2#0000100000000000:16,
        	 2#1111000111111000:16>>,
-    gl:bitmap(13, 7, -1, 0, 14, 0, B);
+    gl:bitmap(13, 7, 0, 0, 14, 0, B);
 
 char(shift) ->
     B = <<
@@ -84,7 +90,7 @@ char(shift) ->
        	 2#0000110110000000:16,
        	 2#0000011100000000:16,
        	 2#0000001000000000:16>>,
-    gl:bitmap(13, 10, -1, 0, 14, 0, B);
+    gl:bitmap(13, 10, 0, 0, 14, 0, B);
 
 char(caret) ->
     B = <<
@@ -103,7 +109,7 @@ char(caret) ->
 	 2#00100000,
 	 2#11011000
 	 >>,
-    gl:bitmap(5, 14, 0.0, 3.0, 2.0, 0.0, B);
+    gl:bitmap(5, 14, 0, 3, 2, 0, B);
 
 char(crossmark) ->
     B = <<
@@ -115,19 +121,19 @@ char(crossmark) ->
 	 2#00000110,
 	 2#00000010
 	 >>,
-    gl:bitmap(7, 7, -1.0, 0.0, 7.0, 0.0, B);
+    gl:bitmap(7, 7, 0, 0, 7, 0, B);
 
 char(axisx) ->
     B = <<16#63,16#63,16#36,16#3e,16#1c,16#3e,16#36,16#63,16#63>>,
-    gl:bitmap(8, 9, -1.0, 0.0, 8.0, 0.0, B);
+    gl:bitmap(8, 9, 0, 0, 8, 0, B);
 
 char(axisy) ->
     B = <<16#18,16#18,16#18,16#18,16#3c,16#3c,16#66,16#e7,16#c3>>,
-    gl:bitmap(8, 9, -1.0, 0.0, 8.0, 0.0, B);
+    gl:bitmap(8, 9, 0, 0, 8, 0, B);
 
 char(axisz) ->
     B = <<16#7f,16#60,16#70,16#38,16#1c,16#0e,16#07,16#03,16#7f>>,
-    gl:bitmap(8, 9, -1.0, 0.0, 8.0, 0.0, B);
+    gl:bitmap(8, 9, 0, 0, 8, 0, B);
 
 char(folder) ->
     B = <<
@@ -141,7 +147,7 @@ char(folder) ->
        	 2#0010000100000000:16,
        	 2#0001111000000000:16,
        	 2#0000000000000000:16>>,
-    gl:bitmap(13, 10, -1, 0, 14, 0, B);
+    gl:bitmap(13, 10, 0, 0, 14, 0, B);
 
 char(space2) ->
     B = <<>>,
