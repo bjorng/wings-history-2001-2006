@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.91 2003/01/23 05:56:41 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.92 2003/01/26 11:33:38 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -204,9 +204,8 @@ virtual_mirror(freeze, #st{shapes=Shs0}=St) ->
     end.
 
 mode_change_all(Wire) ->
-    wings_draw_util:update(fun mode_change_all/2, Wire).
+    wings_draw_util:map(fun mode_change_all/2, Wire).
 
-mode_change_all(eol, _) -> eol;
 mode_change_all(#dlo{wire=Wire}=D, toggle) ->
     {D#dlo{wire=not Wire},toggle};
 mode_change_all(D, Wire) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.47 2003/01/22 21:34:40 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.48 2003/01/26 11:33:38 bjorng Exp $
 %%
 
 -module(wings_shape).
@@ -106,28 +106,16 @@ event({new_name,Id,Name}, #ost{st=#st{shapes=Shs0}=St}) ->
     Shs = gb_trees:update(Id, We#we{name=Name}, Shs0),
     wings_wm:send(geom, {new_state,St#st{shapes=Shs}}),
     keep;
-event(#mousemotion{x=X,y=Y,state=State}, #ost{active=Act0}=Ost0) ->
-    Act = active_object(Y, Ost0),
-    Field = active_field(X),
+event(#mousemotion{x=X,y=Y}, Ost) ->
+    Act = active_object(Y, Ost),
     help(Act, active_field(X)),
-    case Act of
-	Act0 -> keep;
-	_ ->
-	    wings_wm:dirty(),
-	    Ost = Ost0#ost{active=Act},
-	    case State band ?SDL_BUTTON_LMASK of
-		?SDL_BUTTON_LMASK ->
-		    repeat_latest(Field, Ost);
-		0 -> ok
-	    end,
-	    get_event(Ost)
-    end;
-event(#mousebutton{x=X,y=Y,button=B,state=?SDL_PRESSED}, Ost) ->
-    do_action(X, Y, B, Ost);
+    keep;
 event(#mousebutton{button=4,state=?SDL_RELEASED}, Ost) ->
     zoom_step(-1*lines(Ost) div 4, Ost);
 event(#mousebutton{button=5,state=?SDL_RELEASED}, Ost) ->
     zoom_step(lines(Ost) div 4, Ost);
+event(#mousebutton{}=Ev, Ost) ->
+    do_action(Ev, Ost);
 event(scroll_page_up, Ost) ->
     zoom_step(-lines(Ost), Ost);
 event(scroll_page_down, Ost) ->
@@ -137,12 +125,18 @@ event({set_knob_pos,Pos}, #ost{first=First0,n=N}=Ost0) ->
 	First0 -> keep;
 	First when First < N ->
 	    wings_wm:dirty(),
-	    Ost = Ost0#ost{first=First,active=-1},
+	    Ost = Ost0#ost{first=First},
 	    update_scroller(Ost),
 	    get_event(Ost);
 	_ -> keep
     end;
-event(_, _) -> keep.
+event(Ev, Ost) ->
+    case wings_hotkey:event(Ev) of
+	{select,deselect} ->
+	    wings_wm:dirty(),
+	    get_event(Ost#ost{active=-1});
+	_ -> keep
+    end.
 
 help(-1, _) -> wings_wm:message("");
 help(_, name) ->
@@ -156,11 +150,13 @@ help(_, lock) ->
 	   "Lock/unlock all objects");
 help(_, selection) ->
     help_1("Toggle selection for active object",
-	   "Toggle selection for all other objects").
+	   "Toggle selection for all other objects");
+help(_, wire) ->
+    help_1("Toggle shaded/wireframe for active object",
+	   "Toggle shaded/wireframe for all other objects").
 
 help_1(OneMsg, ThreeMsg) ->
-    {One,_,Three} = wings_camera:button_names(),
-    wings_wm:message([One," ",OneMsg,"  ",Three," ",ThreeMsg]).
+    wings_util:button_message(OneMsg, [], ThreeMsg).
 
 update_state(St, #ost{first=OldFirst}=Ost0) ->
     #ost{first=First0} = Ost = update_state_1(St, Ost0),
@@ -230,43 +226,61 @@ clamp(F, #ost{n=N}=Ost) ->
     end.
     
 active_object(Y0, #ost{lh=Lh,first=First,n=N}) ->
-    case Y0 - top_of_first_object() of
+    case Y0 of
 	Y when Y < 0 -> -1;
 	Y1 ->
 	    case Y1 div Lh of
-		Y when First+Y < N -> Y;
+		Y when First+Y < N -> First+Y;
 		_ -> -1
 	    end
     end.
 
 active_field(X) ->
+    NamePos = name_pos(),
     EyePos = eye_pos(),
     LockPos = lock_pos(),
-    SelPos = sel_pos(),
+    WirePos = wire_pos(),
     if
+	X < NamePos -> selection;
 	X < EyePos -> name;
 	X < LockPos -> visibility;
-	X < SelPos -> lock;
-	true -> selection
+	X < WirePos -> lock;
+	true -> wire
     end.
 
-do_action(X, Y, Button, #ost{first=First,os=Objs}=Ost) ->
-    case active_object(Y, Ost) of
-	-1 -> keep;
-	Obj ->
-	    We = lists:nth(First+Obj+1, Objs),
-	    Field = active_field(X),
-	    do_action_1(Field, Button, We, Ost)
+do_action(#mousebutton{button=B}, _) when B > 3 -> keep;
+do_action(#mousebutton{x=X,y=Y,button=B,state=S}, #ost{active=Act0,os=Objs}=Ost) ->
+    Act = active_object(Y, Ost),
+    case active_field(X) of
+	name when B =:= 1 ->
+	    if
+		Act =:= Act0 -> keep;
+		true ->
+		    wings_wm:dirty(),
+		    get_event(Ost#ost{active=Act})
+	    end;
+	name when B =:= 3, S =:= ?SDL_RELEASED ->
+	    {GlobX,GlobY} = wings_wm:local2global(X, Y),
+	    do_menu(Act, GlobX, GlobY, Ost);
+	Field when S =:= ?SDL_PRESSED ->
+	    if
+		Act =:= -1 -> keep;
+		true ->
+		    We = lists:nth(Act+1, Objs),
+		    do_action_1(Field, B, We, Ost)
+	    end;
+	_ -> keep
     end.
 
 do_action_1(visibility, 1, We, Ost) -> toggle_visibility(We, Ost);
 do_action_1(visibility, 3, We, Ost) -> toggle_visibility_all(We, Ost);
 do_action_1(lock, 1, We, Ost) -> toggle_lock(We, Ost);
 do_action_1(lock, 3, We, Ost) -> toggle_lock_all(We, Ost);
-do_action_1(name, 3, We, _Ost) -> rename_object(We);
 do_action_1(selection, 1, We, Ost) -> toggle_sel(We, Ost);
 do_action_1(selection, 3, We, Ost) -> toggle_sel_all(We, Ost);
-do_action_1(_, _, _, _) -> keep.
+do_action_1(wire, 1, We, Ost) -> toggle_wire(We, Ost);
+do_action_1(wire, 3, We, Ost) -> toggle_wire_all(We, Ost);
+do_action_1(_, _, _, Ost) -> get_event(Ost).
 
 toggle_visibility(#we{id=Id,perm=Perm}, #ost{st=St0}=Ost) ->
     {Op,St} = if
@@ -324,15 +338,6 @@ are_all_visible_locked([#we{perm=P}|T], Id) ->
     end;
 are_all_visible_locked([], _) -> true.
 
-rename_object(#we{id=Id,name=Name}) ->
-    wings_ask:ask("Rename Object",
-		  [{"New Name",Name}],
-		  fun([NewName]) when NewName =/= Name ->
-			  wings_wm:send(object, {new_name,Id,NewName}),
-			  ignore;
-		     (_) -> ignore
-		  end).
-
 toggle_sel(#we{id=Id,perm=P}, #ost{st=St0,sel=Sel}=Ost) ->
     case keymember(Id, 1, Sel) of
 	false when ?IS_SELECTABLE(P) ->
@@ -361,35 +366,71 @@ toggle_sel_all_1(#we{id=Id,perm=P}, #ost{st=St}) when ?IS_SELECTABLE(P) ->
     wings_wm:send(geom, {new_state,wings_sel:select_object(Id, St#st{sel=[]})});
 toggle_sel_all_1(_, _) -> ok.
 
-repeat_latest(_, #ost{active=-1}) -> ok;
-repeat_latest(Field, #ost{first=First,active=Obj,os=Objs}=Ost) ->
-    We = lists:nth(First+Obj+1, Objs),
-    repeat_latest_1(Field, We, Ost).
+toggle_wire(#we{id=Id}, _) ->
+    wings_draw_util:map(fun(D, _) -> toggle_wire_1(D, Id) end, []),
+    wings_wm:dirty().
 
-repeat_latest_1(visibility, #we{id=Id}, #ost{op=hide,st=St}) ->
-    wings_wm:send(geom, {new_state,hide_object(Id, St)});
-repeat_latest_1(visibility, #we{id=Id}, #ost{op=show,st=St}) ->
-    wings_wm:send(geom, {new_state,restore_object(Id, St)});
-repeat_latest_1(selection, #we{id=Id}, #ost{op=select,st=St}) ->
-    wings_wm:send(geom, {new_state,wings_sel:select_object(Id, St)});
-repeat_latest_1(selection, #we{id=Id}, #ost{op=deselect,st=St}) ->
-    wings_wm:send(geom, {new_state,wings_sel:deselect_object(Id, St)});
-repeat_latest_1(lock, #we{id=Id,perm=P}, #ost{op=Op,st=St}) ->
-    if
-	?IS_NOT_VISIBLE(P) -> ok;
-	Op == lock ->
-	    wings_wm:send(geom, {new_state,lock_object(Id, St)});
-	Op == unlock ->
-	    wings_wm:send(geom, {new_state,restore_object(Id, St)});
-	true -> ok
-    end;
-repeat_latest_1(_, _, _) -> ok.
+toggle_wire_1(#dlo{src_we=#we{id=Id},wire=Wire}=D, Id) ->
+    D#dlo{wire=not Wire};
+toggle_wire_1(D, _) -> D.
+
+toggle_wire_all(#we{id=Id}, _) ->
+    B = wings_draw_util:fold(fun(#dlo{src_we=#we{id=I}}, A) when I =:= Id -> A;
+				(#dlo{wire=Wire}, A) -> A andalso not Wire
+			     end, true),
+    wings_draw_util:map(fun(#dlo{src_we=#we{id=I}}=D, _) when I =:= Id -> D;
+			   (#dlo{}=D, _) -> D#dlo{wire=B}
+			end, []),
+    wings_wm:dirty().
+				
+	
+					    
+
+%     toggle_wire_all_1(We, Ost),
+%     get_event(Ost#ost{op=none}).
+
+% toggle_wire_all_1(_, #ost{sel=[],st=St0}) ->
+%     St = wings_sel_cmd:select_all(St0),
+%     wings_wm:send(geom, {new_state,St});
+% toggle_wire_all_1(#we{id=Id}, #ost{sel=[{Id,_}],st=St0}) ->
+%     St = wings_sel_cmd:select_all(St0#st{sel=[]}),
+%     wings_wm:send(geom, {new_state,St});
+% toggle_wire_all_1(#we{id=Id,perm=P}, #ost{st=St}) when ?IS_SELECTABLE(P) ->
+%     wings_wm:send(geom, {new_state,wings_sel:select_object(Id, St#st{sel=[]})});
+% toggle_wire_all_1(_, _) -> ok.
+
+%%%
+%%% Popup menus.
+%%%
+
+do_menu(-1, _, _, _) -> keep;
+do_menu(Act, X, Y, #ost{os=Objs}) ->
+    Menu = case lists:nth(Act+1, Objs) of
+	       #we{id=Id} ->
+		   [{"Duplicate",menu_cmd(duplicate_object, Id),
+		     "Duplicate this object"},
+		    {"Delete",menu_cmd(delete_object, Id),
+		     "Delete this object"}]
+	   end,
+    wings_menu:popup_menu(X, Y, objects, Menu).
+
+menu_cmd(Cmd, Id) ->
+    {'VALUE',{Cmd,Id}}.
+
+rename_object(#we{id=Id,name=Name}) ->
+    wings_ask:ask("Rename Object",
+		  [{"New Name",Name}],
+		  fun([NewName]) when NewName =/= Name ->
+			  wings_wm:send(object, {new_name,Id,NewName}),
+			  ignore;
+		     (_) -> ignore
+		  end).
+
+%%%
+%%% Draw the object window.
+%%%
 
 draw_objects(#ost{os=Objs0,first=First,lh=Lh,active=Active,n=N0}=Ost) ->
-    if
-	First < 0 -> erlang:fault({neg_first,First});
-	true -> ok
-    end,
     Objs = lists:nthtail(First, Objs0),
     R = right_pos(),
     Lines = lines(Ost),
@@ -397,42 +438,12 @@ draw_objects(#ost{os=Objs0,first=First,lh=Lh,active=Active,n=N0}=Ost) ->
 	    N1 when N1 < Lines -> N1;
 	    _ -> Lines
 	end,
-    draw_objects_1(N, Objs, Ost, R, Active, Lh-2).
+    draw_icons(N, Objs, Ost, R, Active-First, Lh-2),
+    draw_objects_1(N, Objs, Ost, R, Active-First, Lh-2).
 
 draw_objects_1(0, _, _, _, _, _) -> ok;
-draw_objects_1(N, [#we{id=Id,name=Name,perm=Perm}=We|Wes],
-	       #ost{sel=Sel,lh=Lh}=Ost, R, Active, Y) ->
-    EyePos = eye_pos(),
-    LockPos = lock_pos(),
-    SelPos = sel_pos(),
-    gl:enable(?GL_TEXTURE_2D),
-    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
-    if
-	?IS_LIGHT(We) ->
-	    wings_io:draw_icon(icon_pos(), Y-14, 16, 16, small_light);
-	true ->
-	    wings_io:draw_icon(icon_pos(), Y-14, 16, 16, small_object)
-    end,
-    if
-	?IS_VISIBLE(Perm) ->
-	    wings_io:draw_icon(EyePos, Y-14, 16, 16, small_eye);
-	true ->
-	    wings_io:draw_icon(EyePos, Y-14, 16, 16, small_closed_eye)
-    end,
-    if
-	?IS_SELECTABLE(Perm) ->
-	    wings_io:draw_icon(LockPos, Y-14, 16, 16, small_unlocked);
-	true ->
-	    wings_io:draw_icon(LockPos, Y-14, 16, 16, small_locked)
-    end,
-    case keymember(Id, 1, Sel) of
-	false ->
-	    wings_io:draw_icon(SelPos, Y-14, 16, 16, small_object);
-	true ->
-	    wings_io:draw_icon(SelPos, Y-14, 16, 16, small_sel)
-    end,
-    gl:bindTexture(?GL_TEXTURE_2D, 0),
-    gl:disable(?GL_TEXTURE_2D),
+draw_objects_1(N, [#we{name=Name}|Wes],
+	       #ost{lh=Lh}=Ost, R, Active, Y) ->
     if
 	Active == 0 ->
 	    gl:color3f(0, 0, 0.5),
@@ -444,14 +455,58 @@ draw_objects_1(N, [#we{id=Id,name=Name,perm=Perm}=We|Wes],
     gl:color3f(0, 0, 0),
     draw_objects_1(N-1, Wes, Ost, R, Active-1, Y+Lh).
 
-top_of_first_object() ->
-    0.
+draw_icons(N, Objs, Ost, R, I, Y) ->
+    gl:enable(?GL_TEXTURE_2D),
+    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
+    wings_draw_util:fold(fun draw_icons_1/2, {N,Objs,Ost,R,I,Y}),
+    gl:bindTexture(?GL_TEXTURE_2D, 0),
+    gl:disable(?GL_TEXTURE_2D).
 
-icon_pos() ->
+draw_icons_1(_, done) -> done;
+draw_icons_1(_, {0,_,_,_,_,_}) -> done;
+draw_icons_1(#dlo{src_we=#we{id=Id},wire=Wire},
+	     {N,[#we{id=Id,perm=Perm}=We|Wes],#ost{sel=Sel,lh=Lh}=Ost,R,Active,Y}) ->
+    EyePos = eye_pos(),
+    LockPos = lock_pos(),
+    SelPos = sel_pos(),
+    WirePos = wire_pos(),
+    IconY = Y - 14,
+    if
+	?IS_VISIBLE(Perm) ->
+	    wings_io:draw_icon(EyePos, IconY, 16, 16, small_eye);
+	true ->
+	    wings_io:draw_icon(EyePos, IconY, 16, 16, small_closed_eye)
+    end,
+    if
+	?IS_SELECTABLE(Perm) ->
+	    wings_io:draw_icon(LockPos, IconY, 16, 16, small_unlocked);
+	true ->
+	    wings_io:draw_icon(LockPos, IconY, 16, 16, small_locked)
+    end,
+    case keymember(Id, 1, Sel) of
+	false when ?IS_LIGHT(We) ->
+	    wings_io:draw_icon(SelPos, IconY, 16, 16, small_light);
+	false ->
+	    wings_io:draw_icon(SelPos, IconY, 16, 16, small_object);
+	true when ?IS_LIGHT(We) ->
+	    wings_io:draw_icon(SelPos, IconY, 16, 16, small_sel_light);
+	true ->
+	    wings_io:draw_icon(SelPos, IconY, 16, 16, small_sel)
+    end,
+    case Wire of
+	false ->
+	    wings_io:draw_icon(WirePos, IconY, 16, 16, small_object);
+	true ->
+	    wings_io:draw_icon(WirePos, IconY, 16, 16, small_wire)
+    end,
+    {N-1,Wes,Ost,R,Active-1,Y+Lh};
+draw_icons_1(_, Acc) -> Acc.
+
+sel_pos() ->
     2.
 
 name_pos() ->
-    20.
+    22.
 
 eye_pos() ->
     right_pos().
@@ -459,7 +514,7 @@ eye_pos() ->
 lock_pos() ->
     right_pos()+16+2.
 
-sel_pos() ->
+wire_pos() ->
     right_pos()+32+4.
 
 right_pos() ->
