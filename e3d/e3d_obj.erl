@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_obj.erl,v 1.35 2003/03/21 10:15:45 bjorng Exp $
+%%     $Id: e3d_obj.erl,v 1.36 2003/04/17 13:59:04 bjorng Exp $
 %%
 
 -module(e3d_obj).
@@ -115,8 +115,6 @@ read(Parse, Fd0, Acc) ->
 read(_, eof, _, Acc) -> Acc;
 read(Parse, "#" ++ _Comment, Fd, Acc) ->
     read(Parse, Fd, Acc);
-read(Parse, "\r\n", Fd, Acc) ->
-    read(Parse, Fd, Acc);
 read(Parse, "\n", Fd, Acc) ->
     read(Parse, Fd, Acc);
 read(Parse, " " ++ Line, Fd, Acc) ->
@@ -126,7 +124,6 @@ read(Parse, "\t" ++ Line, Fd, Acc) ->
 read(Parse, "mtllib" ++ Name0, Fd, Acc0) ->
     Name1 = skip_blanks(Name0),
     Name = case reverse(Name1) of
-	       [$\n,$\r|Name2] -> reverse(Name2);
 	       [$\n|Name2] -> reverse(Name2)
 	   end,
     case Parse(["mtllib",Name], Acc0) of
@@ -143,8 +140,6 @@ collect([$\s|T], [], Tokens) ->
     collect(T, [], Tokens);
 collect([$\s|T], Curr, Tokens) ->
     collect(T, [], [reverse(Curr)|Tokens]);
-collect([$\r|T], Curr, Tokens) ->
-    collect([$\s|T], Curr, Tokens);
 collect([$\n|T], Curr, Tokens) ->
     collect([$\s|T], Curr, Tokens);
 collect([H|T], Curr, Tokens) ->
@@ -348,6 +343,8 @@ get_line([], Fd, Line) ->
 	    end;
 	{ok,Cs} -> get_line(Cs, Fd, Line)
     end;
+get_line([$\r|Cs], Fd, Line) ->
+    {reverse(Line, [$\n]),{Fd,Cs}};
 get_line([$\n|Cs], Fd, Line) ->
     {reverse(Line, [$\n]),{Fd,Cs}};
 get_line([C|Cs], Fd, Line) ->
