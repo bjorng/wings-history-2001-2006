@@ -3,12 +3,12 @@
 %%
 %%     This module contains most of the commands for vertices.
 %%
-%%  Copyright (c) 2001-2004 Bjorn Gustavsson
+%%  Copyright (c) 2001-2005 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.50 2004/12/29 09:58:22 bjorng Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.51 2005/01/30 07:40:43 bjorng Exp $
 %%
 
 -module(wings_vertex_cmd).
@@ -124,7 +124,7 @@ extrude_vertices(Vs, We0, Acc) ->
     We = foldl(fun(V, A) ->
 		       ex_new_vertices(V, We0, A)
 	       end, We0, gb_sets:to_list(Vs)),
-    NewVs = gb_sets:to_list(wings_we:new_items(vertex, We0, We)),
+    NewVs = wings_we:new_items_as_ordset(vertex, We0, We),
     {We,[{Vs,NewVs,gb_sets:empty(),We}|Acc]}.
 
 ex_new_vertices(V, OrigWe, #we{vp=Vtab}=We0) ->
