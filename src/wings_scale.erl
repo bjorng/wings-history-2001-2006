@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_scale.erl,v 1.27 2002/03/04 19:32:58 bjorng Exp $
+%%     $Id: wings_scale.erl,v 1.28 2002/03/09 22:15:19 bjorng Exp $
 %%
 
 -module(wings_scale).
@@ -141,8 +141,13 @@ faces_to_vertices(Faces0, We, Type) ->
 %% Conversion of body selection to vertices.
 %%
 
+body_to_vertices(We, {Type,{Center,_Vec}}) ->
+    body_to_vertices_1(Type, Center);
 body_to_vertices(We, Type) ->
     Center = e3d_vec:average(wings_vertex:bounding_box(We)),
+    body_to_vertices_1(Type, Center).
+
+body_to_vertices_1(Type, Center) ->
     {Xt0,Yt0,Zt0} = filter_vec(Type, {1.0,1.0,1.0}),
     fun(_Matrix0, [Dx]) when is_float(Dx) ->
 	    Xt = 1.0 + Xt0*Dx,
