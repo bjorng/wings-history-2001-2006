@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pb.erl,v 1.10 2004/02/22 06:02:00 bjorng Exp $
+%%     $Id: wings_pb.erl,v 1.11 2004/02/28 03:35:27 bjorng Exp $
 %%
 
 -module(wings_pb).
@@ -59,14 +59,16 @@ cancel() ->
 %% Helpers
 
 call(What) ->
-    ?PB ! {self(),?PB,What},
-    receive
-	{?PB,Res} ->
-	    Res
+    case catch ?PB ! {self(),?PB,What} of
+	{'EXIT',_} -> ok;
+	_ ->
+	    receive
+		{?PB,Res} -> Res
+	    end
     end.
 
 cast(What) ->
-    ?PB ! {?PB,What},
+    catch ?PB ! {?PB,What},
     ok.
 
 reply(Pid, What) ->
@@ -89,12 +91,24 @@ reply(Pid, What) ->
 
 %% Start progressbar process
 init() ->
-    Pid = spawn_link(?MODULE, loop, [#state{}]),
-    register(?PB, Pid),
-    ok.
+    case wings_pref:get_value(no_progress_bar) of
+	true ->
+	    cast(terminate),
+	    sent_termination_request;
+	false ->
+	    case whereis(?PB) of
+		undefined ->
+		    Pid = spawn_link(?MODULE, loop, [#state{}]),
+		    register(?PB, Pid),
+		    started;
+		_ -> already_started
+	    end
+    end.
 
 loop(#state{refresh=After,level=Level}=S0) ->
     receive
+	{?PB,terminate} ->
+	    exit(normal);
 	{Pid,?PB,cancel} ->
 	    reply(Pid, ok),
 	    loop(#state{});

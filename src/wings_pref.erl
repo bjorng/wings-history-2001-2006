@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.113 2003/12/08 19:15:45 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.114 2004/02/28 03:35:27 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -218,7 +218,8 @@ ui_prefs() ->
 	  {color,title_text_color},
 	  {color,title_passive_color},
 	  {color,title_active_color}]}],
-       [{title,"Colors"}]}
+       [{title,"Colors"}]},
+      {"No Progress Bar",no_progress_bar}
      ]}.
 
 misc_prefs() ->
@@ -313,6 +314,8 @@ smart_set_value_1(Key, Val, St) ->
 		    wings_wm:translation_change();
 		num_buttons ->
 		    wings_wm:translation_change();
+		no_progress_bar ->
+		    wings_pb:init();
 		_Other -> ok
 	    end
     end.
@@ -646,7 +649,8 @@ defaults() ->
      {dialog_color,{0.75,0.75,0.75,1.0}},
      {title_active_color,{0.41,0.55,0.41,1.0}},
      {title_passive_color,{0.325,0.4,0.325,1.0}},
-     {title_text_color,{1.0,1.0,1.0}}
+     {title_text_color,{1.0,1.0,1.0}},
+     {no_progress_bar,false}
     ].
 
 clean(List) ->
