@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.30 2003/02/28 17:14:15 bjorng Exp $
+%%     $Id: wings_light.erl,v 1.31 2003/04/24 17:29:45 bjorng Exp $
 %%
 
 -module(wings_light).
@@ -540,11 +540,16 @@ export(#st{shapes=Shs}) ->
 	      end, [], gb_trees:values(Shs)),
     reverse(L).
 
-get_light(#we{name=Name,light=#light{type=ambient,ambient=Amb,prop=Prop}}=We) ->
+get_light(#we{name=Name,perm=P}=We) ->
+    Ps0 = get_light_1(We),
+    Ps = export_perm(P, Ps0),
+    {Name,Ps}.
+
+get_light_1(#we{light=#light{type=ambient,ambient=Amb,prop=Prop}}=We) ->
     P = light_pos(We),
     OpenGL = [{type,ambient},{ambient,Amb},{position,P}],
-    {Name,[{opengl,OpenGL}|Prop]};
-get_light(#we{name=Name,light=L}=We) ->
+    [{opengl,OpenGL}|Prop];
+get_light_1(#we{light=L}=We) ->
     #light{type=Type,diffuse=Diff,ambient=Amb,specular=Spec,
 	   aim=Aim,spot_angle=Angle,spot_exp=SpotExp,
 	   lin_att=LinAtt,quad_att=QuadAtt,prop=Prop} = L,
@@ -563,7 +568,12 @@ get_light(#we{name=Name,light=L}=We) ->
 		      {quadratic_attenuation,QuadAtt}|OpenGL0];
 		 true -> OpenGL0
 	     end,
-    {Name,[{opengl,OpenGL}|Prop]}.
+    [{opengl,OpenGL}|Prop].
+
+export_perm({_,_}, Ps) ->
+    [{visible,false},{locked,false}|Ps];
+export_perm(P, Ps) when is_integer(P) ->
+    [{visible,P < 2},{locked,(P band 1) =/= 0}|Ps].
 
 %%%
 %%% Importing lights.
