@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.89 2004/06/14 11:49:08 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.90 2004/06/17 09:57:05 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -2144,9 +2144,9 @@ export_camera(F, Name, Attr) ->
     Width = proplists:get_value(width, Attr),
     Height = proplists:get_value(height, Attr),
     Ro = math:pi()/180.0,
-    %% Fov is horizontal angle from left to right border.
-    %% YafRay focal plane is 1 unit high.
-    FocalDist = (0.5 / math:tan(limit_fov(Fov)*0.5*Ro)) * (Height / Width),
+    %% Fov is vertical angle from lower to upper border.
+    %% YafRay focal plane is 1 unit wide.
+    FocalDist = 0.5 / ((Width/Height) * math:tan(limit_fov(Fov)*0.5*Ro)),
     println(F, "<camera name=\"~s\" "++
 	    "resx=\"~w\" resy=\"~w\" focal=\"~.10f\">",
 	    [Name,Width,Height,FocalDist]),
