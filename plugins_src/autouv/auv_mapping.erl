@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.10 2002/10/16 08:22:19 dgud Exp $
+%%     $Id: auv_mapping.erl,v 1.11 2002/10/17 20:55:05 raimo_niskanen Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -17,26 +17,34 @@
 %% 'Least Square Conformal Maps for Automatic Texture Generation Atlas'
 %% by Bruno Levy, Sylvain Petitjean, Nicolas Ray, Jerome Mailot
 %% Presented on Siggraph 2002
+%%
+%%%% The Conjugate Gradient Method (trad)
+%% Algorithms based on the paper:
+%%       An Introduction to 
+%%  the Conjugate Gradient Method
+%%    Without the Agonizing Pain
+%% by
+%%  Jonathan Richard Shewchuk, March 7, 1994
 
 %% All credits about the LSQCM implementation goes to Raimo, who
 %% implemented the lot.
 
-%%-define(lsq_standalone, 1).
-
 -module(auv_mapping).
+
 -ifdef(lsq_standalone).
--define(DBG(Fmt,Args), begin io:format(?MODULE_STRING++":~p:~n"++(Fmt), 
-				       [?LINE | (Args)])
-		       end).
--define(TC(X), begin io:format(?MODULE_STRING++":~p:~p:~n~p~n", 
-			       [?LINE,
-				(fun ({Now1,Now2,Now3}) ->
-					 (Now1*1000000 + Now2)*1000000 + Now3
-				 end)(erlang:now()),
-				(X)]), (X)
-	       end).
--export([lsq/3]).
+-export([lsq/2, lsq/4]).
+-define(DBG(Fmt,Args), io:format(?MODULE_STRING++":~p: "++(Fmt), 
+				       [?LINE | (Args)])).
+-define(TC(Cmd), tc(?MODULE, ?LINE, fun () -> Cmd end)).
+tc(Module, Line, Fun) ->
+    {A1,A2,A3} = erlang:now(),
+    Result = Fun(),
+    {B1,B2,B3} = erlang:now(),
+    Time = ((B1-A1)*1000000 + (B2-A2))*1000000 + B3-A3,
+    io:format("~p:~p: ~.3f ms:~n", [Module, Line, Time/1000]),
+    Result.
 -else.
+
 -include("wings.hrl").
 -include("auv.hrl").
 -include("e3d.hrl").
@@ -132,6 +140,10 @@ lsqcm(C = {Id, Fs}, We) ->
     Vs1 = ?TC(project_and_triangulate(Fs,We,-1,[])),    
     {V1, V2} = ?TC(find_pinned(C, We)),
     ?DBG("LSQ ~p ~p~n", [V1,V2]),
+    Idstr = lists:flatten(io_lib:format("~p", [Id])),
+    {ok, Fd} = file:open("raimo_" ++ Idstr, [write]),
+    io:format(Fd, "{~w, ~w, ~w}.~n", [Vs1,V1,V2]),
+    file:close(Fd),
     case ?TC(lsq(Vs1,V1,V2)) of
 	{error, What} ->
 	    ?DBG("TXMAP error ~p~n", [What]),
@@ -192,18 +204,33 @@ get_other(D1, D2, Tot) ->
 %           Tot-D1
 %    end.
     Tot-D1.
--endif. % -ifdef(lsq_standalone)
+
+-endif. % -ifdef(lsq_standalone). -else.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 
-lsq(_, {P,_} = PUV1, {P,_} = PUV2) ->
+-ifdef(lsq_standalone).
+
+lsq(Name, Method) ->
+    {ok, [{L, P1, P2}]} = file:consult(Name),
+    lsq(L, P1, P2, Method).
+
+-else.
+
+lsq(L, P1, P2) ->
+    lsq(L, P1, P2, ge).
+
+-endif. % -ifdef(lsq_standalone).
+
+lsq(_, {P,_} = PUV1, {P,_} = PUV2, _) ->
     {error, {invalid_arguments, [PUV1, PUV2]}};
-lsq(_, {_,{U1,V1}} = PUV1, {_,{U2,V2}} = PUV2)
+lsq(_, {_,{U1,V1}} = PUV1, {_,{U2,V2}} = PUV2, _)
   when U1 == U2, V1 == V2 -> % Coarse comparision, not match
     {error, {invalid_arguments, [PUV1, PUV2]}};
-lsq(L, {P1,{U1,V1}} = PUV1, {P2,{U2,V2}} = PUV2)
+lsq(L, {P1,{U1,V1}} = PUV1, {P2,{U2,V2}} = PUV2, Method)
   when list(L), number(U1), number(V1), number(U2), number(V2) ->
-    case catch lsq_int(L, PUV1, PUV2) of
+    case catch lsq_int(L, PUV1, PUV2, Method) of
 	{'EXIT', Reason} ->
 	    exit(Reason);
 	badarg ->
@@ -211,15 +238,15 @@ lsq(L, {P1,{U1,V1}} = PUV1, {P2,{U2,V2}} = PUV2)
 	Result ->
 	    Result
     end;
-lsq(L, P1, P2) ->
-    erlang:fault(badarg, [L, P1, P2]).
+lsq(L, P1, P2, Method) ->
+    erlang:fault(badarg, [L, P1, P2, Method]).
 
-lsq_int(L, {P1,{U1,V1}} = PUV1, {P2,{U2,V2}} = PUV2) ->
+lsq_int(L, {P1,{U1,V1}} = PUV1, {P2,{U2,V2}} = PUV2, Method) ->
     %% Create a dictionary and a reverse dictionary for all points
     %% in the indata. Translate the point identities into a
     %% continous integer sequence.
     {M, Dict, Rdict} = lsq_points(L),
-    {N, L1, L2} = ?TC(lsq_triangles(L, Dict, M)),
+    {N, L1, L2} = lsq_triangles(L, Dict, M),
     Q1 = case dict:find(P1, Dict) of 
 	     {ok, Q_1} -> Q_1;
 	     error -> throw({error, {invalid_arguments, [PUV1]}})
@@ -232,24 +259,39 @@ lsq_int(L, {P1,{U1,V1}} = PUV1, {P2,{U2,V2}} = PUV2) ->
     Q2uv = {Q2,{U2,V2}},
     %% Build the basic submatrixes 
     %% M1 = Re(M), M2 = Im(M), M2n = -M2
-    {M1,M2,M2n} = ?TC(build_basic(N,M,L1,L2)),
+    {M1,M2,M2n} = 
+	?TC(build_basic(M,L1,L2)),
+    %% Compile the basic submatrixes into the ones related to 
+    %% free points (Mf*) i.e unknown, 
+    %% and pinned points (Mp*).
     {{Mf1c,Mp1c},{Mf2c,Mp2c},{Mf2nc,Mp2nc},UVa,UVb} =
 	?TC(build_cols(M1,M2,M2n,Q1uv,Q2uv)),
-    {Af,B} =
+    %% Compose the matrix and vector to solve
+    %% for a Least SQares solution.
+    {Af,B} = 
 	?TC(build_matrixes(N,M,Mf1c,Mp1c,Mf2c,Mp2c,Mf2nc,Mp2nc,UVa,UVb)),
-    ?DBG("Solving matrises~n", []),
-    X = solve(Af,B),
+    ?DBG("Solving matrixes~n", []),
+    X = case Method of
+	    cg ->
+		X0 = auv_matrix:vector(lists:duplicate(M-2, (U1+U2)/2)++
+				       lists:duplicate(M-2, (V1+V2)/2)),
+		{_,X1} = ?TC(minimize_cg(Af, X0, B)),
+		X1;
+	    _ ->
+		?TC(minimize(Af,B))
+	end,
 %%    ?DBG("X=~p~n", [X]),
     %% Extract the vector of previously unknown points,
     %% and insert the pinned points. Re-translate the
     %% original point identities.
     ?TC(lsq_result(X, Q1uv,Q2uv, Rdict)).
+
     
     
-build_basic(N,M,L1,L2) ->
-    M1 = auv_matrix:rows(N, M, L1),
-    M2 = auv_matrix:rows(N, M, L2),
-    M2n = auv_matrix:rows(N, M, [auv_matrix:mult(-1, X) || X <- L2]),
+build_basic(M,L1,L2) ->
+    M1 = auv_matrix:rows(M, L1),
+    M2 = auv_matrix:rows(M, L2),
+    M2n = auv_matrix:rows(M, [auv_matrix:mult(-1, X) || X <- L2]),
     {M1,M2,M2n}.
 
 build_cols(M1,M2,M2n,Q1uv,Q2uv) ->
@@ -270,32 +312,103 @@ build_matrixes(N,M,Mf1c,Mp1c,Mf2c,Mp2c,Mf2nc,Mp2nc,{Ua,Va},{Ub,Vb}) ->
     %% A = [ M1 -M2 ],  B = Ap U, U is vector of pinned points
     %%     [ M2  M1 ]
     MM = 2*(M-2),
-    Afu = auv_matrix:cols(N, MM, Mf1c++Mf2nc),
-    Afl = auv_matrix:cols(N, MM, Mf2c++Mf1c),
+    Afu = auv_matrix:cols(N, Mf1c++Mf2nc),
+    Afl = auv_matrix:cols(N, Mf2c++Mf1c),
     Af = auv_matrix:cat_rows(Afu, Afl),
-    Apu = auv_matrix:cols(N, 4, Mp1c++Mp2nc),
-    Apl = auv_matrix:cols(N, 4, Mp2c++Mp1c),
+    Apu = auv_matrix:cols(N, Mp1c++Mp2nc),
+    Apl = auv_matrix:cols(N, Mp2c++Mp1c),
     Ap = auv_matrix:cat_rows(Apu, Apl),
     U = auv_matrix:vector(4, [{1,-Ua}, {2,-Ub}, {3,-Va}, {4,-Vb}]),
     B = auv_matrix:mult(Ap, U),
     {Af, B}.
 
-solve(Af,B) ->
-    %% Solve A x = B in a Least SQares sense
-    %% X becomes [ I x ] where x is the vector of unknown points
-    %% I.e reduce and backsubstitute
-    %%     [ (trans(Af) Af) (trans(Af) B) ]    
-    AA = ?TC(solve_matrix(Af, B)),
+%%               _   _    2
+%% Minimize || A x - b ||  
+%%
+%%              t   _       t _
+%% by solving A   A x  =  A   b
+%%
+%% using Gaussian Elimination and Back Substitution.
+%%
+minimize(A,B) ->
+    AA = ?TC(mk_solve_matrix(A, B)),
     AAA = ?TC(auv_matrix:reduce(AA)),
     X   = ?TC(auv_matrix:backsubst(AAA)),
     ?DBG("Solved~n",[]),
     X.    
 
-solve_matrix(Af,B) ->
+mk_solve_matrix(Af,B) ->
     AfT = auv_matrix:trans(Af),
     AfTAf = auv_matrix:mult_trans(AfT, AfT),
     AfTB = auv_matrix:mult(AfT, B),
     auv_matrix:cat_cols(AfTAf, AfTB).
+
+%%               _   _    2
+%% Minimize || A x - b ||  
+%%
+%%              t   _       t _
+%% by solving A   A x  =  A   b
+%%                                          __
+%% using the Coujugate Gradient Method with x0 as 
+%% iteration start vector.
+%%
+minimize_cg(A, X0, B) ->
+    {N,M} = auv_matrix:size(A),
+    {M,1} = auv_matrix:size(X0),
+    {N,1} = auv_matrix:size(B),
+    I = M,
+    Epsilon = 1.0e-3,
+    At = auv_matrix:trans(A),
+    AtB = auv_matrix:mult(At, B),
+    D = R = auv_matrix:sub(AtB, 
+			   auv_matrix:mult(At, auv_matrix:mult(A, X0))),
+    Delta = auv_matrix:mult(auv_matrix:trans(R), R),
+    Delta_max = Epsilon*Epsilon*Delta,
+    minimize_cg(At, A, AtB, Delta_max, 
+		Delta, I, D, R, X0).
+
+minimize_cg(At, A, _, _, 
+	    _, 0, D, _, X) ->
+    ?DBG("minimize_cg() sizes were ~p ~p ~p~n", 
+	 [auv_matrix:size(At), auv_matrix:size(A), auv_matrix:size(D)]),
+    {stopped, X};
+minimize_cg(At, A, _, Delta_max, 
+	    Delta, _, D, _, X) when Delta < Delta_max ->
+    ?DBG("minimize_cg() sizes were ~p ~p ~p~n", 
+	 [auv_matrix:size(At), auv_matrix:size(A), auv_matrix:size(D)]),
+    {ok, X};
+minimize_cg(At, A, AtB, Delta_max, 
+	    Delta, I, D, R, X) ->
+%%    ?DBG("minimize_cg() step ~p Delta=~p~n", [I, Delta]),
+    AD = auv_matrix:mult(A, D),
+    Q = auv_matrix:mult(At, AD),
+    Alpha = Delta / auv_matrix:mult(auv_matrix:trans(AD), AD),
+    X_next = auv_matrix:add(X, auv_matrix:mult(Alpha, D)),
+    R_new = 
+	if (I + 5) rem 10 == 0 ->
+		?DBG("minimize_cg() recalculating residual ~p~n", [Delta]),
+		auv_matrix:sub
+		  (AtB, auv_matrix:mult(At, auv_matrix:mult(A, X_next)));
+	   true ->
+		auv_matrix:sub(R, auv_matrix:mult(Alpha, Q))
+	end,
+    Delta_new = auv_matrix:mult(auv_matrix:trans(R_new), R_new),
+    {R_next, Delta_next} = 
+	if Delta_new < Delta_max ->
+		?DBG("minimize_cg() verifying residual ~p~n", [Delta]),
+		R_n = 
+		    auv_matrix:sub
+		      (AtB, auv_matrix:mult(At, auv_matrix:mult(A, X_next))),
+		{R_n, auv_matrix:mult(auv_matrix:trans(R_new), R_new)};
+	   true ->
+		{R_new, Delta_new}
+	end,
+    Beta = Delta_next / Delta,
+    D_next = auv_matrix:add(R_next, auv_matrix:mult(Beta, D)),
+    minimize_cg(At, A, AtB, Delta_max, 
+		Delta_next, I-1, D_next, R_next, X_next).
+
+    
 
 %% Extract all point identities from indata, and create
 %% forwards and backwards dictionaries for translation
@@ -355,7 +468,7 @@ lsq_triangles(L, Dict, M) ->
 %% pinned points. Re-translate the point identities.
 %%
 lsq_result(X, QUV1, QUV2, Rdict) ->
-    {MM} = auv_matrix:size(X),
+    {MM,1} = auv_matrix:size(X),
 %     {_,UlistVlistR} =
 % 	lists:foldl(
 % 	  fun ({J,UV}, {J,R}) ->

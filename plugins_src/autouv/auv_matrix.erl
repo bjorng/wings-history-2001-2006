@@ -9,19 +9,24 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_matrix.erl,v 1.3 2002/10/16 08:22:19 dgud Exp $
+%%     $Id: auv_matrix.erl,v 1.4 2002/10/17 20:55:06 raimo_niskanen Exp $
 
 -module(auv_matrix).
 
 -export([size/1]).
 -export([vector/1, vector/2]).
--export([rows/1, rows/3, cols/1, cols/3]).
+-export([rows/1, rows/2, cols/1, cols/2]).
 -export([cat_cols/2, cat_rows/2]).
 -export([trans/1, mult/2, mult_trans/2]).
+-export([add/2, sub/2]).
 -export([reduce/1, backsubst/1]).
+
+-export([float_perf/2]).
 
 -define(TAG, ?MODULE).
 
+-compile(inline).
+-compile({inline_size, 100}).
 
 
 %% Exported
@@ -29,7 +34,9 @@
 size({?TAG,N,M,_}) ->
     {N,M};
 size({?TAG,N,_}) ->
-    {N};
+    {N,1};
+size(V) when number(V) ->
+    {1,1};
 size(A) ->
     erlang:fault(badarg, [A]).
 
@@ -39,12 +46,14 @@ size(A) ->
 %%
 vector({?TAG,N,A}) ->
     vector_to_list(A, []);
+vector(V) when number(V) ->
+    [V];
 vector(L) when list(L) ->
     case vector_from_list(0, L, []) of
 	{[], 0} ->
 	    erlang:fault(badarg, [L]);
 	{A, N} when list(A) ->
-	    {?TAG,N,A};
+	    fix({?TAG,N,A});
 	Fault ->
 	    erlang:fault(Fault, [L])
     end;
@@ -77,7 +86,7 @@ vector(N, D)
        1 =< N ->
     case vector_from_tuplist(1, N, lists:sort(D), []) of
 	L when list(L) ->
-	    {?TAG,N,L};
+	    fix({?TAG,N,L});
 	Fault ->
 	    erlang:fault(Fault, [N, D])
     end;
@@ -100,31 +109,36 @@ vector_from_tuplist(_, _, _, _) ->
 
 %% Exported
 %%
+rows({?TAG,1,M,[A]}) ->
+    fix({?TAG,M,A});
 rows({?TAG,_,M,A}) ->
     rows_to_list(M, A, []);
-rows({?TAG,N,_} = A) ->
-    rows(cols(N, 1, [A]));
+rows({?TAG,_,_} = A) ->
+    vector(A);
+rows(V) when number(V) ->
+    [V];
 rows(A) ->
     erlang:fault(badarg, [A]).
 
 rows_to_list(_, [], C) ->
     lists:reverse(C);
 rows_to_list(M, [Row | A], C) ->
-    rows_to_list(M, A, [{?TAG,M,Row} | C]).
+    rows_to_list(M, A, [fix({?TAG,M,Row}) | C]).
 
 
 
 %% Exported
 %%
-rows(N, M, L)
-  when integer(N), integer(M), list(L),
-       N >= 1, M >= 1 ->
-    case vecs(N, M, L) of
-	A when list(A) ->
-	    {?TAG,N,M,A};
+rows(M, L)
+  when integer(M), list(L), M >= 1 ->
+    case vecs(M, L) of
+	{A, N} when list(A) ->
+	    fix({?TAG,N,M,A});
 	Fault ->
-	    erlang:fault(Fault, [N, M, L])
-    end.
+	    erlang:fault(Fault, [M, L])
+    end;
+rows(M, L) ->
+    erlang:fault(badarg, [M, L]).
 
 
 
@@ -133,7 +147,9 @@ rows(N, M, L)
 cols({?TAG,_,_,_} = A) ->
     rows(trans(A));
 cols({?TAG,_,_} = A) ->
-    [A];
+    [fix(A)];
+cols(V) when number(V) ->
+    [V];
 cols(A) ->
     erlang:fault(badarg, A).
 
@@ -141,24 +157,29 @@ cols(A) ->
 
 %% Exported
 %%
-cols(N, M, L)
-  when integer(N), integer(M), list(L),
-       N >= 1, M >= 1 ->
-    case vecs(M, N, L) of
-	A when list(A) ->
+cols(N, L)
+  when integer(N), list(L), N >= 1 ->
+    case vecs(N, L) of
+	{A, M} when list(A) ->
 	    trans({?TAG,M,N,A});
 	Fault ->
-	    erlang:fault(Fault, [N, M, L])
+	    erlang:fault(Fault, [N, L])
     end;
-cols(N, M, L) ->
-    erlang:fault(badarg, [N, M, L]).
+cols(N, L) ->
+    erlang:fault(badarg, [N, L]).
 
 
 
 %% Exported
 %%
-cat_cols({?TAG,N,Ma,_} = A, {?TAG,N,Mb,_} = B) ->
-    cols(N,Ma+Mb,cols(A)++cols(B));
+cat_cols({?TAG,N,_,_} = A, {?TAG,N,_,_} = B) ->
+    cols(N, cols(A)++cols(B));
+cat_cols({?TAG,N,_,_} = A, {?TAG,N,_} = B) ->
+    cols(N, cols(A)++cols(B));
+cat_cols({?TAG,N,_} = A, {?TAG,N,_,_} = B) ->
+    cols(N, cols(A)++cols(B));
+cat_cols({?TAG,N,_} = A, {?TAG,N,_} = B) ->
+    cols(N, cols(A)++cols(B));
 cat_cols(A, B) ->
     erlang:fault(badarg, [A, B]).
 
@@ -168,6 +189,12 @@ cat_cols(A, B) ->
 %%
 cat_rows({?TAG,Na,M,A}, {?TAG,Nb,M,B}) ->
     {?TAG,Na+Nb,M,A++B};
+cat_rows({?TAG,_} = A, {?TAG,_,1} = B) ->
+    rows(1, rows(A)++rows(B));
+cat_rows({?TAG,_,1} = A, {?TAG,_} = B) ->
+    rows(1, rows(A)++rows(B));
+cat_rows({?TAG,_} = A, {?TAG,_} = B) ->
+    rows(1, rows(A)++rows(B));
 cat_rows(A, B) ->
     erlang:fault(badarg, [A, B]).
 
@@ -175,8 +202,14 @@ cat_rows(A, B) ->
 
 %% Exported
 %%
+trans({?TAG,1,M,[A]}) ->
+    fix({?TAG,M,A});
 trans({?TAG,N,M,A}) ->
-    {?TAG,M,N,trans_cols_forw(1, M, A, [])};
+    fix({?TAG,M,N,trans_cols_forw(1, M, A, [])});
+trans({?TAG,N,A}) ->
+    fix({?TAG,1,N,[A]});
+trans(A) when number(A) ->
+    float(A);
 trans(A) ->
     erlang:fault(badarg, [A]).
 
@@ -208,21 +241,62 @@ trans_mk_col_r([[] | A], B, C) ->
 
 %% Exported
 %%
+mult({?TAG,N,_} = A, {?TAG,1,M,[B]}) ->
+    mult_trans(A, {?TAG,M,B});
 mult({?TAG,_,K,_} = A, {?TAG,K,_,_} = B) ->
     mult_trans(A, trans(B));
+mult({?TAG,1,M,[A]}, {?TAG,M,B}) ->
+    vec_mult(A, B);
 mult({?TAG,N,M,A}, {?TAG,M,B}) ->
-    {?TAG,N,1,mult_row(A,[B], [])};
-mult(V, {?TAG,N,B}) when number(V) ->
-    {?TAG,N,vec_mult(float(V), B)};
+    fix({?TAG,N,mult_vec(B, A, [])});
+mult(A, {?TAG,N,1,[B]}) when number(A) ->
+    fix({?TAG,N,1,[vec_mult(float(A), B)]});
+mult(A, {?TAG,N,M,B}) when number(A) ->
+    fix({?TAG,N,M,mult_const(float(A), B, [])});
+mult(A, {?TAG,N,B}) when number(A) ->
+    fix({?TAG,N,vec_mult(float(A), B)});
+mult({?TAG,N,1,[A]}, B) when number(B) ->
+    fix({?TAG,N,1,[vec_mult(float(B), A)]});
+mult({?TAG,N,M,A}, B) when number(B) ->
+    fix({?TAG,N,M,mult_const(float(B), A, [])});
+mult({?TAG,N,A}, B) when number(B) ->
+    fix({?TAG,N,vec_mult(float(B), A)});
+mult(A, B) when number(A), number(B) ->
+    float(A*B);
 mult(A, B) ->
     erlang:fault(badarg, [A, B]).
+
+mult_vec(_, [], C) ->
+    lists:reverse(C);
+mult_vec(VecA, [VecB | B], C) ->
+    mult_vec(VecA, B, push_v(vec_mult(VecA, VecB), C)).
 
 
 
 %% Exported
 %%
+mult_trans({?TAG,1,M,[A]}, {?TAG,1,M,[B]}) ->
+    vec_mult(A, B);
+mult_trans({?TAG,N,M,_} = A, {?TAG,1,M,_} = B) ->
+    mult(A, trans(B));
 mult_trans({?TAG,Na,M,A}, {?TAG,Nb,M,B}) ->
-    {?TAG,Na,Nb,mult_row(A, B, [])};
+    fix({?TAG,Na,Nb,mult_row(A, B, [])});
+%%
+mult_trans(A, {?TAG,N,B}) ->
+    mult(A, {?TAG,1,N,[B]});
+mult_trans({?TAG,N,A}, B) ->
+    mult_trans(trans({?TAG,1,N,[A]}), B);
+%%
+mult_trans({?TAG,_,_,_} = A, B) when number(B) ->
+    mult(A, B);
+mult_trans({?TAG,_,_} = A, B) when number(B) ->
+    mult(A, B);
+mult_trans(A, {?TAG,_,_,_} = B) when number(A) ->
+    trans(mult(A, B));
+mult_trans(A, {?TAG,_,_} = B) when number(A) ->
+    trans(mult(A, B));
+mult_trans(A, B) when number(A), number(B) ->
+    float(A * B);
 mult_trans(A, B) ->
     erlang:fault(badarg, [A, B]).
 
@@ -235,6 +309,50 @@ mult_col(_, [], C) ->
     lists:reverse(C);
 mult_col(RowA, [ColB | B], C) ->
     mult_col(RowA, B, push_v(vec_mult(RowA, ColB), C)).
+
+mult_const(_, [], C) ->
+    lists:reverse(C);
+mult_const(F, [Row | A], C) ->
+    mult_const(F, A, [vec_mult(F, Row) | C]).
+
+
+
+%% Exported
+%% 
+add({?TAG,N,M,A}, {?TAG,N,M,B}) ->
+    fix({?TAG,N,M,add_row(A, B, [])});
+add({?TAG,N,A}, {TAG,N,B}) ->
+    fix({?TAG,N,vec_add(A, B)});
+add({?TAG,N,1,_} = A, {?TAG,N,B}) ->
+    {?TAG,1,N,[C]} = trans(A),
+    fix({?TAG,N,vec_add(C, B)});
+add({?TAG,N,A}, {?TAG,N,1,_} = B) ->
+    {?TAG,1,N,[C]} = trans(B),
+    fix({?TAG,N,vec_add(A, C)});
+add(Va, Vb) when number(Va), number(Vb) ->
+    float(Va + Vb);
+%%
+add({?TAG,1,1,_} = A, Vb) when number(Vb) ->
+    add(A, {?TAG,1,1,[push_v(Vb, [])]});
+add({?TAG,1,_} = A, Vb) when number(Vb) ->
+    add(A, {?TAG,1,push_v(Vb, [])});
+add(Va, B) when number(Va) ->
+    add(B, Va);
+%%
+add(A, B) ->
+    erlang:fault(badarg, [A, B]).
+
+add_row([], [], C) ->
+    lists:reverse(C);
+add_row([RowA | A], [RowB | B], C) ->
+    add_row(A, B, [vec_add(RowA, RowB) | C]).
+
+
+
+%% Exported
+%%
+sub(A, B) ->
+    add(A, mult(-1, B)).
 
 
 
@@ -353,41 +471,111 @@ backsubst_vec([V | A], C) ->
 
 
 
-vecs(N, M, L) ->
-    vecs(1, N, M, L, []).
+vecs(N, L) ->
+    vecs(0, N, L, []).
 
-vecs(I, N, _, [], C) when I == N+1 ->
-    lists:reverse(C);
-vecs(I, N, M, [{?TAG,M,D} | L], C) ->
-    vecs(I+1, N, M, L, [D | C]);
-vecs(_, _, _, _, _) ->
+vecs(I, _, [], C) ->
+    {lists:reverse(C), I};
+vecs(I, N, [{?TAG,N,D} | L], C) ->
+    vecs(I+1, N, L, [D | C]);
+vecs(I, 1, [V | L], C) when number(V) ->
+    vecs(I+1, 1, L, [push_v(float(V), []) | C]);
+vecs(_, _, _, _) ->
     badarg.
 
 
 
-vec_add(A, F, B) ->
-    vec_add(A, F, B, []).
+vec_add(A, B) ->
+    vec_add(A, B, []).
 
+vec_add(A, F, B) when float(F) ->
+    vec_add(A, F, B, []);
+
+% vec_add([], _, C) ->
+%     lists:reverse(C);
+% vec_add(_, [], C) ->
+%     lists:reverse(C);
+% vec_add([Va | A], [Vb | B], C)
+%   when float(Va), float(Vb) ->
+%     vec_add(A, B, push_v(Va + Vb, C));
+% vec_add(A, [Vb | B], C)
+%   when float(Vb) ->
+%     vec_add(pop_z(A), B, push_v(Vb, C));
+% vec_add([Va | A], B, C)
+%   when float(Va) ->
+%     vec_add(A, pop_z(B), push_v(Va, C));
+% vec_add([Z | A], [Z | B], C) ->
+%     vec_add(A, B, [Z | C]);
+% vec_add([Za | A], [Zb | B], C) when Za < Zb ->
+%     vec_add(A, [Zb-Za | B], [Za | C]);
+% vec_add([Za | A], [Zb | B], C) ->
+%     vec_add([Za-Zb | A], B, [Zb | C]).
+
+vec_add([Va | A] = AA, [Vb | B] = BB, C) when integer(Va) ->
+    if integer(Vb) ->
+	    if Va == Vb ->
+		    vec_add(A, B, push_v(Va, C));
+	       Va < Vb ->
+		    vec_add(A, [Vb-Va | B], push_v(Va, C));
+	       true ->
+		    vec_add([Va-Vb | A], B, push_v(Vb, C))
+	    end;
+       true -> % float(Vb)
+	    vec_add(pop_z(AA), B, push_v(Vb, C))
+    end;
+vec_add([Va | A] = AA, [Vb | B] = BB, C) -> % when float(Va)
+    if integer(Vb) ->
+	    vec_add(A, pop_z(BB), push_v(Va, C));
+       float(Vb), float(Va) ->
+	    vec_add(A, B, push_v(Va + Vb, C))
+    end;
+vec_add([], _, C) ->
+    lists:reverse(C);
+vec_add(_, [], C) ->
+    lists:reverse(C).
+
+% vec_add([], _, _, C) ->
+%     lists:reverse(C);
+% vec_add(_, _, [], C) ->
+%     lists:reverse(C);
+% vec_add([Va | A], F, [Vb | B], C)
+%   when float(Va), float(F), float(Vb) ->
+%     vec_add(A, F, B, push_v(Va + F*Vb, C));
+% vec_add(A, F, [Vb | B], C)
+%   when float(F), float(Vb) ->
+%     vec_add(pop_z(A), F, B, push_v(F*Vb, C));
+% vec_add([Va | A], F, B, C)
+%   when float(Va) ->
+%     vec_add(A, F, pop_z(B), push_v(Va, C));
+% vec_add([Z | A], F, [Z | B], C) ->
+%     vec_add(A, F, B, [Z | C]);
+% vec_add([Za | A], F, [Zb | B], C) when Za < Zb ->
+%     vec_add(A, F, [Zb-Za | B], [Za | C]);
+% vec_add([Za | A], F, [Zb | B], C) ->
+%     vec_add([Za-Zb | A], F, B, [Zb | C]).
+
+vec_add([Va | A] = AA, F, [Vb | B] = BB, C) when integer(Va) ->
+    if integer(Vb) ->
+	    if Va == Vb ->
+		    vec_add(A, F, B, push_v(Va, C));
+	       Va < Vb ->
+		    vec_add(A, F, [Vb-Va | B], push_v(Va, C));
+	       true ->
+		    vec_add([Va-Vb | A], F, B, push_v(Vb, C))
+	    end;
+       float(F), float(Vb) ->
+	    vec_add(pop_z(AA), F, B, push_v(F*Vb, C))
+    end;
+vec_add([Va | A] = AA, F, [Vb | B] = BB, C) -> % when float(Va)
+    if integer(Vb) ->
+	    vec_add(A, F, pop_z(BB), push_v(Va, C));
+       float(Vb), float(F), float(Va) ->
+	    vec_add(A, F, B, push_v(Va + F*Vb, C))
+    end;
 vec_add([], _, _, C) ->
     lists:reverse(C);
 vec_add(_, _, [], C) ->
-    lists:reverse(C);
-vec_add([Va | A], F, [Vb | B], C)
-  when float(Va), float(F), float(Vb) ->
-    Vc = Va + F*Vb,
-    vec_add(A, F, B, push_v(Va + F*Vb, C));
-vec_add(A, F, [Vb | B], C)
-  when float(F), float(Vb) ->
-    vec_add(pop_z(A), F, B, push_v(F*Vb, C));
-vec_add([Va | A], F, B, C)
-  when float(Va) ->
-    vec_add(A, F, pop_z(B), push_v(Va, C));
-vec_add([Z | A], F, [Z | B], C) ->
-    vec_add(A, F, B, [Z | C]);
-vec_add([Za | A], F, [Zb | B], C) when Za < Zb ->
-    vec_add(A, F, [Zb-Za | B], [Za | C]);
-vec_add([Za | A], F, [Zb | B], C) ->
-    vec_add([Za-Zb | A], F, B, [Zb | C]).
+    lists:reverse(C).
 
 
 
@@ -396,36 +584,40 @@ vec_mult(F, B) when float(F) ->
 vec_mult(A, B) ->
     vec_mult(A, B, 0.0).
 
-vec_mult_const(_, [], C) ->
-    lists:reverse(C);
 vec_mult_const(F, [V | B], C)
   when float(F), float(V) ->
     vec_mult_const(F, B, push_v(F*V, C));
 vec_mult_const(F, [Z | B], C) ->
-    vec_mult_const(F, B, push_v(Z, C)).
+    vec_mult_const(F, B, push_v(Z, C));
+vec_mult_const(_, [], C) ->
+    lists:reverse(C).
 
+vec_mult([Va | A] = AA, [Vb | B] = BB, S) when integer(Va) ->
+    if integer(Vb) ->
+	    if Va == Vb ->
+		    vec_mult(A, B, S);
+	       Va < Vb ->
+		    vec_mult(A, [Vb-Va | B], S);
+	       true ->
+		    vec_mult([Va-Vb | A], B, S)
+	    end;
+       true -> % float(Vb)
+	    vec_mult(pop_z(AA), B, S)
+    end;
+vec_mult([Va | A] = AA, [Vb | B] = BB, S) -> % when float(Va)
+    if integer(Vb) ->
+	    vec_mult(A, pop_z(BB), S);
+       float(Vb), float(Va), float(S) ->
+	    vec_mult(A, B, Va*Vb + S)
+    end;
 vec_mult([], _, S) ->
     S;
 vec_mult(_, [], S) ->
-    S;
-vec_mult([Va | A], [Vb | B], S)
-  when float(Va), float(Vb), float(S) ->
-    vec_mult(A, B, Va*Vb+S);
-vec_mult(A, [Vb | B], S)
-  when float(Vb) ->
-    vec_mult(pop_z(A), B, S);
-vec_mult([Va | A], B, S)
-  when float(Va) ->
-    vec_mult(A, pop_z(B), S);
-vec_mult([Z | A], [Z | B], S) ->
-    vec_mult(A, B, S);
-vec_mult([Za | A], [Zb | B], S) when Za < Zb ->
-    vec_mult(A, [Zb-Za | B], S);
-vec_mult([Za | A], [Zb | B], S) -> % Zb < Za
-    vec_mult([Za-Zb | A], B, S).
+    S.
 
 
-%% Push value; zeros or float   XXX How do I get this one inlined?
+
+%% Push value; zeros or float
 push_v(0.0, C) ->
     case C of
 	[Z | R] when integer(Z) ->
@@ -445,7 +637,7 @@ push_v(Z1, C) when integer(Z1) ->
 	    [Z1 | R]
     end.
 
-%% Pop zero   XXX How do I get this one inlined?
+%% Pop zero
 pop_z([]) ->
     [];
 pop_z([1]) ->
@@ -454,3 +646,32 @@ pop_z([1 | C]) ->
     C;
 pop_z([Z | C]) when integer(Z) ->
     [Z-1 | C].
+
+
+%% Fix 1x1 matrixes to become scalars
+%%
+fix({?TAG,1,1,[[1]]}) ->
+    0.0;
+fix({?TAG,1,1,[[V]]}) ->
+    V;
+fix({?TAG,1,[1]}) ->
+    0.0;
+fix({?TAG,1,[V]}) ->
+    V;
+fix(M) ->
+    M.
+
+
+
+float_perf(A, L) ->
+    float_perf(A, L, []).
+
+float_perf(_, [], C) ->
+    lists:reverse(C);
+float_perf(A, [B | T], C) ->
+    float_perf(A, T, [float_perf_int(A, B, 0.0), C]).
+
+float_perf_int([], [], S) ->
+    S;
+float_perf_int([Va | A], [Vb | B], S) when float(Va), float(Vb), float(S) ->
+    float_perf_int(A, B, Va*Vb + S).
