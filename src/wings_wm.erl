@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.39 2002/12/28 19:16:46 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.40 2002/12/29 20:16:01 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -19,7 +19,7 @@
 	 set_timer/2,cancel_timer/1,
 	 active_window/0,offset/3,move/3,pos/1,windows/0,is_window/1,exists/1,
 	 callback/1,current_state/1,
-	 grab_focus/1,release_focus/0,has_focus/1,
+	 grab_focus/1,release_focus/0,has_focus/1,focus_window/0,
 	 top_size/0,viewport/0,viewport/1,
 	 local2global/1,local2global/2,global2local/2,local_mouse_state/0,
 	 window_under/2,
@@ -171,13 +171,19 @@ pos(Name) ->
     {X,Y}.
 	   
 grab_focus(Name) -> 
-    put(wm_focus, Name).
+    case exists(Name) of
+	true -> put(wm_focus, Name);
+	false -> erase(wm_focus)
+    end.
 
 release_focus() -> 
     erase(wm_focus).
 
 has_focus(Name) ->
     get(wm_focus) =:= Name.
+
+focus_window() ->
+    get(wm_focus).
 
 top_size() ->
     #win{w=W,h=H} = get_window_data(top),
@@ -962,7 +968,8 @@ menubar_hit_1([], _, _, _) -> none.
 	 client,		     %Name of window being controlled.
 	 state=idle,				%idle|moving
 	 local,
-	 prev
+	 prev,
+	 prev_focus				%Previous focus holder.
 	}).
 
 new_controller(Client, Title) ->
@@ -978,10 +985,11 @@ get_ctrl_event(Cs) ->
 ctrl_event(redraw, Cs) ->
     ctrl_redraw(Cs);
 ctrl_event(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED}, Cs) ->
+    Focus = focus_window(),
     grab_focus(get(wm_active)),
-    get_ctrl_event(Cs#ctrl{prev={X,Y},local={X,Y},state=moving});
-ctrl_event(#mousebutton{button=1,state=?SDL_RELEASED}, Cs) ->
-    release_focus(),
+    get_ctrl_event(Cs#ctrl{prev={X,Y},local={X,Y},state=moving,prev_focus=Focus});
+ctrl_event(#mousebutton{button=1,state=?SDL_RELEASED}, #ctrl{prev_focus=Focus}=Cs) ->
+    grab_focus(Focus),
     get_ctrl_event(Cs#ctrl{state=idle});
 ctrl_event(#mousemotion{x=X0,y=Y0,state=?SDL_PRESSED},
 	   #ctrl{state=moving,client=Client,local={LocX,LocY}}=Cs) ->
