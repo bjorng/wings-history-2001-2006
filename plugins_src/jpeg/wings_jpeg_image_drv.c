@@ -12,7 +12,7 @@
  *  See the file "license.terms" for information on usage and redistribution
  *  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
  *
- *     $Id: wings_jpeg_image_drv.c,v 1.1 2004/01/06 11:28:20 bjorng Exp $
+ *     $Id: wings_jpeg_image_drv.c,v 1.2 2004/01/18 14:21:06 bjorng Exp $
  */
 
 #include <stdio.h>
@@ -37,7 +37,8 @@ static int jpeg_image_control(ErlDrvData handle, unsigned int command,
  * Internal functions.
  */
 static void jpeg_buffer_src(j_decompress_ptr cinfo, char* buf, int count);
-
+static void jpeg_buffer_dest(j_compress_ptr cinfo, ErlDrvBinary* bin);
+static ErlDrvBinary* jpeg_buffer_dest_get_bin(j_compress_ptr cinfo);
 
 /*
  * The driver struct
@@ -91,12 +92,13 @@ jpeg_image_control(ErlDrvData handle, unsigned int command,
 		   char* buf, int count, 
 		   char** res, int res_size)
 {
+  JSAMPROW row;
+  ErlDrvBinary* bin = 0;
+
   switch (command) {
   case 0: {			/* Read */
     struct jpeg_decompress_struct cinfo;
     int row_stride;		/* physical row width in output buffer */
-    JSAMPROW row;
-    ErlDrvBinary* bin = 0;
     unsigned char* rbuf;
     struct jpeg_error_mgr jerr;
 
@@ -124,6 +126,37 @@ jpeg_image_control(ErlDrvData handle, unsigned int command,
     return 0;
   }
   case 1: {			/* Write */
+    struct jpeg_compress_struct cinfo;
+    struct jpeg_error_mgr jerr;
+    int row_stride;		/* physical row width */
+
+    bin = driver_alloc_binary(count);
+
+    cinfo.err = jpeg_std_error(&jerr);
+    jpeg_create_compress(&cinfo);
+
+    jpeg_buffer_dest(&cinfo, bin);
+    cinfo.image_width = ((unsigned *)buf)[0];
+    cinfo.image_height = ((unsigned *)buf)[1];
+    cinfo.input_components = ((unsigned *)buf)[2];
+    cinfo.in_color_space = JCS_RGB;
+    jpeg_set_defaults(&cinfo);
+    buf += 12;
+    count -= 12;
+
+    jpeg_start_compress(&cinfo, TRUE);
+    row_stride = cinfo.input_components * cinfo.image_width;
+        
+    while (cinfo.next_scanline < cinfo.image_height) {
+      row = (JSAMPROW) buf;
+      (void) jpeg_write_scanlines(&cinfo, &row, 1);
+      buf += row_stride;
+    }
+
+    jpeg_finish_compress(&cinfo);
+    bin = jpeg_buffer_dest_get_bin(&cinfo);
+    jpeg_destroy_compress(&cinfo);
+    *res = (void *) bin;
     return 0;
   }
   default:
@@ -213,4 +246,99 @@ jpeg_buffer_src(j_decompress_ptr cinfo, char* buf, int count)
   src->left = (size_t) count;
   src->pub.bytes_in_buffer = 0; /* forces fill_input_buffer on first read */
   src->pub.next_input_byte = NULL; /* until buffer loaded */
+}
+
+/*
+ * And here is a memory destination.
+ */
+
+
+typedef struct {
+  struct jpeg_destination_mgr pub; /* public fields */
+
+  ErlDrvBinary* bin;		/* binary that holds output */
+  JOCTET* buffer;		/* start of buffer */
+} my_destination_mgr;
+
+typedef my_destination_mgr * my_dest_ptr;
+
+#define OUTPUT_BUF_SIZE  4096	/* choose an efficiently fwrite'able size */
+
+
+/*
+ * Initialize destination --- called by jpeg_start_compress
+ * before any data is actually written.
+ */
+
+METHODDEF(void)
+init_destination (j_compress_ptr cinfo)
+{
+  my_dest_ptr dest = (my_dest_ptr) cinfo->dest;
+
+  /* Allocate the output buffer --- it will be released when done with image */
+  dest->buffer = (JOCTET *)
+      (*cinfo->mem->alloc_small) ((j_common_ptr) cinfo, JPOOL_IMAGE,
+				  OUTPUT_BUF_SIZE * sizeof(JOCTET));
+
+  dest->pub.next_output_byte = dest->bin->orig_bytes;
+  dest->pub.free_in_buffer = dest->bin->orig_size;
+}
+
+
+/*
+ * Empty the output buffer --- called whenever buffer fills up.
+ */
+
+METHODDEF(boolean)
+empty_output_buffer (j_compress_ptr cinfo)
+{
+  my_dest_ptr dest = (my_dest_ptr) cinfo->dest;
+  unsigned size_used = dest->bin->orig_size - dest->pub.free_in_buffer;
+
+  dest->bin = driver_realloc_binary(dest->bin, 2*dest->bin->orig_size);
+
+  dest->pub.next_output_byte = dest->bin->orig_bytes + size_used;
+  dest->pub.free_in_buffer = dest->bin->orig_size - size_used;
+
+  return TRUE;
+}
+
+
+/*
+ * Terminate destination --- called by jpeg_finish_compress
+ * after all data has been written.
+ */
+
+METHODDEF(void)
+term_destination (j_compress_ptr cinfo)
+{
+  my_dest_ptr dest = (my_dest_ptr) cinfo->dest;
+  size_t datacount = dest->bin->orig_size - dest->pub.free_in_buffer;
+
+  dest->bin = driver_realloc_binary(dest->bin, datacount);
+}
+
+static void
+jpeg_buffer_dest(j_compress_ptr cinfo, ErlDrvBinary* bin)
+{
+  my_dest_ptr dest;
+
+  if (cinfo->dest == NULL) {	/* first time for this JPEG object? */
+    cinfo->dest = (struct jpeg_destination_mgr *)
+      (*cinfo->mem->alloc_small) ((j_common_ptr) cinfo, JPOOL_PERMANENT,
+				  sizeof(my_destination_mgr));
+  }
+
+  dest = (my_dest_ptr) cinfo->dest;
+  dest->pub.init_destination = init_destination;
+  dest->pub.empty_output_buffer = empty_output_buffer;
+  dest->pub.term_destination = term_destination;
+  dest->bin = bin;
+}
+
+static ErlDrvBinary*
+jpeg_buffer_dest_get_bin(j_compress_ptr cinfo)
+{
+  my_dest_ptr dest = (my_dest_ptr) cinfo->dest;
+  return dest->bin;
 }

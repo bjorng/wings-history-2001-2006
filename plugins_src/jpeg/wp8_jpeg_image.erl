@@ -11,7 +11,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp8_jpeg_image.erl,v 1.2 2004/01/18 11:25:51 bjorng Exp $
+%%     $Id: wp8_jpeg_image.erl,v 1.3 2004/01/18 14:21:06 bjorng Exp $
 %%
 
 -module(wp8_jpeg_image).
@@ -90,9 +90,21 @@ read_image_2(<<W:32/native,H:32/native,SamplesPerPixel:32/native,
     NeededOrder = proplists:get_value(order, Prop, upper_left),
     e3d_image:convert(Image, NeededType, NeededAlignment, NeededOrder).
 
-write_image(Name, Ext, Image, Prop) ->
-    {ok,Tiff} = e3d_image:save_bin(Image, ".tiff"),
-    Data = Tiff,
+write_image(Name, Ext, #e3d_image{bytes_pp=Bpp,type=Type}=Image0, Prop) ->
+    {BitsPP,Image} =
+	case {Bpp,Type} of
+	    {1,g8} ->
+		{1,e3d_image:convert(Image0, g8, 1, upper_left)};
+	    {3,_} ->
+		{3,e3d_image:convert(Image0, r8g8b8, 1, upper_left)};
+	    {4,_} ->
+		{3,e3d_image:convert(Image0, r8g8b8, 1, upper_left)};
+	    _ ->
+		{error,{none,?MODULE,format}}
+	end,
+    Data = [<<(Image#e3d_image.width):32/native,
+	     (Image#e3d_image.height):32/native,
+	     BitsPP:32/native>>|Image#e3d_image.image],
     case erlang:port_control(?MODULE, ?OP_IMAGE_WRITE, Data) of
 	[] -> {error,{none,?MODULE,format}};
 	Bin -> file:write_file(Name, Bin)
