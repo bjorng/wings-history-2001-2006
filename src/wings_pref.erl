@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.81 2003/06/02 06:06:43 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.82 2003/06/03 08:54:01 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -69,6 +69,10 @@ menu(_St) ->
       fun(_, _) ->
 	      {edit,{preferences,advanced}}
       end,"Edit preferences for advanced users",[]},
+     {"Proxy Mode Preferences...",
+      fun(_, _) ->
+	      {edit,{preferences,proxy}}
+      end,"Edit preferences for the proxy mode",[]},
      {"UI Preferences...",
       fun(_, _) ->
 	      {edit,{preferences,ui}}
@@ -164,6 +168,21 @@ command(advanced, _St) ->
 	     right_click_sel_in_ss}
 	   ]}],
     dialog("Advanced Preferences", Qs);
+command(proxy, _St) ->
+    Qs = [{hframe,
+	   case wings_util:is_gl_ext('GL_ARB_imaging') of
+	       false ->
+		   [{vframe,[{label,"(Opacity preferences only supported when"},
+			     {label,"using OpenGL 1.2 or higher.)"}]}];
+	       true ->
+		   [{vframe,
+		     [{label,"Stationary Opacity"},
+		      {label,"Moving Opacity"}]},
+		    {vframe,
+		     [{slider,{text,proxy_static_opacity,[{range,{0.0,1.0}}]}},
+		      {slider,{text,proxy_moving_opacity,[{range,{0.0,1.0}}]}}]}]
+	   end}],
+    dialog("Proxy Mode Preferences", Qs);
 command(ui, _St) ->
     Qs = [{vframe,
 	   [{hframe,[{vframe,
@@ -246,6 +265,9 @@ make_query({alt,Key,Label,Val}) ->
 make_query({menu,List,Key}) ->
     Def = get_value(Key),
     {menu,List,{Key,Def}};
+make_query({slider,{text,Key,Flags}}) ->
+    Def = get_value(Key),
+    {slider,{text,Def,[{key,Key}|Flags]}};
 make_query(Tuple) when is_tuple(Tuple) ->
     list_to_tuple([make_query(El) || El <- tuple_to_list(Tuple)]);
 make_query(Other) -> Other.
@@ -373,6 +395,10 @@ defaults() ->
      {default_commands,false},
      {right_click_sel_in_ss,false},
      {right_click_sel_in_geom,false},
+
+     %% Proxy preferences.
+     {proxy_static_opacity,1.0},
+     {proxy_moving_opacity,1.0},
 
      %% User interface preferences.
      {menu_text,{0.0,0.0,0.0}},

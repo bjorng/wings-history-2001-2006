@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.46 2003/06/02 20:13:13 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.47 2003/06/03 08:54:01 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -401,18 +401,30 @@ smooth_we(#dlo{proxy_data=Pd0,src_we=We0}) ->
     end.
 
 draw(#dlo{smooth_proxy=Dl}) when is_integer(Dl) ->
-    draw_1(Dl);
+    draw_1(Dl, proxy_static_opacity);
 draw(#dlo{proxy_data=[Dl|_]}) when is_integer(Dl) ->
-    draw_1(Dl);
+    draw_1(Dl, proxy_moving_opacity);
 draw(_) -> ok.
 
-draw_1(Dl) ->
+draw_1(Dl, Key) ->
     gl:shadeModel(?GL_SMOOTH),
     gl:enable(?GL_LIGHTING),
     gl:enable(?GL_POLYGON_OFFSET_FILL),
     gl:polygonOffset(2.0, 2.0),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
+    case wings_util:is_gl_ext('GL_ARB_imaging') of
+	false -> ok;
+	true ->
+	    case wings_pref:get_value(Key) of
+		1.0 -> ok;
+		Opacity ->
+		    gl:enable(?GL_BLEND),
+		    gl:blendFunc(?GL_CONSTANT_ALPHA, ?GL_ONE_MINUS_CONSTANT_ALPHA),
+		    gl:blendColor(0, 0, 0, Opacity)
+	    end
+    end,
     wings_draw_util:call(Dl),
+    gl:disable(?GL_BLEND),
     gl:disable(?GL_POLYGON_OFFSET_FILL),
     gl:disable(?GL_LIGHTING),
     gl:shadeModel(?GL_FLAT).
