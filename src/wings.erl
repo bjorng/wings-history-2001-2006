@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.149 2002/07/26 07:14:05 bjorng Exp $
+%%     $Id: wings.erl,v 1.150 2002/07/26 17:25:03 bjorng Exp $
 %%
 
 -module(wings).
@@ -246,8 +246,12 @@ handle_event_3(#expose{}, St) ->
     handle_event_3(redraw, St);
 handle_event_3(redraw, St) ->
     wings_draw:render(St),
-    Message = ["[L] Select  [R] Show menu  "|wings_camera:help()],
-    wings_io:message(Message),
+    case wings_wm:is_window_active(top) of
+	true ->
+	    Message = ["[L] Select  [R] Show menu  "|wings_camera:help()],
+	    wings_io:message(Message);
+	false -> ok
+    end,
     wings_io:info(info(St)),
     wings_io:update(St),
     main_loop(St#st{vec=none});
@@ -256,6 +260,7 @@ handle_event_3(quit, St) ->
 handle_event_3({new_state,St}, St0) ->
     wings_io:clear_message(),
     save_state(St0, St);
+handle_event_3({callback,Cb}, _) -> Cb();
 handle_event_3(ignore, _St) -> keep.
     
 do_command(Cmd, St0) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.55 2002/07/26 07:14:05 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.56 2002/07/26 17:25:03 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -167,16 +167,25 @@ info(Info) ->
     text_at(4, 2*?LINE_HEIGHT+3, Info).
     
 message(Message) ->
-    Io = get_state(),
-    put_state(Io#io{message=Message}).
+    case get_state() of
+	#io{message=Message} -> ok;
+	Io ->
+	    put_state(Io#io{message=Message}),
+	    wings_wm:dirty()
+    end.
 
 message_right(Right) ->
-    Io = get_state(),
-    put_state(Io#io{right=Right}).
+    case get_state() of
+	#io{right=Right} -> ok;
+	Io ->
+	    put_state(Io#io{right=Right}),
+	    wings_wm:dirty()
+    end.
 
 clear_message() ->
     Io = get_state(),
-    put_state(Io#io{message=undefined,right=undefined}).
+    put_state(Io#io{message=undefined,right=undefined}),
+    wings_wm:dirty().
 
 clear_menu_sel() ->
     put_state((get_state())#io{sel=undefined,message=undefined}).
@@ -281,7 +290,7 @@ maybe_show_mem_used(H) ->
     end.
 
 draw_panes(#io{w=W,h=H,menubar=Bar,sel=Sel}) ->
-    border(-2, 0, W+2, ?LINE_HEIGHT+6),
+    border(0, -1, W, ?LINE_HEIGHT+6),
     border(6, H-2*?LINE_HEIGHT+6, W-10, 2*?LINE_HEIGHT-10, ?PANE_COLOR),
     draw_bar(0, Bar, Sel).
 
@@ -361,7 +370,7 @@ button_1(RelX, X, [{Name,Item}|T]) ->
     case ?CHAR_WIDTH*length(Name) of
 	W when RelX < W ->
 	    put_state((get_state())#io{sel=Item}),
-	    {menu,Item,X+2,?LINE_HEIGHT+7};
+	    {menu,Item,X+2,?LINE_HEIGHT+6};
 	W ->
 	    Iw = W+?MENU_ITEM_SPACING*?CHAR_WIDTH,
 	    button_1(RelX-Iw, X+Iw, T)

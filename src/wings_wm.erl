@@ -8,17 +8,19 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.9 2002/07/22 03:59:57 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.10 2002/07/26 17:25:03 bjorng Exp $
 %%
 
 -module(wings_wm).
 -export([init/0,top_window/1,dirty/0,new/4,delete/1,
-	 offset/3,pos/1,set_active/1,top_size/0]).
+	 offset/3,pos/1,set_active/1,top_size/0,
+	 local2global/2,global2local/2,local_mouse_state/0,
+	 is_window_active/1,window_under/2]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
 -include("wings.hrl").
--import(lists, [map/2,last/1,sort/1,keysort/2]).
+-import(lists, [map/2,last/1,sort/1,keysort/2,reverse/1]).
 
 -record(win,
 	{z,					%Z order.
@@ -32,7 +34,7 @@
 %%% Process dictionary usage:
 %%%
 %%% wm_active		Window name for active window.
-%%% wm_windows		All windows
+%%% wm_windows		All windows.
 %%% wm_dirty		Exists if redraw is needed.
 %%% wm_top_size         Size of top window.
 %%%
@@ -53,6 +55,7 @@ dirty() ->
 
 new(Name, {X,Y,Z}, {W,H}, Op) when is_integer(X), is_integer(Y),
 				   is_integer(W), is_integer(H) ->
+    dirty(),
     Stk = handle_response(Op, dummy_event, [crash_handler()]),
     Win = #win{x=X,y=Y,z=Z,w=W,h=H,name=Name,stk=Stk},
     put(wm_windows, gb_trees:insert(Name, Win, get(wm_windows))),
@@ -64,7 +67,7 @@ delete(Name) ->
 	_ -> ok
     end,
     dirty(),
-    put(wm_windows, gb_trees:delete(Name, get(wm_windows))),
+    put(wm_windows, gb_trees:delete_any(Name, get(wm_windows))),
     keep.
 
 offset(Name, Xoffs, Yoffs) ->
@@ -78,10 +81,38 @@ pos(Name) ->
 set_active(Name) ->
     put(wm_active, Name).
 
+is_window_active(Name) ->
+    get(wm_active) =:= Name.
+
 top_size() ->
     #win{w=W,h=H} = get_window_data(top),
     {W,H}.
 
+local2global(X, Y) ->
+    {_,TopH} = get(wm_top_size),
+    [Xorig,Yorig,_,H] = gl:getIntegerv(?GL_VIEWPORT),
+    {Xorig+X,(TopH-Yorig-H)+Y}.
+
+global2local(X, Y) ->
+    {_,TopH} = get(wm_top_size),
+    [Xorig,Yorig,_,H] = gl:getIntegerv(?GL_VIEWPORT),
+    {X-Xorig,Y-(TopH-Yorig-H)}.
+
+local_mouse_state() ->
+    {B,X0,Y0} = sdl_mouse:getMouseState(),
+    {X,Y} = global2local(X0, Y0),
+    {B,X,Y}.
+
+window_under(X, Y) ->
+    Wins = reverse(gb_trees:values(get(wm_windows))),
+    window_under(Wins, X, Y).
+
+window_under([#win{x=X,y=Y,w=W,h=H,name=Name}|_], X0, Y0)
+  when X =< X0, X0 < X+W,
+       Y =< Y0, Y0 < Y+H -> Name;
+window_under([_|T], X, Y) ->
+    window_under(T, X, Y).
+    
 top_window(Op) ->
     #win{z=0,w=W,h=H} = Win0 = get_window_data(top),
     Stk = handle_response(Op, dummy_event, [crash_handler()]),
