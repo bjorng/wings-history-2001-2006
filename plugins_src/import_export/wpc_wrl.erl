@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_wrl.erl,v 1.13 2005/02/05 15:07:02 dgud Exp $
+%%     $Id: wpc_wrl.erl,v 1.14 2005/02/05 19:57:48 dgud Exp $
 %%
 
 -module(wpc_wrl).
@@ -104,10 +104,11 @@ export_transform(Contents, Attr) ->
     Mat = wpa:export_matrix(Attr),
     e3d_file:transform(Contents, Mat).
 
-export_object(F, #e3d_mesh{fs=Fs,ns=NTab,vs=VTab,tx=UVTab,vc=ColTab}, 
+export_object(F, #e3d_mesh{fs=Fs0,ns=NTab,vs=VTab,tx=UVTab,vc=ColTab}, 
 	      Mat_defs, Used_mats0) ->
     %% We can use the indicies, vertex table, and color table directly.
     io:format(F, "    Shape {\n",[]),
+    Fs = reorder(Fs0),
     [#e3d_face{mat=[Material|_]}|_] = Fs,
     Used_mats = material(F, Material, Mat_defs, Used_mats0),
     io:format(F, "      geometry IndexedFaceSet {\n",[]),
@@ -211,6 +212,30 @@ print_face(F, Vs) ->
     io:put_chars(F, "          "),
     foreach(fun(V) -> io:format(F, "~p, ", [V]) end, Vs),
     io:put_chars(F, "-1").
+
+%%  The reorder is cludge to sort faces (vertex lists) after order,
+%%  seems that Strata needs it to get good triangulation.
+reorder(Fs0) ->
+    Fs = [reorder_face(Face) || Face <- Fs0],
+    lists:keysort(#e3d_face.vs, Fs).
+reorder_face(F=#e3d_face{vs=[V|Vs],vc=Vc,tx=Tx,ns=Ns}) ->
+    Min = min(Vs,1,0,V),
+    F#e3d_face{vs=reorder_list([V|Vs],Min,[]),
+	       vc=reorder_list(Vc,Min,[]),
+	       tx=reorder_list(Tx,Min,[]),
+	       ns=reorder_list(Ns,Min,[])}.
+
+min([V|R],N,_,Min) when V < Min ->
+    min(R,N+1,N,V);
+min([_|R],N,Idx,Min) ->
+    min(R,N+1,Idx,Min);
+min([],_,Idx,_) -> Idx.
+
+reorder_list([], _, []) -> [];
+reorder_list(L, 0, Acc) -> L ++ lists:reverse(Acc);
+reorder_list([V|R],N,Acc) ->
+    reorder_list(R,N-1,[V|Acc]).
+    
 
 % Useful helpers
 all(F, IO, [H,H1|T]) ->
