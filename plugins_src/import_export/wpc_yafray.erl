@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.35 2003/05/09 13:25:52 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.36 2003/05/14 06:27:27 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -106,8 +106,8 @@
 -define(DEF_MOD_NORMAL, 0.0).
 -define(DEF_MOD_TYPE, image).
 -define(DEF_MOD_FILENAME, ".jpg").
--define(DEF_MOD_COLOR1, {0.0,0.0,0.0,1.0}).
--define(DEF_MOD_COLOR2, {1.0,1.0,1.0,1.0}).
+-define(DEF_MOD_COLOR1, {0.0,0.0,0.0}).
+-define(DEF_MOD_COLOR2, {1.0,1.0,1.0}).
 -define(DEF_MOD_DEPTH, 2).
 -define(DEF_MOD_HARD, false).
 -define(DEF_MOD_TURBULENCE, 1.0).
@@ -976,8 +976,7 @@ export_shader(F, Name, Mat, ExportDir) ->
 	    "    <attributes>", [Name]),
     {Dr,Dg,Db,Opacity} = proplists:get_value(diffuse, OpenGL),
     Transparency = 1 - Opacity,
-    export_rgb(F, color, 
-	       {Dr*Opacity,Dg*Opacity,Db*Opacity,1.0}),
+    export_rgb(F, color, {Dr*Opacity,Dg*Opacity,Db*Opacity}),
     export_rgb(F, specular, proplists:get_value(specular, OpenGL)),
     %% XXX Wings scaling of shininess is weird. Commonly this value
     %% is the cosine power and as such in the range 0..infinity.
@@ -986,7 +985,7 @@ export_shader(F, Name, Mat, ExportDir) ->
 		   [proplists:get_value(shininess, OpenGL)*128.0]),
     export_rgb(F, reflected, proplists:get_value(ambient, OpenGL)),
     export_rgb(F, transmitted, 
-	       {Dr*Transparency,Dg*Transparency,Db*Transparency,1.0}),
+	       {Dr*Transparency,Dg*Transparency,Db*Transparency}),
     IOR = proplists:get_value(ior, YafRay, ?DEF_IOR),
     MinRefle = proplists:get_value(min_refle, YafRay, ?DEF_MIN_REFLE),
     println(F, "        <IOR value=\"~.10f\"/>~n"++
@@ -1096,6 +1095,8 @@ export_modulator(F, Texname, {modulator,Ps}, Opacity) when list(Ps) ->
 
 
 export_rgb(F, Type, {R,G,B,_}) ->
+    export_rgb(F, Type, {R,G,B});
+export_rgb(F, Type, {R,G,B}) ->
     println(F, ["        <",format(Type)," r=\"",format(R),
 		"\" g=\"",format(G),"\" b=\"",format(B),"\"/>"]).
 
@@ -1123,10 +1124,9 @@ export_object(F, NameStr, #e3d_mesh{}=Mesh, Mats) ->
 	    [NameStr,"w_"++format(DefaultMaterial),format(Shadow),
 	     IOR,format(EmitRad),format(RecvRad)]),
     export_rgb(F, caus_rcolor, proplists:get_value(ambient, OpenGL)),
-%    export_rgb(F, caus_rcolor, 
-%	       {Dr*Opacity,Dg*Opacity,Db*Opacity,1.0}),
+%    export_rgb(F, caus_rcolor, {Dr*Opacity,Dg*Opacity,Db*Opacity}),
     export_rgb(F, caus_tcolor, 
-	       {Dr*Transparency,Dg*Transparency,Db*Transparency,1.0}),
+	       {Dr*Transparency,Dg*Transparency,Db*Transparency}),
     println(F, "    </attributes>"),
     case AutosmoothAngle of
 	0.0 ->
@@ -1369,9 +1369,9 @@ export_background(F, Name, Ps) ->
     case Bg of
 	constant ->
 	    println(F, ">"),
-	    {R,G,B} = proplists:get_value(background_color, YafRay, 
+	    BgColor = proplists:get_value(background_color, YafRay, 
 					  ?DEF_BACKGROUND_COLOR),
-	    export_rgb(F, color, {R,G,B,1.0});
+	    export_rgb(F, color, BgColor);
 	sunsky ->
 	    Power = proplists:get_value(power, YafRay, ?DEF_POWER),
 	    AddSun = (Power > 0.0),
