@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.69 2004/12/26 08:20:39 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.70 2004/12/26 09:18:59 bjorng Exp $
 
 -module(auv_segment).
 
@@ -850,7 +850,9 @@ other_vertex(V, Edge, Etab) ->
 cut_cleanup(Faces, MaybeRemove, We) ->
     Es = ordsets:intersection(MaybeRemove,
 			      wings_face:to_edges(Faces, We)),
-    foldl(fun(E, W) -> wings_collapse:collapse_edge(E, W) end, We, Es).
+    foldl(fun(E, W) ->
+		  wings_collapse:fast_collapse_edge(E, W)
+	  end, We, Es).
 
 add_new_vs(OldV, NewVs, Map) ->
     foldl(fun(NewV, M) -> add_new_vs_1(OldV, NewV, M) end, Map, NewVs).
