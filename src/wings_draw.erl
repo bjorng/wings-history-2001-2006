@@ -3,12 +3,12 @@
 %%
 %%     This module draws objects using OpenGL.
 %%
-%%  Copyright (c) 2001 Bjorn Gustavsson
+%%  Copyright (c) 2001-2002 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.41 2001/12/30 22:18:45 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.42 2002/01/01 11:28:35 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -276,7 +276,8 @@ draw_smooth_vcolor([]) -> ok.
 draw_hard_edges(#st{shapes=Shapes}) ->
     gl:color3fv(wings_pref:get_value(hard_edge_color)),
     foreach(
-      fun(#we{he=Htab}=We) ->
+      fun(#we{perm=Perm}) when ?IS_NOT_VISIBLE(Perm) -> ok;
+	 (#we{he=Htab}=We) ->
 	      case gb_sets:is_empty(Htab) of
 		  true -> ok;
 		  false -> draw_hard_edges_1(We)

@@ -3,12 +3,12 @@
 %%
 %%     This module contain the functions for reading and writing .wings files.
 %%
-%%  Copyright (c) 2001 Bjorn Gustavsson
+%%  Copyright (c) 2001-2002 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.15 2001/12/28 22:36:58 bjorng Exp $
+%%     $Id: wings_ff_wings.erl,v 1.16 2002/01/01 11:28:35 bjorng Exp $
 %%
 
 -module(wings_ff_wings).
@@ -105,9 +105,10 @@ old_import_objects(Shapes, St0) ->		% Version 0.
 export(Name, #st{selmode=Mode,sel=Sel0,shapes=Shapes0}=St) ->
     Shapes1 = gb_trees:to_list(Shapes0),
     ShapeSel = shape_sel(Shapes1, Sel0),
-    Shapes = foldl(fun({Sh,Sel}, A) ->
-			   shape(Sh, Mode, Sel, A)
-		   end, [], ShapeSel),
+    Shapes2 = foldl(fun({Sh,Sel}, A) ->
+			    shape(Sh, Mode, Sel, A)
+		    end, [], ShapeSel),
+    Shapes = reverse(Shapes2),
     Materials = wings_material:used_materials(St),
     Prop = export_selmode(St),
     Wings = {wings,1,Shapes,Materials,Prop},
@@ -129,7 +130,7 @@ write_file(Name, Bin) ->
 	{error,Reason} -> {error,file:format_error(Reason)}
     end.
 
-shape(#we{name=Name}=We0, Mode, Sel0, Acc) ->
+shape(#we{mode=ObjMode,name=Name}=We0, Mode, Sel0, Acc) ->
     Sel1 = gb_sets:to_list(Sel0),
     {We,[{Mode,Sel}]} = wings_we:renumber(We0, 0, [{Mode,Sel1}]),
     #we{vs=Vs0,es=Etab,he=Htab} = We,
