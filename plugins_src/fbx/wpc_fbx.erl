@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_fbx.erl,v 1.5 2005/03/14 06:35:42 bjorng Exp $
+%%     $Id: wpc_fbx.erl,v 1.6 2005/03/14 15:42:17 bjorng Exp $
 %%
 
 -module(wpc_fbx).
@@ -633,12 +633,16 @@ import_materials(Mesh) ->
 	false ->
 	    {Mesh,[]};
 	true ->
-	    MM = layer_elem_mapping_mode(),
-	    RM = layer_elem_reference_mode(),
-	    io:format("layer: ~p ~p\n", [MM,RM]),
-	    N = call(?ImpNumMaterials),
-	    io:format("# mat: ~p\n", [N]),
-	    {Mesh,[]}
+	    case layer_elem_reference_mode() of
+		index ->
+		    %% Index mode does not make sense.
+		    {Mesh,[]};
+		RM ->
+		    MM = layer_elem_mapping_mode(),
+		    N = call(?ImpNumMaterials),
+		    Mat = import_materials_1(0, N, []),
+		    {import_mat_mapping(MM, Mesh, Mat),Mat}
+	    end
     end.
 
 import_materials_1(N, N, Acc) -> reverse(Acc);
@@ -657,13 +661,12 @@ import_materials_1(I, N, Acc) ->
     Ps = [{opengl,OpenGL}],
     import_materials_1(I+1, N, [{Name,Ps}|Acc]).
 
-import_mat_mapping(Mesh, _Mat) ->
-    Mesh.
-%%     MatNames = list_to_tuple([Name || {Name,_} <- Mat]),
-%%     case call(?ImpMaterialMappingType) of
-%%         by_polygon -> import_mat_by_polygon(Mesh, MatNames);
-%%         all_same -> import_mat_all_same(Mesh, MatNames)
-%%     end.
+import_mat_mapping(MapMode, Mesh, Mat) ->
+    MatNames = list_to_tuple([Name || {Name,_} <- Mat]),
+    case MapMode of
+        by_polygon -> import_mat_by_polygon(Mesh, MatNames);
+        all_same -> import_mat_all_same(Mesh, MatNames)
+    end.
     
 import_mat_by_polygon(#e3d_mesh{fs=Fs0}=Mesh, MatNames) ->
     cast(?ImpMaterialIndices),

@@ -8,7 +8,7 @@
  *  See the file "license.terms" for information on usage and redistribution
  *  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
  *
- *     $Id: wings_fbx.cxx,v 1.5 2005/03/14 06:35:41 bjorng Exp $
+ *     $Id: wings_fbx.cxx,v 1.6 2005/03/14 15:42:16 bjorng Exp $
  */
 
 
@@ -652,18 +652,11 @@ fbx_control(unsigned int command,
       break;
     }
     break;
-
-#if 0
-    send_integer(res, Mesh->GetMaterialCount());
-#endif
-    break;
   case ImpMaterial:
-#if 0
     {
       kInt index = *(kInt *) buff;
-      Material = Mesh->GetMaterial(index);
+      Material = matLayer->GetDirectArray().GetAt(index);
     }
-#endif
     break;
   case ImpMaterialName:
     send_string(res, Material->GetName());
