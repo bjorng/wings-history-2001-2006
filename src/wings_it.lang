@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_it.lang,v 1.7 2004/10/14 10:27:28 bjorng Exp $
+%%     $Id: wings_it.lang,v 1.8 2004/10/15 05:33:47 bjorng Exp $
 %%
 
 {wings,
@@ -126,7 +126,8 @@
     {3,"Nulla da rimuovere"},
     {4,"Rimuovi tutti gli stati (NON annullabile)?"}]},
   {shape_info,
-   [{1,"L'oggetto ~p \"~s\" ha ~p poligoni, ~p spigoli, ~p vertici.\n Il modo e' ~p"},
+   [{1,"L'oggetto ~p \"~s\" ha ~p poligoni, ~p spigoli, ~p vertici.\n"
+     "Il modo e' ~p"},
     {2,"~p oggetti, ~p facce, ~p spigoli, ~p vertici"}]},
   {tools_menu,
    [{1,"Tutti"},
