@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.8 2003/01/25 08:45:46 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.9 2003/01/25 08:59:41 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -103,9 +103,7 @@ get_ctrl_event(Cs) ->
 ctrl_event(redraw, Cs) ->
     ctrl_redraw(Cs);
 ctrl_event(got_focus, _) ->
-    {One,Two,Three} = wings_camera:button_names(),
-    wings_wm:message(["Drag ",One," Move  ",Two," Fit  ",Three," Show menu"]),
-    wings_wm:dirty();
+    ctrl_message();
 ctrl_event(#mousebutton{button=1,state=?SDL_PRESSED},
 	   #ctrl{state=moving,prev_focus=Focus}=Cs) ->
     wings_wm:grab_focus(Focus),
@@ -118,8 +116,12 @@ ctrl_event(#mousebutton{button=1,state=?SDL_RELEASED}, #ctrl{prev_focus=Focus}=C
     wings_wm:grab_focus(Focus),
     get_ctrl_event(Cs#ctrl{state=idle});
 ctrl_event(#mousebutton{button=2,state=?SDL_RELEASED}, Cs) ->
-    ctrl_command({fit,both}, Cs),
-    keep;
+    case is_resizeable() of
+	false -> keep;
+	true ->
+	    ctrl_command({fit,both}, Cs),
+	    keep
+    end;
 ctrl_event(#mousemotion{x=X0,y=Y0,state=?SDL_PRESSED},
 	   #ctrl{state=moving,local={LocX,LocY}}) ->
     {X1,Y1} = wings_wm:local2global(X0, Y0),
@@ -137,9 +139,13 @@ ctrl_event(#mousemotion{state=?SDL_RELEASED},
     wings_wm:grab_focus(Focus),
     get_ctrl_event(Cs#ctrl{state=idle});
 ctrl_event(#mousebutton{}=Ev, _) ->
-    case wings_menu:is_popup_event(Ev) of
-	{yes,X,Y,_} -> ctrl_menu(X, Y);
-	no -> ok
+    case is_resizeable() of
+	false -> ok;
+	true ->
+	    case wings_menu:is_popup_event(Ev) of
+		{yes,X,Y,_} -> ctrl_menu(X, Y);
+		no -> ok
+	    end
     end,
     keep;
 ctrl_event({window_updated,Client}, _) ->
@@ -165,6 +171,15 @@ ctrl_event({window_updated,Client}, _) ->
 ctrl_event({action,{titlebar,Action}}, Cs) ->
     ctrl_command(Action, Cs);
 ctrl_event(_, _) -> keep.
+
+ctrl_message() ->
+    {One,Two,Three} = wings_camera:button_names(),
+    T = case is_resizeable() of
+	    false -> [];
+	    true -> ["  ",Two," Fit  ",Three," Show menu"]
+	end,
+    wings_wm:message(["Drag ",One," Move"|T]),
+    wings_wm:dirty().
 
 ctrl_redraw(#ctrl{title=Title}) ->
     wings_io:ortho_setup(),
@@ -578,3 +593,11 @@ closer_pos(Client) ->
 	false ->  {X0+W-16,Y,Z+0.6};
 	true -> {X0+W+13-16,Y,Z+0.6}
     end.
+
+%%%
+%%% Common utilities.
+%%%
+
+is_resizeable() ->
+    {_,Client} = wings_wm:active_window(),
+    wings_wm:is_window({resizer,Client}).
