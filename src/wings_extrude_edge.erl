@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.47 2003/07/18 14:58:33 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.48 2003/07/19 12:08:36 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -42,8 +42,7 @@ calc_bump_dist(St) ->
 calc_bump_dist_1(Faces, We, D) ->
     Edges0 = gb_sets:to_list(wings_edge:from_faces(Faces, We)),
     Vs = wings_vertex:from_edges(Edges0, We),
-    Edges1 = ordsets:from_list(wings_edge:from_vs(Vs, We)),
-    Edges = ordsets:subtract(Edges1, Edges0),
+    Edges = wings_edge:from_vs(Vs, We),
     calc_bump_dist_2(Edges, We, D).
 
 calc_bump_dist_2([E|Es], #we{es=Etab,vp=Vtab}=We, D0) ->
