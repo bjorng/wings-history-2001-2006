@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.24 2002/05/08 09:12:11 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.25 2002/05/23 06:59:20 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -40,26 +40,20 @@ bump(Faces, We0, Acc) ->
 %%
 
 bevel(St0) ->
-    {St,{Tvs,Sel,Limit}} =
-	wings_sel:mapfold(fun bevel_edges/3, {[],[],1.0E307}, St0),
-    wings_drag:setup(Tvs, [{distance,{0.0,Limit}}],
-		    wings_sel:set(face, Sel, St)).
+    {St,{Tvs,Limit}} = wings_sel:mapfold(fun bevel_edges/3, {[],1.0E307}, St0),
+    wings_drag:setup(Tvs, [{distance,{0.0,Limit}}], wings_sel:clear(St)).
 
-bevel_edges(Edges, #we{id=Id}=We0, {Tvs,Ss,Limit0}) ->
+bevel_edges(Edges, #we{id=Id}=We0, {Tvs,Limit0}) ->
     {We1,OrigVs} = extrude_edges(Edges, We0),
-    OrigFaces = bevel_orig_faces(Edges, We1),
     We2 = wings_edge:dissolve_edges(Edges, We1),
     Tv0 = bevel_tv(OrigVs, We2),
-    #we{fs=Ftab,vs=Vtab0} = We3 =
-	foldl(fun(V, W0) ->
-		      wings_collapse:collapse_vertex(V, W0)
-	      end, We2, OrigVs),
-    Vtab = bevel_reset_pos(OrigVs, We2, Vtab0),
+    We3 = foldl(fun(V, W0) ->
+			wings_collapse:collapse_vertex(V, W0)
+		end, We2, OrigVs),
+    Vtab = bevel_reset_pos(OrigVs, We2, We3#we.vs),
     We = We3#we{vs=Vtab},
-    FaceSel0 = [Face || Face <- OrigFaces, gb_trees:is_defined(Face, Ftab)],
-    FaceSel = gb_sets:from_ordset(FaceSel0),
     {Tv,Limit} = bevel_limit(Tv0, We, Limit0),
-    {We,{[{Id,Tv}|Tvs],[{Id,FaceSel}|Ss],Limit}}.
+    {We,{[{Id,Tv}|Tvs],Limit}}.
 
 %%
 %% The Bevel command (for faces).
@@ -111,13 +105,6 @@ bevel_reset_pos_1(V, We, Vtab) ->
 	      Vtx = gb_trees:get(OtherV, Vt),
 	      gb_trees:update(OtherV, Vtx#vtx{pos=Center}, Vt)
       end, Vtab, V, We).
-
-bevel_orig_faces(Edges, #we{es=Etab}) ->
-    Faces = foldl(fun(E, A) ->
-			  #edge{lf=Lf,rf=Rf} = gb_trees:get(E, Etab),
-			  [Lf,Rf|A]
-		  end, [], gb_sets:to_list(Edges)),
-    ordsets:from_list(Faces).
 
 bevel_limit(Tv0, We, Limit0) ->
     {Tv,L0} = foldl(fun({Vec,[V]}, A) ->
