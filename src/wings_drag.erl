@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.177 2004/04/18 06:13:15 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.178 2004/04/18 06:58:50 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -85,22 +85,18 @@ setup_mode(Flags, Falloff) ->
 	    Mode
     end.
     
-standard_mode_fun(none) ->
-    fun(help, _) -> standard_help();
+standard_mode_fun(Falloff) ->
+    Help0 = "[Tab] Numeric entry  [Shift] and/or [Ctrl] Constrain",
+    Help = case Falloff of
+	       none -> Help0;
+	       _ ->
+		   lists:flatten(["[+] or [-] Adjust Radius  "|Help0])
+	   end,
+    fun(help, _) -> Help;
        (key, _) -> none;
        (done, _) -> ok;
        (_, _) -> none
-     end;
-standard_mode_fun(_) ->
-    fun(help, _) ->
-	    ["[+] or [-] Adjust Radius  "|standard_help()];
-       (key, _) -> none;
-       (done, _) -> ok;
-       (_, _) -> none
-    end.
-
-standard_help() ->
-    "[Tab] Numeric entry  [Shift] and/or [Ctrl] Constrain".
+     end.
 
 unit_scales(Units) ->
     #view{distance=D} = wings_view:current(),
