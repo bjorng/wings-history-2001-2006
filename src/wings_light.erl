@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.43 2004/03/09 21:57:15 raimo_niskanen Exp $
+%%     $Id: wings_light.erl,v 1.44 2004/03/09 22:51:09 raimo_niskanen Exp $
 %%
 
 -module(wings_light).
@@ -758,20 +758,25 @@ scene_lights_fun(#dlo{src_we=#we{perm=Perm}}, Lnum)
 scene_lights_fun(#dlo{src_we=We}, Lnum) when not ?IS_ANY_LIGHT(We)-> Lnum;
 scene_lights_fun(#dlo{transparent=#we{light=L}=We}, Lnum) ->
     %% This happens when dragging in Body selection mode.
-    setup_light(Lnum, L, We);
-scene_lights_fun(#dlo{src_we=#we{light=L}=We}, Lnum) when ?IS_ANY_LIGHT(We) ->
-    setup_light(Lnum, L, We).
+    setup_light(Lnum, L, We, none);
+scene_lights_fun(#dlo{src_we=#we{light=L}=We,drag=Drag}, Lnum)
+  when ?IS_ANY_LIGHT(We) ->
+    M = case Drag of
+	    {matrix,_Tr,_M0,M1} -> M1;
+	    _ -> none
+	end,
+    setup_light(Lnum, L, We, M).
 
-setup_light(Lnum, #light{type=ambient,ambient=Amb}, _We) ->
+setup_light(Lnum, #light{type=ambient,ambient=Amb}, _We, _M) ->
     gl:lightModelfv(?GL_LIGHT_MODEL_AMBIENT, Amb),
     Lnum;
-setup_light(Lnum, #light{type=infinite,aim=Aim}=L, We) ->
+setup_light(Lnum, #light{type=infinite,aim=Aim}=L, We, _M) ->
     {X,Y,Z} = e3d_vec:norm(e3d_vec:sub(light_pos(We), Aim)),
     gl:lightfv(Lnum, ?GL_POSITION, {X,Y,Z,0}),
     setup_color(Lnum, L),
     gl:enable(Lnum),
     Lnum+1;
-setup_light(Lnum, #light{type=point}=L, We) ->
+setup_light(Lnum, #light{type=point}=L, We, _M) ->
     {X,Y,Z} = light_pos(We),
     gl:lightfv(Lnum, ?GL_POSITION, {X,Y,Z,1}),
     gl:lightf(Lnum, ?GL_SPOT_CUTOFF, 180.0),
@@ -780,7 +785,7 @@ setup_light(Lnum, #light{type=point}=L, We) ->
     gl:enable(Lnum),
     Lnum+1;
 setup_light(Lnum, #light{type=spot,aim=Aim,spot_angle=Angle,spot_exp=Exp}=L, 
-	    We) ->
+	    We, _M) ->
     Pos = {X,Y,Z} = light_pos(We),
     Dir = e3d_vec:norm(e3d_vec:sub(Aim, Pos)),
     gl:lightfv(Lnum, ?GL_POSITION, {X,Y,Z,1}),
@@ -791,10 +796,18 @@ setup_light(Lnum, #light{type=spot,aim=Aim,spot_angle=Angle,spot_exp=Exp}=L,
     setup_attenuation(Lnum, L),
     gl:enable(Lnum),
     Lnum+1;
-setup_light(Lnum, #light{type=area}=L, We) ->
-    setup_arealights(Lnum, L, arealight_posdirs(We)).
+setup_light(Lnum, #light{type=area}=L, We, M) ->
+    setup_arealights(Lnum, L, arealight_posdirs(We), M).
 
-setup_arealights(Lnum, #light{type=area}=L, [{{X,Y,Z},Dir}|PosDirs]) ->
+setup_arealights(Lnum, #light{type=area}=L, [{Pos0,Dir0}|PosDirs], M) ->
+    {{X,Y,Z},Dir} = 
+	case M of
+	    none -> {Pos0,Dir0};
+	    _ -> 
+		Pos = mul_point(M, Pos0),
+		Aim = mul_point(M, e3d_vec:add(Dir0, Pos0)),
+		{Pos,e3d_vec:sub(Aim, Pos)}
+	end,
     gl:lightfv(Lnum, ?GL_POSITION, {X,Y,Z,1}),
     gl:lightf(Lnum, ?GL_SPOT_CUTOFF, 90.0),
     gl:lightf(Lnum, ?GL_SPOT_EXPONENT, 1.0),
@@ -802,8 +815,8 @@ setup_arealights(Lnum, #light{type=area}=L, [{{X,Y,Z},Dir}|PosDirs]) ->
     setup_color(Lnum, L),
     setup_attenuation(Lnum, L),
     gl:enable(Lnum),
-    setup_arealights(Lnum+1, L, PosDirs);
-setup_arealights(Lnum, #light{type=area}, []) ->
+    setup_arealights(Lnum+1, L, PosDirs, M);
+setup_arealights(Lnum, #light{type=area}, [], _M) ->
     Lnum.
 
 setup_color(Lnum, #light{diffuse=Diff,ambient=Amb,specular=Spec}) ->
@@ -860,3 +873,7 @@ shape_materials(#light{diffuse={_,_,_,Af}=Front,ambient={_,_,_,Ab}=Back}, St) ->
 			    {emission,Back},{shininess,0.0}])},
 	      {maps,[]}]),
     wings_material:update_materials([{default,Default},{'_hole_',Hole}], St).
+
+mul_point({1.0,0.0,0.0, 0.0,1.0,0.0, 0.0,0.0,1.0, Tx,Ty,Tz}, {X,Y,Z}) ->
+    {X+Tx,Y+Ty,Z+Tz};
+mul_point(M, P) -> e3d_mat:mul_point(M, P).
