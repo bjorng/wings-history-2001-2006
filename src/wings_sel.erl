@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel.erl,v 1.4 2001/08/24 08:45:48 bjorng Exp $
+%%     $Id: wings_sel.erl,v 1.5 2001/08/27 07:34:52 bjorng Exp $
 %%
 
 -module(wings_sel).
@@ -21,8 +21,8 @@
 	 map/2,map_shape/2,map_region/2,
 	 mapfold/3,mapfold_shape/3,mapfold_region/3,
 	 foreach/2,make/3,valid_sel/1,
-	 centers/1,find_face_regions/2,validate_items/3,
-	 inverse_items/3,
+	 centers/1,bounding_box/1,
+	 find_face_regions/2,validate_items/3,inverse_items/3,
 	 random/2]).
 
 %% Selection commands.
@@ -303,22 +303,33 @@ make_1([], Filter, Mode) -> [].
 
 
 %%%
-%%% Calculate centers for all selected objects.
+%%% Calculate the centers for all selected objects.
 %%%
+
 centers(#st{selmode=Mode}=St) ->
     reverse(wings_sel:fold_shape(
 	      fun(#shape{sh=We}, Items, A) ->
-		      [find_center(Mode, Items, We)|A]
+		      [e3d_vec:average(bounding_box(Mode, Items, We, none))|A]
 	      end, [], St)).
 
-find_center(vertex, Vs, We) ->
-    wings_vertex:center(Vs, We);
-find_center(face, Faces, We) ->
-    wings_vertex:center(wings_face:to_vertices(Faces, We), We);
-find_center(edge, Edges, We) ->
-    wings_vertex:center(wings_edge:to_vertices(Edges, We), We);
-find_center(body, Items, We) ->
-    wings_vertex:center(We).
+%%%
+%%% Calculate the bounding-box for the selection.
+%%%
+
+bounding_box(#st{selmode=Mode}=St) ->
+    wings_sel:fold_shape(
+      fun(#shape{sh=We}, Items, A) ->
+	      bounding_box(Mode, Items, We, A)
+      end, none, St).
+
+bounding_box(vertex, Vs, We, BB) ->
+    wings_vertex:bounding_box(Vs, We, BB);
+bounding_box(face, Faces, We, BB) ->
+    wings_vertex:bounding_box(wings_face:to_vertices(Faces, We), We, BB);
+bounding_box(edge, Edges, We, BB) ->
+    wings_vertex:bounding_box(wings_edge:to_vertices(Edges, We), We, BB);
+bounding_box(body, Items, #we{vs=Vtab}=We, BB) ->
+    wings_vertex:bounding_box(We, BB).
 
 %%%
 %%% Here we want to divide the selection into regions of adjoining
@@ -422,7 +433,7 @@ validate_items(Items, body, Shape) -> Items.
 select_all(#st{drag=Drag}=St) when Drag =/= undefined -> St;
 select_all(#st{selmode=body,shapes=Shapes}=St) ->
     Items = gb_sets:singleton(0),
-    Sel = [{Id,Items} || {Id,_} <- gb_trees:to_list(Shapes)],
+    Sel = [{Id,Items} || Id <- gb_trees:keys(Shapes)],
     St#st{sel=Sel};
 select_all(#st{sel=[],shapes=Shapes}=St) ->
     case gb_trees:is_empty(Shapes) of

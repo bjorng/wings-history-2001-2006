@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.3 2001/08/20 07:33:40 bjorng Exp $
+%%     $Id: wings.erl,v 1.4 2001/08/27 07:34:52 bjorng Exp $
 %%
 
 -module(wings).
@@ -292,6 +292,10 @@ command({edit,repeat}, #st{drag=undefined,camera=undefined,
     wings_io:putback_event({action,Cmd}),
     St;
 command({edit,repeat}, St) -> St;
+command({edit,copy_bb}, St) ->
+    wings_align:copy_bb(St);
+command({edit,paste_bb}, St) ->
+    {save_state,model_changed(wings_align:paste_bb(St))};
 
 %% Select menu
 command({select,edge_loop}, St) ->
@@ -543,6 +547,9 @@ menu(X, Y, edit, St) ->
     Menu = {{"Undo/redo","Ctrl-Z",undo_toggle},
 	    {"Redo","Shift-Ctrl-Z",redo},
 	    {"Undo","Alt-Ctrl-Z",undo},
+	    separator,
+	    {"Copy Bounding Box","Alt-C",copy_bb},
+	    {"Paste Bounding Box","Alt-V",copy_bb},
 	    separator,
 	    {command_name(St),"d",repeat},
 	    separator,
@@ -1020,6 +1027,8 @@ translate_event(#resize{w=W,h=H}, St) -> {resize,W,H};
 translate_event(#expose{}, St) -> ignore;
 translate_event({action,Action}, St) -> Action.
 
+translate_key($c, Mod, St) when Mod band ?ALT_BITS =/= 0 -> {edit,copy_bb};
+translate_key($v, Mod, St) when Mod band ?ALT_BITS =/= 0 -> {edit,paste_bb};
 translate_key($a, Mod, St) when Mod band ?CTRL_BITS =/= 0 -> {select,all};
 translate_key($i, Mod, St) when Mod band ?CTRL_BITS =/= 0,
 				Mod band ?SHIFT_BITS =/= 0 -> {select,inverse};

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.1 2001/08/14 18:16:37 bjorng Exp $
+%%     $Id: wings_ff_wings.erl,v 1.2 2001/08/27 07:34:52 bjorng Exp $
 %%
 
 -module(wings_ff_wings).
@@ -73,7 +73,7 @@ shape(#shape{name=Name,sh=We0}, Acc) ->
 	    end, [], We),
     Fs = reverse(Fs1),
     HardEdges = hard_edges(Etab, Htab),
-    Identity = e3d_mat:identity(),
+    Identity = wings_mat:identity(),
     [{object,Name,Identity,{winged,Fs,Vs},HardEdges}|Acc].
 
 hard_edges(Etab, Htab) ->

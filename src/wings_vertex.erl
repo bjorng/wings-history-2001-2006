@@ -8,13 +8,15 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex.erl,v 1.1 2001/08/14 18:16:38 bjorng Exp $
+%%     $Id: wings_vertex.erl,v 1.2 2001/08/27 07:34:52 bjorng Exp $
 %%
 
 -module(wings_vertex).
 -export([convert_selection/1,select_more/1,select_less/1,
 	 fold/4,until/4,until/5,other/2,other_pos/3,
-	 center/1,center/2,normal/2,per_face/2,
+	 center/1,center/2,
+	 bounding_box/1,bounding_box/2,bounding_box/3,
+	 normal/2,per_face/2,
 	 dissolve/2,connect/3,force_connect/4,patch_vertex/3,pos/2]).
 
 -include("wings.hrl").
@@ -152,9 +154,9 @@ other_pos(V, #edge{ve=V,vs=Other}, Tab) -> pos(Other, Tab).
 %% center(We) -> {CenterX,CenterY,CenterZ}
 %%  Find the geometric center of a body.
 center(#we{vs=Vtab}) ->
-    Positions = foldl(fun({_,#vtx{pos=Pos}}, A) ->
+    Positions = foldl(fun(#vtx{pos=Pos}, A) ->
 			      [Pos|A]
-		      end, [], gb_trees:to_list(Vtab)),
+		      end, [], wings_util:gb_trees_values(Vtab)),
     wings_mat:average(Positions).
 
 %% center(VertexGbSet, We) -> {CenterX,CenterY,CenterZ}
@@ -170,6 +172,48 @@ center(Vlist, Vtab) ->
 			      [pos(V, Vtab)|A]
 		      end, [], Vlist),
     wings_mat:average(Positions).
+
+bounding_box(We) ->
+    bounding_box(We, none).
+
+bounding_box(#we{vs=Vtab}=We, BB) ->
+    do_bounding_box(wings_util:gb_trees_values(Vtab), BB);
+bounding_box(Vs, We) ->
+    bounding_box(Vs, We, none).
+    
+bounding_box(Vs0, #we{vs=Vtab}, BB) ->
+    Vs1 = sofs:from_list(gb_sets:to_list(Vs0)),
+    R = sofs:relation(gb_trees:to_list(Vtab)),
+    Vs = sofs:to_external(sofs:range(sofs:restriction(R, Vs1))),
+    do_bounding_box(Vs, BB).
+
+do_bounding_box([#vtx{pos={X,Y,Z}}|Vs], none) ->
+    do_bounding_box(Vs, X, X, Y, Y, Z, Z);
+do_bounding_box(Vs, [{X0,Y0,Z0},{X1,Y1,Z1}]) ->
+    do_bounding_box(Vs, X0, X1, Y0, Y1, Z0, Z1).
+
+do_bounding_box([#vtx{pos={X,_,_}}|_]=Vs, X0, X1, Y0, Y1, Z0, Z1)
+  when X < X0 ->
+    do_bounding_box(Vs, X, X1, Y0, Y1, Z0, Z1);
+do_bounding_box([#vtx{pos={X,_,_}}|_]=Vs, X0, X1, Y0, Y1, Z0, Z1)
+  when X > X1 ->
+    do_bounding_box(Vs, X0, X, Y0, Y1, Z0, Z1);
+do_bounding_box([#vtx{pos={_,Y,_}}|_]=Vs, X0, X1, Y0, Y1, Z0, Z1)
+  when Y < Y0 ->
+    do_bounding_box(Vs, X0, X1, Y, Y1, Z0, Z1);
+do_bounding_box([#vtx{pos={_,Y,_}}|_]=Vs, X0, X1, Y0, Y1, Z0, Z1)
+  when Y > Y1 ->
+    do_bounding_box(Vs, X0, X1, Y0, Y, Z0, Z1);
+do_bounding_box([#vtx{pos={_,_,Z}}|_]=Vs, X0, X1, Y0, Y1, Z0, Z1)
+  when Z < Z0 ->
+    do_bounding_box(Vs, X0, X1, Y0, Y1, Z, Z1);
+do_bounding_box([#vtx{pos={_,_,Z}}|_]=Vs, X0, X1, Y0, Y1, Z0, Z1)
+  when Z > Z1 ->
+    do_bounding_box(Vs, X0, X1, Y0, Y1, Z0, Z);
+do_bounding_box([_|Vs], X0, X1, Y0, Y1, Z0, Z1) ->
+    do_bounding_box(Vs, X0, X1, Y0, Y1, Z0, Z1);
+do_bounding_box([], X0, X1, Y0, Y1, Z0, Z1) ->
+    [{X0,Y0,Z0},{X1,Y1,Z1}].
 
 %% normal(Vertex, We) -> Normal
 %%  Calculate the normal for a vertex (based on the normals for all

@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.3 2001/08/24 08:45:48 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.4 2001/08/27 07:34:52 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -19,6 +19,7 @@
 	 new_id/1,new_ids/2,
 	 invert_normals/1,
 	 merge/2,renumber/1,renumber/2,renumber/3,
+	 transform_vs/2,
 	 separate/1,
 	 normals/1,
 	 new_items/3]).
@@ -46,32 +47,21 @@ build(Name, Matrix, Fs0, Vs, HardEdges, #st{onext=Id,shapes=Shapes}=St) ->
 			Fs0 ++ [{hole,F} || F <- Holes]}
 	       end,
     Es = number_edges(Es1),
-    Ftab0 = build_faces(Fs),
-    {Vtab0,Etab,Ftab,Htab} = build_tables(Es, Ftab0, HardEdges),
-    Vtab = fill_in_vertice_pos(0, Vs, Matrix, Vtab0),
-    [{NextId0,_}|_] = reverse(merge([gb_trees:to_list(Etab),
-				     gb_trees:to_list(Ftab),
-				     gb_trees:to_list(Vtab)])),
-    NextId = NextId0 + 1,
+    Htab = hard_edges(HardEdges, Es),
+    {Vtab0,Etab,Ftab0} = build_tables(Es),
+    Ftab = build_faces(Ftab0, Fs),
+    Vtab = fill_in_vertice_pos(Vs, Matrix, Vtab0),
+    NextId = 2+last(sort([gb_trees:size(Etab),
+			  gb_trees:size(Ftab),
+			  gb_trees:size(Vtab)])),
     Shape = #shape{id=Id,name=Name,
 		   sh=#we{es=Etab,fs=Ftab,vs=Vtab,he=Htab,
 			  first_id=0,next_id=NextId}},
     St#st{onext=Id+1,shapes=gb_trees:insert(Id, Shape, Shapes)}.
 
-%% build_faces(Fs) -> FaceTab
-%%  Build the original face table. The 'mat' field will be filled in.
-%%  The 'edge' field will be filled in later.
-build_faces(Fs) ->
-    build_faces(Fs, 1, []).
-build_faces([{Material,Vs}|Fs], FaceNum, Acc) ->
-    build_faces(Fs, FaceNum+1, [{FaceNum,#face{mat=Material}}|Acc]);
-build_faces([_|Fs], FaceNum, Acc) ->
-    build_faces(Fs, FaceNum+1, [{FaceNum,#face{}}|Acc]);
-build_faces([], FaceNum, Acc) ->
-    gb_trees:from_orddict(sort(Acc)).
-
 build_edges(Fs) ->
     build_edges(Fs, 1, gb_trees:empty()).
+
 build_edges([{Material,Vs}|Fs], Face, Eacc0) ->
     build_edges_1(Vs, Fs, Face, Eacc0);
 build_edges([Vs|Fs], Face, Eacc0) ->
@@ -90,14 +80,14 @@ build_edges_1(Vs, Fs, Face, Eacc0) ->
 	   end,
     build_edges(Fs, Face+1, Eacc).
 
-try_build([First,Second|_]=Vs, Fs, Face, Eacc0) ->
-    Pairs0 = pairs(Vs, First, []),
-    Pred = {Second,First},
-    Pairs = [Pred|Pairs0++[hd(Pairs0)]],
-    case catch build_face_edges(Pairs, Face, Eacc0) of
-	{'EXIT',Reason} -> exit(Reason);
-	Other -> Other
-    end.
+try_build(Vs, Fs, Face, Eacc) ->
+    Pairs = pairs(Vs, Vs, []),
+    build_face_edges(Pairs, Face, Eacc).
+
+pairs([V1|[V2|_]=Vs], First, Acc) ->
+    pairs(Vs, First, [{V2,V1}|Acc]);
+pairs([V], [V1,V2,V3|_], Acc) ->
+    [{V3,V2},{V2,V1},{V1,V}|Acc].
 
 build_face_edges([Pred|[E0,Succ|_]=Es], Face, Acc0) ->
     Acc = case E0 of
@@ -107,7 +97,10 @@ build_face_edges([Pred|[E0,Succ|_]=Es], Face, Acc0) ->
 		  Name = {Ve,Vs},
 		  enter_half_edge(left, Name, Face, Pred, Succ, Acc0)
 	  end,
-    build_face_edges(Es, Face, Acc);
+    if
+	Acc =:= please_invert_face -> please_invert_face;
+	true -> build_face_edges(Es, Face, Acc)
+    end;
 build_face_edges([_,_], Face, Acc) -> Acc.
 
 enter_half_edge(Side, Name, Face, Pred, Succ, Tab0) ->
@@ -121,85 +114,80 @@ enter_half_edge(Side, Name, Face, Pred, Succ, Tab0) ->
 	    gb_trees:insert(Name, {Rec,none}, Tab0);
 	{right,none} ->
 	    gb_trees:insert(Name, {none,Rec}, Tab0);
-	%% "Wrong" side.
-% 	{left,{value,{Left,none}}} ->
-% 	    gb_trees:update(Name, {Left,turn(Rec)}, Tab0);
-% 	{right,{value,{none,Right}}} ->
-% 	    gb_trees:update(Name, {turn(Rec),Right}, Tab0);
 	Other ->
 	    io:format("~w\n ~w\n", [Rec,Other]),
-	    throw(please_invert_face)
+	    please_invert_face
     end.
-
-%%turn({Face,L,R}) -> {Face,R,L}.
 	    
 edge_name({Vs,Ve}=Name) when Vs < Ve -> Name;
-edge_name({Vs,Ve}) -> {Ve,Vs};
-edge_name([Vs|Ve]) when integer(Vs), integer(Ve), Vs < Ve -> {Vs,Ve};
-edge_name([Vs|Ve]) when integer(Vs), integer(Ve) -> {Ve,Vs}.
-
-pairs([V1|[V2|_]=Vs], First, Acc) ->
-    pairs(Vs, First, [{V2,V1}|Acc]);
-pairs([V], First, Acc) -> [{First,V}|Acc].
+edge_name({Vs,Ve}) -> {Ve,Vs}.
 
 number_edges(Es) ->
-    number_edges(gb_trees:to_list(Es), 1, gb_trees:empty()).
-number_edges([{Name,{Ldata,Rdata}}|Es], Edge, Tab0) ->
-    Tab = gb_trees:insert(Name, {Edge,Ldata,Rdata}, Tab0),
+    number_edges(gb_trees:to_list(Es), 1, []).
+
+number_edges([{Name,{Ldata,Rdata}=Data}|Es], Edge, Tab0) ->
+    Tab = [{Name,{Edge,Data}}|Tab0],
     number_edges(Es, Edge+1, Tab);
-number_edges([], Edge, Tab) -> Tab.
+number_edges([], Edge, Tab) -> reverse(Tab).
 
-build_tables(Edges, Ftab, HardEdges0) ->
-    HardEdges = gb_sets:from_list(map(fun edge_name/1, HardEdges0)),
-    Empty = gb_trees:empty(),
-    build_tables(gb_trees:iterator(Edges), Edges, HardEdges,
-		 Empty, Empty, Ftab, gb_sets:empty()).
+hard_edges([], Es) -> gb_sets:empty();
+hard_edges(HardEdges, Es) ->
+    SofsEdges = sofs:relation(Es),
+    SofsHard = sofs:restriction(SofsEdges, sofs:from_list(HardEdges)),
+    Htab = [Edge || {_,{Edge,_}} <- sofs:to_external(SofsHard)],
+    gb_sets:from_list(Htab).
 
-build_tables(Iter0, Etree, HardEdges, Vtab0, Etab0, Ftab0, Htab0) ->
-    case gb_trees:next(Iter0) of
-	none -> {Vtab0,Etab0,Ftab0,Htab0};
-	{Name,{Edge,Ldata,Rdata},Iter} ->
-	    {Vs,Ve} = Name,
-	    {Lface,Lpred,Lsucc} = Ldata,
-	    {Rface,Rpred,Rsucc} = Rdata,
-	    Htab = case gb_sets:is_member(Name, HardEdges) of
-		       true  -> gb_sets:insert(Edge, Htab0);
-		       false -> Htab0
-		   end,
-	    Erec = #edge{vs=Vs,ve=Ve,lf=Lface,rf=Rface,
-			 ltpr=edge_num(Lpred, Etree),
-			 ltsu=edge_num(Lsucc, Etree),
-			 rtpr=edge_num(Rpred, Etree),
-			 rtsu=edge_num(Rsucc, Etree)},
-	    Etab = gb_trees:insert(Edge, Erec, Etab0),
-	    Ftab1 = update_face(Lface, Edge, Ftab0),
-	    Ftab = update_face(Rface, Edge, Ftab1),
-	    VertexRec = #vtx{edge=Edge},
-	    Vtab1 = gb_trees:enter(Vs, VertexRec, Vtab0),
-	    Vtab = gb_trees:enter(Ve, VertexRec, Vtab1),
-	    build_tables(Iter, Etree, HardEdges, Vtab, Etab, Ftab, Htab)
-    end.
+build_tables(Edges) ->
+    build_tables(Edges, gb_trees:from_orddict(Edges), [], [], []).
 
-update_face(Face, Edge, Ftab) ->
-    Rec0 = gb_trees:get(Face, Ftab),
-    Rec = Rec0#face{edge=Edge},
-    gb_trees:update(Face, Rec, Ftab).
+build_tables([H|T], Etree, Vtab0, Etab0, Ftab0) ->
+    {{Vs,Ve},{Edge,{Ldata,Rdata}}} = H,
+    {Lface,Lpred,Lsucc} = Ldata,
+    {Rface,Rpred,Rsucc} = Rdata,
+    Erec = #edge{vs=Vs,ve=Ve,lf=Lface,rf=Rface,
+		 ltpr=edge_num(Lpred, Etree),
+		 ltsu=edge_num(Lsucc, Etree),
+		 rtpr=edge_num(Rpred, Etree),
+		 rtsu=edge_num(Rsucc, Etree)},
+    Etab = [{Edge,Erec}|Etab0],
+    Ftab = [{Lface,Edge},{Rface,Edge}|Ftab0],
+    Vtab = [{Vs,Edge},{Ve,Edge}|Vtab0],
+    build_tables(T, Etree, Vtab, Etab, Ftab);
+build_tables([], Etree, Vtab, Etab0, Ftab) ->
+    Etab = gb_trees:from_orddict(reverse(Etab0)),
+    {Vtab,Etab,Ftab}.
 
 edge_num(Edge, Etree) ->
-    {Num,_,_} = gb_trees:get(Edge, Etree),
+    {Num,_} = gb_trees:get(Edge, Etree),
     Num.
 
-fill_in_vertice_pos(Key, Ps, Matrix0, Vtab) ->    
+fill_in_vertice_pos(Ps, Matrix0, Vtab0) ->
     Matrix = wings_mat:transpose(Matrix0),
-    fill_in_vertice_pos_1(Key, Ps, Matrix, Vtab).
+    Vtab1 = sofs:relation(Vtab0),
+    Vtab2 = sofs:relation_to_family(Vtab1),
+    Vtab = sofs:to_external(Vtab2),
+    fill_in_vertice_pos_1(Vtab, Ps, Matrix, []).
     
-fill_in_vertice_pos_1(Key, [{X0,Y0,Z0}|Ps], Matrix, Vtab0) ->
+fill_in_vertice_pos_1([{V,[Edge|_]}|Vs], [{X0,Y0,Z0}|Ps], Matrix, Vtab0) ->
     {X,Y,Z,_} = wings_mat:mult(Matrix, {X0,Y0,Z0,1.0}),
-    VtxRec = gb_trees:get(Key, Vtab0),
     Pos = wings_util:share(float(X), float(Y), float(Z)),
-    Vtab = gb_trees:update(Key, VtxRec#vtx{pos=Pos}, Vtab0),
-    fill_in_vertice_pos_1(Key+1, Ps, Matrix, Vtab);
-fill_in_vertice_pos_1(Key, [], Matrix, Vtab) -> Vtab.
+    Vtab = [{V,#vtx{edge=Edge,pos=Pos}}|Vtab0],
+    fill_in_vertice_pos_1(Vs, Ps, Matrix, Vtab);
+fill_in_vertice_pos_1([], [], Matrix, Vtab) ->
+    gb_trees:from_orddict(reverse(Vtab)).
+
+build_faces(Ftab0, Fs) ->
+    Ftab1 = sofs:relation(Ftab0),
+    Ftab2 = sofs:relation_to_family(Ftab1),
+    Ftab = sofs:to_external(Ftab2),
+    build_faces(Ftab, Fs, []).
+
+build_faces([{Face,[Edge|_]}|Fs0], [{Material,Vs}|Fs1], Acc) ->
+    build_faces(Fs0, Fs1, [{Face,#face{edge=Edge,mat=Material}}|Acc]);
+build_faces([{Face,[Edge|_]}|Fs0], [_|Fs1], Acc) ->
+    build_faces(Fs0, Fs1, [{Face,#face{edge=Edge}}|Acc]);
+build_faces([], [], Acc) ->
+    gb_trees:from_orddict(reverse(Acc)).
 
 fill_holes(Es) ->
     Uncon = get_unconnected(gb_trees:to_list(Es), []),
@@ -444,6 +432,18 @@ copy_dependents(Iter0, We, Vtab0, Ftab0, Htab0, Min0, Max0) ->
 			end, Max0, Ids),
 	    copy_dependents(Iter, We, Vtab, Ftab, Htab, Min, Max)
     end.
+
+%%%
+%%% Transform all vertices according to the matrix.
+%%%
+
+transform_vs(Matrix, #we{vs=Vtab0}=We) ->
+    Vtab1 = foldl(fun({V,#vtx{pos=Pos0}=Vtx}, A) ->
+			  Pos = e3d_mat:mul_point(Matrix, Pos0),
+			  [{V,Vtx#vtx{pos=Pos}}|A]
+		  end, [], gb_trees:to_list(Vtab0)),
+    Vtab = gb_trees:from_orddict(reverse(Vtab1)),
+    We#we{vs=Vtab}.
 
 %%%
 %%% Calculate normals.

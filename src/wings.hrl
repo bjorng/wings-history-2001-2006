@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.1 2001/08/14 18:16:34 bjorng Exp $
+%%     $Id: wings.hrl,v 1.2 2001/08/27 07:34:52 bjorng Exp $
 %%
 
 -define(WINGS_VERSION, {0,6}).
@@ -75,6 +75,7 @@
 	 hit_buf,				%Hit buffer for hit testing.
 	 inf_r,					%Radius of influence (for magnet).
 	 last_command,				%Last command.
+	 bb=none,				%Saved bounding box.
 
 	 %% The current view.
 	 origo,

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.3 2001/08/24 08:45:48 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.4 2001/08/27 07:34:52 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -162,12 +162,22 @@ do_import(Mod, Name, St0) ->
     case Mod:import(Name) of
 	{ok,#e3d_file{objs=Objs,mat=Mat}} ->
 	    wings_io:progress("Importing: ", 50),
-	    St = add_materials(Mat, St0),
-	    translate_objects(Objs, St);
+	    {UsedMat,St} = translate_objects(Objs, gb_sets:empty(), St0),
+	    add_materials(UsedMat, Mat, St);
 	{error,Reason}=Error ->
 	    Error
     end.
 
+add_materials(UsedMat0, Mat0, St) ->
+    UsedMat = sofs:from_list(gb_sets:to_list(UsedMat0)),
+    Mat1 = sofs:relation(Mat0),
+    Mat1 = sofs:restriction(Mat1, UsedMat),
+    NotDefined0 = sofs:difference(UsedMat, sofs:domain(Mat1)),
+    NotDefined1 = [{M,[]} || M <- sofs:to_external(NotDefined0)],
+    NotDefined = sofs:relation(NotDefined1),
+    Mat = sofs:to_external(sofs:union(Mat1, NotDefined)),
+    add_materials(Mat, St).
+    
 add_materials([{Name,Prop}|Ms], St0) ->
     Mat = translate_mat(Prop, #mat{}),
     St = wings_material:add(Name, Mat, St0),
@@ -190,7 +200,7 @@ translate_mat([Other|T], #mat{attr=Attr}=Mat) ->
     translate_mat(T, Mat#mat{attr=[Other|Attr]});
 translate_mat([], Mat) -> Mat.
 
-translate_objects([#e3d_object{name=Name,obj=Obj0}|Os], St0) ->
+translate_objects([#e3d_object{name=Name,obj=Obj0}|Os], UsedMat0, St0) ->
     Obj1 = e3d_mesh:clean(Obj0),
     Obj = e3d_mesh:make_quads(Obj1),
     #e3d_mesh{matrix=Matrix0,type=Type,vs=Vs,fs=Fs0,he=He} = Obj,
@@ -199,24 +209,31 @@ translate_objects([#e3d_object{name=Name,obj=Obj0}|Os], St0) ->
 		 none -> wings_mat:identity();
 		 _ -> Matrix0
 	     end,
-    Fs = translate_faces(Fs0, []),
+    {Fs,UsedMat} = translate_faces(Fs0, [], UsedMat0),
     St = build_object(Name, Matrix, Fs, Vs, He, St0),
-    translate_objects(Os, St);
-translate_objects([], St) -> St.
+    translate_objects(Os, UsedMat, St);
+translate_objects([], UsedMat, St) -> {UsedMat,St}.
 
-translate_faces([#e3d_face{vs=Vs,mat=Mat0}|Fs], Acc) ->
+translate_faces([#e3d_face{vs=Vs,mat=Mat0}|Fs], Acc, UsedMat0) ->
+    UsedMat = add_used_mat(Mat0, UsedMat0),
     Mat = translate_mat(Mat0),
-    translate_faces(Fs, [{Mat,Vs}|Acc]);
-translate_faces([], Acc) -> Acc.
+    translate_faces(Fs, [{Mat,Vs}|Acc], UsedMat);
+translate_faces([], Acc, UsedMat) ->
+    {Acc,UsedMat}.
 
+add_used_mat([], UsedMat) -> UsedMat;
+add_used_mat([M|Ms], UsedMat) ->
+    add_used_mat(Ms, gb_sets:add(M, UsedMat)).
+    
 translate_mat([]) -> default;
 translate_mat([Mat]) -> Mat;
 translate_mat([_|_]=List) -> List.
     
 build_object(Name, Matrix0, Fs0, Vs, He, St0) ->
-    Matrix = e3d_mat:identity(),
+    Matrix = wings_mat:identity(),
     case wings_we:build(Name, Matrix, Fs0, Vs, He, St0) of
 	{'EXIT',Reason} ->
+	    io:format("~P\n", [Reason,20]),
 	    io:format("Conversion failed\n"),
 	    St0;
 	St -> St

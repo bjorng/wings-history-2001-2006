@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.3 2001/08/24 08:45:48 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.4 2001/08/27 07:34:52 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -110,24 +110,17 @@ flip(Plane0, St) ->
     wings_sel:map(fun(Sh) -> flip_body(Plane, Sh) end, St).
 
 flip_body(Plane, #shape{sh=#we{}=We0}=Sh) ->
-    {Cx,Cy,Cz} = wings_vertex:center(We0),
-    M0 = wings_mat:translate(Cx, Cy, Cz),
-    M1 = wings_mat:mult(M0, Plane),
-    M = wings_mat:mult(M1, wings_mat:translate(-Cx, -Cy, -Cz)),
-    Vtab = wings_util:fold_vertex(
-	     fun(V, #vtx{pos={X0,Y0,Z0}}=Vrec, Acc) ->
-		     {X,Y,Z,_} = wings_mat:mult(M, {X0,Y0,Z0,1}),
-		     Pos = wings_util:share(X, Y, Z),
-		     gb_trees:insert(V, Vrec#vtx{pos=Pos}, Acc)
-	     end, gb_trees:empty(), We0),
-    We = wings_we:invert_normals(We0#we{vs=Vtab}),
-    Sh#shape{sh=We};
-flip_body(Plane, Sh) -> Sh.
+    {Cx,Cy,Cz} = e3d_vec:average(wings_vertex:bounding_box(We0)),
+    M0 = e3d_mat:translate(Cx, Cy, Cz),
+    M1 = e3d_mat:mul(M0, Plane),
+    M = e3d_mat:mul(M1, e3d_mat:translate(-Cx, -Cy, -Cz)),
+    We1 = wings_we:transform_vs(M, We0),
+    We = wings_we:invert_normals(We1),
+    Sh#shape{sh=We}.
 
-flip_scale(x) -> wings_mat:scale(-1, 1, 1);
-flip_scale(y) -> wings_mat:scale(1, -1, 1);
-flip_scale(z) -> wings_mat:scale(1, 1, -1).
-
+flip_scale(x) -> e3d_mat:scale(-1.0, 1.0, 1.0);
+flip_scale(y) -> e3d_mat:scale(1.0, -1.0, 1.0);
+flip_scale(z) -> e3d_mat:scale(1.0, 1.0, -1.0).
 
 %%%
 %%% The Tighten command.

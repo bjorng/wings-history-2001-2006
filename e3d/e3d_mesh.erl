@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mesh.erl,v 1.3 2001/08/24 08:44:12 bjorng Exp $
+%%     $Id: e3d_mesh.erl,v 1.4 2001/08/27 07:34:51 bjorng Exp $
 %%
 
 -module(e3d_mesh).
@@ -240,7 +240,7 @@ renumber_face(#e3d_face{vs=Vs}=Face, Map) ->
 %%% creating concave polygons.
 %%%
 
-make_quads(#e3d_mesh{fs=Fs0}=Mesh) ->
+make_quads(#e3d_mesh{type=triangle,fs=Fs0}=Mesh) ->
     Ftab0 = number_faces(Fs0),
     Es = rhe_collect_edges(Ftab0),
     case edges_ok(Es) of
@@ -250,7 +250,8 @@ make_quads(#e3d_mesh{fs=Fs0}=Mesh) ->
 	    Ftab = merge_faces(Es, Ftab1),
 	    Fs = wings_util:gb_trees_values(Ftab),
 	    Mesh#e3d_mesh{type=polygon,fs=Fs}
-    end.
+    end;
+make_quads(Mesh) -> Mesh.
 
 edges_ok([{_,[{_,Va,Vb,_},{_,Vb,Va,_}]}|T]) -> edges_ok(T);
 edges_ok([_|_]=Other) -> false;
@@ -460,13 +461,18 @@ vertex_normals(#e3d_mesh{fs=Ftab,vs=Vtab0,he=He}=Mesh) ->
     FaceNormals = face_normals(Ftab, Vtab),
 
     %% Calculate normals for vertices with no hard edges.
-    VtxFace0 = vtx_to_face_tab(Ftab),
     HardVs = sofs:field(sofs:relation(He)),
-    VtxFace = sofs:drestriction(VtxFace0, HardVs),
-    VtxNormals0 = vertex_normals(sofs:to_external(VtxFace), 0, FaceNormals),
+    VtxFace0 = sofs:relation(vtx_to_face_tab(Ftab)),
+    HardVtxFace0 = sofs:restriction(VtxFace0, HardVs),
+    VtxFace1 = sofs:difference(VtxFace0, HardVtxFace0),
+    VtxFace2 = sofs:relation_to_family(VtxFace1),
+    VtxFace = sofs:to_external(VtxFace2),
+    VtxNormals0 = vertex_normals(VtxFace, 0, FaceNormals),
 
     %% Calculate normals for vertices surrounded by one or more hard edges.
-    VtxNormals1 = vn_hard_normals(He, Ftab, FaceNormals, VtxNormals0),
+    HardVtxFace = sofs:to_external(HardVtxFace0),
+    VtxNormals1 = vn_hard_normals(He, HardVtxFace, Ftab,
+				  FaceNormals, VtxNormals0),
 
     %% Generate face data.
     VtxNormals = gb_trees:from_orddict(sort(VtxNormals1)),
@@ -510,9 +516,7 @@ vtx_to_face_tab(Fs) ->
 vtx_to_face_tab([#e3d_face{vs=Vs}|Fs], Face, Acc0) ->
     Acc = [{V,Face} || V <- Vs] ++ Acc0,
     vtx_to_face_tab(Fs, Face+1, Acc);
-vtx_to_face_tab([], Face, Acc) ->
-    R = sofs:relation(Acc),
-    sofs:relation_to_family(R).
+vtx_to_face_tab([], Face, Acc) -> Acc.
 
 vertex_normals(Vfs, Vn, FaceNormals) ->
     vertex_normals(Vfs, Vn, FaceNormals, []).
@@ -523,38 +527,37 @@ vertex_normals([{V,Fs}|Vfs], Vn, FaceNormals, Acc) ->
     vertex_normals(Vfs, Vn+1, FaceNormals, [{V,{Vn,N}}|Acc]);
 vertex_normals([], Vn, FaceNormals, Acc) -> Acc.
 
-vn_hard_normals([], Fs, FaceNormals, VtxNormals) -> VtxNormals;
-vn_hard_normals(He, Fs, FaceNormals, VtxNormals0) ->
-    G = make_digraph(He, Fs),
-    Vs = digraph:vertices(G),
-    VtxNormals = vn_hard_normals_1(G, Vs, FaceNormals,
+vn_hard_normals([], HardVtxFace, Fs, FaceNormals, VtxNormals) -> VtxNormals;
+vn_hard_normals(He, HardVtxFace, Fs, FaceNormals, VtxNormals0) ->
+    Hard = sofs:from_list(He),
+    Edges = sofs:relation(vn_face_edges(Fs, 0, [])),
+    Soft0 = sofs:drestriction(Edges, Hard),
+    Soft = sofs:relation_to_family(Soft0),
+    G = digraph:new(),
+    make_digraph_1(G, sofs:to_external(Soft)),
+
+    VtxNormals = vn_hard_normals_1(G, HardVtxFace, FaceNormals,
 				   length(VtxNormals0), VtxNormals0),
     digraph:delete(G),
     VtxNormals.
 
-vn_hard_normals_1(G, [Vg|Vgs], FaceNormals, Vn, Acc) ->
-    Reachable = digraph_utils:reachable([Vg], G),
-    N = case [gb_trees:get(Face, FaceNormals) || {_,Face} <- Reachable] of
+vn_hard_normals_1(G, [VF|VFs], FaceNormals, Vn, Acc) ->
+    Reachable = digraph_utils:reachable([VF], G),
+    Ns0 = [gb_trees:get(Face, FaceNormals) || {_,Face} <- Reachable],
+    N = case Ns0 of
 	    [N0] -> N0;
 	    Ns -> e3d_vec:mul(e3d_vec:add(Ns), 1/length(Ns))
 	end,
-    vn_hard_normals_1(G, Vgs, FaceNormals, Vn+1, [{Vg,{Vn,N}}|Acc]);
+    vn_hard_normals_1(G, VFs, FaceNormals, Vn+1, [{VF,{Vn,N}}|Acc]);
 vn_hard_normals_1(G, [], FaceNormals, Vn, Acc) -> Acc.
     
-make_digraph(He, Fs) ->
-    Hard = sofs:from_list(He),
-    Edges = sofs:relation(vn_face_edges(Fs, 0, [])),
-    Soft0 = sofs:restriction(Edges, Hard),
-    Soft = sofs:relation_to_family(Soft0),
-    make_digraph_1(digraph:new(), sofs:to_external(Soft)).
-
 make_digraph_1(G, [{{Va,Vb},[Fx,Fy]}|T]) ->
     digraph_add_edge(G, {Va,Fx}, {Va,Fy}),
     digraph_add_edge(G, {Vb,Fx}, {Vb,Fy}),
     make_digraph_1(G, T);
 make_digraph_1(G, [_|T]) ->
     make_digraph_1(G, T);
-make_digraph_1(G, []) -> G.
+make_digraph_1(G, []) -> ok.
 
 digraph_add_edge(G, Va, Vb) ->
     digraph:add_vertex(G, Va),

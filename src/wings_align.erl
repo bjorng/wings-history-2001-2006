@@ -8,31 +8,74 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_align.erl,v 1.1 2001/08/14 18:16:40 bjorng Exp $
+%%     $Id: wings_align.erl,v 1.2 2001/08/27 07:34:52 bjorng Exp $
 %%
 
 -module(wings_align).
--export([align/2,center/2]).
+-export([align/2,center/2,copy_bb/1,paste_bb/1]).
 
 -include("wings.hrl").
 -import(lists, [map/2,foldr/3,foldl/3,reverse/1]).
 
 align(Axis, St) ->
     Cs = wings_sel:centers(St),
-    Center = wings_mat:average(Cs),
+    Center = e3d_vec:average(Cs),
     move_to(Center, Cs, Axis, St).
 
 center(Axis, St) ->
     Cs0 = wings_sel:centers(St),
-    CommonCenter = wings_mat:average(Cs0),
+    CommonCenter = e3d_vec:average(Cs0),
     Cs = lists:duplicate(length(Cs0), CommonCenter),
-    Center = wings_mat:zero(),
+    Center = e3d_vec:zero(),
     move_to(Center, Cs, Axis, St).
+
+copy_bb(St) ->
+    BB = wings_sel:bounding_box(St),
+    St#st{bb=BB}.
+
+paste_bb(#st{bb=none}=St) -> St;
+paste_bb(#st{bb=Dest}=St) ->
+    case wings_sel:bounding_box(St) of
+	none -> St;
+	Src ->
+	    Matrix = make_matrix(Src, Dest),
+	    transform(Matrix, St)
+    end.
+
+transform(Matrix, #st{selmode=body}=St) ->
+    wings_sel:map(
+      fun(#shape{sh=We0}=Sh) ->
+	      We = wings_we:transform_vs(Matrix, We0),
+	      Sh#shape{sh=We}
+      end, St);
+transform(Matrix, St) ->
+    wings_sel:map_shape(
+      fun(Items, We0) ->
+	      wings_we:transform_vs(Matrix, We0)
+      end, St).
+
+make_matrix(Src, Dest) ->
+    SrcMid = e3d_vec:average(Src),
+    DestMid = e3d_vec:average(Dest),
+    Tvec = e3d_vec:sub(DestMid, SrcMid),
+    Matrix0 = e3d_mat:translate(Tvec),
+    Matrix1 = make_scale(e3d_vec:sub(Src), e3d_vec:sub(Dest)),
+    e3d_mat:mul(Matrix0, Matrix1).
+
+make_scale({SrcX,SrcY,SrcZ}, {DestX,DestY,DestZ}) ->
+    e3d_mat:scale(mksc1(DestX, SrcX),
+		  mksc1(DestY, SrcY),
+		  mksc1(DestZ, SrcZ)).
+mksc1(A, B) ->
+    case catch A / B of
+	{'EXIT',_} -> 1.0;
+	Q -> Q
+    end.
 
 move_to(Center, Cs, Axis, #st{selmode=body}=St0) ->
     {St,_} = wings_sel:mapfold(
 	       fun(#shape{sh=#we{vs=Vtab0}=We}=Sh, [MyCenter|Centers]) ->
-		       Offset0 = wings_mat:subtract(Center, MyCenter),
+		       Offset0 = e3d_vec:sub(Center, MyCenter),
 		       case filter_coord(Axis, Offset0) of
 			   {0.0,0.0,0.0} -> {Sh,Centers};
 			   Offset ->
@@ -44,7 +87,7 @@ move_to(Center, Cs, Axis, #st{selmode=body}=St0) ->
 move_to(Center, Cs, Axis, St0) ->
     {St,_} = wings_sel:mapfold_shape(
 	       fun(Id, Vs, #we{vs=Vtab0}=We, [MyCenter|Centers]) ->
-		       Offset0 = wings_mat:subtract(Center, MyCenter),
+		       Offset0 = e3d_vec:sub(Center, MyCenter),
 		       case filter_coord(Axis, Offset0) of
 			   {0.0,0.0,0.0} -> {We,Centers};
 			   Offset ->
@@ -64,8 +107,6 @@ filter_coord(all, All) -> All.
 
 offset(Offset, Vtab0) ->
     Vtab = foldl(fun({V,#vtx{pos=Pos}=Vtx}, A) ->
-			 [{V,Vtx#vtx{pos=wings_mat:add(Pos, Offset)}}|A]
+			 [{V,Vtx#vtx{pos=e3d_vec:add(Pos, Offset)}}|A]
 		 end, [], gb_trees:to_list(Vtab0)),
     gb_trees:from_orddict(reverse(Vtab)).
-		 
-			      

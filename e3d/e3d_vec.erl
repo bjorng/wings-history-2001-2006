@@ -8,13 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_vec.erl,v 1.2 2001/08/24 08:44:12 bjorng Exp $
+%%     $Id: e3d_vec.erl,v 1.3 2001/08/27 07:34:51 bjorng Exp $
 %%
 
 -module(e3d_vec).
 
--export([zero/0,add/1,add/2,sub/2,mul/2,divide/2,neg/1,
-	 dot/2,cross/2,norm_cross/2,len/1,dist/2,norm/1,normal/3]).
+-export([zero/0,add/1,add/2,sub/1,sub/2,mul/2,divide/2,neg/1,
+	 dot/2,cross/2,norm_cross/2,len/1,dist/2,norm/1,normal/3,
+	 average/1]).
 -compile({inline,[{norm,3}]}).
 
 zero() ->
@@ -46,6 +47,13 @@ add([], A0, A1, A2) -> {A0,A1,A2}.
 sub({V10,V11,V12}, {V20,V21,V22}) when float(V10), float(V11), float(V12),
 				       float(V20), float(V21), float(V22) ->
     {V10-V20,V11-V21,V12-V22}.
+
+sub([{V10,V11,V12}|T]) ->
+    sub(V10, V11, V12, T).
+
+sub(A0, A1, A2, [{V10,V11,V12}|T]) ->
+    sub(A0-V10, A1-V11, A2-V12, T);
+sub(A0, A1, A2, []) -> {A0,A1,A2}.
 
 mul({V10,V11,V12}, S) when float(V10), float(V11), float(V12), float(S) ->
     {V10*S,V11*S,V12*S}.
@@ -106,3 +114,27 @@ normal({V10,V11,V12}, {V20,V21,V22}, {V30,V31,V32})
 	{'EXIT',_} -> {0.0,0.0,0.0};
 	R -> R
     end.
+
+%% average([{X,Y,Z}]) -> {Ax,Ay,Az}
+%%  Average the given list of points.
+average([{V10,V11,V12}|T]=All) ->
+    average(T, V10, V11, V12, length(All)).
+
+average([{V10,V11,V12},{V20,V21,V22},{V30,V31,V32}|T], A0, A1, A2, L)
+  when float(V10), float(V11), float(V12),
+       float(V20), float(V21), float(V22),
+       float(V30), float(V31), float(V32),
+       float(A0), float(A1), float(A2) ->
+    average(T, A0+V10+V20+V30, A1+V11+V21+V31, A2+V12+V22+V32, L);
+average([{V10,V11,V12},{V20,V21,V22}|T], A0, A1, A2, L)
+  when float(V10), float(V11), float(V12),
+       float(V20), float(V21), float(V22),
+       float(A0), float(A1), float(A2) ->
+    average(T, A0+V10+V20, A1+V11+V21, A2+V12+V22, L);
+average([{V10,V11,V12}|T], A0, A1, A2, L)
+  when float(V10), float(V11), float(V12),
+       float(A0), float(A1), float(A2) ->
+    average(T, A0+V10, A1+V11, A2+V12, L);
+average([], A0, A1, A2, L0) ->
+    L = float(L0),
+    {A0/L,A1/L,A2/L}.

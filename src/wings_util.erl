@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.1 2001/08/14 18:16:37 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.2 2001/08/27 07:34:52 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -45,7 +45,6 @@ gb_trees_values({_, T}) ->
 gb_trees_values({Key, Value, Small, Big}, L) ->
     gb_trees_values(Small, [Value | gb_trees_values(Big, L)]);
 gb_trees_values(nil, L) -> L.
-
 
 %%%
 %%% `fold' functions.
@@ -175,7 +174,7 @@ foreach_edge_1(F, Iter0) ->
 	none -> ok;
 	{Num,#shape{sh=#we{es=Etab}}=Sh,Iter} ->
 	    foreach_edge_2(F, gb_trees:iterator(Etab), Sh),
-	    foreach_edge_1(F, Iter)
+foreach_edge_1(F, Iter)
     end.
 
 foreach_edge_2(F, Iter0, Sh) ->
