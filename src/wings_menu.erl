@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.68 2002/12/01 09:40:57 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.69 2002/12/01 11:21:22 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -373,6 +373,7 @@ popup_submenu(Button, X0, Y0, SubName, SubMenu0,
 	    wings_wm:send(Owner, {action,Action}),
 	    delete_all(Mi);
 	SubMenu when is_list(SubMenu) ->
+	    clear_timer(Mi),
 	    {X,Y} = wings_wm:local2global(X0, Y0),
 	    menu_setup(popup, X, Y, SubName, SubMenu, Mi#mi{level=Level+1}),
 	    delete
@@ -393,19 +394,20 @@ expand_submenu(B, Name, Submenu0, #mi{ns=Ns}) when is_function(Submenu0) ->
     Submenu0(B, [Name|Ns]);
 expand_submenu(_Button, _Name, Submenu, _Mi) -> Submenu.
 
-clear_timer(#mi{timer=Timer}) -> wings_io:cancel_timer(Timer).
+clear_timer(#mi{timer=Timer}) -> wings_wm:cancel_timer(Timer).
 
 set_submenu_timer(#mi{sel=Sel}=Mi, #mi{sel=Sel}, _X, _Y) -> Mi;
 set_submenu_timer(#mi{sel=Sel}=Mi, OldMi, X0, Y0) ->
     clear_timer(OldMi),
+    clear_timer(Mi),
     case is_submenu(Sel, Mi) of
 	false ->
-	    Timer = wings_io:set_timer(?SUB_MENU_TIME, clear_submenu),
+	    Timer = wings_wm:set_timer(?SUB_MENU_TIME, clear_submenu),
 	    Mi#mi{timer=Timer};
 	true ->
 	    {X,Y} = wings_wm:local2global(X0, Y0),
 	    Event = #mousebutton{button=1,x=X,y=Y,state=?SDL_RELEASED},
-	    Timer = wings_io:set_timer(?SUB_MENU_TIME, Event),
+	    Timer = wings_wm:set_timer(?SUB_MENU_TIME, Event),
 	    Mi#mi{timer=Timer}
     end.
 

@@ -8,13 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.28 2002/12/01 09:40:57 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.29 2002/12/01 11:21:22 bjorng Exp $
 %%
 
 -module(wings_wm).
 -export([init/0,enter_event_loop/0,dirty/0,clean/0,new/4,delete/1,
 	 message/1,message/2,message_right/1,send/2,
 	 menubar/1,menubar/2,get_menubar/1,
+	 set_timer/2,cancel_timer/1,
 	 active_window/0,offset/3,pos/1,windows/0,is_window/1,exists/1,
 	 callback/1,current_st/1,
 	 grab_focus/1,release_focus/0,has_focus/1,
@@ -163,6 +164,13 @@ has_focus(Name) ->
 top_size() ->
     #win{w=W,h=H} = get_window_data(top),
     {W,H}.
+
+set_timer(Time, Event) ->
+    Active = get(wm_active),
+    wings_io:set_timer(Time, {wm,{send_to,Active,Event}}).
+
+cancel_timer(Ref) ->
+    wings_io:cancel_timer(Ref).
 
 viewport() ->
     get(wm_viewport).
@@ -424,7 +432,10 @@ wm_event({menubar,Name,Menubar}) ->
     end,
     event_loop();
 wm_event({send_to,Name,Ev}) ->
-    do_dispatch(Name, Ev);
+    case gb_trees:is_defined(Name, get(wm_windows)) of
+	false -> event_loop();
+	true -> do_dispatch(Name, Ev)
+    end;
 wm_event({callback,Cb}) ->
     Cb(),
     event_loop().
