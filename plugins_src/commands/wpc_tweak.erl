@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.4 2002/05/15 11:42:37 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.5 2002/05/16 10:33:52 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -115,6 +115,7 @@ handle_tweak_event1(Ev, #tweak{st=St0}=T) ->
     case wings_hotkey:event(Ev, St0) of
 	{view,auto_rotate} -> keep;
 	{view,virtual_mirror} -> keep;
+	{view,smoothed_preview} -> keep;
 	{view,Cmd} ->
 	    St = wings_view:command(Cmd, St0),
 	    refresh_dlists(Cmd, St),
@@ -204,7 +205,7 @@ screen_to_obj({MVM,PM,VP}, {Xs,Ys,Zs}) ->
     {true, X,Y,Z} = glu:unProject(Xs, Ys, Zs, MVM, PM, VP),
     {X,Y,Z}.
 
-mirror_plane(V, #we{mirror=none}) -> none;
+mirror_plane(_, #we{mirror=none}) -> none;
 mirror_plane(V, #we{mirror=Face}=We) ->
     Vs = wpa:face_vertices(Face, We),
     case member(V, Vs) of
