@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.221 2004/04/23 04:02:53 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.222 2004/04/25 05:21:38 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -794,18 +794,19 @@ flip(Flip, We) ->
     T = e3d_mat:mul(e3d_mat:translate(Center), T1),
     wings_we:transform_vs(T, We).
 
-remap(stretch_opt,We,St) ->
+remap(stretch_opt, We, St) ->
     Vs3d = orig_pos(We,St),
     ?SLOW(auv_mapping:stretch_opt(We, Vs3d));
+remap(Type, #we{name=#ch{fs=Fs}=Ch}=We0, St) ->
+    [Lower,Upper] = wings_vertex:bounding_box(We0),
+    {W,H,_} = e3d_vec:sub(Upper, Lower),
 
-remap(Type, #we{name=#ch{fs=Fs,size={W,H}}=Ch}=We0,St) ->
-    %% Get 3d positions (even for mapped vs)
+    %% Get 3d positions (even for mapped vs).
     Vs3d = orig_pos(We0,St),
     Vs0 = auv_mapping:map_chart(Type, Fs, We0#we{vp=Vs3d}),
     We1 = We0#we{vp=gb_trees:from_orddict(sort(Vs0))},    
     {{Dx,Dy}, Vs1} = auv_placement:center_rotate(Fs, We1),
     Center = wings_vertex:center(We0),
-    io:format("remap info ~p~n", [[Dx,Dy, W,H]]),
     Scale = if Dx > Dy -> W / Dx;
  	       true -> H / Dy
 	    end,
