@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.6 2002/07/21 17:34:24 bjorng Exp $
+%%     $Id: wpc_opengl.erl,v 1.7 2002/07/28 12:31:19 bjorng Exp $
 
 -module(wpc_opengl).
 
@@ -84,7 +84,7 @@ set_pref(KeyVals) ->
 	 attr}).
 
 do_render(Ask, St) when is_atom(Ask) ->
-    wpa:dialog(Ask, dialog_qs(render), St,
+    wpa:dialog(Ask, dialog_qs(render),
 	       fun(Res) ->
 		       {file,{render,{opengl,Res}}}
 	       end);
@@ -293,7 +293,8 @@ render_redraw_2(#dlo{smooth=Dlist,transparent=Trans}, RenderTrans) ->
 	    gl:depthMask(?GL_TRUE)
     end,
 
-    %% Backsides of opaque objects should be drawn if the object has any transparency.
+    %% Backsides of opaque objects should be drawn
+    %% if the object has any transparency.
     case Trans andalso not RenderTrans of
 	true -> gl:disable(?GL_CULL_FACE);
 	false -> gl:enable(?GL_CULL_FACE)
@@ -302,7 +303,6 @@ render_redraw_2(#dlo{smooth=Dlist,transparent=Trans}, RenderTrans) ->
     case {Dlist,RenderTrans} of
 	{[Op,_],false} -> gl:callList(Op);
 	{[_,Tr],true} -> gl:callList(Tr);
-	{Smooth,true} when is_integer(Smooth) -> gl:callList(Smooth);
 	{_,_} -> ok
     end,
     gl:depthMask(?GL_TRUE),
