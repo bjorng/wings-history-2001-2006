@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.296 2004/03/20 18:42:38 bjorng Exp $
+%%     $Id: wings.erl,v 1.297 2004/03/27 06:41:38 bjorng Exp $
 %%
 
 -module(wings).
@@ -237,9 +237,7 @@ save_state(St0, St1) ->
     main_loop(clear_temp_sel(St)).
 
 ask(Ask, St, Cb) ->
-    {replace,
-     fun(Ev) -> handle_event(Ev, St) end,
-     fun() -> wings_vec:do_ask(Ask, St, Cb) end}.
+    wings_vec:do_ask(Ask, St, Cb).
 
 main_loop(St) ->
     ?VALIDATE_MODEL(St),
@@ -320,8 +318,9 @@ handle_event_3({action,Callback}, _) when is_function(Callback) ->
     Callback();
 handle_event_3({action,Cmd}, St) ->
     do_command(Cmd, St);
-handle_event_3({command,Command}, St) when is_function(Command) ->
-    command_response(catch Command(St), none, St);
+handle_event_3({vec_command,Command,St}, _) when is_function(Command) ->
+    %% Use to execute command with vector arguments (see wings_vec.erl).
+    command_response(catch Command(), none, St);
 handle_event_3(#mousebutton{}, _St) -> keep;
 handle_event_3(#mousemotion{}, _St) -> keep;
 handle_event_3(init_opengl, St) ->

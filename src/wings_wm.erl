@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.138 2004/03/17 12:23:26 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.139 2004/03/27 06:41:38 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -21,7 +21,7 @@
 	 this/0,offset/3,move/2,move/3,resize/2,pos/1,windows/0,is_window/1,
 	 window_below/2,
 	 update_window/2,clear_background/0,
-	 callback/1,current_state/1,notify/1,
+	 callback/1,current_state/1,get_current_state/0,notify/1,
 	 local2global/1,local2global/2,global2local/2,local_mouse_state/0,
 	 translation_change/0]).
 
@@ -158,6 +158,10 @@ current_state(St) ->
 			    end
 		    end, gb_trees:values(get(wm_windows)))
     end.
+
+get_current_state() ->
+    DispLists = get_prop(this(), display_lists),
+    get({wm_current_state,DispLists}).
 
 notify(Note) ->
     Msg = {note,Note},

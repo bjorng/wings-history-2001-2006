@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.103 2004/03/20 18:42:38 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.104 2004/03/27 06:41:38 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -27,7 +27,9 @@
 	     info="",				%Info message.
 	     vec=none,				%Current vector.
 	     cb,				%Callback
-	     mag=false				%Magnet possible or not.
+	     mag=false,				%Magnet possible or not.
+	     new_st				%St to be used during
+						%command execution.
 	    }).
 
 %% Keep the display for the current vector.
@@ -54,15 +56,17 @@ do_ask({Do,Done,Flags}, St, Cb) ->
 do_ask({Do,Done,Flags,Modes}, St, Cb) ->
     do_ask_1(Modes, Do, Done, Flags, St, Cb).
 
-do_ask_1(_, [], Res, _, _, Cb) ->
-    wings_wm:later(build_result(Res, Cb)),
+do_ask_1(_, [], Res, _, St, Cb) ->
+    wings_wm:later(build_result(Res, Cb, St)),
     keep;
-do_ask_1(Modes, Do0, Done, Flags, St, Cb) ->
+do_ask_1(Modes, Do0, Done, Flags, NewSt, Cb) ->
     Do = add_help_text(Do0),
     Mag = member(magnet, Flags),
-    Ss = #ss{cb=Cb,mag=Mag,selmodes=Modes,f=fun(_, _) -> keep end},
+    Ss = #ss{cb=Cb,mag=Mag,selmodes=Modes,new_st=NewSt,
+	     f=fun(_, _) -> keep end},
     wings_wm:later({ask_init,Do,Done}),
     erase_vector(),
+    St = wings_wm:get_current_state(),
     {seq,push,get_event(Ss, St)}.
 
 add_help_text([{_,_}=Pair|T]) ->
@@ -135,7 +139,8 @@ get_event(Ss, St) ->
     wings_wm:dirty(),
     {replace,fun(Ev) -> handle_event(Ev, Ss, St) end}.
 
-handle_event({ask_init,Do,Done}, #ss{selmodes=Modes}=Ss, #st{selmode=Mode}=St0) ->
+handle_event({ask_init,Do,Done}, #ss{selmodes=Modes}=Ss,
+	     #st{selmode=Mode}=St0) ->
     wings_draw_util:map(fun(#dlo{orig_sel=none,sel=Dlist}=D, _) ->
 				D#dlo{orig_sel=Dlist,orig_mode=Mode}
 			end, []),
@@ -224,10 +229,10 @@ pick_next(Do, Done, #ss{is_axis=true,vec={{_,_,_},{_,_,_}}=Vec}=Ss, St) ->
     pick_next_1(Do, Done, Ss, St);
 pick_next(Do, Done, Ss, St) -> pick_next_1(Do, Done, Ss, St).
 
-pick_next_1([], Res, #ss{cb=Cb}, _) ->
+pick_next_1([], Res, #ss{cb=Cb,new_st=NewSt}, _) ->
     pick_finish(),
     wings:clear_mode_restriction(),
-    wings_wm:later(build_result(Res, Cb)),
+    wings_wm:later(build_result(Res, Cb, NewSt)),
     pop;
 pick_next_1([{Fun0,Desc}|More], _Done, Ss, St) when is_function(Fun0) ->
     Fun = fun(message, _) -> common_message(Desc, More, no);
@@ -346,13 +351,14 @@ add_magnet(More) ->
 add_to_acc(Vec, [radial]) -> [{radial,Vec}];
 add_to_acc(Vec, Acc) -> [Vec|Acc].
 
-build_result([Res], Cb) ->
-    build_result_1(Res, Cb);
-build_result(Res, Cb) ->
-    build_result_1(list_to_tuple(reverse(Res)), Cb).
+build_result([Res], Cb, St) ->
+    build_result_1(Res, Cb, St);
+build_result(Res, Cb, St) ->
+    build_result_1(list_to_tuple(reverse(Res)), Cb, St).
 
-build_result_1(Res, Cb) ->
-    {command,fun(St) -> Cb(Res, St#st{ask_args=Res}) end}.
+build_result_1(Res, Cb, St0) ->
+    St = St0#st{ask_args=Res},
+    {vec_command,fun() -> Cb(Res, St) end,St}.
 
 %%%
 %%% Vector functions.
