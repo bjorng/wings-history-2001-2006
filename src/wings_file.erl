@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.133 2003/11/21 12:01:55 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.134 2003/11/23 10:57:38 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -68,7 +68,7 @@ menu(_) ->
      separator|recent_files([{"Exit",quit}])].
 
 command(new, St) ->
-    Next = fun(S) -> {new,clean_images(S)} end,
+    Next = fun(S) -> {new,(clean_images(S))#st{saved=true}} end,
     new(Next, St);
 command({save_new,Next}, St) ->
     save_new(Next, St);
