@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.98 2002/08/11 10:35:17 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.99 2002/08/12 20:20:49 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -224,7 +224,8 @@ do_drag(Drag0) ->
     {seq,{push,dummy},handle_drag_event_1(Event, Drag)}.
 
 initial_motion(#drag{x=X0,y=Y0,flags=Flags,unit=Unit}=Drag) ->
-    Ds = property_lists:get_value(initial, Flags, [0,0,0]),
+    Ds0 = property_lists:get_value(initial, Flags, []),
+    Ds = pad_initials(Ds0),
     [X1,Y1,Z] = initial_motion_1(Unit, Ds),
     X = X0 + X1, Y = Y0 - Y1,
     {#mousemotion{x=X,y=Y,state=0},Drag#drag{zs=-Z}}.
@@ -240,6 +241,12 @@ initial_motion_1([], [_|Ds]) ->
 initial_motion_1([falloff], []) -> [];
 initial_motion_1([], []) -> [].
 
+pad_initials(Ds) ->
+    case length(Ds) of
+	L when L >= 3 -> Ds;
+	L -> Ds ++ lists:duplicate(3-L, 0)
+    end.
+	     
 drag_help(#drag{magnet=none,falloff=Falloff}) ->
     Help = "[Tab] Numeric entry  [Shift] and/or [Ctrl] Constrain",
     case Falloff of

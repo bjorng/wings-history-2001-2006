@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shapes.erl,v 1.23 2002/08/08 07:58:07 bjorng Exp $
+%%     $Id: wings_shapes.erl,v 1.24 2002/08/12 20:20:49 bjorng Exp $
 %%
 
 -module(wings_shapes).
@@ -36,10 +36,7 @@ menu(X, Y, _) ->
 	    separator,
 	    {"Grid",grid,[],[option]},
 	    separator,
-	    {"Light",{light,
-		      [{"Infinite",infinite},
-		       {"Point",point},
-		       {"Spot",spot}]}},
+	    {"Light",{light,wings_light:light_types()}},
 	    {"More",{more,[]},"More primitives"}],
     wings_menu:popup_menu(X, Y, shape, Menu).
 

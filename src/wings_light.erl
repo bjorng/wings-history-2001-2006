@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.7 2002/08/11 19:09:14 bjorng Exp $
+%%     $Id: wings_light.erl,v 1.8 2002/08/12 20:20:49 bjorng Exp $
 %%
 
 -module(wings_light).
--export([is_any_light_selected/1,menu/3,command/2,
+-export([light_types/0,menu/3,command/2,is_any_light_selected/1,
 	 create/2,update_dynamic/2,update/1,render/1,
 	 global_lights/0,camera_lights/0,
 	 export/1,import/2]).
@@ -33,8 +33,16 @@
 	 ambient={0.0,0.0,0.0,1.0},
 	 specular={1.0,1.0,1.0,1.0},
 	 aim,					%Aim point for spot/infinite.
+	 lin_att,				%Linear attenuation.
+	 quad_att,				%Quadratic attenuation.
 	 spot_angle
 	}).
+
+light_types() ->
+    [{"Infinite",infinite},
+     {"Point",point},
+     {"Spot",spot},
+     {"Ambient",ambient}].
 
 menu(X, Y, St) ->
     Dir = wings_menu_util:directions(St#st{selmode=body}),
@@ -42,8 +50,13 @@ menu(X, Y, St) ->
 	    separator,
 	    {"Move",{move,Dir}},
 	    separator,
-	    {"Color",color},
 	    {"Position Highlight",position_fun()},
+	    {"Color",color},
+	    {"Attenuation",
+	     {attenuation,
+	      [{"Linear",linear},
+	       {"Quadratic",quadratic}]}},
+	    separator,
 	    {"Spot Angle",spot_angle},
 	    separator,
 	    {"Edit Properties",edit}],
@@ -55,17 +68,32 @@ command(color, St) ->
     color(St);
 command({position_highlight,{Mode,Sel}}, St) ->
     position_highlight(Mode, Sel, St);
+command({attenuation,Type}, St) ->
+    attenuation(Type, St);
 command(spot_angle, St) ->
     spot_angle(St);
 command(edit, St) ->
     edit(St);
 command(color, St) ->
     St.
+    
+is_any_light_selected(#st{sel=Sel,shapes=Shs}) ->
+    is_any_light_selected(Sel, Shs).
+is_any_light_selected([{Id,_}|Sel], Shs) ->
+    case gb_trees:get(Id, Shs) of
+	#we{light=none} -> is_any_light_selected(Sel, Shs);
+	#we{} -> true
+    end;
+is_any_light_selected([], _) -> false.
+
+%%%
+%%% Light Commands.
+%%%
 
 color(St) ->
     Drag = wings_sel:fold(
 	     fun(_, #we{id=Id,light=L}=We, none) when ?IS_LIGHT(We) ->
-		     #light{diffuse={R,G,B,A}} = L,
+		     {R,G,B,A} = get_light_color(L),
 		     {H,S,I} = wings_color:rgb_to_hsi(R, G, B),
 		     ColorFun = fun(C, D) -> color(C, D, A) end,
 		     Tvs = {general,[{Id,ColorFun}]},
@@ -83,11 +111,19 @@ color(St) ->
 	    wings_drag:setup(Tvs, Units, Flags, St)
     end.
 
-color([H,I,S], #dlo{src_we=#we{light=L}=We0}=D, A) ->
+color([H,I,S], #dlo{src_we=#we{light=L0}=We0}=D, A) ->
     {R,G,B} = wings_color:hsi_to_rgb(H, S, I),
     Col = {R,G,B,A},
-    We = We0#we{light=L#light{diffuse=Col}},
+    L = update_color(L0, Col),
+    We = We0#we{light=L},
     update(D#dlo{work=none,src_we=We}).
+
+
+get_light_color(#light{type=ambient,ambient=Col}) -> Col;
+get_light_color(#light{diffuse=Diff}) -> Diff.
+
+update_color(#light{type=ambient}=L, Col) -> L#light{ambient=Col};
+update_color(L, Col) -> L#light{diffuse=Col}.
 
 position_fun() ->
     fun(help, _) -> "";
@@ -122,10 +158,11 @@ position_check_selection(_) ->
 
 position_highlight(Mode, Sel, St) ->
     Center = e3d_vec:average(wings_sel:bounding_box(St#st{selmode=Mode,sel=Sel})),
-    wings_sel:map(fun(_, We) when ?IS_LIGHT(We) ->
-			  position_highlight_1(Center, We);
-		     (_, We) -> We
-		  end, St).
+    {save_state,
+     wings_sel:map(fun(_, We) when ?IS_LIGHT(We) ->
+			   position_highlight_1(Center, We);
+		      (_, We) -> We
+		   end, St)}.
 
 position_highlight_1(Center, #we{light=L0}=We) ->
     case L0 of
@@ -137,46 +174,73 @@ position_highlight_1(Center, #we{light=L0}=We) ->
     end.
 
 spot_angle(St) ->
-    Drag = wings_sel:fold(
-	     fun(_, #we{id=Id,light=L}=We, none) when ?IS_LIGHT(We) ->
-		     case L of
-			 #light{type=spot,spot_angle=SpotAngle} ->
-			     SpotFun = fun spot_angle/2,
-			     Tvs = {general,[{Id,SpotFun}]},
-			     Flags = [{initial,[SpotAngle,0,0]}],
-			     {Tvs,[{angle,{0.1,89.9}}],Flags};
-			 _ ->
-			     wings_util:error("Not a spotlight.")
-		     end;
-		(_, We, _) when ?IS_LIGHT(We) ->
-		     wings_util:error("Select only one spotlight.");
-		(_, _, A) -> A
-	     end, none, St),
-    case Drag of
-	none -> St;
-	{Tvs,Units,Flags} ->
-	    wings_drag:setup(Tvs, Units, Flags, St)
+    case selected_light(St) of
+	{Id,#light{type=spot,spot_angle=SpotAngle}} ->
+	    SpotFun0 = fun([Angle|_], L) -> L#light{spot_angle=Angle} end,
+	    SpotFun = adjust_fun(SpotFun0),
+	    Tvs = {general,[{Id,SpotFun}]},
+	    Units = [{angle,{0.1,89.9}}],
+	    Flags = [{initial,[SpotAngle]}],
+	    wings_drag:setup(Tvs, Units, Flags, St);
+	{_,_} -> wings_util:error("Not a spotlight.")
     end.
 
-spot_angle([Angle|_], #dlo{src_we=#we{light=L0}=We0}=D) ->
-    L = L0#light{spot_angle=Angle},
-    We = We0#we{light=L},
-    update(D#dlo{work=none,src_we=We}).
-    
-is_any_light_selected(#st{sel=Sel,shapes=Shs}) ->
-    is_any_light_selected(Sel, Shs).
-is_any_light_selected([{Id,_}|Sel], Shs) ->
-    case gb_trees:get(Id, Shs) of
-	#we{light=none} -> is_any_light_selected(Sel, Shs);
-	#we{} -> true
-    end;
-is_any_light_selected([], _) -> false.
+attenuation(Type, St) ->
+    case selected_light(St) of
+	{Id,#light{type=Ltype}=L} when Ltype == point; Ltype == spot ->
+	    Initial = att_initial(Type, L),
+	    Fun = adjust_fun(att_fun(Type)),
+	    Tvs = {general,[{Id,Fun}]},
+	    Units = [{dx,att_range(Type)}],
+	    Flags = [{initial,[Initial]}],
+	    wings_drag:setup(Tvs, Units, Flags, St);
+	{_,_} -> wings_util:error("Not a point light or spotlight.")
+    end.
 
-%%%
-%%% Editing lights.
-%%%
+att_initial(linear, #light{lin_att=LinAtt}) -> LinAtt;
+att_initial(quadratic, #light{quad_att=QuadAtt}) -> QuadAtt.
+
+att_fun(linear) -> fun([V|_], L) -> L#light{lin_att=V} end;
+att_fun(quadratic) -> fun([V|_], L) -> L#light{quad_att=V} end.
+
+att_range(linear) -> {0.0,1.0};
+att_range(quadratic) -> {0.0,0.5}.
+    
+selected_light(St) ->
+    wings_sel:fold(fun(_, #we{id=Id,light=L}=We, none) when ?IS_LIGHT(We) ->
+			   {Id,L};
+		      (_, We, _) when ?IS_LIGHT(We) ->
+			   wings_util:error("Select only one light.");
+		      (_, _, A) -> A
+		   end, none, St).
+
+adjust_fun(AdjFun) ->
+    fun(Ds, #dlo{src_we=#we{light=L0}=We0}=D) ->
+	    L = AdjFun(Ds, L0),
+	    We = We0#we{light=L},
+	    update(D#dlo{work=none,src_we=We})
+    end.
+
+%%
+%% The Edit Properties command.
+%%
 edit(#st{sel=[{Id,_}],shapes=Shs}=St) ->
-    #we{light=L0} = We0 = gb_trees:get(Id, Shs),
+    We = gb_trees:get(Id, Shs),
+    edit_1(We, Shs, St);
+edit(_) -> wings_util:error("Select only one light.").
+
+edit_1(#we{id=Id,light=#light{type=ambient,ambient=Amb0}=L0}=We0, Shs, St) ->
+    Qs = [{hframe,
+	   [{vframe,[{label,"Ambient"}]},
+	    {vframe,[{color,Amb0}]}],
+	   [{title,"Color"}]}|qs_specific(L0)],
+    wings_ask:dialog(Qs,
+		     fun([Amb]) ->
+			     L = L0#light{ambient=Amb},
+			     We = We0#we{light=L},
+			     St#st{shapes=gb_trees:update(Id, We, Shs)}
+		     end);
+edit_1(#we{id=Id,light=L0}=We0, Shs, St) ->
     #light{diffuse=Diff0,ambient=Amb0,specular=Spec0} = L0,
     Qs = [{hframe,
 	   [{vframe,
@@ -194,31 +258,33 @@ edit(#st{sel=[{Id,_}],shapes=Shs}=St) ->
 			     L = edit_specific(More, L1),
 			     We = We0#we{light=L},
 			     St#st{shapes=gb_trees:update(Id, We, Shs)}
-		     end);
-edit(_) -> wings_util:error("Select only one light.").
+		     end).
 
-qs_specific(#light{type=spot,spot_angle=Angle}) ->
-    [{label,"Spot Angle"},{slider,{text,Angle,[{range,{0.0,85.0}}]}}];
+qs_specific(#light{type=spot,spot_angle=Angle}=L) ->
+    [{label,"Spot Angle"},{slider,{text,Angle,[{range,{0.0,85.0}}]}}|qs_att(L)];
+qs_specific(#light{type=point}=L) -> qs_att(L);
 qs_specific(_) -> [].
+
+qs_att(#light{lin_att=Lin,quad_att=Quad}) ->
+    [{label,"Linear Attenuation"},
+     {slider,{text,Lin,[{range,{0.0,1.0}}]}},
+     {label,"Quadratic Attenuation"},
+     {slider,{text,Quad,[{range,{0.0,0.5}}]}}].
     
-edit_specific([Angle], #light{type=spot}=L) ->
-    L#light{spot_angle=Angle};
+edit_specific([Angle,LinAtt,QuadAtt], #light{type=spot}=L) ->
+    L#light{spot_angle=Angle,lin_att=LinAtt,quad_att=QuadAtt};
+edit_specific([LinAtt,QuadAtt], #light{type=point}=L) ->
+    L#light{lin_att=LinAtt,quad_att=QuadAtt};
 edit_specific(_, L) -> L.
     
 %%%
 %%% Creating lights.
 %%%
 
-create(infinite, St) ->
-    build("infinite", [{type,infinite}], St);
-create(point, St) ->
-    build("point", [{type,point}], St);
-create(spot, St) ->
-    build("spot", [{type,spot}], St).
-
-build(Prefix, Ps, #st{onext=Oid}=St) ->
+create(Type, #st{onext=Oid}=St) ->
+    Prefix = atom_to_list(Type),
     Name = Prefix++integer_to_list(Oid),
-    import([{Name,[{opengl,Ps}]}], St).
+    import([{Name,[{opengl,[{type,Type}]}]}], St).
 
 %%%
 %%% Updating, drawing and rendering lights.
@@ -306,6 +372,20 @@ update_2(spot, Selected, #we{light=#light{aim=Aim,spot_angle=Angle}}=We) ->
     glu:quadricDrawStyle(Obj, ?GLU_LINE),
     glu:cylinder(Obj, R, 0.08, H, 12, 1),
     glu:deleteQuadric(Obj),
+    gl:popMatrix();
+update_2(ambient, Selected, #we{light=#light{ambient=Amb}}=We) ->
+    gl:color4fv(Amb),
+    gl:pushMatrix(),
+    {X,Y,Z} = light_pos(We),
+    gl:translatef(X, Y, Z),
+    Obj = glu:newQuadric(),
+    glu:quadricDrawStyle(Obj, ?GLU_FILL),
+    glu:quadricNormals(Obj, ?GLU_SMOOTH),
+    glu:sphere(Obj, 0.15, 25, 25),
+    set_sel_color(Selected),
+    glu:quadricDrawStyle(Obj, ?GLU_LINE),
+    glu:sphere(Obj, 0.2, 4, 4),
+    glu:deleteQuadric(Obj),
     gl:popMatrix().
 
 lines(Vec) ->
@@ -334,15 +414,25 @@ export(#st{shapes=Shs}) ->
 	      end, [], gb_trees:values(Shs)),
     reverse(L).
 
+get_light(#we{name=Name,light=#light{type=ambient,ambient=Amb}}=We) ->
+    P = light_pos(We),
+    OpenGL = [{type,ambient},{ambient,Amb},{position,P}],
+    {Name,[{opengl,OpenGL}]};
 get_light(#we{name=Name,light=L}=We) ->
     #light{type=Type,diffuse=Diff,ambient=Amb,specular=Spec,
-	   aim=Aim,spot_angle=Angle} = L,
+	   aim=Aim,spot_angle=Angle,lin_att=LinAtt,quad_att=QuadAtt} = L,
     P = light_pos(We),
     Common = [{type,Type},{position,P},{aim_point,Aim},
 	      {diffuse,Diff},{ambient,Amb},{specular,Spec}],
-    OpenGL = case Type of
-		 spot -> [{cone_angle,Angle}|Common];
-		 _ -> Common
+    OpenGL0 = case Type of
+		  spot -> [{cone_angle,Angle}|Common];
+		  _ -> Common
+	     end,
+    OpenGL = if
+		 Type == point; Type == spot ->
+		     [{linear_attenuation,LinAtt},
+		      {quadratic_attenuation,QuadAtt}|OpenGL0];
+		 true -> OpenGL0
 	     end,
     {Name,[{opengl,OpenGL}]}.
 
@@ -358,17 +448,25 @@ import_fun({Name,Ps}, St) ->
     Type = property_lists:get_value(type, OpenGL, point),
     Pos = property_lists:get_value(position, OpenGL, {0.0,3.0,0.0}),
     Diff = property_lists:get_value(diffuse, OpenGL, {1.0,1.0,1.0,1.0}),
-    Amb = property_lists:get_value(ambient, OpenGL, {0.0,0.0,0.0,1.0}),
+    Amb = import_ambient(Type, OpenGL),
     Spec = property_lists:get_value(specular, OpenGL, {1.0,1.0,1.0,1.0}),
     Aim = property_lists:get_value(aim_point, OpenGL, {0.0,0.0,0.0}),
+    LinAtt = property_lists:get_value(linear_attenuation, OpenGL, 0.0),
+    QuadAtt = property_lists:get_value(quadratic_attenuation, OpenGL, 0.0),
     Angle = property_lists:get_value(cone_angle, OpenGL, 30.0),
     L = #light{type=Type,diffuse=Diff,ambient=Amb,specular=Spec,
-	       aim=Aim,spot_angle=Angle},
+	       aim=Aim,lin_att=LinAtt,quad_att=QuadAtt,
+	       spot_angle=Angle},
     Fs = [[0,3,2,1],[2,3,7,6],[0,4,7,3],[1,2,6,5],[4,5,6,7],[0,1,5,4]],
     Vs = lists:duplicate(8, Pos),
     We0 = wings_we:build(Fs, Vs),
     We = We0#we{light=L},
     wings_shape:new(Name, We, St).
+
+import_ambient(ambient, OpenGL) ->
+    property_lists:get_value(ambient, OpenGL, {0.1,0.1,0.1,1.0});
+import_ambient(_, OpenGL) ->
+    property_lists:get_value(ambient, OpenGL, {0.0,0.0,0.0,1.0}).
 
 %%%
 %%% Setting up lights.
@@ -421,6 +519,9 @@ disable_from(Lnum) ->
 
 scene_lights_fun(_, Lnum) when Lnum > ?GL_LIGHT7 -> Lnum;
 scene_lights_fun(#dlo{src_we=#we{light=none}}, Lnum) -> Lnum;
+scene_lights_fun(#dlo{src_we=#we{light=#light{type=ambient,ambient=Amb}}}, Lnum) ->
+    gl:lightModelfv(?GL_LIGHT_MODEL_AMBIENT, Amb),
+    Lnum;
 scene_lights_fun(#dlo{src_we=#we{light=L}=We}, Lnum) ->
     setup_light(Lnum, L, We),
     gl:enable(Lnum),
@@ -434,19 +535,25 @@ setup_light(Lnum, #light{type=point}=L, We) ->
     {X,Y,Z} = light_pos(We),
     gl:lightfv(Lnum, ?GL_POSITION, {X,Y,Z,1}),
     gl:lightf(Lnum, ?GL_SPOT_CUTOFF, 180.0),
-    setup_color(Lnum, L);
+    setup_color(Lnum, L),
+    setup_attenuation(Lnum, L);
 setup_light(Lnum, #light{type=spot,spot_angle=SpotAngle,aim=Aim}=L, We) ->
     Pos = {X,Y,Z} = light_pos(We),
     Dir = e3d_vec:norm(e3d_vec:sub(Aim, Pos)),
     gl:lightfv(Lnum, ?GL_POSITION, {X,Y,Z,1}),
     gl:lightf(Lnum, ?GL_SPOT_CUTOFF, SpotAngle),
     gl:lightfv(Lnum, ?GL_SPOT_DIRECTION, Dir),
-    setup_color(Lnum, L).
+    setup_color(Lnum, L),
+    setup_attenuation(Lnum, L).
 
 setup_color(Lnum, #light{diffuse=Diff,ambient=Amb,specular=Spec}) ->
     gl:lightfv(Lnum, ?GL_DIFFUSE, Diff),
     gl:lightfv(Lnum, ?GL_AMBIENT, Amb),
     gl:lightfv(Lnum, ?GL_SPECULAR, Spec).
+
+setup_attenuation(Lnum, #light{lin_att=Lin,quad_att=Quad}) ->
+    gl:lightf(Lnum, ?GL_LINEAR_ATTENUATION, Lin),
+    gl:lightf(Lnum, ?GL_QUADRATIC_ATTENUATION, Quad).
 
 light_pos(#we{vs=Vtab}) ->
     #vtx{pos=Pos} = gb_trees:get(1, Vtab),
