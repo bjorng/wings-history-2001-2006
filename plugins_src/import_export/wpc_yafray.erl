@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.38 2003/05/27 21:27:06 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.39 2003/06/01 08:11:40 bjorng Exp $
 %%
 
 -module(wpc_yafray).
@@ -153,11 +153,21 @@ command(_Spec, _St) ->
 dialog({material_editor_setup,Name,Mat}, Dialog) ->
     maybe_append(edit, Dialog, material_dialog(Name, Mat));
 dialog({material_editor_result,Name,Mat}, Res) ->
-    material_result(Name, Mat, Res);
+    case is_plugin_active(edit) of
+	false ->
+	    {Mat,Res};
+	_ ->
+	    material_result(Name, Mat, Res)
+    end;
 dialog({light_editor_setup,Name,Ps}, Dialog) ->
     maybe_append(edit, Dialog, light_dialog(Name, Ps));
 dialog({light_editor_result,Name,Ps0}, Res) ->
-    light_result(Name, Ps0, Res);
+    case is_plugin_active(edit) of
+	false ->
+	    {Ps0,Res};
+	_ ->
+	    light_result(Name, Ps0, Res)
+    end;
 dialog(_X, Dialog) ->
     io:format("~p\n", [{_X,Dialog}]),
     Dialog.
@@ -197,23 +207,24 @@ init_pref() ->
     end,
     ok.
 
-maybe_append(Conditon, Menu, PluginMenu) ->
-    Value =
-	case Conditon of
-	    export ->
-		get_var(dialogs);
-	    edit ->
-		get_var(dialogs);
-	    render ->
-		get_var(renderer);
-	    _ ->
-		false
-	end,
-    case Value of
+maybe_append(Condition, Menu, PluginMenu) ->
+    case is_plugin_active(Condition) of
 	false ->
 	    Menu;
 	_ ->
 	    Menu++PluginMenu
+    end.
+
+is_plugin_active(Condition) ->
+    case Condition of
+	export ->
+	    get_var(dialogs);
+	edit ->
+	    get_var(dialogs);
+	render ->
+	    get_var(renderer);
+	_ ->
+	    false
     end.
 
 menu_entry(render) ->
