@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.47 2003/03/09 18:07:53 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.48 2003/03/12 06:19:39 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -222,7 +222,8 @@ compressed_texture_info(N) ->
 	{lines,
 	 first,
 	 tw,
-	 th
+	 th,
+	 wh
 	 }).
 
 help_window(Title, []) ->
@@ -232,7 +233,7 @@ help_window(Title, Text) ->
 
 help_window(Name, Title, Text) ->
     wings_wm:delete(Name),
-    {Rows,Lines} = collect_lines(Text, 0, []),
+    {Rows,Lines} = wings_text:break_lines(Text, 60),
     {W,H} = wings_wm:top_size(),
     MaxH = trunc(H*0.75),
     Xs = 64*?CHAR_WIDTH,
@@ -242,45 +243,12 @@ help_window(Name, Title, Text) ->
 	 end,
     X = trunc((W-Xs) / 2),
     Y = trunc((H-Ys) / 2),
-    Ts = #ts{lines=reverse(Lines),first=0,tw=Xs,th=Ys0},
+    Ts = #ts{lines=Lines,first=0,tw=Xs,th=Ys0,wh=Ys},
     Op = {seq,push,get_help_event(Ts)},
     Size = {Xs+?CHAR_WIDTH,Ys+?LINE_HEIGHT},
     wings_wm:toplevel(Name, Title, {X,Y,highest}, Size,
 		      [closable,vscroller], Op),
     wings_wm:dirty().
-
-collect_lines([S|T], Rows, Acc) ->
-    break_line(S, T, Rows, Acc);
-collect_lines([], Rows, Lines) ->
-    {Rows,Lines}.
-
-break_line(S, T, Rows, Acc) ->
-    case break_line_1(S) of
-	done ->
-	    collect_lines(T, Rows+1, [[]|Acc]);
-	{Line,More} ->
-	    break_line(More, T, Rows+1, [Line|Acc])
-    end.
-
-break_line_1([$\n|T]) -> break_line_1(T);
-break_line_1([$\s|T]) -> break_line_1(T);
-break_line_1([]) -> done;
-break_line_1(T) -> break_line_2(T, 0, [], []).
-
-break_line_2(_, N, _Acc, {Bef,More}) when N > 60 ->
-    {reverse(Bef),More};
-break_line_2([$\n|T], _N, Acc, _Break) ->
-    {reverse(Acc),T};
-break_line_2([$\s|T0], N, Acc, _Break) ->
-    T = skip_blanks(T0),
-    break_line_2(T, N+1, [$\s|Acc], {Acc,T});
-break_line_2([C|T], N, Acc, Break) ->
-    break_line_2(T, N+1, [C|Acc], Break);
-break_line_2([], _, Acc, _Break) -> {reverse(Acc),[]}.
-
-skip_blanks([$\n|T]) -> skip_blanks(T);
-skip_blanks([$\s|T]) -> skip_blanks(T);
-skip_blanks(T) -> T.
 
 get_help_event(Ts) ->
     {replace,fun(Ev) ->
@@ -295,10 +263,10 @@ handle_help_event({set_knob_pos,Pos}, #ts{th=Th}=Ts0) ->
     Ts = Ts0#ts{first=trunc(Th*Pos) div ?LINE_HEIGHT},
     update_scroller(Ts),
     get_help_event(Ts);
-handle_help_event(scroll_page_up, Ts) ->
-    zoom_step(-10, Ts);
-handle_help_event(scroll_page_down, Ts) ->
-    zoom_step(10, Ts);
+handle_help_event(scroll_page_up, #ts{wh=Wh}=Ts) ->
+    zoom_step(-Wh div ?LINE_HEIGHT, Ts);
+handle_help_event(scroll_page_down, #ts{wh=Wh}=Ts) ->
+    zoom_step(Wh div ?LINE_HEIGHT, Ts);
 handle_help_event(#mousebutton{button=4,state=?SDL_RELEASED}, Ost) ->
     zoom_step(-10, Ost);
 handle_help_event(#mousebutton{button=5,state=?SDL_RELEASED}, Ost) ->

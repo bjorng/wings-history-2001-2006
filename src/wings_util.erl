@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.65 2003/03/11 21:24:03 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.66 2003/03/12 06:19:39 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -159,7 +159,7 @@ yes_no(Question) ->
 
 yes_no(Question, Yes, No) ->
     Qs = {vframe,
-	  [{label,Question},
+	  [{label,Question,[{break,45}]},
 	   {hframe,[{button,"Yes",yes_no_fun(Yes)},
 		    {button,"No",yes_no_fun(No)}]}]},
     wings_ask:dialog("", Qs, fun(_) -> ignore end).

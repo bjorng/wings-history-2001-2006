@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.74 2003/03/11 21:24:02 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.75 2003/03/12 06:19:39 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -448,7 +448,9 @@ normalize({hframe,Qs}, Fi) ->
 normalize({hframe,Qs,Flags}, Fi) ->
     hframe(Qs, Fi, Flags);
 normalize({label,Label}, Fi) ->
-    normalize_field(label(Label), [], Fi);
+    normalize_field(label(Label, []), [], Fi);
+normalize({label,Label,Flags}, Fi) ->
+    normalize_field(label(Label, Flags), Flags, Fi);
 normalize({color,Def}, Fi) ->
     normalize_field(color(Def), [], Fi);
 normalize({color,Def,Flags}, Fi) ->
@@ -1284,18 +1286,36 @@ update_color(_, Common) ->
 %%% Label.
 %%%
 
--record(label, {label}).
+-record(label,
+	{lines					%The lines.
+	}).
 
-label(Text) ->
-    Lbl = #label{label=Text},
+label(Text, Flags) ->
+    Limit = proplists:get_value(break, Flags, infinite),
+    {Num,Lines} = wings_text:break_lines([Text], Limit),
+    io:format("~p\n", [{Num,Lines}]),
+    Lbl = #label{lines=Lines},
     Fun = label_fun(),
-    {Fun,true,Lbl,length(Text)*?CHAR_WIDTH,?LINE_HEIGHT+2}.
+    {W,H} = label_dimensions(Lines, 0, 2),
+    {Fun,true,Lbl,W,H}.
+
+label_dimensions([L|Lines], W0, H) ->
+    case wings_text:width(L) of
+	W when W > W0 -> label_dimensions(Lines, W, H+?LINE_HEIGHT);
+	_ -> label_dimensions(Lines, W0, H+?LINE_HEIGHT)
+    end;
+label_dimensions([], W, H) -> {W,H}.
 
 label_fun() ->
-    fun({redraw,_Active}, #fi{x=X,y=Y}, #label{label=Text}, _Common) ->
-	    wings_io:text_at(X, Y+?CHAR_HEIGHT, Text);
+    fun({redraw,_Active}, #fi{x=X,y=Y}, #label{lines=Lines}, _Common) ->
+	    label_draw(Lines, X, Y+?CHAR_HEIGHT);
        (_, _, Label, _) -> Label
     end.
+
+label_draw([L|Lines], X, Y) ->
+    wings_io:text_at(X, Y, L),
+    label_draw(Lines, X, Y+?LINE_HEIGHT);
+label_draw([], _, _) -> ok.
 
 %%%
 %%% Text and number input fields.
