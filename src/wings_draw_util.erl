@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.131 2004/05/02 09:49:38 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.132 2004/05/08 13:50:32 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -275,10 +275,10 @@ render_plain(#dlo{work=Faces,edges=Edges,src_we=We,proxy_data=none}=D, SelMode) 
 	    gl:polygonOffset(2, 2),
 	    gl:shadeModel(?GL_SMOOTH),
 	    gl:enable(?GL_LIGHTING),
-	    case We of
-		#we{fvf=0} ->
+	    case wings_we:any_hidden(We) of
+		false ->
 		    call(Faces);
-		_ ->
+		true ->
 		    gl:disable(?GL_CULL_FACE),
 		    call(Faces),
 		    gl:enable(?GL_CULL_FACE)
@@ -364,9 +364,9 @@ render_smooth(#dlo{work=Work,edges=Edges,smooth=Smooth,transparent=Trans,
 	    gl:depthMask(?GL_TRUE)
     end,
 
-    case We of
-	#we{fvf=0} -> ok;
-	_ -> gl:disable(?GL_CULL_FACE)
+    case wings_we:any_hidden(We) of
+	false -> ok;
+	true -> gl:disable(?GL_CULL_FACE)
     end,
 
     case {Smooth,RenderTrans} of

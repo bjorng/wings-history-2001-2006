@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.230 2004/05/07 04:18:45 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.231 2004/05/08 13:50:31 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -218,12 +218,11 @@ update_selected_uvcoords(#st{bb=Uvs}=St) ->
 update_uvs(Cs, #we{es=Etab0}=GeomWe) ->
     update_uvs_1(Cs, GeomWe, Etab0).
 
-update_uvs_1([#we{vp=Vpos0,name=#ch{vmap=Vmap,fm_a2g=A2G0}}=ChartWe|Cs],
+update_uvs_1([#we{vp=Vpos0,name=#ch{vmap=Vmap}}=ChartWe|Cs],
 	     We, Etab0) ->
-    A2G = gb_trees:from_orddict(sofs:to_external(A2G0)),
     VFace0 = wings_face:fold_faces(
 	       fun(Face, V, _, _, A) ->
-		       [{V,gb_trees:get(Face, A2G)}|A]
+		       [{V,Face}|A]
 	       end, [],
 	       wings_we:visible(ChartWe), ChartWe),
     VFace1 = sofs:relation(VFace0),
@@ -299,8 +298,7 @@ build_map([{Fs,Vmap,#we{fs=Ftab}=We0}|T], FvUvMap, No, Acc) ->
     Fs = sort(Fs),
     HiddenFaces = ordsets:subtract(gb_trees:keys(Ftab), Fs),
     We1 = wings_we:hide_faces(HiddenFaces, We0),
-    A2G = auv_util:make_face_map(Fs, We1),
-    Chart = #ch{size=undefined,vmap=Vmap,fm_a2g=A2G},
+    Chart = #ch{size=undefined,vmap=Vmap},
     We = We1#we{name=Chart,id=No,vp=gb_trees:from_orddict(UVs)},
     build_map(T, FvUvMap, No+1, [{No,We}|Acc]);
 build_map([], _, _, Acc) -> Acc.
@@ -904,15 +902,11 @@ pattern_repeat(N, D) ->
 %%% Conversion routines.
 %%%
 
-auv2geom_faces(Fs0, #we{name=#ch{fm_a2g=A2G}}) ->
-    Fs1 = sofs:from_external(Fs0, [atom]),
-    Fs = sofs:image(A2G, Fs1),
-    sofs:to_external(Fs).
+auv2geom_faces(Fs, _) ->
+    Fs.
 
-geom2auv_faces(Fs0, #we{name=#ch{fm_a2g=A2G}}) ->
-    Fs1 = sofs:from_external(Fs0, [atom]),
-    Fs = sofs:inverse_image(A2G, Fs1),
-    sofs:to_external(Fs).
+geom2auv_faces(Fs, _) ->
+    Fs.
 
 auv2geom_vs(Vs, #we{name=#ch{vmap=Vmap}}) ->
     [auv_segment:map_vertex(V, Vmap) || V <- Vs].

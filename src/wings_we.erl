@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.73 2004/05/02 09:49:38 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.74 2004/05/08 13:50:32 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -27,7 +27,7 @@
 	 normals/2,
 	 new_items/3,
 	 is_consistent/1,is_face_consistent/2,
-	 hide_faces/2,visible/1,visible/2]).
+	 hide_faces/2,any_hidden/1,visible/1,visible/2]).
 
 -include("wings.hrl").
 -include("e3d.hrl").
@@ -84,59 +84,44 @@ vertex_gc_1([], _, Acc) ->
 %%%
 
 hide_faces(Fs, We) when is_list(Fs) ->
-    hide_faces_1(sort(Fs), length(Fs), We);
+    hide_faces_1(gb_sets:from_list(Fs), We);
 hide_faces(Fs, We) ->
-    hide_faces_1(gb_sets:to_list(Fs), gb_sets:size(Fs), We).
+    hide_faces_1(Fs, We).
 
-hide_faces_1(Fs, N, #we{fs=Ftab}=We) ->
-    AllFaces = gb_trees:keys(Ftab),
-    case hide_faces_2(Fs, AllFaces) of
-	must_renumber -> hide_faces_3(Fs, N, AllFaces, We);
-	Fvf -> We#we{fvf=Fvf}
-    end.
-
-hide_faces_2([F|Fs], [F|Ftab]) -> hide_faces_2(Fs, Ftab);
-hide_faces_2([], [F|_]) -> F;
-hide_faces_2(_, _) -> must_renumber.
-
-hide_faces_3(Fs, N, AllFaces, #we{es=Etab0,next_id=NextId}=We0) ->
-    Fvf = NextId + N,
-    FaceMap = hide_face_map(AllFaces, Fs, NextId, Fvf, []),
+hide_faces_1(Fs, #we{es=Etab0}=We0) ->
     Etab1 = gb_trees:to_list(Etab0),
-    Etab2 = foldl(fun({E,#edge{lf=Lf0,rf=Rf0}=R}, A) ->
-			  Lf = gb_trees:get(Lf0, FaceMap),
-			  Rf = gb_trees:get(Rf0, FaceMap),
-			  [{E,R#edge{lf=Lf,rf=Rf}}|A]
-		     end, [], Etab1),
+    Etab2 = foldl(fun({E,#edge{lf=Lf0,rf=Rf0}=R0}, A) ->
+			  Lf = hide_map_face(Lf0, Fs),
+			  Rf = hide_map_face(Rf0, Fs),
+			  case R0#edge{lf=Lf,rf=Rf} of
+			      R0 -> [{E,R0}|A];
+			      R -> [{E,R}|A]
+			  end
+		  end, [], Etab1),
     Etab = gb_trees:from_orddict(reverse(Etab2)),
-    We = We0#we{es=Etab,fvf=Fvf,fs=undefined,
-		next_id=NextId+length(AllFaces)},
+    We = We0#we{es=Etab,fs=undefined},
     rebuild(We).
 
-hide_face_map([F|AllFs], [F|Fs], NextHid, NextVis, Acc) ->
-    hide_face_map(AllFs, Fs, NextHid+1, NextVis, [{F,NextHid}|Acc]);
-hide_face_map([F|AllFs], Fs, NextHid, NextVis, Acc) ->
-    hide_face_map(AllFs, Fs, NextHid, NextVis+1, [{F,NextVis}|Acc]);
-hide_face_map([], [F|Fs], NextHid, NextVis, Acc) ->
-    hide_face_map([], Fs, NextHid+1, NextVis, [{F,NextHid}|Acc]);
-hide_face_map([], [], _, _, Acc) ->
-    gb_trees:from_orddict(reverse(Acc)).
+hide_map_face(F, Fs) ->
+    case gb_sets:is_member(F, Fs) of
+	false -> F;
+	true -> -F-1
+    end.
 
-visible(#we{fs=Ftab,fvf=FvF}) ->
-    visible_2(gb_trees:keys(Ftab), FvF).
+any_hidden(#we{fs=Ftab}) ->
+    wings_util:gb_trees_smallest_key(Ftab) < 0.
 
-visible([{_,_}|_]=Fs, #we{fvf=Fvf}) ->
-    visible_1(Fs, Fvf);
-visible(Fs, #we{fvf=Fvf}) ->
-    visible_2(Fs, Fvf).
+visible(#we{fs=Ftab}) ->
+    visible_2(gb_trees:keys(Ftab)).
 
-visible_1([{F,_}|Fs], Fvf) when F < Fvf ->
-    visible_1(Fs, Fvf);
-visible_1(Fs, _) -> Fs.
+visible([{_,_}|_]=Fs, _) -> visible_1(Fs);
+visible(Fs, _) -> visible_2(Fs).
 
-visible_2([F|Fs], Fvf) when F < Fvf ->
-    visible_2(Fs, Fvf);
-visible_2(Fs, _) -> Fs.
+visible_1([{F,_}|Fs]) when F < 0 -> visible_1(Fs);
+visible_1(Fs) -> Fs.
+
+visible_2([F|Fs]) when F < 0 -> visible_2(Fs);
+visible_2(Fs) -> Fs.
 
 %%%
 %%% Build Winged-Edges.

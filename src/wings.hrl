@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.102 2004/05/07 09:56:58 raimo_niskanen Exp $
+%%     $Id: wings.hrl,v 1.103 2004/05/08 13:50:31 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -160,8 +160,7 @@
 	 mode,					%'vertex'/'material'/'uv'
 	 mirror=none,				%Mirror: none|Face
 	 light=none,				%Light data: none|Light
-	 has_shape=true,			%true|false
-	 fvf=0					%First visible face.
+	 has_shape=true				%true|false
 	}).
 
 -define(IS_VISIBLE(Perm), (Perm =< 1)).

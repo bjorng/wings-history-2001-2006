@@ -4,11 +4,11 @@
 %%
 %% Created : 24 Jan 2002 by Dan Gudmundsson <dgud@erix.ericsson.se>
 %%-------------------------------------------------------------------
-%%  Copyright (c) 2002-2003 Bjorn Gustavsson, Dan Gudmundsson
+%%  Copyright (c) 2002-2004 Bjorn Gustavsson, Dan Gudmundsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_seg_ui.erl,v 1.17 2004/05/04 06:21:48 bjorng Exp $
+%%     $Id: auv_seg_ui.erl,v 1.18 2004/05/08 13:50:31 bjorng Exp $
 
 -module(auv_seg_ui).
 -export([start/3]).
@@ -316,9 +316,4 @@ segment(Mode, #st{shapes=Shs}=St) ->
 finish_chart({Fs,Vmap,#we{fs=Ftab}=We0}) ->
     Hidden = ordsets:subtract(gb_trees:keys(Ftab), Fs),
     We = wings_we:hide_faces(Hidden, We0),
-    A2G = auv_util:make_face_map(Fs, We),
-    We#we{name=#ch{vmap=Vmap,fm_a2g=A2G}}.
-
-
-
-    
+    We#we{name=#ch{vmap=Vmap}}.
