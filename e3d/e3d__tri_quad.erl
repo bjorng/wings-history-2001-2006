@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__tri_quad.erl,v 1.16 2005/03/13 16:33:19 bjorng Exp $
+%%     $Id: e3d__tri_quad.erl,v 1.17 2005/03/13 18:23:41 bjorng Exp $
 %%
 
 -module(e3d__tri_quad).
@@ -126,7 +126,8 @@ quadrangulate_face_with_holes(#e3d_face{vs=Vs}=Face, Holes, Vcoords) ->
 %% Mat is material of original face.
 %% Return list e3d_faces.
 %% Assume original border had all visible edges.
-%% TODO: texture coords (need map from vertex indices to texture ones)
+%% Note: Texture coordinates and vertex colors are handled in
+%% another place in this file.
 to_faces_new(Fl, Bord, Face) ->
     [to_face(Ftup, Bord, Face) || Ftup <- Fl].
 
@@ -139,7 +140,8 @@ to_face(Ftup, Bord, #e3d_face{ns=Ns0,mat=Mat}=Face) ->
 	      _ -> -1
 	  end,
     Ns = kill_ns(Ns0),
-    Face#e3d_face{vs=tuple_to_list(Ftup),ns=Ns,mat=Mat,vis=Vis}.
+    Face#e3d_face{vs=tuple_to_list(Ftup),tx=[],vc=[],
+		  ns=Ns,mat=Mat,vis=Vis}.
 
 %% The 3ds format stores the smoothing group bits here. Preserve them.
 %% Kill any normals.
