@@ -8,15 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__tif.erl,v 1.12 2003/11/14 14:16:33 dgud Exp $
+%%     $Id: e3d__tif.erl,v 1.13 2003/12/31 10:46:37 bjorng Exp $
 %%
 
 -module(e3d__tif).
--export([load/2, save/3, save/4]).
+-export([load/2,save/3,save_bin/2]).
 -export([format_error/1]).
 -include("e3d_image.hrl").
-
--export([decompress/5]).
 
 format_error(unsupported_format) ->
     "Unsupported format or bad TIFF file";
@@ -50,17 +48,24 @@ load1(FileName, _Opts) ->
 	    Error
     end.
 
-save(Image0, FileName, Opts) ->
-    Pid = spawn(?MODULE, save, [self(), Image0, FileName, Opts]),
+save(Image, Filename, Opts) ->
+    do_save(Image, Filename, Opts).
+
+save_bin(Image, Opts) ->
+    do_save(Image, binary, Opts).
+
+do_save(Image, Name, Opts) ->
+    Self = self(),
+    Saver = spawn(fun() -> save(Self, Image, Name, Opts) end),
     receive 
-	{Pid, save, Res} ->
+	{Saver,save,Res} ->
 	    Res
     end.
 
-save(Father, Image, FileName, Opts) ->
-    Father ! {self(), save, (catch save2(Image, FileName, Opts))}.
+save(Father, Image, Name, Opts) ->
+    Father ! {self(),save,(catch save_1(Image, Name, Opts))}.
 
-save2(Image0, FileName, Opts) ->
+save_1(Image0, Name, Opts) ->
     if 
 	Image0#e3d_image.bytes_pp == 4 ->
 	    Image = e3d_image:convert(Image0, r8g8b8a8, 1, upper_left);
@@ -68,11 +73,14 @@ save2(Image0, FileName, Opts) ->
 	    Image = e3d_image:convert(Image0, r8g8b8, 1, upper_left)
     end,
     Compress = lists:member(compress, Opts),    
-    {Where, BinList} = save_image(Image, Compress, 8),
-    Header = <<16#4D4D:16, 42:16, Where:32/big>> ,
-    Binary = list_to_binary([Header| BinList]),
-    file:write_file(FileName, Binary).
-
+    {Where,BinList} = save_image(Image, Compress, 8),
+    Tiff = [<<16#4D4D:16,42:16,Where:32/big>>|BinList],
+    if
+	Name == binary ->
+	    {ok,list_to_binary(Tiff)};
+	true ->
+	    file:write_file(Name, Tiff)
+    end.
 
 %% Some really ugly macros to get different formats..
 %% !!OBS!! Binds variables or Matches them !!OBS!!

@@ -3,16 +3,16 @@
 %%
 %%     Functions for reading and writing TGA files.
 %%
-%%  Copyright (c) 2001-2002 Dan Gudmundsson
+%%  Copyright (c) 2001-2004 Dan Gudmundsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__tga.erl,v 1.13 2003/11/26 10:33:24 dgud Exp $
+%%     $Id: e3d__tga.erl,v 1.14 2003/12/31 10:46:37 bjorng Exp $
 %%
 
 -module(e3d__tga).
--export([load/2,save/3]).
+-export([load/2,save/3,save_bin/2]).
 -export([format_error/1]).
 -include("e3d_image.hrl").
 
@@ -124,9 +124,17 @@ load_comp(<<1:1, Len:7, RestImage0/binary>>, PLeft, ByPP, Acc) ->
     Pixels = lists:duplicate(Len+1, Pixel),
     load_comp(RestImage, PLeft-(Len+1), ByPP, [Pixels| Acc]).
 
-save(Image0 = #e3d_image{bytes_pp=Bpp,type=Type}, FileName, _Opts) ->
+save(Image, Filename, _Opts) ->
+    Tga = save_1(Image),
+    file:write_file(Filename, Tga).
+
+save_bin(Image, _Opts) ->
+    Tga = save_1(Image),
+    {ok,list_to_binary(Tga)}.
+
+save_1(#e3d_image{bytes_pp=Bpp,type=Type,image=Bits}=Image0) ->
     Order = get_order(Image0#e3d_image.order),
-    {TC,Image, BitsPP, Def} = 
+    {TC,Image,BitsPP,Def} = 
 	if 
 	    Bpp == 1, Type == g8 ->
 		{3,e3d_image:convert(Image0, g8, 1), 8, <<Order:4, 0:4>> };
@@ -137,12 +145,10 @@ save(Image0 = #e3d_image{bytes_pp=Bpp,type=Type}, FileName, _Opts) ->
 	    Bpp == 4 ->
 		{2,e3d_image:convert(Image0, b8g8r8a8, 1), 32, <<Order:4, 8:4>>}
 	end,
-    Head0 = <<0,0,TC,0,0,0,0,0,0,0,0,0>> ,    
-    Head1 = <<(Image#e3d_image.width):16/little, 
-	     (Image#e3d_image.height):16/little,
-	     BitsPP:8,(Def)/binary>> ,
-    Bin =  <<Head0/binary, Head1/binary, (Image#e3d_image.image)/binary>> ,
-    file:write_file(FileName, Bin).
+    [<<0,0,TC,0,0,0,0,0,0,0,0,0,
+      (Image#e3d_image.width):16/little, 
+      (Image#e3d_image.height):16/little,
+      BitsPP:8>>,Def|Bits].
 
 get_order(lower_left) -> 0;
 get_order(lower_right) ->1;

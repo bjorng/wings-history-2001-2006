@@ -3,16 +3,16 @@
 %%
 %%     Functions for reading and writing DIB BMP files.
 %%
-%%  Copyright (c) 2001 Dan Gudmundsson
+%%  Copyright (c) 2001-2004 Dan Gudmundsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__bmp.erl,v 1.9 2003/11/14 14:16:33 dgud Exp $
+%%     $Id: e3d__bmp.erl,v 1.10 2003/12/31 10:46:37 bjorng Exp $
 %%
 
 -module(e3d__bmp).
--export([load/2,save/3]).
+-export([load/2,save/3,save_bin/2]).
 -export([format_error/1]).
 
 -include("e3d_image.hrl").
@@ -95,7 +95,15 @@ load(FileName, _Opts) ->
 	    Error
     end.
 
-save(Image0, FileName, _Opts) ->
+save(Image, Filename, _Opts) ->
+    Bmp = save_1(Image),
+    file:write_file(Filename, Bmp).
+
+save_bin(Image, _Opts) ->
+    Bmp = save_1(Image),
+    {ok,list_to_binary(Bmp)}.
+
+save_1(Image0) ->
     Image = e3d_image:convert(Image0, b8g8r8, 4, lower_left),
     _BiFileSz = ?BITMAPFILEHEADERSZ + ?BITMAPINFOHEADERSZ + size(Image#e3d_image.image),
     _BiOffset = ?BITMAPFILEHEADERSZ + ?BITMAPINFOHEADERSZ,
@@ -110,8 +118,7 @@ save(Image0, FileName, _Opts) ->
     _BiClrUsed = 0, _BiClrImportant = 0,
 %    ?DBGOUT(),
 %    io:format("Size ~p ~n", [size(Image#e3d_image.image)]),
-    Binary = <<?BITMAPFILEHEADER, ?BITMAPINFOHEADER, (Image#e3d_image.image)/binary>> ,
-    file:write_file(FileName, Binary).
+    [<<?BITMAPFILEHEADER,?BITMAPINFOHEADER>>|Image#e3d_image.image].
      
 % debug(I1, I2) ->
 %     debug(I1#e3d_image.image, I2#e3d_image.image, 0).

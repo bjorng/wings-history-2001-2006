@@ -3,12 +3,12 @@
 %%
 %%     Handle images (2D) and different file formats.
 %%
-%%  Copyright (c) 2001 Dan Gudmundsson
+%%  Copyright (c) 2001-2004 Dan Gudmundsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_image.erl,v 1.15 2003/10/29 13:20:11 dgud Exp $
+%%     $Id: e3d_image.erl,v 1.16 2003/12/31 10:46:37 bjorng Exp $
 %%
 
 -module(e3d_image).
@@ -19,7 +19,7 @@
 
 -export([load/1, load/2, 
 	 convert/2, convert/3, convert/4, 
-	 save/2, save/3,
+	 save/2, save/3, save_bin/2, save_bin/3,
 	 bytes_pp/1, pad_len/2, format_error/1]).
 
 %% Normal map handing
@@ -45,22 +45,15 @@ load(FileName) ->
     load(FileName, []).
 load(FileName, Opts) when list(FileName), list(Opts) ->
     Extension = file_extension(FileName),
-    Res = 
-	case Extension of 
-	    ".tga" ->
-		e3d__tga:load(FileName, Opts);
-	    ".bmp" ->
-		e3d__bmp:load(FileName, Opts);
-	    ".tif" -> 
-		e3d__tif:load(FileName, Opts);
-	    ".tiff" -> 
-		e3d__tif:load(FileName, Opts);
-	    _ ->
-		return_error({not_supported, Extension})
-	end,
+    Res = case ext_to_type(Extension) of
+	      tga -> e3d__tga:load(FileName, Opts);
+	      bmp -> e3d__bmp:load(FileName, Opts);
+	      tif -> e3d__tif:load(FileName, Opts);
+	      _ -> return_error({not_supported,Extension})
+	  end,
     fix_outtype(Res, Opts).
 
-%% Func: save(#e3d_image, FileName [, Opts]
+%% Func: save(#e3d_image, Filename [, Opts])
 %% Rets: ok | {error, Reason}
 %% Desc: Saves image to file. Using extension to 
 %%       know which fileformat to use. 
@@ -71,17 +64,28 @@ save(Image, Filename) ->
     save(Image, Filename, []).
 save(Image = #e3d_image{}, Filename, Opts) ->
     Extension = file_extension(Filename),
-    case Extension of 
-	".tga" ->
-	    e3d__tga:save(Image, Filename, Opts);
-	".bmp" ->
-	    e3d__bmp:save(Image, Filename, Opts);
-	".tif" -> 
-	    e3d__tif:save(Image, Filename, Opts);
-	".tiff" -> 
-	    e3d__tif:save(Image, Filename, Opts);
-	_ ->
-	    return_error({not_supported, Extension})
+    case ext_to_type(Extension) of
+	tga -> e3d__tga:save(Image, Filename, Opts);
+	bmp -> e3d__bmp:save(Image, Filename, Opts);
+	tif -> e3d__tif:save(Image, Filename, Opts);
+	_ -> return_error({not_supported,Extension})
+    end.
+
+%% Func: save_bin(#e3d_image, Extension [, Opts])
+%% Rets: {ok,Binary} | {error, Reason}
+%% Desc: Saves image to file. The Extension gives the
+%%       the file format to use.
+%%       Opts is a list of options. 
+%%       Available options: compress 
+%%        compress - compresses the file if it is possible/implemented (currently tif).
+save_bin(Image, Extension) ->
+    save_bin(Image, Extension, []).
+save_bin(#e3d_image{}=Image, Extension, Opts) ->
+    case ext_to_type(Extension) of
+	tga -> e3d__tga:save_bin(Image, Opts);
+	bmp -> e3d__bmp:save_bin(Image, Opts);
+	tif -> e3d__tif:save_bin(Image, Opts);
+	_ -> return_error({not_supported,Extension})
     end.
 
 format_error({not_supported,Extension}) ->
@@ -122,6 +126,12 @@ convert(#e3d_image{type=FromType,image=Image,alignment=FromAlm,order=FromOrder}=
 			 bytes_pp=bytes_pp(ToType), 
 			 alignment=ToAlm,order=ToOrder}
     end.
+
+ext_to_type(".tga") -> tga;
+ext_to_type(".bmp") -> bmp;
+ext_to_type(".tif") -> tif;
+ext_to_type(".tiff") -> tif;
+ext_to_type(_) -> unknown.
 
 %% Func: pad_len(RowLength (in bytes), Alignment) 
 %% Rets: integer()
