@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.76 2003/10/17 07:03:53 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.77 2003/10/17 07:53:19 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -739,11 +739,11 @@ select_region_2(P0) ->
     P2 = sofs:relation_to_family(P1),
     P = sofs:to_external(P2),
     case [Fs || {Fs,[_]} <- P] of
-	[] ->
+	Fss when length(Fss) < length(P) ->
+	    lists:merge(Fss);
+	_ ->
 	    [{_,Fs}|_] = sort([{length(Fs),Fs} || {Fs,_} <- P]),
-	    Fs;
-	Fss ->
-	    lists:merge(Fss)
+	    Fs
     end.
 
 make_digraph(G, [Es|T]) ->
