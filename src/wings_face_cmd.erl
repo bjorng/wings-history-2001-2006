@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.52 2002/05/16 10:32:10 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.53 2002/05/20 10:21:33 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
 -export([menu/3,command/2]).
--export([dissolve/1,outer_edge_partition/2]).
+-export([dissolve/1,outer_edge_partition/2,mirror_faces/2]).
 
 -include("wings.hrl").
 -import(lists, [map/2,foldl/3,reverse/1,sort/1,keysort/2,
@@ -333,12 +333,14 @@ mirror(St0) ->
     St = wings_sel:map(fun mirror_faces/2, St0),
     wings_sel:clear(St).
 
-mirror_faces(Faces, #we{mode=Mode}=We0) ->
+mirror_faces(Faces, #we{mode=Mode}=We0) when is_list(Faces) ->
     OrigWe = wings_we:invert_normals(We0),
     We = foldl(fun(Face, WeAcc) ->
 		       mirror_face(Face, OrigWe, WeAcc)
-	       end, We0, gb_sets:to_list(Faces)),
-    We#we{mode=Mode}.
+	       end, We0, Faces),
+    We#we{mode=Mode};
+mirror_faces(Faces, We) ->
+    mirror_faces(gb_sets:to_list(Faces), We).
 
 mirror_face(Face, #we{fs=Ftab}=OrigWe, #we{next_id=Id}=We0) ->
     #face{edge=AnEdge} = gb_trees:get(Face, Ftab),

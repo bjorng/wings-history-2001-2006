@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.60 2002/05/16 10:32:38 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.61 2002/05/20 10:21:33 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -61,8 +61,16 @@ menu(X, Y, St) ->
 				  {"-Y",neg_y},
 				  {"-Z",neg_z}]}},
 	    separator,
+	    {"Virtual Mirror",
+	     {virtual_mirror,
+	      [{"Create",create,
+		"Given a face selection, set up a virtual mirror"},
+	       {"Break",break,
+		"Remove the virtul mirror for all objects"},
+	       {"Freeze",freeze,
+		"Create real geometry from the virtual mirrors"}]}},
+	    separator,
 	    {"Align to Selection",align_to_selection},
-	    {"Virtual Mirror",virtual_mirror},
 	    {"Auto Rotate",auto_rotate}],
     wings_menu:menu(X, Y, view, Menu, St).
 
@@ -150,16 +158,21 @@ command(rotate_left, St) ->
 command(align_to_selection, St) ->
     aim(St),
     align_to_selection(St);
-command(virtual_mirror, #st{sel=[],shapes=Shs0}=St) ->
+command({virtual_mirror,create}, #st{selmode=face}=St0) ->
+    St = wings_sel:map(fun virtual_mirror_fun/2, St0),
+    {save_state,St#st{sel=[]}};
+command({virtual_mirror,create}, _) ->
+    wings_util:error("Virtual mirror requires a face selection.");
+command({virtual_mirror,break}, #st{shapes=Shs0}=St) ->
     case break_mirror(Shs0) of
 	Shs0 -> St;
 	Shs -> {save_state,St#st{shapes=Shs}}
     end;
-command(virtual_mirror, #st{selmode=face}=St0) ->
-    St = wings_sel:map(fun virtual_mirror_fun/2, St0),
-    {save_state,St#st{sel=[]}};
-command(virtual_mirror, _) ->
-    wings_util:error("Virtual mirror requires a face selection.");
+command({virtual_mirror,freeze}, #st{shapes=Shs0}=St) ->
+    case freeze_mirror(Shs0) of
+	Shs0 -> St;
+	Shs -> {save_state,St#st{shapes=Shs}}
+    end;
 command(toggle_lights, St) ->
     Lights = case wings_pref:get_value(number_of_lights) of
 		 1 -> 2;
@@ -199,9 +212,15 @@ virtual_mirror_fun(Faces, We) ->
     end.
 
 break_mirror(Shapes) ->
-    foldl(fun(#we{mirror=none}, Shs) ->
-		  Shs;
+    foldl(fun(#we{mirror=none}, Shs) -> Shs;
 	     (#we{id=Id}=We, Shs) ->
+		  gb_trees:update(Id, We#we{mirror=none}, Shs)
+	  end, Shapes, gb_trees:values(Shapes)).
+
+freeze_mirror(Shapes) ->
+    foldl(fun(#we{mirror=none}, Shs) -> Shs;
+	     (#we{id=Id,mirror=Face}=We0, Shs) ->
+		  We = wings_face_cmd:mirror_faces([Face], We0),
 		  gb_trees:update(Id, We#we{mirror=none}, Shs)
 	  end, Shapes, gb_trees:values(Shapes)).
 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.47 2002/05/12 17:35:27 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.48 2002/05/20 10:21:33 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -295,6 +295,13 @@ clean([{Key,Val}=Pair|T], Acc) ->
 	    io:format("Removed pref: ~p\n", [Pair]),
 	    clean(T, Acc)
     end;
+clean([{{bindkey,_},Cmd,user}=Bk|T], Acc) ->
+    case bad_command(Cmd) of
+	false -> clean(T, [Bk|Acc]);
+	true ->
+	    io:format("Removed pref: ~p\n", [Bk]),
+	    clean(T, Acc)
+    end;
 clean([H|T], Acc) ->
     clean(T, [H|Acc]);
 clean([], Acc) -> Acc.
@@ -317,3 +324,6 @@ is_wings_vector({{Px,Py,Pz},{Vx,Vy,Vz}})
        is_number(Vx), is_number(Vy), is_number(Vz) ->
     true;
 is_wings_vector(_) -> false.
+
+bad_command({view,virtual_mirror}) -> true;
+bad_command(_) -> false.
