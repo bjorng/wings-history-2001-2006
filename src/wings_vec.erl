@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.83 2003/09/12 13:33:15 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.84 2003/09/21 10:11:40 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -318,7 +318,10 @@ exit_menu(X, Y, Mod, #ss{f=Exit,vec=Vec}=Ss, St) ->
 	    erase_vector(),
 	    set_last_axis(Ss),
 	    wings_wm:later({action,Action}),
-	    clear_sel(),
+	    case Action of
+		{vector,_} -> clear_sel();
+		_ -> pick_finish()
+	    end,
 	    pop
     end.
 
