@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.48 2002/01/27 11:50:28 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.49 2002/01/28 17:31:43 bjorng Exp $
 %%
 
 -module(wings_file).
--export([init/0,finish/0,menu/3,command/2]).
+-export([init/0,finish/0,menu/3,command/2,export/3,import/3]).
 
 -include("e3d.hrl").
 -include("wings.hrl").
@@ -40,10 +40,7 @@ finish() ->
     end.
 
 menu(X, Y, St) ->
-    ExpFormats = [{"Nendo (.ndo)",ndo},
-		  {"3D Studio (.3ds)",tds},
-		  {"Wavefront (.obj)",obj},
-		  {"RenderMan (.rib)",rib}],
+    ExpFormats = [{"Nendo (.ndo)",ndo}],
     Menu = [{"New",new},
 	    {"Open",open},
 	    {"Merge",merge},
@@ -53,10 +50,7 @@ menu(X, Y, St) ->
 	    separator,
 	    {"Revert",revert},
 	    separator,
-	    {"Import",{import,
-		       [{"Nendo (.ndo)",ndo},
-			{"3D Studio (.3ds)",tds},
-			{"Wavefront (.obj)",obj}]}},
+	    {"Import",{import,[{"Nendo (.ndo)",ndo}]}},
 	    {"Export",{export,ExpFormats}},
 	    {"Export Selected",{export_selected,ExpFormats}},
 	    separator|recent_files([{"Exit",quit}])],
@@ -94,22 +88,22 @@ command(revert, St0) ->
 	    St0;
 	#st{}=St -> {save_state,model_changed(St)}
     end;
-command({import,Type}, St0) ->
-    case import(Type, St0) of
+command({import,ndo}, St0) ->
+    case import_ndo(St0) of
 	{warning,Warn,St} ->
 	    wings_util:message(Warn),
 	    {save_state,model_changed(St)};
 	St -> {save_state,model_changed(St)}
     end;
-command({export,Type}, St) ->
-    export(Type, St),
+command({export,ndo}, St) ->
+    export_ndo(St),
     St;
-command({export_selected,Type}, St) ->
+command({export_selected,ndo}, St) ->
     Shs0 = wings_sel:fold(fun(_, #we{id=Id}=We, A) ->
 				  [{Id,We}|A]
 			  end, [], St),
     Shs = gb_trees:from_orddict(reverse(Shs0)),
-    export(Type, St#st{shapes=Shs}),
+    export_ndo(St#st{shapes=Shs}),
     St;
 command(quit, St) ->
     quit(St);
@@ -347,17 +341,12 @@ revert(#st{file=File}=St0) ->
 %% Import.
 %%
 
-import(tds, St) -> import(".3ds", e3d_tds, St);
-import(obj, St) -> import(".obj", e3d_obj, St);
-import(ndo, St) -> import_ndo(St).
-
-import(Ext, Mod, St0) ->
-    Prop = file_prop(Ext),
+import(Prop, Importer, St0) ->
+    Ext = property_lists:get_value(ext, Prop),
     case wings_plugin:call_ui({file,import,Prop}) of
-	aborted -> St0;
-	Name0 ->
-	    Name = ensure_extension(Name0, Ext),
-	    case ?SLOW(do_import(Mod, Name, St0)) of
+	aborted -> aborted;
+	Name ->
+	    case ?SLOW(do_import(Importer, Name, St0)) of
 		#st{}=St ->
 		    wings_getline:set_cwd(dirname(Name)),
 		    St;
@@ -372,7 +361,7 @@ import(Ext, Mod, St0) ->
 
 import_ndo(St0) ->
     Ext = ".ndo",
-    Prop = file_prop(Ext),
+    Prop = [{ext,".ndo"},{ext_desc,"Nendo File"}],
     case wings_plugin:call_ui({file,import,Prop}) of
 	aborted -> St0;
 	Name0 ->
@@ -391,22 +380,17 @@ import_ndo(St0) ->
 %% Export.
 %%
 
-export(tds, St) -> export(e3d_tds, ".3ds", St);
-export(rib, St) -> export(e3d_rib, ".rib", St);
-export(obj, St) -> export(e3d_obj, ".obj", St);
-export(ndo, St) -> export_ndo(St).
-
-export(Mod, Ext, St) ->
-    case output_file(export, export_file_prop(Ext, St)) of
-	aborted -> St;
+export(Prop, Exporter, St) ->
+    case output_file(export, export_file_prop(Prop, St)) of
+	aborted -> ok;
 	Name ->
 	    wings_getline:set_cwd(dirname(Name)),
-	    ?SLOW(do_export(Mod, Name, St))
+	    ?SLOW(do_export(Exporter, Name, St))
     end.
 
 export_ndo(St) ->
-    Ext = ".ndo",
-    case output_file(export, export_file_prop(Ext, St)) of
+    Prop = [{ext,".ndo"},{ext_desc,"Nendo File"}],
+    case output_file(export, export_file_prop(Prop, St)) of
 	aborted -> St;
 	Name ->
 	    wings_getline:set_cwd(dirname(Name)),
@@ -415,20 +399,14 @@ export_ndo(St) ->
 
 %%% Utilities.
 
-export_file_prop(Ext, #st{file=undefined}) -> file_prop(Ext);
-export_file_prop(Ext, #st{file=File}) ->
-    Prop = file_prop(Ext),
+export_file_prop(Prop, #st{file=undefined}) -> Prop;
+export_file_prop(Prop, #st{file=File}) ->
+    Ext = property_lists:get_value(ext, Prop),
     Def = filename:rootname(filename:basename(File), ?WINGS) ++ Ext,
     [{default_filename,Def}|Prop].
 
-file_prop(".ndo"=Ext) -> file_prop(Ext, "Nendo File");
-file_prop(".3ds"=Ext) -> file_prop(Ext, "3D Studio File");
-file_prop(".obj"=Ext) -> file_prop(Ext, "Wavefront");
-file_prop(".rib"=Ext) -> file_prop(Ext, "Renderman").
-
 file_prop(Ext, Desc) ->
     [{ext,Ext},{ext_desc,Desc}].
-
 
 ensure_extension(Name, Ext) ->
     case eq_extensions(Ext, filename:extension(Name)) of
@@ -481,9 +459,9 @@ output_file(Tag, Prop) ->
 %%% Generic import code.
 %%%
 
-do_import(Mod, Name, St0) ->
+do_import(Importer, Name, St0) ->
     wings_io:progress("Reading " ++ filename:basename(Name)),
-    case Mod:import(Name) of
+    case Importer(Name) of
 	{ok,#e3d_file{objs=Objs,mat=Mat}} ->
 	    NumObjs = length(Objs),
 	    Suffix = " of " ++ integer_to_list(NumObjs),
@@ -572,12 +550,12 @@ store_object(Name, We, St) ->
 %%% Generic export code.
 %%%
 
-do_export(Mod, Name, #st{shapes=Shs}=St) ->
+do_export(Exporter, Name, #st{shapes=Shs}=St) ->
     Objs = foldl(fun do_export/2, [], gb_trees:values(Shs)),
     Creator = "Wings 3D " ++ ?WINGS_VERSION,
     Mat = wings_material:used_materials(St),
     Contents = #e3d_file{objs=Objs,mat=Mat,creator=Creator},
-    Mod:export(Name, Contents).
+    Exporter(Name, Contents).
 
 do_export(#we{name=Name}=We, Acc) ->
     Mesh = make_mesh(We),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_plugin.erl,v 1.10 2002/01/26 11:21:05 bjorng Exp $
+%%     $Id: wings_plugin.erl,v 1.11 2002/01/28 17:31:43 bjorng Exp $
 %%
 -module(wings_plugin).
 -export([init/0,menu/2,command/2,call_ui/1]).
@@ -32,12 +32,9 @@
 %%%
 %%% The types are defined as following:
 %%%
-%%% 0   Object creation plugin.
-%%% 1   Import/export plugin (NYI).
-%%% 8   External interface plugin.
-%%% 9   Default interface plugin.
-%%% u   General plugin. Not recommended for other than experimental
-%%%     use.
+%%% c   Command extension plugin-in.
+%%% 8   External user-interface plugin.
+%%% 9   Default user-interface plugin.
 %%%
 
 init() ->
@@ -69,7 +66,7 @@ command(Cmd, St) ->
     command(get(wings_plugins), Cmd, St).
 
 command([{Type,M}|Ps], Cmd, St) ->
-    case catch M:command(Cmd, false, St) of
+    case catch M:command(Cmd, St) of
 	next -> command(Ps, Cmd, St);
 	Other ->
 	    case check_result(M, Other, St) of
@@ -86,9 +83,10 @@ command([], Cmd, St) -> next.
 init(Dir) ->
     {Pas,Beams} = list_dir(Dir),
     foreach(fun(Pa) -> code:add_patha(Pa) end, Pas),
-    TypeMods0 = [to_module(Beam) || Beam <- Beams],
+    TypeMods0 = to_modules(Beams),
     TypeMods = reverse(sort(load_modules(TypeMods0))),
-    put(wings_plugins, init_plugins(TypeMods)).
+    Plugins = init_plugins(TypeMods),
+    put(wings_plugins, reverse(Plugins)).
 
 init_plugins([{user_interface,M}|T]) ->
     Ui0 = get(wings_ui),
@@ -163,14 +161,20 @@ list_dir_1([N|Ns], Dir0, Dirs, Beams) ->
     end;
 list_dir_1([], Dir, Dirs, Beams) -> {Dirs,Beams}.
     
-to_module([_,_,T|_]=Beam) ->
-    {convert_type(T),list_to_atom(filename:rootname(Beam))}.
+to_modules([[_,_,Type0|_]=Beam|T]) ->
+    case convert_type(Type0) of
+	undefined ->
+	    to_modules(T);
+	Type ->
+	    Mod = list_to_atom(filename:rootname(Beam)),
+	    [{Type,Mod}|to_modules(T)]
+    end;
+to_modules([]) -> [].
 
-convert_type($0) -> creator;
-convert_type($1) -> import_export;
+convert_type($c) -> command;
 convert_type($8) -> user_interface;
 convert_type($9) -> user_interface;
-convert_type($u) -> unsupported.
+convert_type(_) -> undefined.
 
 check_result(M, {new_shape,Prefix,#e3d_object{}=Obj,Mat}, St0) ->
     {We,UsedMat} = import_object(Obj),

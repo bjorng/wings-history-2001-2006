@@ -3,12 +3,12 @@
 %%
 %%     Extends the Erlang shell with Wings utilities.
 %%
-%%  Copyright (c) 2001 Bjorn Gustavsson
+%%  Copyright (c) 2001-2002 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: user_default.erl,v 1.4 2002/01/22 19:43:31 bjorng Exp $
+%%     $Id: user_default.erl,v 1.5 2002/01/28 17:31:43 bjorng Exp $
 %%
 
 -module(user_default).
@@ -73,7 +73,9 @@ wicons() ->
     collect_bmp:start().
 
 wcp(Mod) when is_atom(Mod) ->
-    File = filename:join("plugins_src", atom_to_list(Mod)),
+    wcp(atom_to_list(Mod));
+wcp(Mod) ->
+    File = filename:join("plugins_src", Mod),
     Outdir = "plugins",
     c:c(File, [{outdir,Outdir},report]).
 
@@ -129,10 +131,13 @@ get_vsn_1(_) -> [].
 
 tar() ->
     Name = tar_file_name(),
-    Files = filelib:wildcard("*.{erl,hrl,c,icon,mk}") ++
+    Files = filelib:wildcard("*.{erl,hrl,icon,mk}") ++
 	filelib:wildcard("icons/*.bmp") ++
 	filelib:wildcard("plugins/default/*.erl") ++
-	filelib:wildcard("plugins/win32_file/*.{erl,c}"),
+	filelib:wildcard("plugins/win32_file/*.{erl,c}") ++
+	filelib:wildcard("plugins_src/primitives/*.{erl,c}") ++
+	filelib:wildcard("plugins_src/commands/*.{erl,c}") ++
+	filelib:wildcard("plugins_src/import_export/*.{erl,c}"),
     {Name,erl_tar:create(Name, Files, [compressed,verbose])}.
 
 tar_file_name() ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.24 2002/01/27 22:01:27 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.25 2002/01/28 17:31:43 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -425,13 +425,13 @@ update_highlight(X, Y, Mi) ->
 	    Mi#mi{sel=Item}
     end.
 
-check_hotbox(Act, X, Ps, #mi{xleft=Xleft,w=W})
-  when Xleft =< X, X < Xleft+W-2*?CHAR_WIDTH -> Act;
-check_hotbox(Act, X, Ps, Mi) ->
-    %% Hotbox position was clicked. Now - do we have a hotbox there?
+check_hotbox(Act, X, Ps, #mi{xleft=Xleft,w=W}) ->
     case property_lists:is_defined(hotbox, Ps) of
-	false -> Act;
-	true -> {Act}
+	false ->
+	    Act;
+	true ->
+	    Clicked = X >= Xleft+W-2*?CHAR_WIDTH,
+	    {Act,Clicked}
     end.
 
 new_redraw_fun(#mi{redraw=Redraw0}=Mi) ->

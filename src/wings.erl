@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.96 2002/01/28 08:53:46 bjorng Exp $
+%%     $Id: wings.erl,v 1.97 2002/01/28 17:31:43 bjorng Exp $
 %%
 
 -module(wings).
@@ -322,13 +322,14 @@ command({vector,What}, St) ->
 command({secondary_selection,aborted}, St) -> St;
 command({menu,Menu,X,Y}, St) ->
     menu(X, Y, Menu, St);
-command({shape,{Shape}}, St0) ->
-    case wings_shapes:command(Shape, true, St0) of
+command({shape,{Shape,Ask}}, St0) ->
+    case wings_shapes:command(Shape, Ask, St0) of
 	aborted -> St0;
 	St -> {save_state,model_changed(St)}
     end;
-command({shape,Shape}, St) ->
-    {save_state,model_changed(wings_shapes:command(Shape, false, St))};
+command({shape,Shape}, St0) ->
+    St = wings_shapes:command(Shape, false, St0),
+    {save_state,model_changed(St)};
 command({help,What}, St) ->
     wings_help:What(St);
 

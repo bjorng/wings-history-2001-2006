@@ -8,11 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.6 2002/01/26 11:17:22 bjorng Exp $
+%%     $Id: wpa.erl,v 1.7 2002/01/28 17:31:43 bjorng Exp $
 %%
 -module(wpa).
 -export([ask/3,error/1,message/1,yes_no/1,
 	 bind_unicode/2,bind_virtual/3,
+	 import/3,export/3,export_selected/3,
 	 pref_get/2,pref_get/3,pref_set/3,pref_delete/2,
 	 sel_map/2,sel_fold/3,sel_convert/3,
 	 sel_edge_regions/2,sel_face_regions/2,
@@ -45,6 +46,26 @@ bind_unicode(Key, Command) ->
 
 bind_virtual(Key, Mods, Command) ->
     wings_hotkey:bind_virtual(Key, Command, plugin).
+
+
+%%%
+%%% Import/export support.
+%%%
+
+import(Props, Importer, St) ->
+    wings_file:import(Props, Importer, St).
+
+export(Props, Exporter, St) ->
+    wings_file:export(Props, Exporter, St),
+    St.
+
+export_selected(Props, Exporter, St) ->
+    Shs0 = wings_sel:fold(fun(_, #we{id=Id}=We, A) ->
+				  [{Id,We}|A]
+			  end, [], St),
+    Shs = gb_trees:from_orddict(reverse(Shs0)),
+    wings_file:export(Props, Exporter, St#st{shapes=Shs}),
+    St.
 
 %%%
 %%% Preferences.
