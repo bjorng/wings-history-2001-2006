@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_collapse.erl,v 1.19 2002/02/15 07:53:34 bjorng Exp $
+%%     $Id: wings_collapse.erl,v 1.20 2002/04/21 06:40:13 bjorng Exp $
 %%
 
 -module(wings_collapse).
@@ -54,7 +54,7 @@ collapse_face_1(Face, We0) ->
     %% Delete edges and vertices.
     {Es1,Vs1,Fs1,He1} =
 	wings_face:fold(
-	  fun(V, Edge, OldRec, A) ->
+	  fun(V, Edge, _OldRec, A) ->
 		  delete_edges(V, Edge, Face, A)
 	  end, {Es0,Vs0,Fs0,He0}, Face, We1),
 
@@ -164,7 +164,7 @@ collapse_edge_1(Edge, Rec, #we{es=Etab0,he=Htab0,fs=Ftab0,vs=Vtab0}=We0)->
 	    {_,Etab} = patch_vtx_refs(Vremove, Vkeep, We0, {none,Etab5}),
 
 	    We1 = We0#we{vs=Vtab,he=Htab,fs=Ftab,es=Etab},
-	    We = foldl(fun(Face, bad_edge) -> bad_edge;
+	    We = foldl(fun(_Face, bad_edge) -> bad_edge;
 			  (Face, W) -> delete_degenerated(Face, W)
 		       end, We1, [LF,RF]),
 	    case We of
@@ -195,7 +195,7 @@ do_collapse_vertex(V, We0, Sel0) ->
 	We -> {We,Sel0}
     end.
 	    
-collapse_vertex_1(Vremove, #we{es=Es0,vs=Vs0,fs=Fs0,he=He0}=We0, Sel0)->
+collapse_vertex_1(Vremove, We0, Sel0)->
     %% start removing faces and edges
     VsEs = wings_vertex:fold(
 	     fun(E, _, Rec, Acc0) ->
@@ -206,16 +206,13 @@ collapse_vertex_1(Vremove, #we{es=Es0,vs=Vs0,fs=Fs0,he=He0}=We0, Sel0)->
     Vlist = reverse([V || {V,_} <- VsEs]),
     check_vertices(Vlist),
     
-    %% simple test to see if we need to connect vertices
-    %% (we're just looking at closest from removed vertex,
-    %% which probably isn't good enough)
-    #vtx{pos=Pt} = gb_trees:get(Vremove, Vs0),
+    %% Simple test to see if we need to connect vertices
     Pairs = make_pairs(Vlist),
     We = foldl(fun(Pair, WeI) ->
 		       wings_vertex_cmd:connect(Pair, WeI)
 	       end, We0, Pairs),
     Sel = wings_vertex:fold(
-	    fun(Edge, Face, Rec, A) ->
+	    fun(_Edge, Face, _Rec, A) ->
 		    gb_sets:add(Face, A)
 	    end, Sel0, Vremove, We),
     {wings_edge:dissolve_edges(Edges, We),Sel}.
@@ -230,8 +227,8 @@ check_vertices(Vs0) ->
     check_vertices_1(sort(Vs0)).
 
 check_vertices_1([V,V|_]) ->
-    throw({command_error,"Non-collapsible vertex - would leave waist."});
-check_vertices_1([V|Vs]) ->
+    wings_util:error("Non-collapsible vertex - would leave waist.");
+check_vertices_1([_|Vs]) ->
     check_vertices(Vs);
 check_vertices_1([]) -> ok.
 
@@ -248,7 +245,7 @@ delete_degenerated(Face, #we{fs=Ftab,es=Etab}=We) ->
 		    wings_edge:dissolve_edge(Edge, We);
 		#edge{rtpr=Same,rtsu=Same} ->
 		    wings_edge:dissolve_edge(Edge, We);
-		Other -> We
+		_Other -> We
 	    end;
 	none -> We
     end.
@@ -258,7 +255,7 @@ is_waist(Va, Vb, We) ->
 	  fun(_, _, Rec, N) ->
 		  case wings_vertex:other(Va, Rec) of
 		      Vb -> N+1;
-		      Other -> N
+		      _Other -> N
 		  end
 	  end, 0, Va, We),
     N =/= 1.
