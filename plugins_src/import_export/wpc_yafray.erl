@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.34 2003/04/29 13:11:11 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.35 2003/05/09 13:25:52 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -725,6 +725,7 @@ export_dialog(Operation) ->
 %%%
 
 export(Attr, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
+    ExportTS = erlang:now(),
     Render = proplists:get_value(?TAG_RENDER, Attr, false),
     {ExportFile,RenderFile} =
 	case Render of
@@ -812,18 +813,27 @@ export(Attr, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
     println(F),
     println(F, "</scene>"),
     close(F),
+    %%
+    RenderTS = erlang:now(),
     Renderer = get_var(renderer),
     Options = proplists:get_value(options,Attr,?DEF_OPTIONS),
     LoadImage = proplists:get_value(load_image,Attr,?DEF_LOAD_IMAGE),
     case {Renderer,Render} of
-	{false,_} ->
-	    ok;
 	{_,false} ->
+	    io:format("Export time:     ~.3f s~n", 
+		      [now_diff(RenderTS, ExportTS)]),
 	    ok;
+	{false,_} ->
+	    %% Should not happen since the file->render dialog
+	    %% must have been disabled
+	    file:delete(ExportFile),
+	    no_renderer;
 	_ ->
 	    Parent = self(),
 	    spawn_link(
 	      fun () -> 
+		      set_var(export_ts, ExportTS),
+		      set_var(render_ts, RenderTS),
 		      file:delete(RenderFile),
 		      render(Renderer, Options, ExportFile, 
 			     Parent, LoadImage) 
@@ -883,6 +893,15 @@ render_done(Filename, Parent, ExitStatus, LoadImage) ->
 		{error,Error}
 	end,
     io:format("~nRendering Job returned: ~p~n", [ExitStatus]),
+    ExportTS = get_var(export_ts),
+    RenderTS = get_var(render_ts),
+    FinishTS = erlang:now(),
+    io:format("Export time:     ~.3f s~n"++
+	      "Render time:     ~.3f s~n"++
+	      "Total time:      ~.3f s~n",
+	      [now_diff(RenderTS, ExportTS),
+	       now_diff(FinishTS, RenderTS),
+	       now_diff(FinishTS, ExportTS)]),
     file:delete(Filename),
     render_cleanup(Parent, make_ref(), Result).
 
@@ -988,7 +1007,7 @@ export_shader(F, Name, Mat, ExportDir) ->
     println(F, "</shader>").
 
 export_texture(F, Name, Maps, ExportDir, {modulator,Ps}) when list(Ps) ->
-    case proplists:get_value(type, Ps) of
+    case proplists:get_value(type, Ps, ?DEF_MOD_TYPE) of
 	image ->
 	    Filename = proplists:get_value(filename, Ps, ?DEF_MOD_FILENAME),
 	    export_texture(F, Name, image, Filename);
@@ -996,8 +1015,8 @@ export_texture(F, Name, Maps, ExportDir, {modulator,Ps}) when list(Ps) ->
 	    Filename = proplists:get_value(filename, Ps, ?DEF_MOD_FILENAME),
 	    export_texture(F, Name, image, Filename);
 	{map,Map} ->
-	    case proplists:get_value(Map, Maps, none) of
-		none ->
+	    case proplists:get_value(Map, Maps, undefined) of
+		undefined ->
 		    exit({unknown_texture_map,{?MODULE,?LINE,[Name,Map]}});
 		#e3d_image{name=ImageName}=Image ->
 		    MapFile = ImageName++".tga",
@@ -1728,3 +1747,6 @@ split_list1([], _Pos, _) ->
     error;
 split_list1([H|T], Pos, Head) ->
     split_list1(T, Pos-1, [H|Head]).
+
+now_diff({A1,B1,C1}, {A2,B2,C2}) ->
+    (A1-A2)*1000000.0 + float(B1-B2) + (C1-C2)*0.000001.
