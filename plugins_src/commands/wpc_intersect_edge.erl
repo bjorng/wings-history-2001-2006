@@ -1,14 +1,16 @@
 %%
 %%  wpc_intersect_edge.erl --
 %%
-%%     Plug-in for extending an edge to the intersection with a plane
+%%     Plug-in for extending an edge to the intersection with a plane.
 %%
-%%  Copyright (c) 2003 Bjorn Gustavsson.
+%%  Copyright (c) 2004 Bjorn Gustavsson.
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_intersect_edge.erl,??
+%%  Contributed by elrond79.
+%%
+%%     $Id: wpc_intersect_edge.erl,v 1.2 2004/10/29 05:23:56 bjorng Exp $
 %%
 %%  2000-10-09:  Fixed undo bug (had forgotten to use "{save_state, ...}")
 %%  2000-10-01:  Incorporated help text suggestions from Puzzled Paul

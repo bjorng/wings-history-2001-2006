@@ -3,12 +3,14 @@
 %%
 %%     Plug-in for moving vertice(s) to the intersection of a line and plane
 %%
-%%  Copyright (c) 2003 Bjorn Gustavsson.
+%%  Copyright (c) 2004 Bjorn Gustavsson.
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_intersect_vertex.erl,??
+%%  Contributed by elrond79.
+%%
+%%     $Id: wpc_intersect_vertex.erl,v 1.2 2004/10/29 05:24:48 bjorng Exp $
 %%
 %%  2000-10-01:  Changed help text to incorporate suggestions by Puzzled Paul
 %%  2000-09-21:  Normalized LD and PN (so dot product not <.001 if either is very
