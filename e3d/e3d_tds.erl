@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_tds.erl,v 1.36 2004/06/23 18:20:37 bjorng Exp $
+%%     $Id: e3d_tds.erl,v 1.37 2004/06/23 19:12:18 bjorng Exp $
 %%
 
 -module(e3d_tds).
@@ -61,32 +61,9 @@ import_1(Bin) ->
 	#e3d_file{}=E3dFile -> {ok,E3dFile}
     end.
 
-import_2(<<16#4D4D:16/little,Size:32/little,Rest/binary>>) ->
-    dbg("Main chunk ~p bytes~n", [Size]),
-    main(Rest, #e3d_file{});
-import_2(_) -> error("Not a .3ds file").
-
-main(<<16#0002:16/little,10:32/little,Ver:32/little,Rest/binary>>, Acc) ->
-    dbg("3DS Version ~p~n", [Ver]),
-    main(Rest, Acc);
-main(<<16#3D3D:16/little,Sz0:32/little,Rest0/binary>>, Acc0) ->
-    dbg("Editor: ~p bytes\n", [Sz0]),
-    Sz = Sz0 - 6,
-    <<Ed:Sz/binary,Rest/binary>> = Rest0,
-    Acc = editor(Ed, Acc0),
-    main(Rest, Acc);
-main(<<16#B000:16/little,Sz0:32/little,T0/binary>>, Acc) ->
-    dbg("Keyframer: ~p bytes\n", [Sz0]),
-    Sz = Sz0 - 6,
-    <<Keyframer:Sz/binary,T/binary>> = T0,
-    keyframer(Keyframer),
-    main(T, Acc);
-main(<<Tag:16/little,Sz0:32/little,T0/binary>>, Acc) ->
-    dbg("Ignoring unknown chunk ~.16#; ~p bytes\n", [Tag,Sz0]),
-    Sz = Sz0 - 6,
-    <<_:Sz/binary,T/binary>> = T0,
-    main(T, Acc);
-main(<<>>, #e3d_file{objs=Objs0,mat=Mat0}=File) ->
+import_2(<<16#4D4D:16/little,_Size:32/little,T/binary>>) ->
+    File = fold_chunks(fun main/3, #e3d_file{}, T),
+    #e3d_file{objs=Objs0,mat=Mat0} = File,
     Mat = reformat_material(Mat0),
     Objs = case catch fix_transform(Objs0) of
 	       {'EXIT',Reason} ->
@@ -94,39 +71,48 @@ main(<<>>, #e3d_file{objs=Objs0,mat=Mat0}=File) ->
 		   Objs0;
 	       Other -> Other
 	   end,
-    File#e3d_file{objs=Objs,mat=Mat}.
+    File#e3d_file{objs=Objs,mat=Mat};
+import_2(_) -> error("Not a .3ds file").
 
-editor(<<16#4000:16/little,Sz0:32/little,T0/binary>>,
-       #e3d_file{objs=Objs0}=Acc) ->
-    Sz = Sz0 - 6,
-    <<Obj0:Sz/binary,T/binary>> = T0,
+main(16#0002, <<Ver:32/little>>, Acc) ->
+    dbg("3DS Version ~p\n", [Ver]),
+    Acc;
+main(16#3D3D, Editor, Acc) ->
+    dbg("Editor: ~p bytes\n", [size(Editor)]),
+    editor(Editor, Acc);
+main(16#B000, Keyframer, Acc) ->
+    dbg("\nKeyframer:\n", []),
+    keyframer(Keyframer),
+    Acc;
+main(Tag, Chunk, Acc) ->
+    dbg("~.16#: ~P\n", [Tag,Chunk,15]),
+    Acc.
+
+editor(Bin, Acc) ->
+    fold_chunks(fun editor/3, Acc, Bin).
+
+editor(16#0100, <<Scale:32/?FLOAT>>, Acc) ->
+    dbg("Object Scale ~p ~n", [Scale]),
+    Acc;
+editor(16#3d3e, <<Ver:32/little>>, Acc) ->
+    dbg("Mesh Version ~p ~n", [Ver]),
+    Acc;
+editor(16#4000, Obj0, #e3d_file{objs=Objs0}=Acc) ->
     {Name,Obj1} = get_cstring(Obj0),
     ets:insert(?MODULE, {current_name,Name}),
     dbg("\nObject block: ~s\n", [Name]),
     case block(Obj1) of
-	no_mesh -> editor(T, Acc);
+	no_mesh -> Acc;
 	Obj ->
 	    Objs = [#e3d_object{name=Name,obj=Obj}|Objs0],
-	    editor(T, Acc#e3d_file{objs=Objs})
+	    Acc#e3d_file{objs=Objs}
     end;
-editor(<<16#3d3e:16/little,_Sz:32/little,Ver:32/little,T/binary>>, Acc) ->
-    dbg("Mesh Version ~p ~n", [Ver]),
-    editor(T, Acc);
-editor(<<16#0100:16/little,_Sz:32/little,Scale:32/?FLOAT,T/binary>>,
-       Acc) ->
-    dbg("Object Scale ~p ~n", [Scale]),
-    editor(T, Acc);
-editor(<<16#AFFF:16/little,Sz0:32/little,T0/binary>>, #e3d_file{mat=M}=Acc) ->
-    Sz = Sz0 - 6,
-    <<Mat0:Sz/binary,T/binary>> = T0,
+editor(16#AFFF, Mat0, #e3d_file{mat=M}=Acc) ->
     Mat = material(Mat0, M),
-    editor(T, Acc#e3d_file{mat=Mat});
-editor(<<Tag:16/little,Sz0:32/little,T0/binary>>, Acc) ->
-    Sz = Sz0 - 6,
-    <<Chunk:Sz/binary,T/binary>> = T0,
-    dbg("Unknown editor chunk: ~.16#: ~P\n", [Tag,Chunk,20]),
-    editor(T, Acc);
-editor(<<>>, Acc) -> Acc.
+    Acc#e3d_file{mat=Mat};
+editor(Tag, Chunk, Acc) ->
+    dbg("~.16#: ~P\n", [Tag,Chunk,15]),
+    Acc.
 
 %% keyframer(Bin)
 %%  Go through the keyframer data and collect the only information
@@ -136,58 +122,47 @@ editor(<<>>, Acc) -> Acc.
 
 keyframer(Bin) ->
     put(e3d_tds_node_id, -1),
-    R = keyframer_1(Bin),
+    fold_chunks(fun keyframer/3, [], Bin),
     erase(e3d_tds_node_id),
-    R.
+    ok.
 
-keyframer_1(<<Tag:16/little,Sz0:32/little,T0/binary>>) ->
-    Sz = Sz0 - 6,
-    <<Contents:Sz/binary,T/binary>> = T0,
-    if
-	Tag == 16#B002 ->
-	    keyframer_1(Contents),
-	    put(e3d_tds_node_id, get(e3d_tds_node_id)+1);
-	true ->
-	    keyframer_chunk(Tag, Contents)
-    end,
-    keyframer_1(T);
-keyframer_1(<<>>) -> ok.
-
-keyframer_chunk(16#B030, <<NodeId:16/little-signed>>) ->
+keyframer(16#B002, Contents, _) ->
+    %% Node chunk - recurse into it.
+    fold_chunks(fun keyframer/3, [], Contents),
+    put(e3d_tds_node_id, get(e3d_tds_node_id)+1);
+keyframer(16#B030, <<NodeId:16/little-signed>>, _) ->
+    %% Node id for this node.
     put(e3d_tds_node_id, NodeId);
-keyframer_chunk(16#B010, Bin) ->
+keyframer(16#B010, Bin, _) ->
+    %% Name+parent node.
     NameSz = size(Bin) - 7,
     <<Name0:NameSz/binary,_:5/unit:8,Parent:16/little-signed>> = Bin,
     Name = binary_to_list(Name0),
     NodeId = get(e3d_tds_node_id),
+    dbg("node ~p: ~p, parent ~p\n", [NodeId,Name,Parent]), 
     ets:insert(?MODULE, {NodeId,Name}),
     ets:insert(?MODULE, {Name,Parent});
-keyframer_chunk(_, _) -> ok.
+keyframer(Tag, Contents, _) ->
+    %% Ignore all other keyframer chunks.
+    dbg("~.16#: ~P\n", [Tag,Contents,15]).
 
-block(Bin) ->
-    block(Bin, no_mesh).
-block(<<16#3d3e:16/little,_Sz:32/little,Ver:32/little,T/binary>>, Acc) ->
+block(Block) ->
+    fold_chunks(fun block/3, no_mesh, Block).
+
+block(16#3d3e, <<Ver:32/little>>, Acc) ->
     dbg("Mesh Version ~p ~n", [Ver]),
-    block(T, Acc);
-block(<<16#4100:16/little,Sz0:32/little,T0/binary>>, no_mesh) ->
-    dbg("Triangular mesh ~p~n", [Sz0]),
-    Sz = Sz0 - 6,
-    <<TriMesh0:Sz/binary,T/binary>> = T0,
+    Acc;
+block(16#4100, TriMesh0, no_mesh) ->
+    dbg("Triangular mesh: ~p\n", [size(TriMesh0)]),
     TriMesh1 = trimesh(TriMesh0, #e3d_mesh{type=triangle}),
-    TriMesh2 = add_uv_to_faces(TriMesh1),
-    TriMesh = clean_mesh(TriMesh2),
-    block(T, TriMesh);
-block(<<16#4700:16/little,Sz0:32/little,T0/binary>>, Mesh) ->
-    dbg("Camera (ignoring) ~p bytes\n", [Sz0]),
-    Sz = Sz0 - 6,
-    <<_:Sz/binary,T/binary>> = T0,
-    block(T, Mesh);
-block(<<Tag:16/little,Sz0:32/little,T0/binary>>, Mesh) ->
-    dbg("Ignoring unknown chunk ~.16#; ~p bytes\n", [Tag,Sz0]),
-    Sz = Sz0 - 6,
-    <<_:Sz/binary,T/binary>> = T0,
-    block(T, Mesh);
-block(<<>>, Acc) -> Acc.
+    TriMesh = add_uv_to_faces(TriMesh1),
+    clean_mesh(TriMesh);
+block(16#4700, Camera, Mesh) ->
+    dbg("Camera: ~p\n", [size(Camera)]),
+    Mesh;
+block(Tag, Chunk, Mesh) ->
+    dbg("~.16#: ~P\n", [Tag,Chunk,15]),
+    Mesh.
 
 trimesh(<<16#4110:16/little,Sz0:32/little,NumVs:16/little,T0/binary>>, Acc) ->
     dbg("Vertices ~p bytes NumVs=~p\n", [Sz0,NumVs]),
@@ -226,7 +201,7 @@ trimesh(<<16#4160:16/little,_Sz:32/little,T0/binary>>, Acc) ->
 trimesh(<<Tag:16/little,Sz0:32/little,T0/binary>>, Acc) ->
     Sz = Sz0 - 6,
     <<Chunk:Sz/binary,T/binary>> = T0,
-    dbg("Unknown mesh chunk: ~.16#: ~P\n", [Tag,Chunk,20]),
+    dbg("~.16#: ~P\n", [Tag,Chunk,20]),
     trimesh(T, Acc);
 trimesh(<<>>, Acc) -> Acc.
 
@@ -386,7 +361,7 @@ general_rest(<<>>) -> ok;
 general_rest(<<Tag:16/little,Sz0:32/little,T0/binary>>) ->
     Sz = Sz0 - 6,
     <<Chunk:Sz/binary,T/binary>> = T0,
-    dbg("Unknown general tag: ~.16#: ~P\n", [Tag,Chunk,20]),
+    dbg("~.16#: ~P\n", [Tag,Chunk,15]),
     general_rest(T).
 
 fix_transform(Objs) ->
@@ -425,6 +400,13 @@ get_name_and_matrix(Id) ->
 %%%
 %%% Utilities.
 %%%
+
+fold_chunks(Fun, Acc0, <<Tag:16/little,Sz0:32/little,T0/binary>>) ->
+    Sz = Sz0 - 6,
+    <<Contents:Sz/binary,T/binary>> = T0,
+    Acc = Fun(Tag, Contents, Acc0),
+    fold_chunks(Fun, Acc, T);
+fold_chunks(_Fun, Acc, <<>>) -> Acc.
 
 insert_mat([_|_]=Fs, [MatFace|[MatFace|_]=Mfs], Face, Mat, Acc) ->
     insert_mat(Fs, Mfs, Face, Mat, Acc);
