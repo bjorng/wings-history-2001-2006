@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.96 2003/10/29 15:03:20 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.97 2003/10/30 09:50:44 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -121,12 +121,8 @@ command({lift,Lift}, St) ->
     lift(Lift, St);
 command(put_on, St) ->
     put_on(St);
-command({put_on,PutOn}, St) ->
-    {save_state,put_on(PutOn, St)};
 command(clone_on, St) ->
     clone_on(St);
-command({clone_on,PutOn}, St) ->
-    {save_state,clone_on(PutOn, St)};
 command(collapse, St) ->
     {save_state,wings_collapse:collapse(St)};
 command({material,Cmd}, St) ->
@@ -855,10 +851,8 @@ lift_selection(Dir, OrigSt) ->
 	     lift_check_selection(St, OrigSt);
 	(exit, {_,_,#st{selmode=Mode,sel=Sel}=St}) ->
 	     case lift_check_selection(St, OrigSt) of
-		 {_,[]} ->
-		     {face,{lift,{Dir,Mode,Sel}}};
-		 {_,_} ->
-		     error
+		 {_,[]} -> {[],[{Dir,Mode,Sel}]};
+		 {_,_} -> error
 	     end;
 	(message, _) ->
 	     Left = "Select edge or vertex to act as hinge",
@@ -1111,10 +1105,8 @@ put_on_selection(OrigSt) ->
      fun(check, St) -> put_on_check_selection(St, OrigSt);
 	(exit, {_,_,#st{selmode=Mode,sel=Sel}=St}) ->
 	     case put_on_check_selection(St, OrigSt) of
-		 {_,[]} ->
-		     {face,{put_on,{Mode,Sel}}};
-		 {_,_} ->
-		     error
+		 {_,[]} -> {[],[{Mode,Sel}]};
+		 {_,_} -> error
 	     end;
 	(message, _) ->
 	     Left = "Select target element on which to put source object",
@@ -1133,14 +1125,15 @@ put_on_check_selection(#st{sel=[{_,Elems}]}, _) ->
 put_on_check_selection(_, _) ->
     {none,"Select only one element."}.
 
-put_on({Mode,[{Id,Els}]}, #st{shapes=Shs}=St) ->
+put_on({Mode,[{Id,Els}]}, #st{shapes=Shs}=St0) ->
     We0 = gb_trees:get(Id, Shs),
     [El] = gb_sets:to_list(Els),
     {Axis,Target} = on_target(Mode, El, We0),
-    wings_sel:map(fun(Faces, We) ->
-			  [Face] = gb_sets:to_list(Faces),
-			  put_on_1(Face, Axis, Target, We)
-		  end, St).
+    St = wings_sel:map(fun(Faces, We) ->
+			       [Face] = gb_sets:to_list(Faces),
+			       put_on_1(Face, Axis, Target, We)
+		       end, St0),
+    {save_state,St}.
     
 put_on_1(Face, Axis, Target, We) ->
     Vs = wings_face:vertices_ccw(Face, We),
@@ -1171,7 +1164,7 @@ clone_on_selection() ->
      fun(check, _) ->
 	     {none,""};
 	(exit, {_,_,#st{selmode=Mode,sel=Sel}}) ->
-	     {face,{clone_on,{Mode,Sel}}};
+	     {[],[{Mode,Sel}]};
 	(message, _) ->
 	     Left = "Select target elements on which to put clones",
 	     Message = ["Clone On: ",
@@ -1188,7 +1181,7 @@ clone_on({Mode,Sel}, #st{sel=[{Id,Faces}],shapes=Shs0}=St) ->
     N = wings_face:face_normal_cw(Vs, We),
     #st{shapes=Shs,onext=Onext} =
 	clone_on_1(Translate, N, We, St#st{selmode=Mode,sel=Sel}),
-    St#st{shapes=Shs,onext=Onext}.
+    {save_state,St#st{shapes=Shs,onext=Onext}}.
     
 clone_on_1(Tr, N, Clone, St) ->
     wings_sel:fold(

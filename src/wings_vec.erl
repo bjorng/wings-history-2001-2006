@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.94 2003/10/30 09:32:22 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.95 2003/10/30 09:50:44 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -217,10 +217,6 @@ handle_event_4(pick_init_special, #ss{selmodes=Modes}=Ss, St0) ->
     pick_init(St0),
     St = wings_sel:reset(mode_restriction(Modes, St0)),
     get_event(Ss, St);
-handle_event_4({action,{pick,Do,Done}}, Ss, St) ->
-    pick_next(Do, Done, Ss, St);
-handle_event_4({action,Cmd}, _, _) ->
-    erlang:fault({bad_action,Cmd});
 handle_event_4(quit, _Ss, _St) ->
     erase_vector(),
     wings_io:putback_event(quit),
@@ -317,16 +313,15 @@ handle_key(#keyboard{sym=27}, _, _) ->		%Escape
     wings_wm:later({action,{secondary_selection,abort}});
 handle_key(_, _, _) -> next.
 
-exit_menu(X, Y, Mod, #ss{f=Exit,vec=Vec}, St) ->
+exit_menu(X, Y, Mod, #ss{f=Exit,vec=Vec}=Ss, St) ->
     case Exit(exit, {Mod,Vec,St}) of
 	error ->
 	    Menu = [{"Cancel",abort,"Cancel current command"}],
 	    wings_menu:popup_menu(X, Y, secondary_selection, Menu);
 	keep ->
 	    keep;
-	Action ->
-	    wings_wm:later({action,Action}),
-	    keep
+	{Do,Done} ->
+	    pick_next(Do, Done, Ss, St)
     end.
 
 common_exit(_, none, _, _, _, _, _) ->
@@ -348,12 +343,12 @@ common_exit(Type, Vec, _, More, Acc, _, _) ->
     common_exit_1(Type, Vec, More, Acc).
 
 common_exit_1(axis, {_,Vec}, PickList, Acc) ->
-    {pick,PickList,add_to_acc(Vec, Acc)};
+    {PickList,add_to_acc(Vec, Acc)};
 common_exit_1(axis_point, {Point,Vec}, PickList, Acc0) ->
     Acc = add_to_acc(Point, add_to_acc(Vec, Acc0)),
-    {pick,PickList,Acc};
+    {PickList,Acc};
 common_exit_1(point, Point, PickList, Acc) ->
-    {pick,PickList,add_to_acc(Point, Acc)}.
+    {PickList,add_to_acc(Point, Acc)}.
 
 add_magnet(More) ->
     More ++ [{magnet,"Pick outer boundary point for magnet influence"}].
@@ -492,7 +487,7 @@ exit_magnet(Vec, Mod, Acc) ->
     case wings_camera:free_rmb_modifier() of
 	ModRmb when Mod band ModRmb =/= 0 ->
 	    Fun = fun(Mag) ->
-			  {pick,[],[Mag|Acc]}
+			  {[],[Mag|Acc]}
 		  end,
 	    case Vec  of
 		none ->
@@ -507,7 +502,7 @@ exit_magnet(Vec, Mod, Acc) ->
 		Point ->
 		    Mag = {magnet,wings_pref:get_value(magnet_type),
 			   wings_pref:get_value(magnet_distance_route),Point},
-		    {pick,[],[Mag|Acc]}
+		    {[],[Mag|Acc]}
 	    end
     end.
 
