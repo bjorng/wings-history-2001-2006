@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shapes.erl,v 1.31 2003/01/31 21:15:26 bjorng Exp $
+%%     $Id: wings_shapes.erl,v 1.32 2003/04/18 04:17:16 bjorng Exp $
 %%
 
 -module(wings_shapes).
@@ -38,8 +38,7 @@ menu(X, Y, _) ->
 	     separator,
 	     {"Light",{light,wings_light:light_types()}},
 	     {"Material...",material},
-	     %% Currently disabled.
-	     %%{"Image...",image},
+	     {"Image...",image},
 	     separator,
 	     {"More",{more,[]},"More primitives"}],
     Menu = [prim_help(Item) || Item <- Menu0],
@@ -213,7 +212,7 @@ sphere([Ns,Nl], St) ->
     
 torus(Ask, _St) when is_atom(Ask) ->
     ask(torus, Ask, [{"Sections",16,[{range,{3,128}}]},
-		     {"Slices/2",4,[{range,{1,128}}]},
+		     {"Slices",8,[{range,{3,128}}]},
 		     {"Major Radius",math:sqrt(2)},
 		     {"Minor Radius",0.25}]);
 torus([Ns,Nl,Major,Minor], St) ->
@@ -222,15 +221,13 @@ torus([Ns,Nl,Major,Minor], St) ->
     build_shape("torus", Fs, Vs, St).
 
 torus_faces(Ns, Nl) ->
-    Nl2 = Nl*2,
     Slices = [ [ [(I+1) rem Ns + J*Ns, I + J*Ns,
-		  I+ ((J+1) rem Nl2) *Ns, (I+1) rem Ns + ((J+1) rem Nl2)*Ns]
+		  I+ ((J+1) rem Nl) *Ns, (I+1) rem Ns + ((J+1) rem Nl)*Ns]
 		 || I <- lists:seq(0, Ns - 1)]
-	       || J <- lists:seq(0, Nl2 - 1)],
+	       || J <- lists:seq(0, Nl - 1)],
     lists:append(Slices).
 
-torus_vertices(Ns, Nl0, Hs, Minor) ->
-    Nl = 2*Nl0,
+torus_vertices(Ns, Nl, Hs, Minor) ->
     Delta = 2*pi() / Nl,
     Circles = map(fun(I) ->
 			  A = I*Delta,
