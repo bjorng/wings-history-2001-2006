@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.111 2003/04/21 10:16:56 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.112 2003/04/21 14:12:18 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -306,7 +306,7 @@ split(#dlo{mirror=M,src_sel=Sel,src_we=#we{fs=Ftab0}=We,smoothed=Sm}=D,
 
     FtabDyn0 = sofs:restriction(Ftab, Faces),
     FtabDyn = sofs:to_external(FtabDyn0),
-    WeDyn = We#we{fs=gb_trees:from_orddict(FtabDyn)},
+    WeDyn = wings_material:cleanup(We#we{fs=gb_trees:from_orddict(FtabDyn)}),
 
     StaticVs0 = sofs:to_external(sofs:difference(AllVs, Vs)),
     StaticVs = sort(insert_vtx_data(StaticVs0, We#we.vp, [])),

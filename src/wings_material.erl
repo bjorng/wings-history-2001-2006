@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.91 2003/04/21 13:38:20 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.92 2003/04/21 14:12:20 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -633,7 +633,20 @@ cleanup(#we{mat=Mat0,fs=Ftab}=We) ->
     Mat1 = sofs:from_external(Mat0, [{face,material}]),
     Mat2 = sofs:restriction(Mat1, Fs),
     Mat = sofs:to_external(Mat2),
-    We#we{mat=Mat}.
+    case mat_all_same(Mat) of
+	true ->
+	    [{_,M}|_] = Mat,
+	    We#we{mat=M};
+	false ->
+	    We#we{mat=Mat}
+    end.
+
+mat_all_same([{_,M}|T]) ->
+    mat_all_same_1(T, M).
+
+mat_all_same_1([{_,M}|T], M) -> mat_all_same_1(T, M);
+mat_all_same_1([], _) -> true;
+mat_all_same_1(_, _) -> false.
     
 assign_materials([{M,F}|_]=MatFace, We) when is_atom(M), is_integer(F) ->
     foldl(fun({Mat,Faces}, W) ->
