@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.135 2003/12/03 05:31:05 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.136 2003/12/15 18:58:51 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -76,6 +76,8 @@ command({confirmed_new,Next}, St) ->
     confirmed_new(Next, St);
 command(open, St) ->
     open(St);
+command({confirmed_open,Next,Filename}, _) ->
+    Next(Filename);
 command(merge, St) ->
     merge(St);
 command(save, St) ->
@@ -334,7 +336,7 @@ use_autosave_1(#file_info{mtime=SaveTime0}, File, Body) ->
 	    AutoTime = calendar:datetime_to_gregorian_seconds(AutoInfo0),
 	    if
 		AutoTime > SaveTime ->
-		    Msg = "An autosaved file with later time stamp exists; "
+		    Msg = "An autosaved file with a later time stamp exists; "
 			"do you want to load the autosaved file instead?",
 		    wings_util:yes_no(Msg, autosave_fun(Body, Auto),
 				      autosave_fun(Body, File));
@@ -345,8 +347,8 @@ use_autosave_1(#file_info{mtime=SaveTime0}, File, Body) ->
 	    Body(File)
     end.
 
-autosave_fun(Body, Filename) ->
-    fun() -> fun() -> wings_wm:send(geom, {new_state,Body(Filename)}) end end.
+autosave_fun(Next, Filename) ->
+    fun() -> {file,{confirmed_open,Next,Filename}} end.
 
 set_cwd(Cwd) ->
     wings_pref:set_value(current_directory, Cwd).
@@ -371,8 +373,9 @@ autosave_event(start_timer, OldTimer, St) ->
     case {wings_pref:get_value(autosave),wings_pref:get_value(autosave_time)} of
 	{false,_} -> delete;
 	{true,0} ->
-	    wings_pref:set_value(autosave_time, 1),
-	    Timer = wings_wm:set_timer(60000, autosave),
+	    N = 24*60,
+	    wings_pref:set_value(autosave_time, N),
+	    Timer = wings_wm:set_timer(N*60000, autosave),
 	    get_autosave_event(Timer, St);
 	{true,N} ->
 	    Timer = wings_wm:set_timer(N*60000, autosave),
