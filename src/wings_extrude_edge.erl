@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.34 2002/11/20 17:08:30 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.35 2002/12/04 19:41:02 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -488,15 +488,18 @@ new_vertex_pos(A, B, C, N, Vtab) ->
     APos = wings_vertex:pos(A, Vtab),
     BPos = wings_vertex:pos(B, Vtab),
     CPos = wings_vertex:pos(C, Vtab),
-    VecA = e3d_vec:norm(e3d_vec:sub(APos, BPos)),
-    VecB = e3d_vec:norm(e3d_vec:sub(CPos, BPos)),
-    Vec = e3d_vec:norm(e3d_vec:add(VecA, VecB)),
-    case e3d_vec:len(e3d_vec:cross(VecA, Vec)) of
-	Sin when Sin < 1.0E-3 ->
-	    %% The edges have the same direction.
-	    %% Simply move the vertices outwards at a right angle.
-	    e3d_vec:add(BPos, e3d_vec:mul(e3d_vec:cross(VecA, N),
-					  ?EXTRUDE_DIST));
-	Sin ->
-	    e3d_vec:add(BPos, e3d_vec:mul(Vec, ?EXTRUDE_DIST/Sin))
+    VecA0 = e3d_vec:norm(e3d_vec:sub(APos, BPos)),
+    VecB0 = e3d_vec:norm(e3d_vec:sub(BPos, CPos)),
+    VecA = e3d_vec:norm(e3d_vec:cross(VecA0, N)),
+    VecB = e3d_vec:norm(e3d_vec:cross(VecB0, N)),
+    Vec = average(VecA, VecB),
+    e3d_vec:add(BPos, e3d_vec:mul(Vec, ?EXTRUDE_DIST)).
+
+average(Na, Nb) ->
+    N = e3d_vec:norm(e3d_vec:add(Na, Nb)),
+    case e3d_vec:dot(N, Na) of
+	Dot when abs(Dot) < 1.0E-6 ->
+	    e3d_vec:add(Na, Nb);
+	Dot ->
+	    e3d_vec:divide(N, Dot)
     end.
