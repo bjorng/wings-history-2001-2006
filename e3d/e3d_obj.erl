@@ -3,12 +3,12 @@
 %%
 %%     Functions for reading and writing Wavefront ASCII files (.obj).
 %%
-%%  Copyright (c) 2001-2004 Bjorn Gustavsson
+%%  Copyright (c) 2001-2005 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_obj.erl,v 1.41 2005/01/02 10:31:15 bjorng Exp $
+%%     $Id: e3d_obj.erl,v 1.42 2005/02/17 06:06:03 bjorng Exp $
 %%
 
 -module(e3d_obj).
@@ -382,7 +382,14 @@ export(File, #e3d_file{objs=Objs,mat=Mat,creator=Creator}, Flags) ->
 
 export_object(F, #e3d_object{name=Name,obj=Mesh0}, Flags,
 	      Vbase, UVbase, Nbase) ->
-    Mesh = e3d_mesh:vertex_normals(Mesh0),
+    Mesh1 = case proplists:get_bool(include_normals, Flags) of
+		false -> Mesh0;
+		true -> e3d_mesh:vertex_normals(Mesh0)
+	    end,
+    Mesh = case proplists:get_bool(include_uvs, Flags) of
+	       false -> remove_uvs(Mesh1);
+	       true -> Mesh1
+	   end,
     #e3d_mesh{fs=Fs0,vs=Vs,tx=Tx,ns=Ns} = Mesh,
     mesh_info(F, Mesh),
     foreach(fun({X,Y,Z}) ->
@@ -404,6 +411,11 @@ export_object(F, #e3d_object{name=Name,obj=Mesh0}, Flags,
 		    face_mat(F, Name, Face, Flags, Vbase, UVbase, Nbase)
 	    end, Fs),
     {Vbase+length(Vs),UVbase+length(Tx),Nbase+length(Ns)}.
+
+remove_uvs(#e3d_mesh{fs=Fs0}=Mesh) ->
+    Fs1 = foldl(fun(F, A) -> [F#e3d_face{tx=[]}|A] end, [], Fs0),
+    Fs = reverse(Fs1),
+    Mesh#e3d_mesh{fs=Fs,tx=[]}.
 
 fmtf(F) when abs(F) < 0.1; abs(F) >= 10000 ->
     lists:flatten(io_lib:format("~.8e", [F]));
@@ -436,24 +448,24 @@ mat_group(F, Name, Ms, Flags) ->
 	false -> ok
     end.
 
-face(F, #e3d_face{vs=Vs,tx=[],ns=Ns}, Vbase, _UVbase, Nbase) ->
-    io:put_chars(F, "f"),
-    face_nouv(F, Vs, Ns, Vbase, Nbase),
-    eol(F);
 face(F, #e3d_face{vs=Vs,tx=Tx,ns=Ns}, Vbase, UVbase, Nbase) ->
     io:put_chars(F, "f"),
-    face_uv(F, Vs, Tx, Ns, Vbase, UVbase, Nbase),
+    face_1(F, Vs, Tx, Ns, Vbase, UVbase, Nbase),
     eol(F).
 
-face_nouv(F, [V|Vs], [N|Ns], Vbase, Nbase) ->
-    io:format(F, " ~p//~p", [V+Vbase,N+Nbase]),
-    face_nouv(F, Vs, Ns, Vbase, Nbase);
-face_nouv(_, [], [], _, _) -> ok.
-
-face_uv(F, [V|Vs], [UV|UVs], [N|Ns], Vbase, UVbase, Nbase) ->
-    io:format(F, " ~p/~p/~p", [V+Vbase,UV+UVbase,N+Nbase]),
-    face_uv(F, Vs, UVs, Ns, Vbase, UVbase, Nbase);
-face_uv(_, [], [], [], _, _, _) -> ok.
+face_1(F, [V|Vs], Ts0, Ns0, Vbase, Tbase, Nbase) ->
+    io:put_chars(F, [$\s,integer_to_list(V+Vbase),$/]),
+    case Ts0 of
+	[] -> Ts=[];
+	[T|Ts] -> io:put_chars(F, integer_to_list(T+Tbase))
+    end,
+    io:put_chars(F, "/"),
+    case Ns0 of
+	[] -> Ns=[];
+	[N|Ns] -> io:put_chars(F, integer_to_list(N+Nbase))
+    end,
+    face_1(F, Vs, Ts, Ns, Vbase, Tbase, Nbase);
+face_1(_, [], [], [], _, _, _) -> ok.
 
 materials(Name0, Mats, Creator) ->
     Root = filename:rootname(Name0, ".obj"),
