@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.64 2003/10/19 19:22:57 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.65 2003/10/22 16:04:53 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -574,9 +574,13 @@ colors_to_materials_1(We, St) -> {We,St}.
 
 colors_to_materials_2([F|Fs], We, Acc, St0) ->
     Colors = [C || [_|C] <- wings_face:vinfo_ccw(F, We)],
-    Color = e3d_vec:average(Colors),
-    {Name,St} = color_material(Color, St0),
-    colors_to_materials_2(Fs, We, [{Name,F}|Acc], St);
+    case wings_color:average(Colors) of
+	none ->
+	    colors_to_materials_2(Fs, We, Acc, St0);
+	Color ->
+	    {Name,St} = color_material(Color, St0),
+	    colors_to_materials_2(Fs, We, [{Name,F}|Acc], St)
+    end;
 colors_to_materials_2([], We, FaceMat, St) ->
     {wings_material:assign_materials(FaceMat, We),St}.
 
