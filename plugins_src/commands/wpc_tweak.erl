@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.9 2002/05/29 10:13:00 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.10 2002/05/30 09:00:50 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -56,7 +56,7 @@ command({tools, tweak}, St0) ->
     St = wings_undo:init(St0#st{selmode=vertex,sel=[]}),
     wings_draw:update_dlists(St),
     T = #tweak{tmode=wait,orig_st=St0,st=St},
-    wings_io:message(help(T)),
+    help(T),
     wings_wm:dirty(),
     {seq,{push,dummy},update_tweak_handler(T)};
 command({tools,tweak_end,#tweak{orig_st=St,st=#st{shapes=Shs}}}, _) ->
@@ -70,8 +70,9 @@ update_tweak_handler(T) ->
     {replace,fun(Ev) -> handle_tweak_event(Ev, T) end}.
 
 handle_tweak_event(redraw, #tweak{st=St}=T) ->
-    wings_io:message(help(T)),
+    help(T),
     redraw(St),
+    draw_magnet(T),
     keep;
 handle_tweak_event(Ev, #tweak{st=St}=T) ->
     case wings_io:event(Ev) of
@@ -121,6 +122,17 @@ handle_tweak_event1(#mousemotion{state=?SDL_RELEASED},
 		    #tweak{tmode=drag}=T) ->
     end_drag(T);
 handle_tweak_event1(#mousebutton{button=3,state=?SDL_RELEASED}, T) ->
+    wings_io:clear_message(),
+    wings_io:putback_event({action,{tools,tweak_end,T}}),
+    pop;
+handle_tweak_event1({resize,_,_}=Ev, T) ->
+    wings_io:clear_message(),
+    wings_io:putback_event(Ev),
+    wings_io:putback_event({action,{tools,tweak_end,T}}),
+    pop;
+handle_tweak_event1(quit=Ev, T) ->
+    wings_io:clear_message(),
+    wings_io:putback_event(Ev),
     wings_io:putback_event({action,{tools,tweak_end,T}}),
     pop;
 handle_tweak_event1(Ev, #tweak{st=St0}=T) ->
@@ -186,7 +198,7 @@ end_drag(#tweak{st=St0}=T) ->
     St1 = wings_draw_util:map(fun end_drag/2, St0),
     St = wings_undo:save(St0, St1),
     wings_draw:update_dlists(St),
-    wings_io:message(help(T)),
+    help(T),
     update_tweak_handler(T#tweak{tmode=wait,st=St}).
 
 end_drag(#dlo{src_we=#we{id=Id},drag={V,Vtx,Mag,_,_,_}}=D,
@@ -204,7 +216,7 @@ do_tweak(DX, DY) ->
     wings_draw_util:map(fun(D, _) ->
 				do_tweak(D, DX, DY)
 			end, []).
-				
+    				
 do_tweak(#dlo{drag={V,#vtx{pos=Pos0}=Vtx0,Mag0,MM,Plane,SplitData},
 	      src_we=#we{id=Id}}=D0, DX, DY) ->
     Matrices = wings_util:get_matrices(Id, MM),
@@ -250,16 +262,16 @@ mirror_constrain({Plane,Point}, Pos) ->
 %%% Magnetic tweak.
 %%%
 
-help(T) ->
-    [lmb] ++ " Drag vertices freely  " ++ [rmb] ++ " Exit tweak mode  " ++
-	magnet_help(T).
-
-magnet_help(#tweak{magnet=false}) ->
-    wings_camera:help() ++ "  [Q] Magnet On";
-magnet_help(#tweak{magnet=true,mag_type=Type}) ->
-    "[Q] Magnet Off  " ++
-	help_1(Type, [{1,bell},{2,dome},{3,straight},{4,spike}]) ++
-	"  [+] or [-] Tweak R".
+help(#tweak{magnet=false}) ->
+    Msg = [lmb] ++ " Drag vertices freely " ++ [rmb] ++ " Exit tweak mode",
+    wings_io:message(Msg ++ "  " ++ wings_camera:help()),
+    wings_io:message_right("[Q] Magnet On");
+help(#tweak{magnet=true,mag_type=Type}) ->
+    Msg = [lmb] ++ " Drag " ++ [rmb] ++ " Exit",
+    wings_io:message(Msg),
+    MagMsg = "[Q] Magnet Off  [+]/[-] Tweak R  " ++
+	help_1(Type, [{1,bell},{2,dome},{3,straight},{4,spike}]),
+    wings_io:message_right(MagMsg).
 
 help_1(Type, [{Digit,Type}|T]) ->
     "[" ++ [$0+Digit] ++ "] <<" ++
@@ -273,11 +285,11 @@ magnet_hotkey(C, #tweak{magnet=Mag,mag_type=Type0}=T) ->
     case hotkey(C) of
 	none -> none;
 	toggle when Mag == true ->
-	    setup_magnet(T#tweak{magnet=false});
+	    setup_magnet(T#tweak{magnet=false}, false);
 	toggle when Mag == false ->
-	    setup_magnet(T#tweak{magnet=true});
+	    setup_magnet(T#tweak{magnet=true}, true);
 	Type0 -> T;
-	Type -> setup_magnet(T#tweak{magnet=true,mag_type=Type})
+	Type -> setup_magnet(T#tweak{magnet=true,mag_type=Type}, false)
     end.
 
 hotkey($q) -> toggle;
@@ -288,18 +300,31 @@ hotkey($3) -> straight;
 hotkey($4) -> spike;
 hotkey(_) -> none.
 
-setup_magnet(#tweak{tmode=drag}=T) ->
+setup_magnet(#tweak{tmode=drag}=T, RIncreased) ->
     wings_draw_util:map(fun(D, _) ->
-				setup_magnet_fun(D, T)
+				setup_magnet_fun(D, T, RIncreased)
 			end, []),
     do_tweak(0.0, 0.0),
     wings_wm:dirty(),
     T;
-setup_magnet(T) -> T.
+setup_magnet(T, _) -> T.
 
-setup_magnet_fun(#dlo{drag={_,_,none,_,_,_}}=D, _) -> D;
-setup_magnet_fun(#dlo{drag={V,Vtx,#mag{vs=MagVs0}=Mag0,MM,Plane,SplitData}}=Dl,
-		 #tweak{mag_r=R,mag_type=Type}) ->
+setup_magnet_fun(#dlo{drag={V,Vtx,Mag0,MM,Plane,SplitData0}}=Dl0,
+		 #tweak{st=St}=T, RIncreased) ->
+    case RIncreased of
+	false ->
+	    Mag = adjust_magnet(Mag0, T),
+	    Dl0#dlo{drag={V,Vtx,Mag,MM,Plane,SplitData0}};
+	true ->
+	    Dl1 = wings_draw:undo_split(Dl0, SplitData0),
+	    #dlo{src_we=#we{vs=Vtab}=We} = Dl1,
+	    Center = gb_trees:get(V, Vtab),
+	    {Vs,Mag} = begin_magnet(T, V, Center, We),
+	    {Dl,SplitData} = wings_draw:split(Dl1, Vs, St),
+	    Dl#dlo{drag={V,Vtx,Mag,MM,Plane,SplitData}}
+    end.
+
+adjust_magnet(#mag{vs=MagVs0}=Mag, #tweak{mag_r=R,mag_type=Type}) ->
     MagVs = foldl(fun({Va,VtxA,Mirrored,D,_}, A) ->
 			  Inf = if
 				    D =< R -> mf(Type, D, R);
@@ -307,28 +332,29 @@ setup_magnet_fun(#dlo{drag={V,Vtx,#mag{vs=MagVs0}=Mag0,MM,Plane,SplitData}}=Dl,
 				end,
 			  [{Va,VtxA,Mirrored,D,Inf}|A]
 		  end, [], MagVs0),
-    Mag = Mag0#mag{vs=MagVs},
-    Dl#dlo{drag={V,Vtx,Mag,MM,Plane,SplitData}}.
+    Mag#mag{vs=MagVs}.
 
 begin_magnet(#tweak{magnet=false}, V, _, _) -> {[V],none};
-begin_magnet(#tweak{magnet=true,mag_r=R,mag_type=Type},
-	     CenterV, #vtx{pos=Center}, #we{vs=Vtab}=We) ->
+begin_magnet(#tweak{magnet=true}=T, CenterV, #vtx{pos=Center}, We) ->
     MirrorVs = mirror_vertices(We),
-    Near = foldl(fun({V,#vtx{pos=P}=Vtx}, A) when V =/= CenterV ->
-			 case e3d_vec:dist(P, Center) of
-			     D when D =< R ->
-				 Inf = mf(Type, D, R),
-				 Plane = mirror_plane(V, MirrorVs, We),
-				 [{V,Vtx,Plane,D,Inf}|A];
-			     _ -> A
-			 end;
-		    (_, A) -> A
-		 end, [], gb_trees:to_list(Vtab)),
+    Near = near(Center, CenterV, MirrorVs, T, We),
     Mag = #mag{orig=Center,vs=Near},
     {[CenterV|[Va || {Va,_,_,_,_} <- Near]],Mag}.
 
 mirror_vertices(#we{mirror=none}) -> [];
 mirror_vertices(#we{mirror=Face}=We) -> wpa:face_vertices(Face, We).
+
+near(Center, CenterV, MirrorVs, #tweak{mag_r=R,mag_type=Type}, #we{vs=Vtab}=We) ->
+    foldl(fun({V,#vtx{pos=P}=Vtx}, A) when V =/= CenterV ->
+		  case e3d_vec:dist(P, Center) of
+		      D when D =< R ->
+			  Inf = mf(Type, D, R),
+			  Plane = mirror_plane(V, MirrorVs, We),
+			  [{V,Vtx,Plane,D,Inf}|A];
+		      _ -> A
+		  end;
+	     (_, A) -> A
+	  end, [], gb_trees:to_list(Vtab)).
     
 mf(bell, D, R) -> math:sin((R-D)/R*math:pi());
 mf(dome, D, R) -> math:sin((R-D)/R*math:pi()/2);
@@ -353,9 +379,32 @@ magnet_end(#mag{vtab=Vs}, Vtab) ->
 		  gb_trees:update(V, Vtx, Vt)
 	  end, Vtab, Vs).
 
-magnet_radius(Sign, #tweak{mag_r=Falloff0}=T) ->
+magnet_radius(Sign, #tweak{mag_r=Falloff0}=T0) ->
     case Falloff0+Sign*?GROUND_GRID_SIZE/10 of
 	Falloff when Falloff > 0 ->
-	    setup_magnet(T#tweak{mag_r=Falloff});
-	_Falloff -> T
+	    setup_magnet(T0#tweak{mag_r=Falloff}, Falloff > Falloff0);
+	_Falloff -> T0
     end.
+
+draw_magnet(#tweak{magnet=false}) -> ok;
+draw_magnet(#tweak{mag_r=R}) ->
+    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
+    gl:disable(?GL_DEPTH_TEST),
+    gl:enable(?GL_BLEND),
+    gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
+    wings_view:projection(),
+    wings_view:model_transformations(),
+    gl:color4f(0, 0, 1, 0.1),
+    wings_draw_util:fold(fun(D, _) ->
+				 draw_magnet_1(D, R)
+			 end, []),
+    gl:popAttrib().
+
+draw_magnet_1(#dlo{drag={_,#vtx{pos={X,Y,Z}},_,_,_,_}}, R) ->
+    gl:translatef(X, Y, Z),
+    Obj = glu:newQuadric(),
+    glu:quadricDrawStyle(Obj, ?GLU_FILL),
+    glu:quadricNormals(Obj, ?GLU_SMOOTH),
+    glu:sphere(Obj, R, 50, 50),
+    glu:deleteQuadric(Obj);
+draw_magnet_1(_, _) -> [].

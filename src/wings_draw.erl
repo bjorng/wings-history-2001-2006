@@ -8,12 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.84 2002/05/26 20:11:26 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.85 2002/05/30 09:00:53 bjorng Exp $
 %%
 
 -module(wings_draw).
 -export([update_dlists/1,update_sel_dlist/0,
-	 split/3,update_dynamic/3,update_mirror/0,
+	 split/3,undo_split/2,update_dynamic/3,
+	 update_mirror/0,
 	 smooth_faces/2,
 	 render/1]).
 
@@ -238,6 +239,13 @@ update_mirror(D, _) -> D.
 %%% Splitting of objects into two display lists.
 %%%
 
+-record(split,
+	{static_vs,
+	 dyn_vs,
+	 dyn_ftab,
+	 orig_we,
+	 st}).
+
 split(#dlo{wire=W,mirror=M,src_sel=Sel,src_we=We0}, Vs0, St) ->
     Vs = sofs:set(Vs0, [vertex]),
     Etab0 = foldl(fun(#edge{vs=Va,ve=Vb,lf=Lf,rf=Rf}, A) ->
@@ -262,12 +270,17 @@ split(#dlo{wire=W,mirror=M,src_sel=Sel,src_we=We0}, Vs0, St) ->
 
     StaticVs0 = sofs:to_external(sofs:difference(AllVs, Vs)),
     StaticVs = sort(insert_vtx_data(StaticVs0, We0#we.vs, [])),
-    SplitData = {StaticVs,DynVs,FtabDyn,St},
+    SplitData = #split{static_vs=StaticVs,dyn_vs=DynVs,dyn_ftab=FtabDyn,
+		       orig_we=We0,st=St},
     {#dlo{work=[List],wire=W,mirror=M,vs=VsDlist,
 	  src_sel=Sel,src_we=WeDyn},SplitData}.
 
+undo_split(D, #split{orig_we=We}) ->
+    D#dlo{src_we=We}.
+
 update_dynamic(#dlo{work=[Work|_],vs=VsList0,src_we=We0}=D,
-	       {StaticVs,DynVs,Ftab,St}, Vtab0) ->
+	       #split{static_vs=StaticVs,dyn_vs=DynVs,dyn_ftab=Ftab,st=St},
+	       Vtab0) ->
     Vtab = gb_trees:from_orddict(merge([sort(Vtab0),StaticVs])),
     We = We0#we{vs=Vtab},
     List = gl:genLists(1),
