@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_obj.erl,v 1.38 2004/04/16 14:09:41 bjorng Exp $
+%%     $Id: e3d_obj.erl,v 1.39 2004/10/12 17:55:42 bjorng Exp $
 %%
 
 -module(e3d_obj).
@@ -35,21 +35,19 @@ import(Name) ->
     case read_open(Name) of
 	{ok,Fd} ->
 	    Dir = filename:dirname(Name),
-	    Res = import_1(Fd, Dir),
-	    close(Fd),
-	    Res;
+	    try import_1(Fd, Dir) of
+		#e3d_file{}=E3dFile ->
+		    {ok,E3dFile#e3d_file{dir=Dir}}
+	    catch
+		throw:Error -> Error
+	    after
+		close(Fd)
+	    end;
 	{error,Reason} ->
 	    {error,file:format_error(Reason)}
     end.
 
 import_1(Fd, Dir) ->
-    case catch import_2(Fd, Dir) of
-	{'EXIT',Reason} -> exit(Reason);
-	{error,_}=Error -> Error;
-	#e3d_file{}=E3dFile -> {ok,E3dFile}
-    end.
-
-import_2(Fd, Dir) ->
     Ost0 = read(fun parse/2, Fd, #ost{dir=Dir}),
     Ost = remember_eof(Ost0),
     #ost{v=Vtab0,vt=TxTab0,f=Ftab0,g=Gs0,vn=VnTab0,matdef=Mat} = Ost,
