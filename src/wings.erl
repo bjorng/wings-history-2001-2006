@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.112 2002/03/03 16:59:26 bjorng Exp $
+%%     $Id: wings.erl,v 1.113 2002/03/03 21:45:01 bjorng Exp $
 %%
 
 -module(wings).
@@ -109,14 +109,16 @@ init_1(File) ->
     wings_file:init(),
     put(wings_hitbuf, sdl_util:malloc(?HIT_BUF_SIZE, ?GL_UNSIGNED_INT)),
 
-    %% On Solaris/Sparc, we must initialize twice the first time to
-    %% get the requested size. Should be harmless on other platforms.
     caption(St1),
     W = 780,
     H = 570,
     wings_pref:set_default(window_size, {W,H}),
+
+    %% On Solaris/Sparc, we must resize twice the first time to
+    %% get the requested size. Should be harmless on other platforms.
     St2 = resize(W, H, St1),
     resize(W, H, St1),
+
     St = open_file(File, St2),
     wings_io:enter_event_loop(main_loop(St)),
     wings_file:finish(),
@@ -177,7 +179,7 @@ save_state(St0, St1) ->
     wings_io:clear_message(),
     case St of
 	#st{saved=false} -> main_loop(St);
-	Other -> main_loop(caption(St#st{saved=false}))
+	_Other -> main_loop(caption(St#st{saved=false}))
     end.
 
 main_loop(St) ->
@@ -291,7 +293,7 @@ do_command_1(Cmd, St0) ->
 remember_command({C,_}=Cmd, St) when C =:= vertex; C =:= edge;
 				     C =:= face; C =:= body ->
     St#st{repeatable=Cmd,args=none};
-remember_command(Cmd, St) -> St.
+remember_command(_Cmd, St) -> St.
 
 %% Test if the saved command can be safely repeated, and
 %% rewrite it with the current selection mode if needed.
@@ -347,7 +349,7 @@ command({file,Command}, St) ->
     wings_file:command(Command, St);
 
 %% Edit menu.
-command({edit,{material,Mat}}=Cmd, St) ->
+command({edit,{material,_}}=Cmd, St) ->
     wings_material:command(Cmd, St);
 command({edit,repeat}, #st{sel=[]}=St) -> St;
 command({edit,repeat}, #st{selmode=Mode,repeatable=Cmd0}=St) ->
@@ -364,7 +366,7 @@ command({edit,repeat_drag}, #st{selmode=Mode,repeatable=Cmd0,args=Args}=St) ->
 	Cmd when tuple(Cmd) ->
 	    case Args of
 		none -> ok;
-		Other -> wings_io:putback_event({drag_arguments,Args})
+		_Other -> wings_io:putback_event({drag_arguments,Args})
 	    end,
 	    wings_io:putback_event({action,Cmd})
     end,
@@ -399,42 +401,9 @@ command({body,Cmd}, St) ->
     wings_body:command(Cmd, St);
 
 %% Face menu.
-command({face,{extrude,Type}}, St) ->
-    ?SLOW(wings_face_cmd:extrude(Type, St));
-command({face,{extrude_region,Type}}, St) ->
-    ?SLOW(wings_face_cmd:extrude_region(Type, St));
-command({face,{extract_region,Type}}, St) ->
-    wings_face_cmd:extract_region(Type, St);
-command({face,bump}, St) ->
-    ?SLOW(wings_extrude_edge:bump(St));
-command({face,{flatten,Plane}}, St) ->
-    {save_state,model_changed(wings_face_cmd:flatten(Plane, St))};
-command({face,{flatten_move,Type}}, St) ->
-    {save_state,model_changed(wings_face_cmd:flatten_move(Type, St))};
-command({face,bevel}, St) ->
-    ?SLOW(wings_extrude_edge:bevel_faces(St));
-command({face,inset}, St) ->
-    ?SLOW(wings_face_cmd:inset(St));
-command({face,mirror}, St) ->
-    ?SLOW({save_state,model_changed(wings_face_cmd:mirror(St))});
-command({face,intrude}, St) ->
-    ?SLOW(wings_face_cmd:intrude(St));
-command({face,dissolve}, St) ->
-    {save_state,model_changed(wings_face_cmd:dissolve(St))};
-command({face,{material,Mat}}=Cmd, St0) ->
-    case wings_material:command(Cmd, St0) of
-	#st{}=St -> {save_state,model_changed(St)};
-	Other -> Other
-    end;
-command({face,bridge}, St) ->
-    {save_state,model_changed(wings_face_cmd:bridge(St))};
-command({face,smooth}, St) ->
-    ?SLOW({save_state,model_changed(wings_face_cmd:smooth(St))});
-command({face,auto_smooth}, St) ->
-    {save_state,model_changed(wings_body:auto_smooth(St))};
-command({face,{lift,Lift}}, St) ->
-    wings_face_cmd:lift(Lift, St);
-    
+command({face,Cmd}, St) ->
+    wings_face_cmd:command(Cmd, St);
+
 %% Edge commands.
 command({edge,bevel}, St) ->
     ?SLOW(wings_extrude_edge:bevel(St));
@@ -512,7 +481,7 @@ popup_menu(X, Y, #st{selmode=Mode,sel=Sel}=St) ->
  	{[],_} -> wings_shapes:menu(X, Y, St);
  	{_,vertex} -> vertex_menu(X, Y, St);
  	{_,edge} -> edge_menu(X, Y, St);
- 	{_,face} -> face_menu(X, Y, St);
+ 	{_,face} -> wings_face_cmd:menu(X, Y, St);
  	{_,body} -> wings_body:menu(X, Y, St)
     end.
 
@@ -607,129 +576,9 @@ edge_menu(X, Y, St) ->
 	    wings_vec:menu(St)],
     wings_menu:popup_menu(X, Y, edge, Menu, St).
 
-face_menu(X, Y, St) ->
-    Dir = wings_menu_util:directions(St),
-    FlattenDir = wings_menu_util:flatten_dir(St),
-    Menu = [{"Face operations",ignore},
-	    separator,
-	    {"Move",{move,Dir}},
-	    {"Rotate",{rotate,Dir}},
-	    wings_menu_util:scale(),
-	    separator,
-	    {"Extrude",{extrude,Dir}},
-	    {"Extrude Region",{extrude_region,Dir}},
-	    {"Extract Region",{extract_region,Dir}},
-	    separator,
-	    {"Flatten",{flatten,FlattenDir}},
-	    {advanced,{"Flatten Move",{flatten_move,FlattenDir}}},
-	    separator,
-	    {"Inset",inset,"Inset a face inside the selected face"},
-	    {"Intrude",intrude,"Carve out interior of object, "
-	     "making selected faces holes"},
-	    {"Bevel",bevel,"Round off edges of selected faces"},
-	    {"Bridge",bridge,"Create a bridge or tunnel between two faces"},
-	    {advanced,separator},
-	    {"Bump",bump,"Create bump of selected faces"},
-	    {advanced,{"Lift",{lift,lift_fun(St)}}},
-	    separator,
-	    {"Mirror",mirror,"Make mirror of object around selected faces"},
-    	    {"Dissolve",dissolve,"Eliminate all edges between selected faces"},
-	    {"Collapse",collapse,"Delete faces, replacing them with vertices"},
-	    separator,
-	    {"Smooth",smooth,"Subdivide selected faces to smooth them"},
-	    separator,
-	    wings_material:sub_menu(face, St)|wings_vec:menu(St)],
-    wings_menu:popup_menu(X, Y, face, Menu, St).
-
-%%%
-%%% General directions.
-%%%
-
-directions([D|Dirs], Ns) ->
-    [direction(D, Ns)|directions(Dirs, Ns)];
-directions([], Ns) -> [].
-
-direction(Dir, Ns) ->
-    Help = dir_help(Dir, Ns),
-    {stringify(Dir),Dir,Help}.
-
-dir_help(Axis, Ns) when Axis == x; Axis == y; Axis == z ->
-    dir_help_1(Ns, "the " ++ stringify(Axis) ++ " axis");
-dir_help(radial_x, Ns) ->
-    dir_help_1(Ns, [around|"around the X axis"]);
-dir_help(radial_y, Ns) ->
-    dir_help_1(Ns, [around|"around the Y axis"]);
-dir_help(radial_z, Ns) ->
-    dir_help_1(Ns, [around|"around the Z axis"]);
-dir_help(normal, Ns) ->
-    dir_help_1(Ns, [normal|"along its normal"]);
-dir_help(free, Ns) ->
-    dir_help_1(Ns, [free|"freely in all directions"]);
-dir_help(uniform, [scale]) ->
-    "Scale equally in all directions".
-
-%% Normal/Free.
-dir_help_1([move|_], [NF|Text]) when NF == normal; NF == free ->
-    "Move each element " ++ Text;
-dir_help_1([rotate|_], [free|Text]) ->
-    "Rotate freely";
-dir_help_1([rotate|_], [normal|Text]) ->
-    "Rotate around each element's normal";
-dir_help_1([extrude|_], [NF|Text]) when NF == normal; NF == free ->
-    "Extrude each element, then move it " ++ Text;
-dir_help_1([extrude_region|_], [normal|_]) ->
-    "Extrude faces as region, then move faces along the region's normal";
-dir_help_1([extrude_region|_], [free|Text]) ->
-    "Extrude faces as region, then move faces " ++ Text;
-dir_help_1([extract_region|_], [normal|_]) ->
-    "Extract faces, then move faces along the region's normal";
-dir_help_1([extract_region|_], [free|Text]) ->
-    "Extract faces, then move faces " ++ Text;
-dir_help_1([flatten|_], [normal|Text]) ->
-    "Flatten elements to normal plane";
-dir_help_1([lift|_], [normal|_]) ->
-    "Lift face along its normal";
-dir_help_1([lift|_], [free|Text]) ->
-    "Lift face and move it " ++ Text;
-
-%% Axis
-dir_help_1([move|_], Text) ->
-    "Move each element along " ++ Text;
-dir_help_1([extrude|_], Text) ->
-    "Extrude elements, then move along " ++ Text;
-dir_help_1([extrude_region|_], Text) ->
-    "Extrude faces as region, then move along " ++ Text;
-dir_help_1([extract_region|_], Text) ->
-    "Extract faces, then move along " ++ Text;
-dir_help_1([rotate|_], Text) ->
-    "Rotate around " ++ Text;
-dir_help_1([scale|_], [around|Text]) ->
-    "Scale " ++ Text;
-dir_help_1([scale|_], Text) ->
-    "Scale along " ++ Text;
-dir_help_1([flatten|_], Text) ->
-    "Flatten to " ++ Text;
-dir_help_1([flatten_move|_], Text) ->
-    "Flatten and move to " ++ Text;
-dir_help_1([lift|_], Text) ->
-    "Lift face along " ++ Text;
-dir_help_1(_, _) -> "".
-
-lift_fun(St) ->
-    fun(help, Ns) ->
-	    {"Lift in std. directions",[],
-	     "Lift, rotating face around edge"};
-       (1, Ns) ->
-	    directions([normal,free,x,y,z], Ns);
-       (3, Ns) ->
-	    Funs = wings_face_cmd:lift_selection(rotate, St),
-	    {vector,{pick_special,Funs}};
-       (_, _) -> ignore
-    end.
-
 cut_fun() ->
-    fun(help, Ns) -> "";
-       (1, Ns) ->
+    fun(help, _Ns) -> "";
+       (1, _Ns) ->
 	    [cut_entry(2),
 	     cut_entry(3),
 	     cut_entry(4),
@@ -758,33 +607,31 @@ info(#st{shapes=Shapes,selmode=body,sel=[{Id,_}]}) ->
     shape_info(Sh);
 info(#st{shapes=Shapes,selmode=body,sel=Sel}) ->
     shape_info(Sel, Shapes);
-info(#st{shapes=Shapes,selmode=vertex,sel=[{Id,Sel}]}) ->
+info(#st{selmode=vertex,sel=[{_,Sel}]}) ->
     case gb_sets:size(Sel) of
 	0 -> "";
 	1 ->
 	    [V] = gb_sets:to_list(Sel),
 	    flat_format("Vertex: ~p", [V]);
 	N when N < 5 ->
-	    Faces = gb_sets:to_list(Sel),
-	    item_list(Faces, "Vertices");
+	    Vs = gb_sets:to_list(Sel),
+	    item_list(Vs, "Vertices");
 	N ->
 	    flat_format("~p vertices selected", [N])
     end;
-info(#st{shapes=Shapes,selmode=edge,sel=[{Id,Sel}]}) ->
+info(#st{selmode=edge,sel=[{_,Sel}]}) ->
     case gb_sets:size(Sel) of
 	0 -> "";
 	1 ->
 	    [Edge] = gb_sets:to_list(Sel),
-	    #we{es=Etab} = gb_trees:get(Id, Shapes),
-	    #edge{a=A,b=B} = gb_trees:get(Edge, Etab),
 	    flat_format("Edge: ~p", [Edge]);
 	N when N < 5 ->
-	    Faces = gb_sets:to_list(Sel),
-	    item_list(Faces, "Edges");
+	    Edges = gb_sets:to_list(Sel),
+	    item_list(Edges, "Edges");
 	N ->
 	    flat_format("~p edges selected", [N])
     end;
-info(#st{shapes=Shapes,selmode=face,sel=[{Id,Sel}]}) ->
+info(#st{selmode=face,sel=[{_,Sel}]}) ->
     case gb_sets:size(Sel) of
 	0 -> "";
 	1 ->
@@ -810,7 +657,7 @@ item_list(Items, Desc) ->
 
 item_list([Item|Items], Sep, Desc) ->
     item_list(Items, ", ", Desc++Sep++integer_to_list(Item));
-item_list([], Sep, Desc) -> Desc.
+item_list([], _Sep, Desc) -> Desc.
 
 shape_info(#we{name=Name,fs=Ftab,es=Etab,vs=Vtab}) ->
     Faces = gb_trees:size(Ftab),
@@ -828,7 +675,7 @@ shape_info([{Id,_}|Objs], Shs, On, Vn, En, Fn) ->
     Edges = gb_trees:size(Etab),
     Vertices = gb_trees:size(Vtab),
     shape_info(Objs, Shs, On+1, Vn+Vertices, En+Edges, Fn+Faces);
-shape_info([], Shs, N, Vertices, Edges, Faces) ->
+shape_info([], _Shs, N, Vertices, Edges, Faces) ->
     flat_format("~p objects, ~p faces, ~p edges, ~p vertices",
 		[N,Faces,Edges,Vertices]).
 
@@ -857,23 +704,23 @@ translate_event(#keyboard{}=Event, St) ->
 	next -> ignore;
 	Other -> Other
     end;
-translate_event(quit, St) -> {file,quit};
-translate_event(ignore, St) -> ignore;
-translate_event(#mousebutton{}, St) -> ignore;
-translate_event(#mousemotion{x=X,y=Y}, St) -> ignore;
-translate_event(#resize{w=W,h=H}, St) -> {resize,W,H};
-translate_event(#expose{}, St) -> redraw;
-translate_event(redraw_menu, St) -> ignore;
-translate_event(redraw, St) -> redraw;
-translate_event({action,Action}, St) -> Action.
+translate_event(quit, _St) -> {file,quit};
+translate_event(ignore, _St) -> ignore;
+translate_event(#mousebutton{}, _St) -> ignore;
+translate_event(#mousemotion{}, _St) -> ignore;
+translate_event(#resize{w=W,h=H}, _St) -> {resize,W,H};
+translate_event(#expose{}, _St) -> redraw;
+translate_event(redraw_menu, _St) -> ignore;
+translate_event(redraw, _St) -> redraw;
+translate_event({action,Action}, _St) -> Action.
 
-command_name(Repeat, #st{repeatable=ignore}) ->
+command_name(_Repeat, #st{repeatable=ignore}) ->
     "(Can't repeat)";
 command_name(Repeat, #st{repeatable={_,Cmd}}=St) ->
-    CmdStr = stringify(Cmd),
+    CmdStr = wings_util:stringify(Cmd),
     command_name(Repeat, CmdStr, St).
 
-command_name(Repeat, CmdStr, #st{sel=[]}) ->
+command_name(_Repeat, CmdStr, #st{sel=[]}) ->
     lists:flatten(["(Can't repeat \"",CmdStr,"\")"]);
 command_name(Repeat, CmdStr, #st{selmode=Mode,repeatable=Cmd}) ->
     S = case repeatable(Mode, Cmd) of
@@ -881,16 +728,6 @@ command_name(Repeat, CmdStr, #st{selmode=Mode,repeatable=Cmd}) ->
 	    _ ->  [Repeat++" \"",CmdStr,"\""]
 	end,
     lists:flatten(S).
-
-stringify({{_,_,_},{_,_,_}}) ->
-    "(vector)";
-stringify({Atom,Other}) when is_atom(Atom) ->
-    wings_util:cap(atom_to_list(Atom)) ++ "|" ++ stringify(Other);
-stringify(Atom) when is_atom(Atom) ->
-    wings_util:cap(atom_to_list(Atom));
-stringify(Int) when integer(Int) ->
-    integer_to_list(Int);
-stringify(Other) -> "UNKNOWN".
 
 -ifdef(DEBUG).
 wings() -> "Wings 3D [debug]".

@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu_util.erl,v 1.1 2002/03/03 17:02:53 bjorng Exp $
+%%     $Id: wings_menu_util.erl,v 1.2 2002/03/03 21:45:01 bjorng Exp $
 %%
 
 -module(wings_menu_util).
--export([directions/1,scale/0,xyz/0,all_xyz/0,flatten_dir/1]).
+-export([directions/1,directions/2,scale/0,xyz/0,all_xyz/0,flatten_dir/1]).
 
 -include("wings.hrl").
 
