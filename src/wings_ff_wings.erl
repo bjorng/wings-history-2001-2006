@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.27 2002/10/06 08:21:48 bjorng Exp $
+%%     $Id: wings_ff_wings.erl,v 1.28 2002/12/10 07:44:31 bjorng Exp $
 %%
 
 -module(wings_ff_wings).
@@ -166,9 +166,14 @@ import_object_mode(Ps) ->
 import_props([{selection,{Mode,Sel0}}|Ps], St) ->
     Sel = import_sel(Sel0, St),
     import_props(Ps, St#st{selmode=Mode,sel=Sel});
-import_props([{saved_selection,{Mode,Sel0}}|Ps], St) ->
-    Sel = import_sel(Sel0, St),
-    import_props(Ps, St#st{ssel={Mode,Sel}});
+import_props([{saved_selection,{Mode,Sel0}}|Ps], St0) ->
+    Sel = import_sel(Sel0, St0),
+    St = new_sel_group("<Stored Selection>", Mode, Sel, St0),
+    import_props(Ps, St);
+import_props([{{selection_group,Name},{Mode,Sel0}}|Ps], St0) ->
+    Sel = import_sel(Sel0, St0),
+    St = new_sel_group(Name, Mode, Sel, St0),
+    import_props(Ps, St);
 import_props([{lights,Lights}|Ps], St0) ->
     St = wings_light:import(Lights, St0),
     import_props(Ps, St);
@@ -178,6 +183,15 @@ import_props([], St) -> St.
 
 import_sel(Sel, #st{onext=IdBase}) ->
     [{IdBase+Id,gb_sets:from_list(Elems)} || {Id,Elems} <- Sel].
+
+new_sel_group(Name, Mode, Sel, #st{ssels=Ssels0}=St) ->
+    Sid = case gb_trees:is_empty(Ssels0) of
+	      true -> 1;
+	      false -> wings_util:gb_trees_largest_key(Ssels0)+1
+	  end,
+    SelGroup = {Name,Sid,Mode,Sel},
+    Ssels = gb_trees:insert(Sid, SelGroup, Ssels0),
+    St#st{ssels=Ssels}.
 
 %%%
 %%% Import of old materials format (up to and including wings-0.94.02).
@@ -241,14 +255,19 @@ remove_lights(#st{sel=Sel0,shapes=Shs0}=St) ->
     Sel = [S || {Id,_}=S <- Sel0, gb_trees:is_defined(Id, Shs)],
     St#st{sel=Sel,shapes=Shs}.
 
-collect_sel(#st{selmode=Mode,sel=Sel0,ssel={SMode,SSel}}=St) ->
+collect_sel(#st{selmode=Mode,sel=Sel0,ssels=Ssels}=St) ->
     Sel1 = [{Id,{Mode,gb_sets:to_list(Elems),selection}} ||
 	       {Id,Elems} <- Sel0],
-    Sel2 = [{Id,{SMode,gb_sets:to_list(Elems),saved_selection}} ||
-	       {Id,Elems} <- wings_sel:valid_sel(SSel, SMode, St)] ++ Sel1,
+    Sel2 = collect_sel_groups(gb_trees:values(Ssels), St, Sel1),
     Sel3 = sofs:relation(Sel2, [{id,data}]),
     Sel = sofs:relation_to_family(Sel3),
     sofs:to_external(Sel).
+
+collect_sel_groups([{Name,_,Mode,Sel}|Gs], St, Acc0) ->
+    Acc = [{Id,{Mode,gb_sets:to_list(Elems),{selection_group,Name}}} ||
+	      {Id,Elems} <- wings_sel:valid_sel(Sel, Mode, St)] ++ Acc0,
+    collect_sel_groups(Gs, St, Acc);
+collect_sel_groups([], _, Acc) -> Acc.
 
 renumber([{Id,We0}|Shs], [{Id,Root0}|Sel], NewId, WeAcc, RootAcc) ->
     {We,Root} = wings_we:renumber(We0, 0, Root0),
