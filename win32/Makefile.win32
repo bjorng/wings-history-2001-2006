@@ -4,9 +4,9 @@
 #
 
 LINK = link
-MLFLAGS= -nologo /subsystem:windows /machine:I386 /nodefaultlib 
+MLFLAGS= -nologo /subsystem:windows /machine:I386 /nodefaultlib
 
-CFLAGS = -nologo -G5 -Ox -O2 -Ob2
+CFLAGS = -nologo -O1
 
 Wings3D.exe: wings3d.c wings3d.res
 	cl $(CFLAGS) -FeWings3D.exe wings3d.c wings3d.res \

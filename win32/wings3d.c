@@ -3,85 +3,103 @@
  *
  *     Wrapper to start Wings3D on Windows.
  *
- *  Copyright (c) 2002 Bjorn Gustavsson
+ *  Copyright (c) 2002-2003 Bjorn Gustavsson
  *
  *  See the file "license.terms" for information on usage and redistribution
  *  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
  *
- *     $Id: wings3d.c,v 1.1 2002/11/21 08:34:49 bjorng Exp $
+ *     $Id: wings3d.c,v 1.2 2003/08/12 09:16:17 bjorng Exp $
  *
  */
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #undef WIN32_LEAN_AND_MEAN
-#include <winreg.h>
-
+#include <stdio.h>
 #include <stdlib.h>
+
+static void install(void);
 
 int
 WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR szCmdLine, int sw)
 {
-    PROCESS_INFORMATION piProcInfo;
-    STARTUPINFO siStartInfo = {0};
-    int argc = __argc;
-    char** argv = __argv;
-    char install_dir[1024];
-    DWORD install_dir_size = sizeof(install_dir);
-    char werl_path[1024];
-    DWORD werl_path_size = sizeof(install_dir);
-    char cmd_line[4096];
-    int ok;
-    int err;
-    HKEY hkey;
-    DWORD type;
+  PROCESS_INFORMATION piProcInfo;
+  STARTUPINFO siStartInfo = {0};
+  int argc = __argc;
+  char** argv = __argv;
+  char install_dir[MAX_PATH];
+  char cmd_line[2*MAX_PATH];
+  int i;
+  int ok;
+  int err;
+  HKEY hkey;
+  DWORD type;
+  HANDLE module = GetModuleHandle(NULL);
 
-    err = RegOpenKeyEx(HKEY_LOCAL_MACHINE, "Software\\Wings 3D", 0,
-		      KEY_QUERY_VALUE, &hkey);
-    if (err) {
-	MessageBox(NULL, "No \"HKLM\\Software\\Wings 3D\" key in registry",
-		   NULL, MB_OK);
-	exit(0);
-    }
-    err = RegQueryValueEx(hkey, "", NULL, &type,
-			  install_dir, &install_dir_size);
-    if (err) {
-	MessageBox(NULL, "Failed to find install directory in registry",
-		   NULL, MB_OK);
-	exit(0);
-    }
-    err = RegQueryValueEx(hkey, "WerlPath", NULL, &type,
-			  werl_path, &werl_path_size);
-    if (err) {
-	MessageBox(NULL, "Failed to find werl path in registry",
-		   NULL, MB_OK);
-	exit(0);
-    }
-    RegCloseKey(hkey);
+  if (argc > 1 && strcmp(argv[1], "--install") == 0) {
+    install();
+  }
 
-    sprintf(cmd_line, "\"%s\" -regkey Wings3D -pa \"%s\\ebin\" "
-	    "-run wings_start start_halt",
-	    werl_path, install_dir);
-    if (argc > 1) {
-	sprintf(cmd_line+strlen(cmd_line), " \"%s\"", argv[1]);
-    }
+  if (module == NULL) {
+    MessageBox(NULL, "Fatal: Failed to get module handle", NULL, MB_OK);
+    exit(1);
+  }
+  if (GetModuleFileName(module, install_dir, MAX_PATH) == 0) {
+    MessageBox(NULL, "Fatal: Failed to get module file name", NULL, MB_OK);
+    exit(1);
+  }
+  i = strlen(install_dir) - 1;
+  while (i >= 0 && install_dir[i] != '\\') {
+    --i;
+  }
+  sprintf(cmd_line, "\"%s\\erlang\\bin\\werl.exe\" -pa \"%s\\ebin\" "
+          "-run wings_start start_halt",
+          install_dir, install_dir);
+  if (argc > 1) {
+    sprintf(cmd_line+strlen(cmd_line), " \"%s\"", argv[1]);
+  }
     
-    siStartInfo.cb = sizeof(STARTUPINFO); 
-    siStartInfo.wShowWindow = SW_MINIMIZE;
-    siStartInfo.dwFlags = STARTF_USESHOWWINDOW;
+  siStartInfo.cb = sizeof(STARTUPINFO); 
+  siStartInfo.wShowWindow = SW_MINIMIZE;
+  siStartInfo.dwFlags = STARTF_USESHOWWINDOW;
 
-    ok = CreateProcess(NULL, 
-		       cmd_line, 
-		       NULL, 
-		       NULL, 
-		       FALSE,
-		       0,
-		       NULL,
-		       NULL,
-		       &siStartInfo,
-		       &piProcInfo);
-    if (!ok) {
-	MessageBox(NULL, "Failed to start Wings 3D", NULL, MB_OK);
+  ok = CreateProcess(NULL, 
+                     cmd_line, 
+                     NULL, 
+                     NULL, 
+                     FALSE,
+                     0,
+                     NULL,
+                     NULL,
+                     &siStartInfo,
+                     &piProcInfo);
+  if (!ok) {
+    MessageBox(NULL, "Failed to start Wings 3D", NULL, MB_OK);
+  }
+  exit(0);
+}
+
+static void
+install(void)
+{
+  FILE* fp = fopen("erlang/bin/erl.ini", "w");
+  char dir[MAX_PATH];
+  char* s;
+
+  getcwd(dir, MAX_PATH);
+  for (s = dir; *s; s++) {
+    if (*s == '\\') {
+      *s = '/';
     }
-    exit(0);
+  }
+  if (fp == NULL) {
+    MessageBox(NULL, "Failed to install Erlang/OTP components", NULL, MB_OK);
+    exit(1);
+  }
+  fprintf(fp, "[erlang]\n");
+  fprintf(fp, "Bindir=%s/erlang/bin\n", dir);
+  fprintf(fp, "Progname=erl\n");
+  fprintf(fp, "Rootdir=%s/erlang\n", dir);
+  fclose(fp);
+  exit(0);
 }

@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: wings2.nsi,v 1.8 2003/01/15 20:57:02 bjorng Exp $
+#     $Id: wings2.nsi,v 1.9 2003/08/12 09:16:17 bjorng Exp $
 #
 
 Name "Wings 3D"
@@ -58,7 +58,6 @@ Section "ThisNameIsIgnoredSoWhyBother?"
   Delete "$INSTDIR\wings_start.bat"
   Delete "$INSTDIR\unwise.exe"
   Delete "$INSTDIR\install.log"
-  Delete "$INSTDIR\wings_crasch.dump" ; Old spelling
   RMDir "$INSTDIR\icons"
   Delete "$INSTDIR\Makefile"
   Delete "$INSTDIR\Makefile.win32"
@@ -72,6 +71,9 @@ Section "ThisNameIsIgnoredSoWhyBother?"
   Delete "$INSTDIR\plugins\import_export\wpc_triquad_cmd.beam"
   Delete "$INSTDIR\plugins\import_export\wpc_turnedge.beam"
   Delete "$INSTDIR\plugins\import_export\wpc_tweak.beam"
+
+  ; Install Erlang/OTP.
+  ExecWait "Wings3D.exe --install"
 
   ; create shortcuts
 

@@ -10,7 +10,7 @@
 # Well, I hold for the later, so I'll try it as long as it works.
 # I.E /MD as compiler option and link with msvcrt.lib.
 #
-ERL_TOP = C:\progra~1\erl5.2.3.3
+ERL_TOP = C:\progra~1\erl5.3
 LINK = link
 MLFLAGS= /nologo /subsystem:console /machine:I386 /nodefaultlib 
 MLIBS = kernel32.lib ws2_32.lib msvcrt.lib user32.lib comdlg32.lib
@@ -33,11 +33,6 @@ OBJDIR = .
 # Includes
 #
 INCLUDES = -I. -I$(ERL_TOP)\usr\include
-
-# Libraries (static)
-#
-
-ERL_DLL_LIB = $(ERL_TOP)\usr\lib\erl_dll.lib
 
 # Compiler options
 # 
@@ -69,9 +64,7 @@ clean:
 $(LIBDIR)\wings_file_drv.dll:wings_file_drv.c
 	$(CC) $(CFLAGS) /c /Fo$(OBJDIR)\wings_file_drv.obj wings_file_drv.c
 	$(LINK) $(MLFLAGS) /dll /out:$(LIBDIR)\wings_file_drv.dll \
-		$(OBJS) \
-		$(ERL_DLL_LIB) \
-		$(MLIBS)
+		$(OBJS) $(MLIBS)
 	-del $(LIBDIR)\*.exp
 	-del $(LIBDIR)\*.lib
 	-del $(OBJDIR)\*.obj
