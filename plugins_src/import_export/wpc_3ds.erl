@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_3ds.erl,v 1.9 2004/01/16 12:43:15 bjorng Exp $
+%%     $Id: wpc_3ds.erl,v 1.10 2004/06/27 11:58:16 bjorng Exp $
 %%
 
 -module(wpc_3ds).
@@ -23,6 +23,7 @@
 -define(DEF_IMAGE_TYPE, ".bmp").
 
 init() ->
+    wpa:pref_set_default(?MODULE, swap_y_z, true),
     wpa:pref_set_default(?MODULE, default_filetype, ?DEF_IMAGE_TYPE),
     true.
 
@@ -112,12 +113,12 @@ set_pref(KeyVals) ->
     wpa:pref_set(?MODULE, KeyVals).
 
 export_transform(Contents, Attr) ->
-    Mat = e3d_mat:scale(proplists:get_value(export_scale, Attr, 1.0)),
+    Mat = wpa:export_matrix(Attr),
     e3d_file:transform(Contents, Mat).
 
 import_transform(Contents, Attr) ->
-    Mat = e3d_mat:scale(proplists:get_value(import_scale, Attr, 1.0)),
-    e3d_file:transform(Contents, Mat).
+    Mat = wpa:import_matrix(Attr),
+    e3d_file:transform_matrix(Contents, Mat).
 
 %%%
 %%% Shorten image names to 8 letters and make sure that
