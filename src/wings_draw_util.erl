@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.31 2002/07/21 07:13:23 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.32 2002/07/21 15:59:07 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -264,8 +264,16 @@ render_plain(#dlo{work=Faces,wire=Wire}=D, SelMode) ->
     gl:disable(?GL_POLYGON_OFFSET_LINE),
     gl:disable(?GL_POLYGON_OFFSET_FILL),
     draw_hilite(D),
-    draw_orig_sel(D),
-    draw_sel(D),
+    case Wire andalso wings_pref:get_value(show_wire_backfaces) of
+	true ->
+	    gl:disable(?GL_CULL_FACE),
+	    draw_orig_sel(D),
+	    draw_sel(D),
+	    gl:enable(?GL_CULL_FACE);
+	false ->
+	    draw_orig_sel(D),
+	    draw_sel(D)
+    end,
     draw_vertices(D, SelMode),
     draw_hard_edges(D),
     draw_normals(D).
