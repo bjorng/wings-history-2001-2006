@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.86 2003/10/25 20:00:09 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.87 2003/10/26 10:19:15 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -42,59 +42,19 @@ init() ->
     wings_pref:set_default(magnet_distance_route, shortest),
     wings_pref:set_default(magnet_radius, 1.0).
 
-command({pick,[],[Res],Ns}, _) ->
-    Cmd = wings_menu:build_command(Res, Ns),
-    maybe_finish(Cmd),
-    wings_io:putback_event({action,Cmd}),
-    keep;
-command({pick,[],Res,Ns}, _) ->
-    Cmd = wings_menu:build_command(list_to_tuple(reverse(Res)), Ns),
-    maybe_finish(Cmd),
-    wings_io:putback_event({action,Cmd}),
-    keep;
-command({pick,PickList,Acc,Names}, St) ->
-    [{Type,Desc}|More] = add_help_text(PickList, Names),
-    MagnetPossible = magnet_possible(Names, More),
-    command_1(Type, Desc, More, Acc, Names, MagnetPossible, St);
+command({pick,PickList0,Acc,Names}, St0) ->
+    pick_init(St0),
+    Modes = [vertex,edge,face],
+    St = mode_restriction(Modes, St0),
+    PickList = add_help_text(PickList0, Names),
+    wings_wm:later({action,{pick,PickList,Acc,Names}}),
+    Ss = #ss{selmodes=Modes,f=fun(_, _) -> keep end},
+    {seq,push,get_event(Ss, St)};
 command({pick_special,{Modes,Fun}}, St0) ->
     pick_init(St0),
     St = wings_sel:reset(mode_restriction(Modes, St0)),
     Ss = #ss{selmodes=Modes,f=Fun},
     {seq,push,get_event(Ss, St)}.
-
-command_1(magnet, Msg, [], Acc, Names, _, St0) ->
-    pick_init(St0),
-    Modes = [vertex,edge,face],
-    St = mode_restriction(Modes, St0),
-    Ss = #ss{f=fun(check, S) ->
-		       check_point(S);
-		  (exit, {Mod,Vec,_}) ->
-		       exit_magnet(Vec, Mod, Acc, Names);
-		  (message, _) ->
-		       magnet_message(Msg, Names)
-	       end,
-	     selmodes=Modes},
-    {seq,push,get_event(Ss, wings_sel:reset(St#st{selmode=vertex}))};
-command_1(Type, Msg, More, Acc, Names, MagnetPossible, St0) ->
-    pick_init(St0),
-    Modes = [vertex,edge,face],
-    St = mode_restriction(Modes, St0),
-    Check = case Type of
-		point -> fun check_point/1;
-		axis -> fun check_vector/1;
-		axis_point -> fun check_vector/1
-	    end,
-    IsAxis = (Type =/= point),
-    Ss = #ss{f=fun(check, S) ->
-		       Check(S);
-		  (exit, {Mod,Vec,S}) ->
-		       common_exit(Type, Vec, Mod, More, Acc, Names,
-				   MagnetPossible, S);
-		  (message, _) ->
-		       common_message(Msg, More, Names, MagnetPossible)
-	       end,
-	     selmodes=Modes,is_axis=IsAxis},
-    {seq,push,get_event(Ss, wings_sel:reset(St))}.
 
 add_help_text([{Atom,_Desc}=Pair|T], Names) when is_atom(Atom) ->
     [Pair|add_help_text(T, Names)];
@@ -164,9 +124,6 @@ pick_init(#st{selmode=Mode}) ->
 pick_init_1(#dlo{orig_sel=none,sel=SelDlist}=D, Mode) ->
     D#dlo{orig_sel=SelDlist,orig_mode=Mode};
 pick_init_1(D, _) -> D.
-
-maybe_finish({vector,_}) -> clear_sel();
-maybe_finish(_)  -> pick_finish().
 
 pick_finish() ->
     wings_wm:dirty(),
@@ -256,10 +213,55 @@ handle_event_4({action,{secondary_selection,abort}}, _, _) ->
     wings_wm:later(revert_state),
     pick_finish(),
     pop;
+handle_event_4({action,{pick,[],[Res],Ns}}, _, _) ->
+    Cmd = wings_menu:build_command(Res, Ns),
+    pick_finish(),
+    wings_io:putback_event({action,Cmd}),
+    pop;
+handle_event_4({action,{pick,[],Res,Ns}}, _, _) ->
+    Cmd = wings_menu:build_command(list_to_tuple(reverse(Res)), Ns),
+    pick_finish(),
+    wings_io:putback_event({action,Cmd}),
+    pop;
+handle_event_4({action,{pick,[{Type,Desc}|More],Acc,Names}}, Ss, St0) ->
+    clear_sel(),
+    MagnetPossible = magnet_possible(Names, More),
+    Check = case Type of
+		magnet -> fun check_point/1;
+		point -> fun check_point/1;
+		axis -> fun check_vector/1;
+		axis_point -> fun check_vector/1
+	    end,
+    Fun = case Type of
+	      magnet ->
+		  fun(check, S) ->
+			  check_point(S);
+		     (exit, {Mod,Vec,_}) ->
+			  exit_magnet(Vec, Mod, Acc, Names);
+		     (message, _) ->
+			  magnet_message(Desc, Names)
+		  end;
+	      _ ->
+		  fun(check, S) ->
+			  Check(S);
+		     (exit, {Mod,Vec,S}) ->
+			  common_exit(Type, Vec, Mod, More, Acc, Names,
+				      MagnetPossible, S);
+		     (message, _) ->
+			  common_message(Desc, More, Names, MagnetPossible)
+		  end
+	  end,
+    IsAxis = (Type =/= point andalso Type =/= magnet),
+    St = case Type of
+	     magnet -> St0#st{selmode=vertex};
+	     _ -> St0
+	 end,
+    get_event(Ss#ss{f=Fun,is_axis=IsAxis}, wings_sel:reset(St));
 handle_event_4({action,Cmd}, Ss, _) ->
     erase_vector(),
     set_last_axis(Ss),
     wings_io:putback_event({action,Cmd}),
+    pick_finish(),
     pop;
 handle_event_4(quit, _Ss, _St) ->
     erase_vector(),
@@ -309,7 +311,7 @@ handle_key(#keyboard{sym=27}, _, _) ->		%Escape
     wings_wm:later({action,{secondary_selection,abort}});
 handle_key(_, _, _) -> next.
 
-exit_menu(X, Y, Mod, #ss{f=Exit,vec=Vec}=Ss, St) ->
+exit_menu(X, Y, Mod, #ss{f=Exit,vec=Vec}, St) ->
     case Exit(exit, {Mod,Vec,St}) of
 	error ->
 	    Menu = [{"Cancel",abort,"Cancel current command"}],
@@ -317,11 +319,8 @@ exit_menu(X, Y, Mod, #ss{f=Exit,vec=Vec}=Ss, St) ->
 	keep ->
 	    keep;
 	Action ->
-	    erase_vector(),
-	    set_last_axis(Ss),
-	    maybe_finish(Action),
 	    wings_wm:later({action,Action}),
-	    pop
+	    keep
     end.
 
 common_exit(_, none, _, _, _, _, _, _) ->
@@ -343,12 +342,12 @@ common_exit(Type, Vec, _, More, Acc, Ns, _, _) ->
     common_exit_1(Type, Vec, More, Acc, Ns).
 
 common_exit_1(axis, {_,Vec}, PickList, Acc, Ns) ->
-    {vector,{pick,PickList,add_to_acc(Vec, Acc),Ns}};
+    {pick,PickList,add_to_acc(Vec, Acc),Ns};
 common_exit_1(axis_point, {Point,Vec}, PickList, Acc0, Ns) ->
     Acc = add_to_acc(Point, add_to_acc(Vec, Acc0)),
-    {vector,{pick,PickList,Acc,Ns}};
+    {pick,PickList,Acc,Ns};
 common_exit_1(point, Point, PickList, Acc, Ns) ->
-    {vector,{pick,PickList,add_to_acc(Point, Acc),Ns}}.
+    {pick,PickList,add_to_acc(Point, Acc),Ns}.
 
 add_magnet(More) ->
     More ++ [{magnet,"Pick outer boundary point for magnet influence"}].
@@ -490,7 +489,7 @@ exit_magnet(Vec, Mod, Acc, Ns) ->
     case wings_camera:free_rmb_modifier() of
 	ModRmb when Mod band ModRmb =/= 0 ->
 	    Fun = fun(Mag) ->
-			  {vector,{pick,[],[Mag|Acc],Ns}}
+			  {pick,[],[Mag|Acc],Ns}
 		  end,
 	    case Vec  of
 		none ->
@@ -505,7 +504,7 @@ exit_magnet(Vec, Mod, Acc, Ns) ->
 		Point ->
 		    Mag = {magnet,wings_pref:get_value(magnet_type),
 			   wings_pref:get_value(magnet_distance_route),Point},
-		    {vector,{pick,[],[Mag|Acc],Ns}}
+		    {pick,[],[Mag|Acc],Ns}
 	    end
     end.
 
