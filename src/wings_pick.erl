@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.70 2002/11/26 09:07:59 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.71 2002/11/26 20:05:30 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -194,8 +194,9 @@ clear_hilite_marquee_mode(#marquee{st=St}=Pick) ->
 	     keep;
 	(now_enter_marquee_mode) ->
 	     wings_wm:grab_focus(geom),
-	     gl:drawBuffer(?GL_FRONT),
 	     wings_io:ortho_setup(),
+	     gl:flush(),
+	     gl:drawBuffer(?GL_FRONT),
 	     get_marquee_event(Pick);
 	(Ev) ->
 	     wings_io:putback_event(Ev),

@@ -8,20 +8,20 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.65 2002/11/25 20:07:16 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.66 2002/11/26 20:05:30 bjorng Exp $
 %%
 
 -module(wings_menu).
--export([is_popup_event/1,menu/4,popup_menu/4,build_command/2]).
+-export([is_popup_event/1,menu/5,popup_menu/4,build_command/2]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
 -include("wings.hrl").
--import(lists, [foldl/3,reverse/1,keysearch/3]).
+-import(lists, [foldl/3,reverse/1,keysearch/3,foreach/2]).
 
 -define(SUB_MENU_TIME, 150).
 -define(SEPARATOR_HEIGHT, 9).
--define(INITIAL_LEVEL, 100).
+-define(INITIAL_LEVEL, 101).
 
 %% Menu information kept for a popup menu.
 -record(mi,
@@ -62,9 +62,9 @@ is_popup_event(#mousebutton{button=3,x=X,y=Y,state=State}) ->
     end;
 is_popup_event(_Event) -> no.
 
-menu(X, Y, Name, Menu) ->
-    Active = wings_wm:active_window(),
-    menu_setup(plain, X, Y, Name, Menu, #mi{adv=false,owner=Active}).
+menu(X, Y, Owner, Name, Menu) ->
+    menu_setup(plain, X, Y, Name, Menu,
+	       #mi{adv=false,owner=Owner,ignore_rel=false}).
 
 popup_menu(X, Y, Name, Menu) ->
     Active = wings_wm:active_window(),
@@ -95,17 +95,41 @@ menu_setup(Type, X0, Y0, Name, Menu0, #mi{ns=Names0,adv=Adv}=Mi0) ->
     Mi = Mi0#mi{ymarg=Margin,shortcut=MwL+1,w=TotalW-10,h=Mh,hs=Hs,
 		sel=none,ns=Names,menu=Menu,adv=Adv,type=Type},
     #mi{level=Level} = Mi,
-    Op = {seq,{push,dummy},get_menu_event(Mi)},
+    setup_menu_killer(),
+    Op = {seq,push,get_menu_event(Mi)},
     WinName = {menu,Level},
-    wings_wm:delete(WinName),
+    wings_wm:delete({menu,Level}),
     wings_wm:new(WinName, {X,Y,Level}, {W,Mh+10}, Op),
-    if
-	Level == ?INITIAL_LEVEL ->
-	    wings_wm:grab_focus(WinName);
-	true -> ok
-    end,
+    delete_from(Level+1),
     keep.
 
+delete_from(Level) ->
+    Name = {menu,Level},
+    case wings_wm:is_window(Name) of
+	false -> ok;
+	true ->
+	    wings_wm:delete(Name),
+	    delete_from(Level+1)
+    end.
+
+setup_menu_killer() ->
+    case wings_wm:exists(menu_killer) of
+	true -> ok;
+	false ->
+	    Op = {push,fun menu_killer/1},
+	    wings_wm:new(menu_killer, {0,0,?INITIAL_LEVEL-1},
+			 wings_wm:top_size(), Op)
+    end.
+
+menu_killer(#mousebutton{button=1,state=?SDL_PRESSED}) ->
+    wings_wm:send(menubar, clear_menu_selection),
+    foreach(fun({menu,_}=Name) ->
+		    wings_wm:delete(Name);
+	       (_) -> ok
+	    end, wings_wm:windows()),
+    delete;
+menu_killer(_) -> keep.
+    
 menu_show(#mi{ymarg=Margin,shortcut=Shortcut,w=Mw,h=Mh}=Mi) ->
     wings_io:border(0, 0, Mw-1, Mh + 2*Margin+3, ?MENU_COLOR),
     menu_draw(3*?CHAR_WIDTH, Margin+?CHAR_HEIGHT,
@@ -213,12 +237,8 @@ handle_menu_event(Event, Mi0) ->
 	    handle_key(KeySym, Mi0);
 	#mousemotion{x=X,y=Y} ->
 	    Mi1 = update_highlight(X, Y, Mi0),
-	    case motion_outside(Event, Mi0) of
-		none ->
-		    Mi = set_submenu_timer(Mi1, Mi0, X, Y),
-		    get_menu_event(Mi);
-		Other -> Other
-	    end;
+	    Mi = set_submenu_timer(Mi1, Mi0, X, Y),
+	    get_menu_event(Mi);
 	#mousebutton{} ->
 	    button_pressed(Event, Mi0);
 	redraw ->
@@ -232,7 +252,7 @@ handle_menu_event(Event, Mi0) ->
 	    wings_wm:delete({menu,Mi0#mi.level+1}),
 	    keep;
 	quit ->
-	    wings_io:clear_menu_sel(),
+	    wings_wm:send(menubar, clear_menu_selection),
 	    wings_io:putback_event(quit),
 	    delete_all(Mi0);
 	_IgnoreMe -> keep
@@ -240,21 +260,20 @@ handle_menu_event(Event, Mi0) ->
 
 button_pressed(#mousebutton{state=?SDL_RELEASED}, #mi{ignore_rel=true}=Mi) ->
     get_menu_event(Mi#mi{ignore_rel=false});
-button_pressed(#mousebutton{button=B,x=X,y=Y,state=?SDL_RELEASED}=Event,
+button_pressed(#mousebutton{button=B,x=X,y=Y,state=?SDL_RELEASED},
 	       #mi{adv=false}=Mi) when (B =< 3) ->
     wings_wm:dirty(),
-    button_pressed(Event, 1, X, Y, Mi);
-button_pressed(#mousebutton{button=B,x=X,y=Y,state=?SDL_RELEASED}=Event, Mi)
+    button_pressed(1, X, Y, Mi);
+button_pressed(#mousebutton{button=B,x=X,y=Y,state=?SDL_RELEASED}, Mi)
   when (B =< 3) ->
     wings_wm:dirty(),
-    button_pressed(Event, B, X, Y, Mi);
+    button_pressed(B, X, Y, Mi);
 button_pressed(_, _) -> keep.
 
-button_pressed(Event, Button, X, Y, #mi{ns=Names,menu=Menu,adv=Adv}=Mi0) ->
+button_pressed(Button, X, Y, #mi{ns=Names,menu=Menu,adv=Adv}=Mi0) ->
     clear_timer(Mi0),
     Mi = update_highlight(X, Y, Mi0),
     case selected_item(X, Y, Mi) of
-	outside -> button_outside(Event, Mi);
 	none -> get_menu_event(Mi);
 	Item when integer(Item) ->
 	    case element(Item, Menu) of
@@ -282,12 +301,12 @@ call_action(X, Act, Button, Ns, Ps, Mi) ->
     end.
 
 do_action(Action, #mi{owner=Owner}=Mi) ->
-    wings_io:clear_menu_sel(),
+    wings_wm:send(menubar, clear_menu_selection),
     wings_wm:send(Owner, {action,Action}),
     delete_all(Mi).
 	    
 handle_key(#keysym{sym=27}, Mi) ->		%Escape.
-    wings_io:clear_menu_sel(),
+    wings_wm:send(menubar, clear_menu_selection),
     delete_all(Mi);
 handle_key(#keysym{sym=C}, Mi0) when C == ?SDLK_DELETE; C == $\\  ->
     %% Delete hotkey bound to this entry.
@@ -348,7 +367,7 @@ popup_submenu(Button, X0, Y0, SubName, SubMenu0, #mi{owner=Owner}=Mi) ->
     case expand_submenu(Button, SubName, SubMenu0, Mi) of
 	ignore -> keep;
 	Action when is_tuple(Action); is_atom(Action) ->
-	    wings_io:clear_menu_sel(),
+	    wings_wm:send(menubar, clear_menu_selection),
 	    wings_wm:send(Owner, {action,Action}),
 	    delete_all(Mi);
 	SubMenu when is_list(SubMenu) ->
@@ -373,48 +392,6 @@ expand_submenu(B, Name, Submenu0, #mi{ns=Ns}) when is_function(Submenu0) ->
     Submenu0(B, [Name|Ns]);
 expand_submenu(_Button, _Name, Submenu, _Mi) -> Submenu.
 
-button_outside(#mousebutton{x=X0,y=Y0}=Ev, Mi) ->
-    wings_io:clear_menu_sel(),
-    {X,Y} = wings_wm:local2global(X0, Y0),
-    case wings_io:button(X, Y) of
-	none -> ok;
-	ignore -> ok;
-	ButtonHit -> wings_io:putback_event({action,ButtonHit})
-    end,
-    wings_io:event(Ev#mousebutton{x=X,y=Y}),
-    delete_all(Mi).
-
-motion_outside(#mousemotion{x=X0,y=Y0}=Event, #mi{type=plain}=Mi) ->
-    {X,Y} = wings_wm:local2global(X0, Y0),
-    case wings_io:button(X, Y) of
-	none -> motion_outside_1(X, Y, Mi);
-	ignore -> motion_outside_1(X, Y, Mi);
-	{_,Name,_,_}=ButtonHit ->
-	    case same_menu(Name, Mi) of
-		true -> motion_outside_1(X, Y, Mi);
-		false ->
-		    wings_io:putback_event({action,ButtonHit}),
-		    wings_io:putback_event(Event),
-		    delete
-	    end
-    end;
-motion_outside(#mousemotion{x=X0,y=Y0}, Mi) ->
-    {X,Y} = wings_wm:local2global(X0, Y0),
-    motion_outside_1(X, Y, Mi).
-
-same_menu(Name, #mi{ns=Names}) -> lists:last(Names) =:= Name.
-
-motion_outside_1(X, Y, #mi{level=Lev}) ->
-    case wings_wm:window_under(X, Y) of
-	{menu,L} when L < Lev ->
-	    wings_wm:grab_focus({menu,L}),
-	    delete;
-	{menu,L} when L > Lev ->
-	    wings_wm:grab_focus({menu,L}),
-	    none;
-	_ -> none
-    end.
-
 clear_timer(#mi{timer=Timer}) -> wings_io:cancel_timer(Timer).
 
 set_submenu_timer(#mi{sel=Sel}=Mi, #mi{sel=Sel}, _X, _Y) -> Mi;
@@ -431,15 +408,15 @@ set_submenu_timer(#mi{sel=Sel}=Mi, OldMi, X0, Y0) ->
 	    Mi#mi{timer=Timer}
     end.
 
-delete_all(#mi{level=L}=Mi) ->
+delete_all(Mi) ->
     clear_timer(Mi),
-    wings_wm:delete({menu,L+1}),
-    delete_all_1(L-1).
-
-delete_all_1(L) when L < ?INITIAL_LEVEL -> delete;
-delete_all_1(L) ->
-    wings_wm:delete({menu,L}),
-    delete_all_1(L-1).
+    case wings_wm:exists(menu_killer) of
+	true ->
+	    wings_wm:send(menu_killer,
+			  #mousebutton{button=1,x=0,y=0,state=?SDL_PRESSED});
+	false -> ok
+    end,
+    delete.
 
 redraw(Mi) ->
     wings_io:ortho_setup(),
@@ -496,7 +473,7 @@ selected_item(X0, Y0, #mi{ymarg=Margin,w=W,h=H}=Mi) ->
 	Margin =< Y0, Y0 < H+Margin ->
 	    selected_item_1(Y0-Margin, Mi);
 	0 =< X0, X0 < W, -2 =< Y0, Y0 < H+2*Margin -> none;
-	true -> outside
+	true -> none
     end.
 
 selected_item_1(Y, #mi{hs=Hs,menu=Menu}) ->

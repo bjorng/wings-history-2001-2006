@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.167 2002/11/25 20:07:15 bjorng Exp $
+%%     $Id: wings.erl,v 1.168 2002/11/26 20:05:29 bjorng Exp $
 %%
 
 -module(wings).
@@ -109,14 +109,6 @@ init(File, Root) ->
     wings_color:init(),
     wings_io:init(),
 
-    wings_io:menubar([{"File",file},
-		      {"Edit",edit},
-		      {"View",view},
-		      {"Select",select},
-		      {"Tools",tools},
-		      {"Objects",objects},
-		      {"Help",help}]),
-
     wings_camera:init(),
     wings_vec:init(),
 
@@ -137,6 +129,7 @@ init(File, Root) ->
     put(wings_hitbuf, sdl_util:malloc(?HIT_BUF_SIZE, ?GL_UNSIGNED_INT)),
     caption(St),
     wings_wm:init(),
+    init_menubar(),
     open_file(File),
     {W,H} = wings_wm:top_size(),
     Op = {seq,{push,dummy},main_loop_noredraw(St)},
@@ -340,8 +333,6 @@ command({wings,reset}, St0) ->
 command({vector,What}, St) ->
     wings_vec:command(What, St);
 command({secondary_selection,aborted}, St) -> St;
-command({menu,Menu,X,Y}, St) ->
-    menu(X, Y, Menu, St);
 command({shape,Shape}, St0) ->
     case wings_shapes:command(Shape, St0) of
     	St0 -> St0;
@@ -470,26 +461,30 @@ popup_menu(X, Y, #st{selmode=Mode}=St) ->
 	    end
     end.
 
-menu(X, Y, file, St) ->
-    wings_file:menu(X, Y, St);
-menu(X, Y, edit, St) ->
-    Menu = [{"Undo/redo",undo_toggle},
-	    {"Redo",redo},
-	    {"Undo",undo},
-	    separator,
-	    {command_name("Repeat", St),repeat},
-	    {command_name("Repeat Drag", St),repeat_drag},
-	    separator,
-	    wings_material:sub_menu(edit, St),
-	    separator|wings_camera:sub_menu(St)++wings_pref:menu(St)++
-	    [separator,
-	     {"Purge Undo History",purge_undo}|patches()]],
-    wings_menu:menu(X, Y, edit, Menu);
-menu(X, Y, view, St) ->
-    wings_view:menu(X, Y, St);
-menu(X, Y, select, St) ->
-    wings_sel_cmd:menu(X, Y, St);
-menu(X, Y, tools, _) ->
+init_menubar() ->
+    Menus = [{"File",file,fun(St) -> wings_file:menu(St) end},
+	     {"Edit",edit,fun edit_menu/1},
+	     {"View",view,fun(St) -> wings_view:menu(St) end},
+	     {"Select",select,fun(St) -> wings_sel_cmd:menu(St) end},
+	     {"Tools",tools,fun tools_menu/1},
+	     {"Objects",objects,fun(St) -> wings_shape:menu(St) end},
+	     {"Help",help,fun(St) -> wings_help:menu(St) end}],
+    wings_wm:menubar(geom, Menus).
+
+edit_menu(St) ->
+    [{"Undo/redo",undo_toggle},
+     {"Redo",redo},
+     {"Undo",undo},
+     separator,
+     {command_name("Repeat", St),repeat},
+     {command_name("Repeat Drag", St),repeat_drag},
+     separator,
+     wings_material:sub_menu(edit, St),
+     separator|wings_camera:sub_menu(St)++wings_pref:menu(St)++
+     [separator,
+      {"Purge Undo History",purge_undo}|patches()]].
+
+tools_menu(_) ->
     Dirs = [{"All",all},
 	    {"X",x},
 	    {"Y",y},
@@ -497,30 +492,24 @@ menu(X, Y, tools, _) ->
 	    {"Radial X",radial_x},
 	    {"Radial Y",radial_y},
 	    {"Radial Z",radial_z}],
-    Menu = [{"Align",{align,Dirs}},
-	    {"Center",{center,Dirs}},
-	    separator,
-	    {"Save Bounding Box",save_bb},
-	    {"Scale to Saved BB",{scale_to_bb,Dirs}},
-	    {"Scale to Saved BB Proportionally",{scale_to_bb_prop,Dirs}},
-	    {"Move to Saved BB",{move_to_bb,wings_menu_util:all_xyz()}},
-	    separator,
-	    {"Set Default Axis",set_default_axis},
-	    separator,
-	    {"Virtual Mirror",
-	     {virtual_mirror,
-	      [{"Create",create,
-		"Given a face selection, set up a virtual mirror"},
-	       {"Break",break,
-		"Remove the virtul mirror for all objects"},
-	       {"Freeze",freeze,
-		"Create real geometry from the virtual mirrors"}]}}
-	   ],
-    wings_menu:menu(X, Y, tools, Menu);
-menu(X, Y, objects, St) ->
-    wings_shape:menu(X, Y, St);
-menu(X, Y, help, St) ->
-    wings_help:menu(X, Y, St).
+    [{"Align",{align,Dirs}},
+     {"Center",{center,Dirs}},
+     separator,
+     {"Save Bounding Box",save_bb},
+     {"Scale to Saved BB",{scale_to_bb,Dirs}},
+     {"Scale to Saved BB Proportionally",{scale_to_bb_prop,Dirs}},
+     {"Move to Saved BB",{move_to_bb,wings_menu_util:all_xyz()}},
+     separator,
+     {"Set Default Axis",set_default_axis},
+     separator,
+     {"Virtual Mirror",
+      {virtual_mirror,
+       [{"Create",create,
+	 "Given a face selection, set up a virtual mirror"},
+	{"Break",break,
+	 "Remove the virtul mirror for all objects"},
+	{"Freeze",freeze,
+	 "Create real geometry from the virtual mirrors"}]}}].
 
 patches() ->
     case wings_start:get_patches() of

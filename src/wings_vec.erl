@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.46 2002/11/23 20:34:33 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.47 2002/11/26 20:05:30 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -105,6 +105,7 @@ mode_restriction(Modes, #st{selmode=Mode}=St) ->
     end.
 
 pick_init(#st{selmode=Mode}) ->
+    wings_wm:callback(fun restrict_menus/0),
     wings_draw_util:map(fun(D, _) -> pick_init_1(D, Mode) end, []).
 
 pick_init_1(#dlo{orig_sel=none,sel=SelDlist}=D, Mode) ->
@@ -116,6 +117,12 @@ pick_finish() ->
 
 clear_orig_sel(D, _) -> D#dlo{orig_sel=none,orig_mode=none}.
 
+restrict_menus() ->
+    Mb0 = wings_wm:get_menubar(geom),
+    Mb = [Item || {_,Name,_}=Item <- Mb0,
+		  (Name == view orelse Name == select)],
+    wings_wm:menubar(geom, Mb).
+
 %%%
 %%% Event handler for secondary selection mode.
 %%%
@@ -125,12 +132,6 @@ get_event(Ss, St) ->
     {replace,fun(Ev) -> handle_event(Ev, Ss, St) end}.
 
 handle_event(Event, Ss, St) ->
-    case wings_io:event(Event) of
-	next -> handle_event_0(Event, Ss, St);
-	Other -> Other
-    end.
-
-handle_event_0(Event, Ss, St) ->
     case wings_camera:event(Event, St) of
 	next -> handle_event_1(Event, Ss, St);
 	Other -> Other
@@ -192,12 +193,6 @@ handle_event_5({action,{view,Cmd}}, Ss, St0) ->
     get_event(Ss, St);
 handle_event_5({action,{secondary_selection,Cmd}}, Ss, St) ->
     secondary_selection(Cmd, Ss, St);
-handle_event_5({action,{menu,view,X,Y}}, _, St) ->
-    wings_view:menu(X, Y, St);
-handle_event_5({action,{menu,select,X,Y}}, _, St) ->
-    wings_sel_cmd:menu(X, Y, St);
-handle_event_5({action,{menu,_,_,_}}, _, _) ->
-    keep;
 handle_event_5({action,Cmd}, Ss, St) ->
     set_last_axis(Ss, St),
     wings_io:putback_event({action,Cmd}),

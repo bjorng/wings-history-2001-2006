@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.53 2002/11/23 20:34:31 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.54 2002/11/26 20:05:29 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -166,7 +166,8 @@ blender(#mousebutton{button=2,state=?SDL_PRESSED}=Event, Redraw) ->
     blender_1(Event, wings_wm:me_modifiers(), Redraw);
 blender(_, _) -> next.
 
-blender_1(#mousebutton{x=X,y=Y}, Mod, Redraw) ->
+blender_1(#mousebutton{x=X0,y=Y0}, Mod, Redraw) ->
+    {X,Y} = wings_wm:local2global(X0, Y0),
     case Mod band ?ALT_BITS =/= 0 of
 	true -> next;
 	false ->
@@ -200,7 +201,8 @@ get_blender_event(Camera, Redraw) ->
 %%% Nendo style camera.
 %%%
 
-nendo(#mousebutton{button=2,x=X,y=Y,state=?SDL_RELEASED}, Redraw) ->
+nendo(#mousebutton{button=2,x=X0,y=Y0,state=?SDL_RELEASED}, Redraw) ->
+    {X,Y} = wings_wm:local2global(X0, Y0),
     Camera = #camera{x=X,y=Y,ox=X,oy=Y},
     wings_io:grab(),
     nendo_message(true),
@@ -288,7 +290,8 @@ nendo_mbutton() ->
 %%% Mirai style camera.
 %%%
 
-mirai(#mousebutton{button=2,x=X,y=Y,state=?SDL_RELEASED}, Redraw) ->
+mirai(#mousebutton{button=2,x=X0,y=Y0,state=?SDL_RELEASED}, Redraw) ->
+    {X,Y} = wings_wm:local2global(X0, Y0),
     Camera = #camera{x=X,y=Y,ox=X,oy=Y},
     wings_io:grab(),
     mirai_message(true),
@@ -371,7 +374,8 @@ mirai_message(false) ->
 %%% 3ds max style camera.
 %%%
 
-tds(#mousebutton{button=2,x=X,y=Y,state=?SDL_PRESSED}, Redraw) ->
+tds(#mousebutton{button=2,x=X0,y=Y0,state=?SDL_PRESSED}, Redraw) ->
+    {X,Y} = wings_wm:local2global(X0, Y0),
     Camera = #camera{x=X,y=Y,ox=X,oy=Y},
     wings_io:grab(),
     message(["[R] Restore view  "|help()]),
@@ -408,9 +412,10 @@ get_tds_event(Camera, Redraw, View) ->
 %%% Maya style camera.
 %%%
 
-maya(#mousebutton{x=X,y=Y,state=?SDL_PRESSED}, Redraw) ->
+maya(#mousebutton{x=X0,y=Y0,state=?SDL_PRESSED}, Redraw) ->
     case wings_wm:me_modifiers() of
 	Mod when Mod band ?ALT_BITS =/= 0 ->
+	    {X,Y} = wings_wm:local2global(X0, Y0),
 	    sdl_events:eventState(?SDL_KEYUP, ?SDL_ENABLE),
 	    Camera = #camera{x=X,y=Y,ox=X,oy=Y},
 	    wings_io:grab(),
@@ -513,19 +518,19 @@ stop_camera(#camera{ox=OX,oy=OY}) ->
 
 camera_mouse_range(X0, Y0, #camera{x=OX,y=OY, xt=Xt0, yt=Yt0}=Camera) ->
 %%    io:format("Camera Mouse Range ~p ~p~n", [{X0,Y0}, {OX,OY,Xt0,Yt0}]),
-    XD0 = (X0 - OX),
-    YD0 = (Y0 - OY),
+    {X1,Y1} = wings_wm:local2global(X0, Y0),
+    XD0 = (X1 - OX),
+    YD0 = (Y1 - OY),
     XD = XD0 + Xt0,
     YD = YD0 + Yt0,
 
     if (XD0 == 0), (YD0 == 0) ->
 	    {float(0), float(0), Camera#camera{xt=0,yt=0}};
        %% Linux gets really large jumps sometime, 
-       %% so we throw events with large Delta
+       %% so we throw events with large delta movements.
        (XD > ?CAMMAX); (YD > ?CAMMAX) -> 
 	    wings_io:warp(OX, OY),
 	    {0.0, 0.0, Camera#camera{xt=XD0, yt=YD0}};
-       %%{0,0,Camera#camera{xt=0,yt=0}}; 
        true ->
 	    wings_io:warp(OX, OY),
 	    {XD/?CAMDIV, YD/?CAMDIV, Camera#camera{xt=XD0, yt=YD0}}

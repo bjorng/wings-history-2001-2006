@@ -8,17 +8,15 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.78 2002/11/26 09:07:59 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.79 2002/11/26 20:05:29 bjorng Exp $
 %%
 
 -module(wings_io).
--export([init/0,menubar/1,resize/2,
+-export([init/0,resize/2,
 	 icon_restriction/1,clear_icon_restriction/0,get_icon_restriction/0,
 	 arrow/0,hourglass/0,
-	 update/1,
-	 event/1,button/2,info/1,
+	 update/1,event/1,info/1,
 	 disable_progress/0,progress/1,progress_tick/0,
-	 clear_menu_sel/0,
 	 border/5,
 	 sunken_rect/5,raised_rect/4,raised_rect/5,
 	 text_at/2,text_at/3,text/1,menu_text/3,axis_text/4,space_at/2,
@@ -43,10 +41,7 @@
 -record(io,
 	{w,					%Width of screen (pixels).
 	 h,					%Height of screen (pixels).
-	 menubar,				%Menu bar at top.
-	 sel,					%Selected item in menubar.
 	 eq,					%Event queue.
-	 icons=[],				%Position for Icons.
 	 tex=[],				%Textures.
 	 grab_count=0,				%Number of grabs.
 	 hourglass,				%Hourglass cursor.
@@ -91,9 +86,8 @@ read_icons() ->
 resize(W0, H0) ->
     gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
     #io{raw_icons=RawIcons} = Io = get_state(),
-    Icons = place_icons(W0),
     Tex = load_textures(RawIcons),
-    put_state(Io#io{w=W0,h=H0,tex=Tex,icons=Icons}),
+    put_state(Io#io{w=W0,h=H0,tex=Tex}),
     case sdl_video:wm_isMaximized() of
 	false -> wings_pref:set_value(window_size, {W0,H0});
 	true ->  wings_pref:set_value(window_size, {W0-8,H0-10})
@@ -112,21 +106,6 @@ make_font_dlists(C, Base) ->
     gl:endList(),
     make_font_dlists(C+1, Base).
 
-place_icons(W) ->
-    Mid = W div 2,
-    Lmarg = 5,
-    Rmarg = 20,
-    [{Lmarg,flatshade},{Lmarg+?ICON_WIDTH,smooth},
-     {Mid-2*?ICON_WIDTH,vertex},{Mid-?ICON_WIDTH,edge},
-     {Mid,face},{Mid+?ICON_WIDTH,body},
-     {W-3*?ICON_WIDTH-Rmarg,perspective},
-     {W-2*?ICON_WIDTH-Rmarg,groundplane},
-     {W-?ICON_WIDTH-Rmarg,axes}].
-
-menubar(Menubar) ->
-    Io = get_state(),
-    put_state(Io#io{menubar=Menubar}).
-
 disable_progress() ->
     ok.
     
@@ -139,11 +118,8 @@ progress_tick() ->
 info(Info) ->
     ortho_setup(),
     set_color(wings_pref:get_value(info_color)),
-    text_at(4, 2*?LINE_HEIGHT+3, Info).
+    text_at(4, ?CHAR_HEIGHT, Info).
     
-clear_menu_sel() ->
-    put_state((get_state())#io{sel=undefined}).
-
 icon_restriction(Modes) ->
     wings_wm:send(buttons, {mode_restriction,Modes}),
     put_state((get_state())#io{selmodes=Modes}).
@@ -156,14 +132,11 @@ get_icon_restriction() ->
     #io{selmodes=Modes} = get_state(),
     Modes.
 
-update(#st{selmode=Mode}) ->
-    wings_wm:send(buttons, {mode,Mode}),
-    #io{h=H} = Io = get_state(),
-    ortho_setup(),
-    draw_panes(Io),
-    maybe_show_mem_used(H).
+update(St) ->
+    wings_wm:current_st(St),
+    maybe_show_mem_used().
 
-maybe_show_mem_used(H) ->
+maybe_show_mem_used() ->
     case wings_pref:get_value(show_memory_used) of
 	true ->
 	    {memory,Sz} = process_info(self(), memory),
@@ -182,61 +155,12 @@ maybe_show_mem_used(H) ->
 		   "  Dlist: ",integer_to_list(Dl),
 		   "  Binaries: ",integer_to_list(length(B))],
 	    ortho_setup(),
-	    text_at(4, H-3*?LINE_HEIGHT+5, Mem);
+	    {_,_,_,H} = wings_wm:viewport(),
+	    text_at(4, H-3, Mem);
 	false -> ok
     end.
 
-draw_panes(#io{w=W,menubar=Bar,sel=Sel}) ->
-    border(0, -1, W, ?LINE_HEIGHT+6),
-    draw_bar(0, Bar, Sel).
-
--define(MENU_MARGIN, 8).
--define(MENU_ITEM_SPACING, 3).
-
-draw_bar(X, [{Name,Item}|T], Sel) ->
-    W = ?CHAR_WIDTH*(?MENU_ITEM_SPACING+length(Name)),
-    if
-	Item =:= Sel ->
-	    border(X+1, 3, W, ?LINE_HEIGHT);
-	true -> ok
-    end,
-    text_at(?MENU_MARGIN+X, ?LINE_HEIGHT-1, Name),
-    draw_bar(X+W, T, Sel);
-draw_bar(_X, [], _Sel) -> ok.
-
-event(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED}) ->
-    case button(X, Y) of
-	none -> next;
-	ignore -> keep;
-	Other ->
-	    putback_event({action,Other}),
-	    keep
-    end;
 event(_) -> next.
-
-button(X, Y) when Y > ?LINE_HEIGHT; X < ?MENU_MARGIN ->
-    put_state((get_state())#io{sel=undefined}),
-    none;
-button(X0, _Y) ->
-    X = X0 - ?MENU_MARGIN,
-    #io{menubar=Bar} = get_state(),
-    button_1(X, 0, Bar).
-
-button_1(RelX, X, [{Name,Item}|T]) ->
-    case ?CHAR_WIDTH*length(Name) of
-	W when RelX < W ->
-	    put_state((get_state())#io{sel=Item}),
-	    {menu,Item,X+2,?LINE_HEIGHT+6};
-	W ->
-	    Iw = W+?MENU_ITEM_SPACING*?CHAR_WIDTH,
-	    button_1(RelX-Iw, X+Iw, T)
-    end;
-button_1(_, _, []) ->
-    put_state((get_state())#io{sel=undefined}),
-    none.
-
-border(X, Y, Mw, Mh) ->
-    border(X, Y, Mw, Mh, ?PANE_COLOR).
 
 border(X0, Y0, Mw0, Mh0, FillColor) ->
     X = X0 + 0.5,

@@ -8,14 +8,15 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.22 2002/11/26 09:07:59 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.23 2002/11/26 20:05:30 bjorng Exp $
 %%
 
 -module(wings_wm).
 -export([init/0,enter_event_loop/0,dirty/0,clean/0,new/4,delete/1,
 	 message/1,message/2,message_right/1,send/2,
-	 active_window/0,offset/3,pos/1,
-	 callback/1,
+	 menubar/1,menubar/2,get_menubar/1,
+	 active_window/0,offset/3,pos/1,windows/0,is_window/1,exists/1,
+	 callback/1,current_st/1,
 	 grab_focus/1,release_focus/0,has_focus/1,
 	 top_size/0,viewport/0,viewport/1,
 	 local2global/2,global2local/2,local_mouse_state/0,
@@ -39,12 +40,15 @@
 -record(se,					%Stack entry record.
 	{h,					%Handler (fun).
 	 msg=[],				%Current message.
-	 msg_right=[]				%Right-side message.
+	 msg_right=[],				%Right-side message.
+	 menubar=none				%Menubar for this window.
 	}).
+
 %%%
 %%% Process dictionary usage:
 %%%
 %%% wm_active		Currently active window (handling current event).
+%%% wm_main		Last active window that has a menu.
 %%% wm_focus		Window name of focus window or undefined.
 %%% wm_windows		All windows.
 %%% wm_dirty		Exists if redraw is needed.
@@ -62,10 +66,13 @@ init() ->
     put(wm_windows, gb_trees:empty()),
     new(top, {0,0,0}, {W,H}, {push,fun(_) -> keep end}),
     MsgH = 2*?LINE_HEIGHT-8,
-    new(message, {0,0,98}, {W,MsgH},
+    new(message, {0,0,99}, {W,MsgH},
 	{seq,push,{replace,fun message_event/1}}),
     ButtonH = 2*?LINE_HEIGHT+3,
-    new(buttons, {0,0,99}, {W,ButtonH}, init_button()).
+    new(buttons, {0,0,99}, {W,ButtonH}, init_button()),
+    MenuH = ?LINE_HEIGHT+7,
+    new(menubar, {0,0,200}, {W,MenuH}, init_menubar()),
+    put(wm_main, geom).
 
 message(Message) ->
     wings_io:putback_event({wm,{message,get(wm_active),Message}}).
@@ -77,9 +84,23 @@ message(Message, Right) ->
     message(Message),
     message_right(Right).
 
+menubar(Menubar) ->
+    menubar(get(wm_active), Menubar).
+
+menubar(Name, Menubar) ->
+    wings_io:putback_event({wm,{menubar,Name,Menubar}}).
+
+get_menubar(Name) ->
+    #win{stk=[#se{menubar=Bar}|_]} = get_window_data(Name),
+    Bar.
+
 send(Name, Ev) ->
     wings_io:putback_event({wm,{send_to,Name,Ev}}),
     keep.
+
+current_st(St) ->
+    wings_wm:send(buttons, {current,St}),
+    wings_wm:send(menubar, {current,St}).
     
 dirty() ->
     put(wm_dirty, dirty).
@@ -112,7 +133,16 @@ active_window() ->
 	undefined -> none;
 	Active -> Active
     end.
-	    
+
+windows() ->	    
+    gb_trees:keys(get(wm_windows)).
+
+exists(Name) ->
+    gb_trees:is_defined(Name, get(wm_windows)).
+
+is_window(Name) ->
+    gb_trees:is_defined(Name, get(wm_windows)).
+
 offset(Name, Xoffs, Yoffs) ->
     #win{x=X,y=Y} = Win = get_window_data(Name),
     put_window_data(Name, Win#win{x=X+Xoffs,y=Y+Yoffs}).
@@ -199,6 +229,12 @@ dispatch_event(#resize{w=W,h=H}=Event) ->
     Win = send_event(Win1, Event),
     put_window_data(top, Win),
 
+    #win{h=MenubarH} = MenubarData0 = get_window_data(menubar),
+    MenubarData1 = MenubarData0#win{x=0,y=0,w=W},
+    put_window_data(menubar, MenubarData1),
+    MenubarData = send_event(MenubarData1, Event#resize{w=W}),
+    put_window_data(menubar, MenubarData),
+
     #win{h=MsgH} = MsgData0 = get_window_data(message),
     MsgY = H-MsgH,
     MsgData1 = MsgData0#win{x=0,y=MsgY,w=W},
@@ -214,7 +250,7 @@ dispatch_event(#resize{w=W,h=H}=Event) ->
     put_window_data(buttons, ButtonData),
 
     GeomData0 = get_window_data(geom),
-    GeomData1 = GeomData0#win{x=0,y=0,w=W,h=H-MsgH-ButtonH},
+    GeomData1 = GeomData0#win{x=0,y=MenubarH,w=W,h=H-MsgH-ButtonH-MenubarH},
     put_window_data(geom, GeomData1),
     GeomData = send_event(GeomData1, Event#resize{h=MsgY}),
     put_window_data(geom, GeomData),
@@ -363,6 +399,16 @@ wm_event({message_right,Name,Right0}) ->
 	#win{stk=[#se{msg_right=Right}|_]} -> ok;
 	#win{stk=[Top|Stk]}=Data0 ->
 	    Data = Data0#win{stk=[Top#se{msg_right=Right}|Stk]},
+	    put_window_data(Name, Data),
+	    wings_wm:dirty()
+    end,
+    event_loop();
+wm_event({menubar,Name,Menubar}) ->
+    case lookup_window_data(Name) of
+	none -> ok;
+	#win{stk=[#se{menubar=Menubar}|_]} -> ok;
+	#win{stk=[Top|Stk]}=Data0 ->
+	    Data = Data0#win{stk=[Top#se{menubar=Menubar}|Stk]},
 	    put_window_data(Name, Data),
 	    wings_wm:dirty()
     end,
@@ -615,9 +661,9 @@ button_event(#mousemotion{x=X}, But) ->
     keep;
 button_event({action,_}=Action, _) ->
     send(geom, Action);
-button_event({mode,Mode}, #but{mode=Mode}) ->
+button_event({current,#st{selmode=Mode}}, #but{mode=Mode}) ->
     keep;
-button_event({mode,Mode}, But) ->
+button_event({current,#st{selmode=Mode}}, But) ->
     dirty(),
     get_button_event(But#but{mode=Mode});
 button_event({mode_restriction,Restr}, #but{restr=Restr}) ->
@@ -736,3 +782,103 @@ choose(Key, Val, First, Second) ->
 	Val -> First;
 	_ -> Second
     end.
+
+%%
+%% The menubar window.
+%%
+
+-define(MENU_MARGIN, 8).
+-define(MENU_ITEM_SPACING, 3).
+
+-record(mb,
+	{bar=none,
+	 sel=none,
+	 win=none,
+	 st
+	}).
+
+init_menubar() ->
+    {seq,push,get_menu_event(#mb{sel=none})}.
+
+get_menu_event(Mb) ->
+    {replace,fun(Ev) -> menubar_event(Ev, Mb) end}.
+
+menubar_event(redraw, Mb) ->
+    menubar_redraw(Mb);
+menubar_event({action,_}=Action, _) ->
+    send(geom, Action);
+menubar_event(clear_menu_selection, Mb) ->
+    dirty(),
+    get_menu_event(Mb#mb{sel=none});
+menubar_event({current,St}, Mb) ->
+    get_menu_event(Mb#mb{st=St});
+menubar_event(#mousebutton{button=1,x=X0,state=?SDL_PRESSED},
+	      #mb{sel=Sel}=Mb) ->
+    case menubar_hit(X0, Mb) of
+	none -> keep;
+	{_,Sel,_} -> keep;
+	{X,Name,Fun} -> menu_open(X, Name, Fun, Mb)
+    end;
+menubar_event(#mousemotion{x=X0}, #mb{sel=Sel}=Mb) ->
+    case menubar_hit(X0, Mb) of
+	none -> keep;
+	{_,Sel,_} -> keep;
+	{X,Name,Fun} when Sel =/= none ->
+	    menu_open(X, Name, Fun, Mb);
+	_ -> keep
+    end;
+menubar_event(_, _) -> keep.
+
+menu_open(X, Name, Fun, #mb{win=Win,st=St}=Mb) ->
+    Menu = Fun(St),
+    wings_menu:menu(X, ?LINE_HEIGHT+5, Win, Name, Menu),
+    get_menu_event(Mb#mb{sel=Name}).
+
+menubar_redraw(Mb) ->
+    {_,_,W,H} = viewport(),
+    wings_io:ortho_setup(),
+    wings_io:set_color(?PANE_COLOR),
+    gl:rectf(0, 0, W, H-1),
+    gl:color3f(0.2, 0.2, 0.2),
+    gl:'begin'(?GL_LINES),
+    gl:vertex2f(0.5, H-1),
+    gl:vertex2f(W, H-1),
+    gl:'end'(),
+    Main = get(wm_main),
+    case get_menubar(Main) of
+	none -> keep;
+	Menubar ->
+	    menubar_redraw_1(Menubar, Mb),
+	    get_menu_event(Mb#mb{bar=Menubar,win=Main})
+    end.
+
+menubar_redraw_1(Menubar, #mb{sel=Sel}) ->
+    menubar_draw(Menubar, ?MENU_MARGIN, Sel).
+
+menubar_draw([{Desc,Name,_}|T], X, Sel) ->
+    W = ?CHAR_WIDTH*(?MENU_ITEM_SPACING+length(Desc)),
+    if
+	Name =:= Sel -> wings_io:border(X+1-?MENU_MARGIN, 3, W,
+					?LINE_HEIGHT, ?PANE_COLOR);
+	true -> ok
+    end,
+    gl:color3f(0, 0, 0),
+    wings_io:text_at(X, ?LINE_HEIGHT-1, Desc),
+    menubar_draw(T, X+W, Sel);
+menubar_draw([], _, _) -> keep.
+
+menubar_hit(X0, #mb{bar=Bar}=Mb) ->
+    case X0-?MENU_MARGIN of
+	X when X < 0 -> none;
+	X -> menubar_hit_1(Bar, Mb, X, 0)
+    end.
+
+menubar_hit_1([{Desc,Name,Fun}|T], Mb, RelX, X) ->
+    case ?CHAR_WIDTH*length(Desc) of
+	W when RelX < W ->
+	    {X+2,Name,Fun};
+	W ->
+	    Iw = W+?MENU_ITEM_SPACING*?CHAR_WIDTH,
+	    menubar_hit_1(T, Mb, RelX-Iw, X+Iw)
+    end;
+menubar_hit_1([], _, _, _) -> none.

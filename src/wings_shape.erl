@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.23 2002/11/07 07:49:43 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.24 2002/11/26 20:05:30 bjorng Exp $
 %%
 
 -module(wings_shape).
 -export([new/3,insert/3,replace/3,
-	 menu/3,command/2]).
+	 menu/1,command/2]).
 
 -include("wings.hrl").
 -import(lists, [map/2,reverse/1,reverse/2,keymember/3,keysearch/3,sort/1]).
@@ -55,22 +55,21 @@ replace(Id, We0, #st{shapes=Shapes0}=St) ->
 %%% Objects menu.
 %%%
 
-menu(X, Y, #st{sel=Sel,shapes=Shapes}) ->
+menu(#st{sel=Sel,shapes=Shapes}) ->
     Menu0 = map(fun(#we{id=Id,perm=Perm,name=Name}) ->
 			IsSelected = keymember(Id, 1, Sel),
 			NameSt = state(Perm, IsSelected, Name),
 			Choices = choices(Perm, IsSelected),
 			{NameSt,{Id,Choices}}
 		end, gb_trees:values(Shapes)),
-    Menu1 = case Menu0 of
-		[] -> [];
-		_ -> [separator|Menu0]
-	    end,
-    Menu = [{"Show And Unlock All",restore_all},
-	    {"Hide Selected",hide_selected},
-	    {"Hide Unselected",hide_unselected},
-	    {"Lock Unselected",lock_unselected}|Menu1],
-    wings_menu:menu(X, Y, objects, Menu).
+    Menu = case Menu0 of
+	       [] -> [];
+	       _ -> [separator|Menu0]
+	   end,
+    [{"Show And Unlock All",restore_all},
+     {"Hide Selected",hide_selected},
+     {"Hide Unselected",hide_unselected},
+     {"Lock Unselected",lock_unselected}|Menu].
 
 state(0, IsSel, Name) ->
     state_1(eye, IsSel, Name);

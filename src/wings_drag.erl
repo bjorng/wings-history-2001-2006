@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.111 2002/11/23 20:34:31 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.112 2002/11/26 20:05:29 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -476,8 +476,9 @@ mouse_range(#mousemotion{x=X0,y=Y0,state=Mask},
 	    #drag{x=OX,y=OY,xs=Xs0,ys=Ys0,zs=Zs0,
 		  xt=Xt0,yt=Yt0,mmb_count=Count0}=Drag) ->
     %%io:format("Mouse Range ~p ~p~n", [{X0,Y0}, {OX,OY,Xs0,Ys0}]),
-    XD0 = (X0 - OX),
-    YD0 = (Y0 - OY),
+    {X,Y} = wings_wm:local2global(X0, Y0),
+    XD0 = (X - OX),
+    YD0 = (Y - OY),
     case {XD0,YD0} of
 	{0,0} ->
 	    {[Xs0/?MOUSE_DIVIDER,-Ys0/?MOUSE_DIVIDER,-Zs0/?MOUSE_DIVIDER],

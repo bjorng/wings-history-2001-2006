@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.80 2002/11/23 20:34:33 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.81 2002/11/26 20:05:30 bjorng Exp $
 %%
 
 -module(wings_view).
--export([menu/3,command/2,
+-export([menu/1,command/2,
 	 virtual_mirror/2,
 	 init/0,
 	 current/0,set_current/1,
@@ -25,47 +25,46 @@
 
 -import(lists, [foreach/2,foldl/3]).
 
-menu(X, Y, _) ->
+menu(_) ->
     L = wings_pref:get_value(number_of_lights),
-    Menu = [{"Ground plane",show_groundplane,crossmark(show_groundplane)},
-	    {"Axes",show_axes,crossmark(show_axes)},
-	    separator,
-	    {"Workmode",workmode,crossmark(workmode)},
-	    {"Smoothed Preview",smoothed_preview},
-	    separator,
-	    {"Wireframe",wireframe},
-	    {"Shade",shade},
-	    {"Toggle wireframed/shaded",toggle_wireframe},
-	    separator,
-	    {"Show Saved BB",show_bb,crossmark(show_bb)},
-	    {"Show Edges",show_edges,crossmark(show_edges)},
-	    {"Show Normals",show_normals,crossmark(show_normals)},
-	    {"Show Wireframe Backfaces",show_wire_backfaces,
-	     crossmark(show_wire_backfaces)},
-	    separator,
-	    {"Reset View",reset},
-	    {"Aim",aim},
-	    {"Frame",frame},
-	    {"Ortographic View",orthogonal_view,
-	     crossmark(orthogonal_view)},
-	    separator,
-	    {"Scene Lights",scene_lights,crossmark(scene_lights)},
-	    {one_of(L == 1, "Two lights", "One light"),toggle_lights},
-	    separator,
- 	    {"Show Colors",show_colors,crossmark(show_colors)},
- 	    {"Show Materials",show_materials,crossmark(show_materials)},
-	    {"Show Textures",show_textures,crossmark(show_textures)},
-	    separator,
-	    {"View Along",{along,[{"+X",x},
-				  {"+Y",y},
-				  {"+Z",z},
-				  {"-X",neg_x},
-				  {"-Y",neg_y},
-				  {"-Z",neg_z}]}},
-	    separator,
-	    {"Align to Selection",align_to_selection},
-	    {"Auto Rotate",auto_rotate}],
-    wings_menu:menu(X, Y, view, Menu).
+    [{"Ground plane",show_groundplane,crossmark(show_groundplane)},
+     {"Axes",show_axes,crossmark(show_axes)},
+     separator,
+     {"Workmode",workmode,crossmark(workmode)},
+     {"Smoothed Preview",smoothed_preview},
+     separator,
+     {"Wireframe",wireframe},
+     {"Shade",shade},
+     {"Toggle wireframed/shaded",toggle_wireframe},
+     separator,
+     {"Show Saved BB",show_bb,crossmark(show_bb)},
+     {"Show Edges",show_edges,crossmark(show_edges)},
+     {"Show Normals",show_normals,crossmark(show_normals)},
+     {"Show Wireframe Backfaces",show_wire_backfaces,
+      crossmark(show_wire_backfaces)},
+     separator,
+     {"Reset View",reset},
+     {"Aim",aim},
+     {"Frame",frame},
+     {"Ortographic View",orthogonal_view,
+      crossmark(orthogonal_view)},
+     separator,
+     {"Scene Lights",scene_lights,crossmark(scene_lights)},
+     {one_of(L == 1, "Two lights", "One light"),toggle_lights},
+     separator,
+     {"Show Colors",show_colors,crossmark(show_colors)},
+     {"Show Materials",show_materials,crossmark(show_materials)},
+     {"Show Textures",show_textures,crossmark(show_textures)},
+     separator,
+     {"View Along",{along,[{"+X",x},
+			   {"+Y",y},
+			   {"+Z",z},
+			   {"-X",neg_x},
+			   {"-Y",neg_y},
+			   {"-Z",neg_z}]}},
+     separator,
+     {"Align to Selection",align_to_selection},
+     {"Auto Rotate",auto_rotate}].
 
 crossmark(Key) ->
     case wings_pref:get_value(Key) of

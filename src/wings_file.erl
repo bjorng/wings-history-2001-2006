@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.87 2002/11/17 16:22:13 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.88 2002/11/26 20:05:29 bjorng Exp $
 %%
 
 -module(wings_file).
--export([init/0,finish/0,menu/3,command/2,
+-export([init/0,finish/0,menu/1,command/2,
 	 export/3,export_filename/2,
 	 import/3,import_filename/1]).
 
@@ -47,27 +47,27 @@ init() ->
 finish() ->
     ok.
 
-menu(X, Y, _) ->
+menu(_) ->
     ImpFormats = [{"Nendo (.ndo)...",ndo}],
     ExpFormats = [{"Nendo (.ndo)...",ndo},
 		  {"ExtremeUV [Experimental] (.xndo)...",xndo}],
-    Menu = [{"New",new},
-	    {"Open...",open},
-	    {"Merge...",merge},
-	    separator,
-	    {"Save",save},
-	    {"Save As...",save_as},
-	    {"Save Selected...",save_selected},
-	    separator,
-	    {"Revert",revert},
-	    separator,
-	    {"Import",{import,ImpFormats}},
-	    {"Export",{export,ExpFormats}},
-	    {"Export Selected",{export_selected,ExpFormats}},
-	    separator,
-	    {"Render",{render,[]}},
-	    separator|recent_files([{"Exit",quit}])],
-    wings_menu:menu(X, Y, file, Menu).
+    [{"New",new},
+     {"Open...",open},
+     {"Merge...",merge},
+     separator,
+     {"Save",save},
+     {"Save As...",save_as},
+     {"Save Selected...",save_selected},
+     separator,
+     {"Revert",revert},
+     separator,
+     {"Import",{import,ImpFormats}},
+     {"Export",{export,ExpFormats}},
+     {"Export Selected",{export_selected,ExpFormats}},
+     separator,
+     {"Render",{render,[]}},
+     separator|recent_files([{"Exit",quit}])].
+%%wings_menu:menu(X, Y, file, Menu).
 
 command(new, St0) ->
     case new(St0) of
