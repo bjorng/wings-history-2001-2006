@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.141 2004/10/31 11:59:46 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.142 2004/11/02 07:20:34 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -220,12 +220,11 @@ hilit_draw_sel(body, _, #dlo{src_we=We}=D) ->
 clear_hilite_marquee_mode(#marquee{st=St}=Pick) ->
     Ctrl = wings_s:key(ctrl),
     Shift = wings_s:key(shift),
-    Mctrl = [Ctrl,$\s,
-	     ?STR(clear_hilite_marquee_mode,ctrl_action,
-		  "Deselect")],
-    Mshift = [Shift,$\s,
-	      ?STR(clear_hilite_marquee_mode,shift_action,
-		   "(De)select only elements wholly inside marquee")],
+    CtrlMsg = ?STR(clear_hilite_marquee_mode,ctrl_action,"Deselect"),
+    ShiftMsg = ?STR(clear_hilite_marquee_mode,shift_action,
+		    "(De)select only elements wholly inside marquee"),
+    Mctrl = wings_util:key_format(Ctrl, CtrlMsg),
+    Mshift = wings_util:key_format(Shift, ShiftMsg),
     Message = wings_util:join_msg(Mctrl, Mshift),
     wings_wm:message(Message),
     wings_wm:dirty_mode(front),

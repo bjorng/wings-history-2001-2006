@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.98 2004/10/14 10:22:08 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.99 2004/11/02 07:20:34 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -16,7 +16,7 @@
 	 validate_mirror/1,rel2fam/1,
 	 button_message/1,button_message/2,button_message/3,
 	 button_format/1,button_format/2,button_format/3,
-	 rmb_format/1,
+	 rmb_format/1,key_format/2,
 	 join_msg/1,join_msg/2,
 	 message/1,
 	 magnet_string/0,
@@ -118,6 +118,9 @@ button_format(LmbMsg, MmbMsg, RmbMsg) ->
 
 rmb_format(Msg) ->
     wings_camera:rmb_format(Msg).
+
+key_format(Key, Msg) ->
+    [Key,160,Msg].
 
 join_msg(Messages) ->
     wings_camera:join_msg(Messages).

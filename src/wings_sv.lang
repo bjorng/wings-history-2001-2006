@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sv.lang,v 1.30 2004/11/02 06:54:57 bjorng Exp $
+%%     $Id: wings_sv.lang,v 1.31 2004/11/02 07:20:34 bjorng Exp $
 %%
 
 {wings,
@@ -1305,15 +1305,15 @@
    [{1,"Systemfont"},
     {2,"Huvud/geometri fönster bakgrund"},
     {3,"Menytext"},
-    {4,"Aktiv Menytext"},
-    {5,"Aktiv Menytext"},
-    {6,"Meny bakgrund"},
+    {4,"Aktiv menytext"},
+    {5,"Aktiv menytext"},
+    {6,"Menybakgrund"},
     {7,"Dialogtext"},
-    {8,"Dialog (oanvändbar) text"},
+    {8,"Dialogtext (inaktiv)"},
     {9,"Dialogbakgrund"},
     {10,"Titeltext"},
-    {11,"Titel (passiv) bakgrund"},
-    {12,"Titel (aktiv) bakgrund"},
+    {11,"Titelbakgrund (passiv)"},
+    {12,"Titelbakgrund (aktiv)"},
     {13,"Färger"},
     {14,"Ingen progressvisning"},
     {15,"Konsolfont"},
@@ -1334,9 +1334,9 @@
 {wings_rotate,
  [
   {edges_to_vertices,
-   [{1,"Rotering med magnet på multipla kantområden kräver en explicit vald rotationspunkt."}]},
+   [{1,"Rotation med magnet på flera kantområden kräver en explicit vald rotationspunkt."}]},
   {faces_to_vertices,
-   [{1,"Rotering med magnet på multipla ytområden kräver en explicit vald rotationspunkt."}]}]}.
+   [{1,"Rotation med magnet på flera ytområden kräver en explicit vald rotationspunkt."}]}]}.
 {wings_s,
  [
   {accept,
@@ -1378,9 +1378,9 @@
 {wings_scale,
  [
   {edges_to_vertices,
-   [{1,"Skalning med magnet på multipla kantområden kräver en explicit vald punkt att skal ifrån."}]},
+   [{1,"Skalning med magnet på flera kantområden kräver en explicit vald punkt att skala från."}]},
   {faces_to_vertices,
-   [{1,"Skalning med magnet på multipla ytområden kräver en explicit vald punkt att skal ifrån."}]},
+   [{1,"Skalning med magnet på flera ytområden kräver en explicit vald punkt att skal ifrån."}]},
   {inset_face,
    [{1,"Det är för korta kanter i en eller flera av de markerade ytorna (försök att Städa.)"}]}]}.
 {wings_sel_cmd,
@@ -1721,8 +1721,8 @@
  [
   {auto_rotate_help,
    [{1,"Sluta rotera"},
-    {2,"[+] Högre fart"},
-    {3,"[-] Lägre fart"}]},
+    {2,"Högre fart"},
+    {3,"Lägre fart"}]},
   {camera,
    [{1,"Negativformat"},
     {4,"Special"},
@@ -1742,7 +1742,7 @@
     {18,"Kamerainställningar"}]},
   {help,
    [{1,"Kamerainställningar: Bildvinkel"},
-    {2,"Bestämmer vertikal bildvinkel, i.e vinkeln från nedre till övre "
+    {2,"Bestämmer vertikal bildvinkel, dvs vinkeln från nedre till övre "
      "bildkant sett från kameran. "},
     {3,"Inställningarna för Objektiv sätter bildvinkeln enligt andra kanske "
      "mer välkända storheter, åtminstone för en fotograf. "
@@ -1751,7 +1751,7 @@
      "objektiv, så om det inte är samma sidförhållande på negativformatet "
      "i inställningarna för Objektiv, som på geometrifönstret, "
      "så kommer bildens bredd att bli fel."},
-    {5,"OBS: zoomfaktorn räknas relativt ett normalobjektiv "
+    {5,"OBS! Zoomfaktorn räknas relativt ett normalobjektiv "
      "med brännvidden lika med negativets diagonal, emedan det är bara "
      "negativets höjd som påverkar den effektiva brännvidden."}]},
   {menu,

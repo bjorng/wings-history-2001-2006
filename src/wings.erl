@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.320 2004/10/29 15:55:03 bjorng Exp $
+%%     $Id: wings.erl,v 1.321 2004/11/02 07:20:34 bjorng Exp $
 %%
 
 -module(wings).
@@ -121,11 +121,13 @@ init(File) ->
     
     Props = initial_properties(),
     {{X,Y},{W,H}} = wings_wm:win_rect(desktop),
-	 wings_wm:toplevel(geom,?STR(init,7,"Geometry"), {X,Y,highest}, {W,H-80},
-    [resizable,{anchor,nw},
-     {toolbar,fun(A, B, C) -> wings_toolbar:create(A, B, C) end},
-     menubar,{properties,Props}],
-			   Op),
+    wings_wm:toplevel(geom,?STR(init,7,"Geometry"),
+		      {X,Y,highest}, {W,H-80},
+		      [resizable,{anchor,nw},
+		       {toolbar,
+			fun(A, B, C) -> wings_toolbar:create(A, B, C) end},
+		       menubar,{properties,Props}],
+		      Op),
     wings_wm:menubar(geom, get(wings_menu_template)),
     set_drag_filter(geom),
 
@@ -155,7 +157,7 @@ new_viewer(St) ->
 
 new_viewer({geom,N}=Name, {X,Y}, Size, Props, ToolbarHidden, St) ->
     Op = main_loop_noredraw(St),
-    Title =  ?STR(new_viewer,1,"Geometry #") ++ integer_to_list(N),
+    Title = ?STR(new_viewer,1,"Geometry #") ++ integer_to_list(N),
     wings_wm:toplevel(Name, Title, {X,Y,highest}, Size,
 		      [resizable,closable,{anchor,nw},
 		       {toolbar,
