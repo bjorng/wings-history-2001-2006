@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.11 2003/01/23 20:14:30 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.12 2003/01/25 07:12:54 bjorng Exp $
 %%
 
 -module(wings_outliner).
@@ -55,15 +55,18 @@ window(St) ->
 get_event(Ost) ->
     {replace,fun(Ev) -> event(Ev, Ost) end}.
 
-event(resized, Ost) ->
-    update_scroller(Ost),
-    keep;
 event(redraw, Ost) ->
     wings_io:ortho_setup(),
     {W,H} = wings_wm:win_size(),
     wings_io:border(0, 0, W-0.5, H-1, ?PANE_COLOR),
     draw_objects(Ost),
     keep;
+event(resized, Ost) ->
+    update_scroller(Ost),
+    keep;
+event(got_focus, _) ->
+    wings_util:button_message([], [], "Show menu"),
+    wings_wm:dirty();
 event({current_state,St}, Ost0) ->
     Ost = update_state(St, Ost0),
     update_scroller(Ost),
@@ -138,8 +141,8 @@ image_menu_1(Id, _) ->
 
 common_image_menu(Id) ->
     [separator,
-     {"Duplicate",menu_cmd(duplicate_image, Id)},
-     {"Rename",menu_cmd(rename_image, Id)}].
+     {"Duplicate",menu_cmd(duplicate_image, Id),"Duplicate selected image"},
+     {"Rename",menu_cmd(rename_image, Id),"Rename selected image"}].
 
 menu_cmd(Cmd, Id) ->
     {'VALUE',{Cmd,Id}}.
@@ -186,18 +189,29 @@ delete_object(Id, #ost{st=#st{shapes=Shs0}=St0}) ->
 revert_image(_, _) ->
     keep.
 
-duplicate_image(Id, #ost{st=St}=Ost0) ->
+duplicate_image(Id, Ost) ->
     #e3d_image{name=Name0} = Im = wings_image:info(Id),
     Name = copy_of(Name0),
     wings_image:new(Name, Im),
-    Ost = update_state(St, Ost0),
-    get_event(Ost).
+    force_update(Ost),
+    keep.
 
 copy_of("Copy of "++_=Name) -> Name;
 copy_of(Name) -> "Copy of "++Name.
 
 rename_image(Id, Ost) ->
-    keep.
+    #e3d_image{name=Name0} = wings_image:info(Id),
+    wings_ask:ask("Rename Image",
+		  [{Name0,Name0}],
+		  fun([Name]) when Name =/= Name0 ->
+			  wings_image:rename(Id, Name),
+			  force_update(Ost),
+			  ignore;
+		     (_) -> ignore
+		  end).
+
+force_update(#ost{st=St}) ->
+    wings_wm:send(outliner, {current_state,St}).
 
 update_state(St, #ost{first=OldFirst}=Ost0) ->
     #ost{first=First0} = Ost = update_state_1(St, Ost0),

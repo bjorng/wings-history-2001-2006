@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.5 2003/01/23 20:14:29 bjorng Exp $
+%%     $Id: wings_image.erl,v 1.6 2003/01/25 07:12:54 bjorng Exp $
 %%
 
 -module(wings_image).
 -export([init/0,init_opengl/0,
-	 new/2,txid/1,info/1,images/0,
+	 new/2,rename/2,txid/1,info/1,images/0,
 	 next_id/0,delete_older/1,delete_from/1,
 	 update/2,
 	 window/1]).
@@ -36,6 +36,9 @@ init_opengl() ->
 
 new(Name, E3DImage) ->
     req({new,E3DImage#e3d_image{name=Name}}).
+
+rename(Id, NewName) ->
+    req({rename,Id,NewName}).
 
 txid(Id) ->
     req({txid,Id}).
@@ -108,6 +111,12 @@ handle({new,#e3d_image{name=Name0}=Im0}, #ist{next=Id,images=Images0}=S) ->
     Images = gb_trees:insert(Id, Im, Images0),
     make_texture(Id, Im),
     {Id,S#ist{next=Id+1,images=Images}};
+handle({rename,Id,Name0}, #ist{images=Images0}=S) ->
+    Name = make_unique(Name0, gb_trees:delete(Id, Images0)),
+    Im0 = gb_trees:get(Id, Images0),
+    Im = Im0#e3d_image{name=Name},
+    Images = gb_trees:update(Id, Im, Images0),
+    {Id,S#ist{images=Images}};
 handle({txid,Id}, S) ->
     {case get(Id) of
 	 undefined -> none;
