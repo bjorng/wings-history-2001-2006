@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_wrl.erl,v 1.10 2004/07/01 18:33:44 dgud Exp $
+%%     $Id: wpc_wrl.erl,v 1.11 2004/07/04 06:28:18 bjorng Exp $
 %%
 
 -module(wpc_wrl).
@@ -221,7 +221,7 @@ def_material(F, Name, Mat0) ->
 	{value, {maps,Maps}} -> 
 	    case lists:keysearch(diffuse, 1, Maps) of
 		{value, {diffuse,#e3d_image{filename=File}}} ->
-		    io:format(F, "     texture ImageTexture { [url \"file:///~s\"]}~n",
+		    io:format(F, "     texture ImageTexture { url ~p }\n",
 			      [File]);
 		_ ->
 		    ignore

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.51 2004/06/30 14:03:56 bjorng Exp $
+%%     $Id: wpa.erl,v 1.52 2004/07/04 06:29:09 bjorng Exp $
 %%
 -module(wpa).
 -export([ask/3,ask/4,dialog/3,dialog/4,error/1,
@@ -221,7 +221,7 @@ dialog_template(Mod, export) ->
 		    {Key,Val} <- image_formats()],
     DefFileType = pref_get(Mod, default_filetype, ".bmp"),
     {vframe,
-     [{"Swap X and Y Axes",pref_get(Mod, swap_y_z, false),
+     [{"Swap Y and Z Axes",pref_get(Mod, swap_y_z, false),
        [{key,swap_y_z}]},
       {label_column,
        [{"(Import Scale)",{text,pref_get(Mod, import_scale, 1.0),
