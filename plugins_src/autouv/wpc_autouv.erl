@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.88 2003/01/31 19:12:03 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.89 2003/02/02 15:56:22 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -201,6 +201,13 @@ seg_event_6({action,{select,Cmd}}, #seg{st=St0}=Ss) ->
 	#st{}=St -> filter_sel_command(Ss, St);
 	Other -> Other
     end;
+seg_event_6({action,{material,Cmd}}, #seg{st=St0}=Ss) ->
+    case wings_material:command(Cmd, St0) of
+	St0 -> keep;
+	{save_state,St} -> seg_event({new_state,St}, Ss);
+	#st{}=St -> seg_event({new_state,St}, Ss);
+	Other -> Other
+    end;
 seg_event_6({action,{auv_segmentation,Cmd}}, Ss) ->
     seg_command(Cmd, Ss);
 seg_event_6({callback, Fun}, _) when function(Fun) ->
@@ -242,7 +249,7 @@ seg_command(select_hard_edges, _) ->
     wings_io:putback_event({action,{select,{by,hard_edges}}}),
     keep;
 seg_command({select,Mat}, _) ->
-    wings_io:putback_event({action,{select,{by,{material,Mat}}}}),
+    wings_io:putback_event({action,{material,{select,[atom_to_list(Mat)]}}}),
     keep;
 seg_command({segment,Type}, #seg{st=St0}=Ss) ->
     St = segment(Type, St0),
@@ -278,7 +285,7 @@ seg_command(Cmd, #seg{st=#st{mat=Mat}=St0}=Ss) ->
 	    io:format("Cmd: ~w\n", [Cmd]),
 	    keep;
 	true ->
-	    St = wings_material:command({material,{assign,Cmd}}, St0),
+	    St = wings_material:command({assign,atom_to_list(Cmd)}, St0),
 	    get_seg_event(Ss#seg{st=St})
     end.
 
