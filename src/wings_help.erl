@@ -3,12 +3,12 @@
 %%
 %%     This module implements the Help menu.
 %%
-%%  Copyright (c) 2001-2002 Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.38 2003/01/09 19:57:40 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.39 2003/01/14 19:48:36 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -31,6 +31,7 @@ menu(_) ->
      {"Default Commands",default_commands},
      separator,
      {"OpenGL Info",opengl_info},
+     {"OpenGL Extensions",opengl_extensions},
      separator,
      {"About Wings 3D",about}].
 
@@ -50,6 +51,8 @@ command(advanced_menus, _St) ->
     advanced_menus();
 command(opengl_info, _St) ->
     opengl_info();
+command(opengl_extensions, _St) ->
+    opengl_extensions();
 command(about, _St) ->
     about().
 
@@ -163,6 +166,11 @@ opengl_info() ->
 		       {"Accum. alpha size",?SDL_GL_ACCUM_ALPHA_SIZE}])],
     help_window(Help).
 
+opengl_extensions() ->
+    Help = ["OpenGL Extensions",
+	    gl:getString(?GL_EXTENSIONS)],
+    help_window(Help).
+
 deep_info([{Label,Attr}|T]) ->
     Label ++ ": " ++ integer_to_list(sdl_video:gl_getAttribute(Attr)) ++ "\n" ++
 	deep_info(T);
@@ -271,5 +279,4 @@ redraw(splash) ->
     gl:color3f(0.0, 0.0, 0.0),
     wings_io:text_at(10, 155, "Wings 3D " ++ ?WINGS_VERSION),
     wings_io:text_at(10, 215, "http://www.wings3d.com").
-    
 
