@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.129 2003/07/03 14:44:35 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.130 2003/08/03 19:31:11 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -161,7 +161,7 @@ command(orthogonal_view, St) ->
 command(show_textures, St) ->
     toggle_option(show_textures),
     wings_draw_util:map(
-      fun(#dlo{src_we=#we{mode=uv}}=D, _) ->
+      fun(#dlo{src_we=#we{mode=material}}=D, _) ->
 	      D#dlo{work=none,smooth=none,proxy_faces=none};
 	 (D, _) -> D
       end, []),

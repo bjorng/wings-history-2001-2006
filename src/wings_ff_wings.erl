@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.42 2003/08/03 07:58:46 bjorng Exp $
+%%     $Id: wings_ff_wings.erl,v 1.43 2003/08/03 19:31:11 bjorng Exp $
 %%
 
 -module(wings_ff_wings).
@@ -144,6 +144,7 @@ import_object_mode(Ps) ->
 	undefined ->
 	    io:format("Changed undefined mode to material\n"),
 	    material;
+	uv -> material;
 	Other -> Other
     end.
 

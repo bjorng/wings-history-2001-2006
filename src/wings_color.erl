@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_color.erl,v 1.9 2003/04/05 07:53:27 bjorng Exp $
+%%     $Id: wings_color.erl,v 1.10 2003/08/03 19:31:11 bjorng Exp $
 %%
 
 -module(wings_color).
@@ -57,33 +57,43 @@ mix(Wa, {Ua,Va}, {Ub,Vb}) when is_float(Wa) ->
     share({Wa*Ua+Wb*Ub,Wa*Va+Wb*Vb});
 mix(Wa, {Ra,Ga,Ba}, {Rb,Gb,Bb}) when is_float(Wa) ->
     Wb = 1.0 - Wa,
-    share({Wa*Ra+Wb*Rb,Wa*Ga+Wb*Gb,Wa*Ba+Wb*Bb}).
+    share({Wa*Ra+Wb*Rb,Wa*Ga+Wb*Gb,Wa*Ba+Wb*Bb});
+mix(_, {_,_,_}, {_,_}) -> default();
+mix(_, {_,_}, {_,_,_}) -> default().
 
 white() ->
     get(?WHITE).
 
-average([Same,Same|T]=All) ->
-    case all_same(T, Same) of
-	false -> average_1(All);
-	true -> Same
-    end;
-average(All) -> average_1(All).
-	    
-average_1([{V10,V11}|T]=All) ->
-    average(T, V10, V11, length(All));
-average_1(Colors) ->
-    share(e3d_vec:average(Colors)).
+average([H|T]=L) ->
+    case classify(T, H) of
+	same -> H;
+	colors -> share(e3d_vec:average(L));
+	uvs -> average_uvs(T, H);
+	mixed -> default()
+    end.
 
-average([{V10,V11}|T], A0, A1, L)
+classify([], _) -> same;
+classify([H|T], H) -> classify(T, H);
+classify(List, {_,_}) -> classify_uvs(List);
+classify(List, {_,_,_}) -> classify_colors(List).
+
+classify_uvs([{_,_}|T]) -> classify_uvs(T);
+classify_uvs([_|_]) -> mixed;
+classify_uvs([]) -> uvs.
+
+classify_colors([{_,_,_}|T]) -> classify_colors(T);
+classify_colors([_|_]) -> mixed;
+classify_colors([]) -> colors.
+
+average_uvs(T, {V10,V11}) ->
+    average_uvs_1(T, V10, V11, length(T)+1).
+
+average_uvs_1([{V10,V11}|T], A0, A1, L)
   when is_float(V10), is_float(V11), is_float(A0), is_float(A1) ->
-    average(T, A0+V10, A1+V11, L);
-average([], A0, A1, L0) ->
+    average_uvs_1(T, A0+V10, A1+V11, L);
+average_uvs_1([], A0, A1, L0) ->
     L = float(L0),
     {A0/L,A1/L}.
-
-all_same([Same|T], Same) -> all_same(T, Same);
-all_same([_|_], _) -> false;
-all_same([], _) -> true.
 
 rgb_to_hsv({R,G,B}) ->
     rgb_to_hsv(R,G,B).
@@ -92,7 +102,7 @@ rgb_to_hsv(R, G, B) ->
     Min = lists:min([R,G,B]),
     V = Max,   
     if Max == Min, V > 0.5 -> %% Hue is unknown/undefined 
-	    {60.0, 0.0, V};   %% Set it to yellow which is the ligtest 
+	    {60.0, 0.0, V};   %% Set it to yellow which is the lightest 
        Max == Min ->          %% Hue is unknown/undefined 
 	    {300.0, 0.0, V};  %% Set it to magenta which is the darkest
        Min == B ->

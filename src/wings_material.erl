@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.102 2003/08/03 15:28:35 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.103 2003/08/03 19:31:11 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -568,7 +568,7 @@ preview_mat(Key, Colors, Alpha) ->
     
 %%% Return color in texture for the given UV coordinates.
 
-color(Face, {U,V}, We, #st{mat=Mtab}) ->
+color(Face, UV, We, #st{mat=Mtab}) ->
     Name = get(Face, We),
     Props = gb_trees:get(Name, Mtab),
     Maps = prop_get(maps, Props),
@@ -578,12 +578,12 @@ color(Face, {U,V}, We, #st{mat=Mtab}) ->
 	    {R,G,B,_} = prop_get(diffuse, OpenGL),
 	    wings_color:share({R,G,B});
 	DiffMap ->
-	    color_1(U, V, wings_image:info(DiffMap))
+	    color_1(UV, wings_image:info(DiffMap))
     end;
 color(_Face, {_,_,_}=RGB, _We, _St) -> RGB.
 
-color_1(_, _, none) -> wings_color:white();
-color_1(U0, V0, #e3d_image{width=W,height=H,image=Bits}) ->
+color_1(_, none) -> wings_color:white();
+color_1({U0,V0}, #e3d_image{width=W,height=H,image=Bits}) ->
     U = (((round(U0*W) rem W) + W) rem W),
     V = ((round(V0*H) rem H) + H) rem H,
     Pos = V*W*3 + U*3,

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_import.erl,v 1.13 2003/07/18 13:02:22 bjorng Exp $
+%%     $Id: wings_import.erl,v 1.14 2003/08/03 19:31:11 bjorng Exp $
 %%
 
 -module(wings_import).
@@ -72,9 +72,8 @@ import_1([], _, [#we{mode=Mode}|_]=Wes) ->
 
 prepare_mesh(Mesh0) ->
     Mesh1 = e3d_mesh:make_quads(Mesh0),
-    #e3d_mesh{tx=Tx0} = Mesh = e3d_mesh:transform(Mesh1),
-    ObjType = obj_type(Tx0),
-    {Mesh,ObjType}.
+    Mesh = e3d_mesh:transform(Mesh1),
+    {Mesh,material}.
 
 import_mesh(Mesh, ObjType) ->
     case catch wings_we:build(ObjType, Mesh) of
@@ -94,10 +93,6 @@ build_1(ObjType, Mesh0) ->
 	    rip_apart(ObjType, Mesh);
 	We -> We
     end.
-
-obj_type(#e3d_mesh{tx=Tx}) -> obj_type(Tx);
-obj_type([]) -> material;
-obj_type([_|_]) -> uv.
 
 rip_apart(Mode, #e3d_mesh{fs=Fs}=Mesh) ->
     rip_apart(Fs, Mode, Mesh, []).

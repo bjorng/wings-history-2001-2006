@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.127 2003/07/25 08:52:33 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.128 2003/08/03 19:31:11 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -632,37 +632,41 @@ sub_divide(N, We0) ->
     We = wings_subdiv:smooth(We0),
     sub_divide(N-1, We).
 
-make_face(Face, Mat, _ColTab, UvTab, #we{mode=uv}=We) ->
-    {Vs,UVs} = wings_face:fold_vinfo(
-		 fun(V, {_,_}=UV, {VAcc,UVAcc}) ->
-			 {[V|VAcc],[gb_trees:get(UV, UvTab)|UVAcc]};
-		    (V, _, {VAcc,UVAcc}) ->
-			 {[V|VAcc],UVAcc}
-		 end, {[],[]}, Face, We),
+make_face(Face, Mat, _ColTab, UvTab, #we{mode=material}=We) ->
+    {Vs,UVs0} = wings_face:fold_vinfo(
+		  fun(V, {_,_}=UV, {VAcc,UVAcc}) ->
+			  {[V|VAcc],[gb_trees:get(UV, UvTab)|UVAcc]};
+		     (V, _, {VAcc,UVAcc}) ->
+			  {[V|VAcc],UVAcc}
+		  end, {[],[]}, Face, We),
+    UVs = if
+	      length(Vs) =:= length(UVs0) -> UVs0;
+	      true -> []
+	  end,
     #e3d_face{vs=Vs,tx=UVs,mat=make_face_mat(Mat)};
 make_face(Face, Mat, ColTab, _UvTab, #we{mode=vertex}=We) ->
-    {Vs,Cols} = wings_face:fold_vinfo(
+    {Vs,Cols0} = wings_face:fold_vinfo(
 		  fun(V, {_,_,_}=Col, {VAcc,ColAcc}) ->
 			  {[V|VAcc],[gb_trees:get(Col, ColTab)|ColAcc]};
 		     (V, _Info, {VAcc,ColAcc}) ->
 			  {[V|VAcc],ColAcc}
 		  end, {[],[]}, Face, We),
-    #e3d_face{vs=Vs,vc=Cols,mat=make_face_mat(Mat)};
-make_face(Face, Mat, _, _, We) ->
-    Vs = wings_face:vertices_ccw(Face, We),
-    #e3d_face{vs=Vs,mat=make_face_mat(Mat)}.
+    Cols = if
+	       length(Vs) =:= length(Cols0) -> Cols0;
+	       true -> []
+	   end,
+    #e3d_face{vs=Vs,vc=Cols,mat=make_face_mat(Mat)}.
 
 make_tables(#we{mode=vertex}=We) ->
-    {make_table(We),[]};
-make_tables(#we{mode=uv}=We) ->
-    {[],make_table(We)};
-make_tables(_) ->
-    {[],[]}.
+    {make_table(3, We),[]};
+make_tables(#we{mode=material}=We) ->
+    {[],make_table(2, We)}.
 
-make_table(#we{es=Etab}) ->
-    Cuvs = foldl(fun(#edge{a=A,b=B}, Acc) ->
-			 [A,B|Acc]
-		 end, [], gb_trees:values(Etab)),
+make_table(Sz, #we{es=Etab}) ->
+    Cuvs0 = foldl(fun(#edge{a=A,b=B}, Acc) ->
+			  [A,B|Acc]
+		  end, [], gb_trees:values(Etab)),
+    Cuvs = [E || E <- Cuvs0, size(E) =:= Sz],
     number(ordsets:from_list(Cuvs)).
 
 number(L) ->

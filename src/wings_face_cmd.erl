@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.86 2003/07/25 09:40:03 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.87 2003/08/03 19:31:11 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -706,14 +706,9 @@ bridge(_St) ->
     bridge_error().
 
 unify_modes(#we{mode=Mode}, #we{mode=Mode}) -> Mode;
-unify_modes(#we{mode=ModeA}, #we{mode=ModeB}) ->
-    case sort([ModeA,ModeB]) of
-	[_,vertex] ->
-	    throw({command_error,"An object with vertex colors "
-		   "cannot be bridged with an object with materials "
-		   "and/or textures."});
-	[material,uv] -> uv
-    end.
+unify_modes(_, _) ->
+    wings_util:error("An object with vertex colors "
+		     "cannot be bridged with an object with materials.").
 
 bridge_null_uvs(Mode, #we{mode=Mode}=We) -> We;
 bridge_null_uvs(uv, #we{es=Etab0}=We) ->

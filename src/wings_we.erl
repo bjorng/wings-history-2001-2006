@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.55 2003/06/09 06:08:24 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.56 2003/08/03 19:31:11 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -584,7 +584,7 @@ build_incident_tab([], Acc) ->
 %%% Convert textures to vertex colors.
 %%%
 
-uv_to_color(#we{mode=uv,es=Etab0}=We, St) ->
+uv_to_color(#we{mode=material,es=Etab0}=We, St) ->
     Etab1 = foldl(
 	      fun({Edge,#edge{lf=Lf,rf=Rf,a=UVa,b=UVb}=Rec}, A) ->
 		      ColA = wings_material:color(Lf, UVa, We, St),

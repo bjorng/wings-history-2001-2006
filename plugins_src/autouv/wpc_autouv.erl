@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.137 2003/08/03 11:03:24 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.138 2003/08/03 19:31:08 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -120,12 +120,9 @@ start_uvmap_3(Id, #we{name=ObjName}=We, St) ->
 		       {toolbar,CreateToolbar}], Op),
     wings_wm:send(Name, {init_uvmapping,We}).
 
-auv_event({init_uvmapping,#we{mode=Mode}=We}, St) ->
+auv_event({init_uvmapping,We}, St) ->
     wings:init_opengl(St),
-    case Mode of
-	uv -> start_edit(We, St);
-	_ -> auv_seg_ui:start(We, We, St)
-    end;
+    init_uvmapping(We, St);
 auv_event({discard_uvs,Id,#st{shapes=Shs}=St}, #st{shapes=ShsOrig}) ->
     We = gb_trees:get(Id, Shs),
     OrigWe = gb_trees:get(Id, ShsOrig),
@@ -143,10 +140,29 @@ auv_event(redraw, _) ->
 auv_event(_Ev, _) -> keep.
 
 %%%
-%%% Edit interface.
+%%% Start UV mapping. Always check if there are pre-existing UV coordinates.
 %%%
 
-start_edit(We, St0) ->
+init_uvmapping(We, St) ->
+    case uv_mapped_faces(We) of
+	[] -> auv_seg_ui:start(We, We, St);
+	Faces -> start_edit(Faces, We, St)
+    end.
+
+uv_mapped_faces(#we{fs=Ftab}=We) ->
+    uv_mapped_faces_1(gb_trees:to_list(Ftab), We, []).
+
+uv_mapped_faces_1([{F,E}|Fs], We, Acc) ->
+    Good = foldl(fun([_|{_,_}], Flag) -> Flag;
+		    (_, _) -> false
+		 end, true, wings_face:vinfo_ccw(F, E, We)),
+    case Good of
+	false -> uv_mapped_faces_1(Fs, We, Acc);
+	true -> uv_mapped_faces_1(Fs, We, [F|Acc])
+    end;
+uv_mapped_faces_1([], _, Acc) -> reverse(Acc).
+
+start_edit(Faces, We, St0) ->
     DefVar = {answer,edit},
     Qs = [{vframe,[{alt,DefVar,"Edit existing UV mapping",edit},
 		   {alt,DefVar,"Discard existing UV mapping and start over",discard}],
@@ -250,7 +266,7 @@ insert_uvcoords_1(We0, Cs0, MatName) ->
     UVpos = gen_uv_pos(Cs, []),
     We1 = insert_coords(UVpos, We0),
     We = insert_material(Cs, MatName, We1),
-    We#we{mode=uv}.
+    We#we{mode=material}.
 
 gen_uv_pos([#we{name=#ch{fs=Fs,center={CX,CY},scale=Sc,vmap=Vmap}}=We|T], Acc) ->
     Vpos0 = auv_util:moveAndScale(gb_trees:to_list(We#we.vp), CX, CY, Sc, []),

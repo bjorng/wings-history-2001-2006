@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.96 2003/08/03 16:44:56 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.97 2003/08/03 19:31:11 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -497,7 +497,7 @@ prepare(Ftab, #we{mode=vertex}=We, St) ->
 	true ->
 	    {color,vtx_color_split(Ftab, We),St}
     end;
-prepare(Ftab, We, St) ->
+prepare(Ftab, #we{mode=material}=We, St) ->
     MatFaces = wings_material:mat_faces(Ftab, We),
     {material,MatFaces,St}.
 
@@ -558,9 +558,7 @@ vtx_smooth_face_color_1([], Col) -> Col.
 face(Face, #we{mode=material}=We) ->
     flat_face(Face, We);
 face(Face, #we{mode=vertex}=We) ->
-    vcol_face(Face, We);
-face(Face, #we{mode=uv}=We) ->
-    uv_face(Face, We).
+    vcol_face(Face, We).
 
 %%
 %% Triangulate and draw a face.
