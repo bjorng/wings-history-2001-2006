@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.23 2001/11/21 07:15:59 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.24 2001/11/22 15:45:36 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -215,19 +215,18 @@ draw_faces(#we{}=We, false, St) ->
 	      draw_face(Face, Edge, We)
       end, [], We).
 
-draw_smooth_faces(Mtab, #we{mode=material}=We) ->
-    Faces0 = wings_we:normals(We),
-    Faces1 = sofs:relation(Faces0),
-    Faces2 = sofs:relation_to_family(Faces1),
-    Faces = sofs:to_external(Faces2),
-    draw_smooth_1(Faces, Mtab);
-draw_smooth_faces(Mtab, We) ->
+draw_smooth_faces(Mtab, #we{mode=vertex}=We) ->
     Faces = wings_we:normals(We),
     gl:enable(?GL_COLOR_MATERIAL),
     gl:colorMaterial(?GL_FRONT, ?GL_DIFFUSE),
     draw_smooth_vcolor(Faces),
-    gl:disable(?GL_COLOR_MATERIAL),
-    ok.
+    gl:disable(?GL_COLOR_MATERIAL);
+draw_smooth_faces(Mtab, We) ->
+    Faces0 = wings_we:normals(We),
+    Faces1 = sofs:relation(Faces0),
+    Faces2 = sofs:relation_to_family(Faces1),
+    Faces = sofs:to_external(Faces2),
+    draw_smooth_1(Faces, Mtab).
     
 draw_smooth_1([{Mat,Faces}|T], Mtab) ->
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
