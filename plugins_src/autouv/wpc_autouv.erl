@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.71 2003/01/08 16:31:58 raimo_niskanen Exp $
+%%     $Id: wpc_autouv.erl,v 1.72 2003/01/09 12:44:51 raimo_niskanen Exp $
 
 -module(wpc_autouv).
 
@@ -287,18 +287,18 @@ seg_cancel() ->
     wings_wm:dirty(),
     pop.
 
-seg_materials() ->
-    [{'AuvChart1',{0.5,0.5,0.0}},
-     {'AuvChart2',{0.5,0.0,0.5}},
-     {'AuvChart3',{0.0,0.5,0.5}},
+seg_materials() -> % Intensity 0.7 for all
+    [{'AuvChart1',{0.7,0.7,0.0}},  % Yellow
+     {'AuvChart2',{0.0,0.7,0.7}},  % Cyan
+     {'AuvChart3',{0.7,0.0,0.7}},  % Magenta
      separator,
-     {'AuvChart4',{0.8,0.5,0.0}},
-     {'AuvChart5',{0.8,0.0,0.5}},
-     {'AuvChart6',{0.5,0.8,0.0}},
+     {'AuvChart4',{0.4,0.7,0.0}},  % Yellow -> Green
+     {'AuvChart5',{0.0,0.4,0.7}},  % Cyan -> Blue
+     {'AuvChart6',{0.7,0.0,0.4}},  % Magenta -> Red
      separator,
-     {'AuvChart7',{0.0,0.8,0.5}},
-     {'AuvChart8',{0.5,0.0,0.8}},
-     {'AuvChart9',{0.0,0.5,0.8}}].
+     {'AuvChart7',{0.0,0.7,0.4}},  % Cyan -> Green
+     {'AuvChart8',{0.4,0.0,0.7}},  % Magenta -> Blue
+     {'AuvChart9',{0.7,0.4,0.0}}]. % Yellow -> Red
 
 seg_create_materials(St0) ->
     M0 = seg_materials(),
