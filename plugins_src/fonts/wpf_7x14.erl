@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpf_7x14.erl,v 1.13 2004/02/29 07:42:15 bjorng Exp $
+%%     $Id: wpf_7x14.erl,v 1.14 2004/02/29 08:10:00 bjorng Exp $
 %%
 
 -module(wpf_7x14).
@@ -42,6 +42,7 @@ cw($r) -> 6;
 cw($t) -> 5;
 cw($I) -> 4;
 cw(160) -> 3;
+cw(169) -> 9;
 cw(_) -> 7.
 
 width() -> 7.
@@ -692,11 +693,24 @@ char(170) ->
  B = <<16#f8,16#0,16#68,16#98,16#88,16#78,16#88,16#70>>,
  gl:bitmap(5, 8, -2, -3, 7, 0, B);
 
-% char: 0xa9
+% char: 0xa9 (Copyright)
 
 char(169) ->
- B = <<16#78,16#84,16#b4,16#cc,16#c4,16#c4,16#c4,16#cc,16#b4,16#84,16#78>>,
- gl:bitmap(6, 11, -1, 0, 7, 0, B);
+    %%B = <<16#78,16#84,16#b4,16#cc,16#c4,16#c4,16#c4,16#cc,16#b4,16#84,16#78>>,
+    B = <<
+	 2#00111100,
+	 2#01000010,
+	 2#10011001,
+	 2#10100101,
+	 2#10100001,
+	 2#10100001,
+	 2#10100001,
+	 2#10100101,
+	 2#10011001,
+	 2#01000010,
+	 2#00111100
+	 >>,
+    gl:bitmap(8, 11, -1, 0, 9, 0, B);
 
 % char: 0xa8
 
