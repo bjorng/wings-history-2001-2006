@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_scale.erl,v 1.41 2002/12/26 09:47:09 bjorng Exp $
+%%     $Id: wings_scale.erl,v 1.42 2002/12/31 16:04:59 bjorng Exp $
 %%
 
 -module(wings_scale).
@@ -48,11 +48,11 @@ setup(Vec, Point, _Magnet, #st{selmode=body}=St) ->
 
 init_drag(Tvs, Magnet, St) ->
     wings_drag:setup(Tvs, [scale_constraint()|magnet_unit(Magnet)],
-		     wings_magnet:flags(Magnet, []), St).
+		     wings_magnet:flags(Magnet, [{initial,[1.0]}]), St).
 
 scale_constraint() ->
     case wings_pref:get_value(advanced_menus) of
-	false -> {percent,{-1.0,?HUGE}};
+	false -> {percent,{0.0,?HUGE}};
 	true -> percent
     end.
 
@@ -203,7 +203,7 @@ body_to_vertices(Vec, Point, _We) ->
 body_to_vertices_1(Vec0, Center) ->
     Vec = make_vector(Vec0),
     fun(_Matrix0, [Dx]) when is_float(Dx) ->
-	    make_matrix(Dx+1.0, Vec, Center)
+	    make_matrix(Dx, Vec, Center)
     end.
 
 %%%
@@ -218,7 +218,7 @@ scale(Vec0, Center, Magnet, Vs, #we{id=Id}=We, Acc) ->
     {Pre,Post} = make_matrices(Vec, Center),
     VsPos = mul(Vs, Post, We),
     Fun = fun([Dx], A0) ->
-		  {Sx,Sy,Sz} = make_scale(Dx+1.0, Vec),
+		  {Sx,Sy,Sz} = make_scale(Dx, Vec),
 		  Matrix = e3d_mat:mul(Pre, e3d_mat:scale(Sx, Sy, Sz)),
 		  foldl(fun({V,Pos0}, A) ->
 				Pos = e3d_mat:mul_point(Matrix, Pos0),
@@ -248,7 +248,7 @@ magnet_scale_fun(Vec, Pre, VsInf0, {_,R}=Magnet0) ->
 	    magnet_scale_fun(Vec, Pre, VsInf, Magnet);
        ([Dx|_], A0) ->
 	    foldl(fun({V,{Px,Py,Pz},_,Inf}, A) ->
-			  {Sx,Sy,Sz} = make_scale(Dx*Inf+1.0, Vec),
+			  {Sx,Sy,Sz} = make_scale(1.0+(Dx-1.0)*Inf, Vec),
 			  Pos0 = {Px*Sx,Py*Sy,Pz*Sz},
 			  Pos = e3d_mat:mul_point(Pre, Pos0),
 			  [{V,Pos}|A]
