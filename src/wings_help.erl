@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.30 2002/11/23 20:34:32 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.31 2002/11/25 22:23:42 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -210,6 +210,7 @@ skip_blanks([$\s|T]) -> skip_blanks(T);
 skip_blanks(T) -> T.
 
 handle_help_event(redraw, DrawData) ->
+    wings_wm:message("[L] Close help window"),
     redraw(DrawData),
     keep;
 handle_help_event(#mousemotion{}, _) ->

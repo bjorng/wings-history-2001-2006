@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.76 2002/11/25 07:46:48 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.77 2002/11/25 22:23:42 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -22,7 +22,7 @@
 	 border/5,
 	 sunken_rect/5,raised_rect/4,raised_rect/5,
 	 text_at/2,text_at/3,text/1,menu_text/3,axis_text/4,space_at/2,
-	 draw_icon/5,draw_icon/7,
+	 draw_icon/3,draw_icon/5,draw_icon/7,
 	 set_color/1]).
 -export([putback_event/1,get_event/0,poll_event/0,
 	 set_timer/2,cancel_timer/1]).
@@ -145,19 +145,21 @@ clear_menu_sel() ->
     put_state((get_state())#io{sel=undefined}).
 
 icon_restriction(Modes) ->
+    wings_wm:send(buttons, {mode_restriction,Modes}),
     put_state((get_state())#io{selmodes=Modes}).
 
 clear_icon_restriction() ->
+    wings_wm:send(buttons, {mode_restriction,none}),
     put_state((get_state())#io{selmodes=all}).
 
 get_icon_restriction() ->
     #io{selmodes=Modes} = get_state(),
     Modes.
 
-update(St) ->
+update(#st{selmode=Mode}) ->
+    wings_wm:send(buttons, {mode,Mode}),
     #io{w=W,h=H} = Io = get_state(),
     setup_for_drawing(W, H),
-    draw_icons(Io, St),
     draw_panes(Io),
     maybe_show_mem_used(H),
     cleanup_after_drawing(),
@@ -204,47 +206,6 @@ draw_bar(X, [{Name,Item}|T], Sel) ->
     draw_bar(X+W, T, Sel);
 draw_bar(_X, [], _Sel) -> ok.
 
-draw_icons(#io{w=W,h=H,icons=Icons0,selmodes=Modes}, St) ->
-    set_color(?PANE_COLOR),
-    gl:rectf(0, H, W, H-2*?LINE_HEIGHT-2),
-    gl:color3f(0.20, 0.20, 0.20),
-    gl:'begin'(?GL_LINES),
-    gl:vertex2f(0.5, H-2*?LINE_HEIGHT-2.5),
-    gl:vertex2f(W, H-2*?LINE_HEIGHT-2.5),
-    gl:'end'(),
-    gl:color3f(0, 0, 0),
-    gl:enable(?GL_TEXTURE_2D),
-    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
-    Y = H-2*?LINE_HEIGHT+2,
-    Icons = case Modes of
-		all -> Icons0;
-		_ -> [Icon || {_,Name}=Icon <- Icons0, member(Name, Modes)]
-	    end,
-    foreach(fun({X,Name}) ->
-		    draw_icon(X, Y, icon_button(Name, St))
-	    end, Icons),
-    gl:bindTexture(?GL_TEXTURE_2D, 0),
-    gl:disable(?GL_TEXTURE_2D).
-
-icon_button(groundplane=Name, _St) ->
-    icon_button(Name, show_groundplane, true);
-icon_button(axes=Name, _St) ->
-    icon_button(Name, show_axes, true);
-icon_button(flatshade=Name, _St) ->
-    icon_button(Name, workmode, true);
-icon_button(smooth=Name, _St) ->
-    icon_button(Name, workmode, false);
-icon_button(perspective=Name, _St) ->
-    icon_button(Name, orthogonal_view, true);
-icon_button(Name, #st{selmode=Name}) -> {Name,down};
-icon_button(Name, _St) -> {Name,up}.
-
-icon_button(Name, Key, Val) ->
-    case wings_pref:get_value(Key) of
-	Val -> {Name,down};
-	_ -> {Name,up}
-    end.
-
 event(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED}) ->
     case button(X, Y) of
 	none -> next;
@@ -256,14 +217,8 @@ event(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED}) ->
 event(_) -> next.
 
 button(X, Y) when Y > ?LINE_HEIGHT; X < ?MENU_MARGIN ->
-    #io{h=H,icons=Icons} = get_state(),
     put_state((get_state())#io{sel=undefined}),
-    case H-2*?LINE_HEIGHT of
-	Low when Low =< Y, Y < Low + 32 ->
-	    icon_row_hit(X, Icons),
-	    ignore;
-	_Other -> none
-    end;
+    none;
 button(X0, _Y) ->
     X = X0 - ?MENU_MARGIN,
     #io{menubar=Bar} = get_state(),
@@ -280,23 +235,6 @@ button_1(RelX, X, [{Name,Item}|T]) ->
     end;
 button_1(_, _, []) ->
     put_state((get_state())#io{sel=undefined}),
-    none.
-
-icon_row_hit(X, [{Pos,Name}|_]) when Pos =< X, X < Pos+?ICON_WIDTH ->
-    Action = case Name of
-		 groundplane -> {view,show_groundplane};
-		 axes -> {view,show_axes};
-		 flatshade -> {view,flatshade};
-		 smooth -> {view,smoothshade};
-		 perspective -> {view,orthogonal_view};
-		 Other -> {select,Other}
-	     end,
-    putback_event({action,Action}),
-    none;
-icon_row_hit(X, [_|Is]) ->
-    icon_row_hit(X, Is);
-icon_row_hit(_X, []) ->
-    putback_event({action,{select,deselect}}),
     none.
 
 border(X, Y, Mw, Mh) ->
