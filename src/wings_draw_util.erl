@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.111 2003/09/04 05:20:45 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.112 2003/09/24 04:38:57 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -334,9 +334,7 @@ render_plain(#dlo{work=Faces,edges=Edges,src_we=We,proxy_data=none}=D, SelMode) 
 		{_,EdgeColor} ->
 		    gl:color3fv(EdgeColor)
 	    end,
-	    gl:lineWidth(case SelMode of
-			     edge -> wings_pref:get_value(edge_width);
-			     _ -> 1 end),
+	    gl:lineWidth(edge_width(SelMode)),
 	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
 	    gl:enable(?GL_POLYGON_OFFSET_LINE),
 	    gl:polygonOffset(1, 1),
@@ -371,7 +369,7 @@ render_plain_rest(D, Wire, SelMode) ->
 	    draw_sel(D)
     end,
     draw_vertices(D, SelMode),
-    draw_hard_edges(D),
+    draw_hard_edges(D, SelMode),
     draw_normals(D).
 
 wire(#we{id=Id}) ->
@@ -500,8 +498,9 @@ draw_orig_sel_1(_, DlistSel) ->
     gl:depthMask(?GL_TRUE),
     gl:disable(?GL_POLYGON_STIPPLE).
 
-draw_hard_edges(#dlo{hard=none}) -> ok;
-draw_hard_edges(#dlo{hard=Hard}) ->
+draw_hard_edges(#dlo{hard=none}, _) -> ok;
+draw_hard_edges(#dlo{hard=Hard}, SelMode) ->
+    gl:lineWidth(edge_width(SelMode)),
     gl:color3fv(wings_pref:get_value(hard_edge_color)),
     call(Hard).
 
@@ -510,6 +509,9 @@ draw_normals(#dlo{normals=Ns}) ->
     gl:color3f(0, 0, 1),
     gl:lineWidth(2),
     call(Ns).
+
+edge_width(edge) -> wings_pref:get_value(edge_width);
+edge_width(_) -> 1.
 
 %%%
 %%% Set material and draw faces.
