@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.139 2003/05/30 07:41:37 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.140 2003/06/02 04:50:03 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -328,9 +328,9 @@ handle_drag_event_1(redraw, Drag) ->
 handle_drag_event_1(#mousemotion{}=Ev, Drag0) ->
     {_,Drag} = motion(Ev, Drag0),
     get_drag_event(Drag);
-handle_drag_event_1(#mousebutton{button=1,x=X,y=Y,state=?SDL_RELEASED}, Drag0) ->
+handle_drag_event_1(#mousebutton{button=1,x=X,y=Y,mod=Mod,state=?SDL_RELEASED}, Drag0) ->
     ungrab(Drag0),
-    Ev = #mousemotion{x=X,y=Y,state=0},
+    Ev = #mousemotion{x=X,y=Y,state=0,mod=Mod},
     {Move,Drag} = ?SLOW(motion(Ev, Drag0)),
     St = normalize(Drag),
     DragEnded = {new_state,St#st{args=Move}},
