@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.23 2003/03/27 22:09:30 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.24 2003/03/30 20:52:40 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -51,11 +51,22 @@
 
 %% Light
 -define(DEF_POWER, 1.0).
+-define(DEF_ATTN_POWER, 10.0).
 -define(DEF_POINT_TYPE, pointlight).
 -define(DEF_CAST_SHADOWS, true).
 %% Spotlight
+-define(DEF_SPOT_TYPE, spotlight).
 -define(DEF_CONE_ANGLE, 45.0).
 -define(DEF_SPOT_EXPONENT, 2.0).
+-define(DEF_BLEND, 5.0).
+%% Photonlight
+-define(DEF_MODE,diffuse).
+-define(DEF_PHOTONS,5000).
+-define(DEF_SEARCH,50).
+-define(DEF_DEPTH,3).
+-define(DEF_MINDEPTH,1).
+-define(DEF_FIXEDRADIUS,1.0).
+-define(DEF_CLUSTER,1.0).
 %% Softlight
 -define(DEF_RES, 100).
 -define(DEF_RADIUS, 1).
@@ -282,17 +293,13 @@ material_dialog(_Name, Mat) ->
 	]}|modulator_dialogs(Modulators, 1, Maps)],
       [{title,"YafRay Options"}]}].
 
-material_result(Name, Mat0, [IOR,MinRefle,AutosmoothAngle|Res0]=Res) ->
-    case IOR of
-	{ior,_} ->
-	    {Modulators,Res1} = modulator_result(Res0),
-	    Mat = [{?TAG,[IOR,MinRefle,AutosmoothAngle,
-			  {modulators,Modulators}]}
-		   |keydelete(?TAG, 1, Mat0)],
-	    {Mat,Res1};
-	_ ->
-	    exit({invalid_tag,{?MODULE,?LINE,[Name,Mat0,Res]}})
-    end.
+material_result(_Name, Mat0, [{ior,_}|_]=Res) ->
+    {Ps,Res0} = split_list(Res, 3),
+    {Modulators,Res1} = modulator_result(Res0),
+    Mat1 = [{?TAG,[{modulators,Modulators}|Ps]}|keydelete(?TAG, 1, Mat0)],
+    {Mat1,Res1};
+material_result(Name, Mat, Res) ->
+    exit({invalid_tag,{?MODULE,?LINE,[Name,Mat,Res]}}).
 
 modulator_dialogs([], _, _Maps) ->
     [{"Create a Modulator",false,[{key,create_modulator}]}];
@@ -399,7 +406,12 @@ light_dialog(Name, Ps) ->
     OpenGL = proplists:get_value(opengl, Ps, []),
     YafRay = proplists:get_value(?TAG, Ps, []),
     Type = proplists:get_value(type, OpenGL, []),
-    Power = proplists:get_value(power, YafRay, 1.0),
+    DefPower = case Type of
+		   point -> ?DEF_ATTN_POWER;
+		   spot -> ?DEF_ATTN_POWER;
+		   _ -> ?DEF_POWER
+	       end,
+    Power = proplists:get_value(power, YafRay, DefPower),
     [{vframe,
       [{hframe,[{vframe, [{label,"Power"}]},
 		{vframe,[{text,Power,
@@ -425,7 +437,42 @@ light_dialog(_Name, point, Ps) ->
        {vframe,[{text,Bias,[{range,0.0,1.0},{key,bias}]},
 		{text,Res,[{range,0,10000},{key,res}]},
 		{text,Radius,[{range,0,10000},{key,radius}]}]}]}];
+light_dialog(_Name, spot, Ps) ->
+    Type = proplists:get_value(type, Ps, ?DEF_SPOT_TYPE),
+    TypeDef = {type,Type},
+    CastShadows = proplists:get_value(cast_shadows, Ps, ?DEF_CAST_SHADOWS),
+    Blend = proplists:get_value(blend, Ps, ?DEF_BLEND),
+    Mode = proplists:get_value(mode, Ps, ?DEF_MODE),
+    Photons = proplists:get_value(photons, Ps, ?DEF_PHOTONS),
+    Depth = proplists:get_value(depth, Ps, ?DEF_DEPTH),
+    Fixedradius = proplists:get_value(fixedradius, Ps, ?DEF_FIXEDRADIUS),
+    Search = proplists:get_value(search, Ps, ?DEF_SEARCH),
+    Mindepth = proplists:get_value(mindepth, Ps, ?DEF_MINDEPTH),
+    Cluster = proplists:get_value(cluster, Ps, ?DEF_CLUSTER),
+    [{hframe,
+      [{key_alt,TypeDef,"Spotlight",spotlight},
+       {"Cast Shadows",CastShadows,[{key,cast_shadows}]},
+       {label,"Blend"},{text,Blend,[{range,0.0,100.0},{key,blend}]}]},
+     {hframe,
+      [{key_alt,TypeDef,"Photonlight",photonlight},
+       {vframe,
+	[{menu,[{"Diffuse",diffuse},{"Caustic",caustic}],Mode,[{key,mode}]},
+	 {hframe,[{vframe,[{label,"Photons"},
+			   {label,"Depth"},
+			   {label,"Fixedradius"}]},
+		  {vframe,[{text,Photons,[{range,0,1000000},{key,photons}]},
+			   {text,Depth,[{range,1,100},{key,depth}]},
+			   {text,Fixedradius,[{range,1.0,1000000.0},
+					      {key,fixedradius}]}]},
+		  {vframe,[{label,"Search"},
+			   {label,"Mindepth"},
+			   {label,"Cluster"}]},
+		  {vframe,[{text,Search,[{range,0,1000000},{key,search}]},
+			   {text,Mindepth,[{range,0,1000000},{key,mindepth}]},
+			   {text,Cluster,[{range,0.0,1000000.0},
+					  {key,cluster}]}]}]}]}]}];
 light_dialog(_Name, _Type, _Ps) ->
+%    erlang:display({?MODULE,?LINE,{_Name,_Type,_Ps}}),
     [].
 
 light_result(_Name, Ps0, [Power|Res0]) ->
@@ -433,12 +480,16 @@ light_result(_Name, Ps0, [Power|Res0]) ->
     Ps = [{?TAG,[Power|LightPs]}|keydelete(?TAG, 1, Ps0)],
     {Ps,Res1}.
 
-light_result([{type,pointlight}=Type,CastShadows,Bias,Res,Radius|Tail]) ->
-    {[Type,CastShadows,Bias,Res,Radius],Tail};
-light_result([CastShadows,{type,softlight}=Type,Bias,Res,Radius|Tail]) ->
-    {[Type,CastShadows,Bias,Res,Radius],Tail};
+light_result([{type,pointlight}|_]=Res) ->
+    split_list(Res, 5);
+light_result([_,{type,softlight}|_]=Res) ->
+    split_list(Res, 5);
+light_result([{type,spotlight}|_]=Ps) ->
+    split_list(Ps, 10);
+light_result([_,_,{type,photonlight}|_]=Ps) ->
+    split_list(Ps, 10);
 light_result(Tail) ->
-%%    erlang:display({?MODULE,?LINE,Tail}),
+%    erlang:display({?MODULE,?LINE,Tail}),
     {[],Tail}.
 
 
@@ -898,7 +949,7 @@ export_light(F, Name, Ps) ->
     export_light(F, Name, Type, OpenGL, YafRay).
 
 export_light(F, Name, point, OpenGL, YafRay) ->
-    Power = proplists:get_value(power, YafRay, ?DEF_POWER),
+    Power = proplists:get_value(power, YafRay, ?DEF_ATTN_POWER),
     Position = proplists:get_value(position, OpenGL, {0.0,0.0,0.0}),
     Diffuse = proplists:get_value(diffuse, OpenGL, {1.0,1.0,1.0,0.1}),
     Type = proplists:get_value(type, YafRay, ?DEF_POINT_TYPE),
@@ -929,23 +980,50 @@ export_light(F, Name, infinite, OpenGL, YafRay) ->
     export_rgb(F, color, Diffuse),
     println(F, "</light>");
 export_light(F, Name, spot, OpenGL, YafRay) ->
-    Power = proplists:get_value(power, YafRay, ?DEF_POWER),
+    Power = proplists:get_value(power, YafRay, ?DEF_ATTN_POWER),
     Position = proplists:get_value(position, OpenGL, {0.0,0.0,0.0}),
     AimPoint = proplists:get_value(aim_point, OpenGL, {0.0,0.0,1.0}),
     ConeAngle = proplists:get_value(cone_angle, OpenGL, ?DEF_CONE_ANGLE),
-    SpotExponent = 
-	proplists:get_value(spot_exponent, OpenGL, ?DEF_SPOT_EXPONENT),
     Diffuse = proplists:get_value(diffuse, OpenGL, {1.0,1.0,1.0,0.1}),
-    println(F, "<light type=\"spotlight\" name=\"~s\" "++
-	    "power=\"~.3f\" cast_shadows=\"on\"~n"++
-	    "       size=\"~.10f\" beam_falloff=\"~.10f\">", 
-	    [Name, Power, ConeAngle, SpotExponent]),
+    Type = proplists:get_value(type, YafRay, ?DEF_POINT_TYPE),
+    println(F,"<light type=\"~w\" name=\"~s\" power=\"~.3f\" ", 
+	    [Type,Name,Power]),
+    case Type of
+	spotlight ->
+	    CastShadows = 
+		proplists:get_value(cast_shadows, YafRay, ?DEF_CAST_SHADOWS),
+	    SpotExponent = 
+		proplists:get_value(spot_exponent, OpenGL, ?DEF_SPOT_EXPONENT),
+	    println(F, "       cast_shadows=\"~s\" size=\"~.10f\"~n"++
+		    "       beam_falloff=\"~.10f\">", 
+		    [format(CastShadows), ConeAngle, SpotExponent]);
+	photonlight ->
+	    Mode = proplists:get_value(mode, YafRay, ?DEF_MODE),
+	    Photons = proplists:get_value(photons, YafRay, ?DEF_PHOTONS),
+	    Depth = proplists:get_value(depth, YafRay, ?DEF_DEPTH),
+	    Fixedradius = 
+		proplists:get_value(fixedradius, YafRay, ?DEF_FIXEDRADIUS),
+	    Search = proplists:get_value(search, YafRay, ?DEF_SEARCH),
+	    Mindepth = proplists:get_value(mindepth, YafRay, ?DEF_MINDEPTH),
+	    Cluster = proplists:get_value(cluster, YafRay, ?DEF_CLUSTER),
+	    case Mode of
+		diffuse ->
+		    println(F, "       mode=\"diffuse\"");
+		_ ->
+		    ok
+	    end,
+	    println(F, "       photons=\"~w\" depth=\"\~w\"~n"++
+		    "       fixedradius=\"~.10f\" search=\"~w\"~n"++
+		    "       mindepth=\"~w\" cluster=\"~.10f\">",
+		    [Photons,Depth,Fixedradius,Search,Mindepth,Cluster])
+    end,
     export_pos(F, from, Position),
     export_pos(F, to, AimPoint),
     export_rgb(F, color, Diffuse),
     println(F, "</light>");
 export_light(_F, Name, Type, _OpenGL, _YafRay) ->
-    io:format("Ignoring unknown light \"~s\" type: ~p~n", [Name, format(Type)]).
+    io:format("Ignoring unknown light \"~s\" type: ~p~n", 
+	      [Name, format(Type)]).
 
 
 
@@ -1316,3 +1394,20 @@ cr_to_nl([C|T]) ->
     [C|cr_to_nl(T)];
 cr_to_nl([]) ->
     [].
+
+%% Split a list into a list of length Pos, and the tail
+
+split_list(List, Pos) when list(List), integer(Pos), Pos >= 0 ->
+    case split_list1(List, Pos, []) of
+	{_,_}=Result ->
+	    Result;
+	Error ->
+	    erlang:fault(Error, [List, Pos])
+    end.
+
+split_list1(List, 0, Head) ->
+    {lists:reverse(Head),List};
+split_list1([], _Pos, _) ->
+    error;
+split_list1([H|T], Pos, Head) ->
+    split_list1(T, Pos-1, [H|Head]).
