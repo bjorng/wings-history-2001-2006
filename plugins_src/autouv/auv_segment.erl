@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.10 2002/10/17 19:03:29 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.11 2002/10/17 20:21:30 bjorng Exp $
 
 -module(auv_segment).
 
@@ -576,7 +576,6 @@ segment_by_cluster(Rel0, We) ->
 %%%
 
 cut_model(Cuts, Clusters, We0) ->
-    cut_edges(Cuts, We0),			%Avoids a lot of warnings.
     AllFaces = wings_sel:get_all_items(face, We0),
     {WMs0,_} = mapfoldl(fun(Keep0, W0) ->
 				Keep = gb_sets:from_list(Keep0),
@@ -586,10 +585,17 @@ cut_model(Cuts, Clusters, We0) ->
 				Next = lists:max([W0#we.next_id,W#we.next_id]),
 				{{W,InvVmap},W0#we{next_id=Next}}
 			end, We0, Clusters),
-    WMs1 = sofs:from_term(WMs0, [{we,[{old,new}]}]),
+    WMs1 = sofs:from_term(WMs0, [{we,[{atom,atom}]}]),
     Wes = sofs:to_external(sofs:domain(WMs1)),
-    InvVmap = sofs:to_external(sofs:converse(sofs:union_of_family(WMs1))),
-    We = wings_we:force_merge(Wes),
+    We1 = wings_we:force_merge(Wes),
+    {We,Imap0} = cut_edges(Cuts, We1),
+    InvVmap0 = sofs:union_of_family(WMs1),
+    InvVmap1 = sofs:converse(InvVmap0),
+    Imap1 = sofs:family(Imap0, [{atom,[atom]}]),
+    Imap2 = sofs:converse(sofs:family_to_relation(Imap1)),
+    Imap = sofs:composite(Imap2, InvVmap1),
+    InvVmap2 = sofs:union(InvVmap1, Imap),
+    InvVmap = sofs:to_external(InvVmap2),
     {We,InvVmap}.
 
 cut_renumber(Faces, #we{vs=Vtab,es=Etab,fs=Ftab,next_id=Next}=We0) ->
@@ -611,86 +617,61 @@ cut_make_map([E|Es], MustRenumber, Id, Acc) ->
 cut_make_map([], _, _, Acc) ->
     gb_trees:from_orddict(reverse(Acc)).
 
-cut_edges(Cuts, We0) ->
-    {We,_,NewVs,_Forbidden} = extrude_edges(Cuts,We0),
-    NewEs = wings_we:new_items(edge, We0, We),
-    {We,{gb_sets:to_list(NewVs),gb_sets:to_list(NewEs)}}.
+-define(EXTRUDE_DIST, 0.1).
 
--define(EXTRUDE_DIST, 0.2).
-
-extrude_edges(Edges, We) ->
-    extrude_edges(Edges, gb_sets:empty(), We).
-
-extrude_edges(Edges, Faces, #we{next_id=Wid,es=Etab}=We0) ->
+cut_edges(Edges, #we{next_id=Wid,es=Etab}=We0) ->
     G = digraph:new(),
     lists:foreach(fun(Edge) ->
-			  digraph_edge(G, Faces, gb_trees:get(Edge, Etab))
+			  digraph_edge(G, gb_trees:get(Edge, Etab))
 		  end, gb_sets:to_list(Edges)),
     Vs0 = digraph:vertices(G),
     Vs1 = sofs:relation(Vs0),
     Vs = sofs:to_external(sofs:domain(Vs1)),
-    {We1,Forbidden} =
+    {We1,Vmap} =
 	foldl(fun(V, A) ->
-		      new_vertex(V, G, Edges, Faces, Wid, A)
+		      new_vertex(V, G, Edges, A)
 	      end, {We0,[]}, Vs),
-    NewVs = wings_we:new_items(vertex, We0, We1),
     We = connect(G, Wid, We1),
     digraph:delete(G),
-    {We,Vs,NewVs,gb_sets:from_list(Forbidden)}.
+    {We,Vmap}.
 
-new_vertex(V, G, Edges, Faces, Wid, {We0,F0}=Acc) ->
+new_vertex(V, G, Edges, {We0,F0}=Acc) ->
     case wings_vertex:fold(fun(E, F, R, A) -> [{E,F,R}|A] end, [], V, We0) of
 	[_,_]=Es ->
-	    case filter_edges(Es, Edges, Faces) of
+	    case filter_edges(Es, Edges) of
 		[] -> Acc;
-		[{Edge,_,#edge{lf=Lf,rf=Rf}}] ->
+		[{_,_,#edge{lf=Lf,rf=Rf}}] ->
 		    New = {new,V},
 		    digraph_insert(G, New, V, Lf),
 		    digraph_insert(G, V, New, Lf),
 		    digraph_insert(G, V, New, Rf),
 		    digraph_insert(G, New, V, Rf),
-		    {We0,[Edge|F0]}
+		    {We0,F0}
 	    end;
 	Es0 ->
-	    Es = filter_edges(Es0, Edges, Faces),
+	    Es = filter_edges(Es0, Edges),
 	    Center = wings_vertex:pos(V, We0),
-	    We = foldl(fun({Edge,_,Rec}, W0) ->
-			       OtherV = wings_vertex:other(V, Rec),
-			       MeetsNew = OtherV >= Wid,
-			       do_new_vertex(V, MeetsNew, G, Edge, Faces, Center, W0)
+	    We = foldl(fun({Edge,_,_}, W0) ->
+			       do_new_vertex(V, G, Edge, Center, W0)
 		       end, We0, Es),
-	    {We,F0}
+	    NewVs = gb_sets:to_list(wings_we:new_items(vertex, We0, We)),
+	    {We,[{V,NewVs}|F0]}
     end.
 
-filter_edges(Es, EdgeSet, FaceSet) ->
-    foldl(fun({Edge,Face,_}=E, A) ->
-		  case gb_sets:is_member(Edge, EdgeSet) orelse
-		      gb_sets:is_member(Face, FaceSet) of
+filter_edges(Es, EdgeSet) ->
+    foldl(fun({Edge,_,_}=E, A) ->
+		  case gb_sets:is_member(Edge, EdgeSet) of
 		      true -> A;
 		      false -> [E|A]
 		  end
 	  end, [], Es).
 
-do_new_vertex(V, MeetsNew, G, Edge, Faces, Center, #we{es=Etab}=We0) ->
+do_new_vertex(V, G, Edge, Center, We0) ->
     {We,NewE=NewV} = wings_edge:cut(Edge, 2, We0),
     Rec = get_edge_rec(V, NewV, Edge, NewE, We),
     digraph_edge(G, Rec),
-    case {gb_trees:is_empty(Faces),MeetsNew} of
-	{true,_} ->
-	    %% Extrude-edge case.
-	    move_vertex(NewV, Center, We);
-	{false,false} ->
-	    %% Bump case.
-	    We;
-	{false,true} ->
-	    %% Bump case, meeting another new vertex.
-	    OtherV = wings_vertex:other(V, gb_trees:get(Edge, Etab)),
-	    Pos = wings_vertex:pos(OtherV, We),
-	    Vtab0 = We#we.vs,
-	    Vtx = gb_trees:get(NewV, Vtab0),
-	    Vtab = gb_trees:update(NewV, Vtx#vtx{pos=Pos}, Vtab0),
-	    We#we{vs=Vtab}
-    end.
+    move_vertex(NewV, Center, We).
+
 move_vertex(V, Center, #we{vs=Vtab0}=We) ->
     #vtx{pos=Pos0} = Rec = gb_trees:get(V, Vtab0),
     Dir = e3d_vec:sub(Pos0, Center),
@@ -715,16 +696,6 @@ get_edge_rec(Va, Vb, EdgeA, EdgeB, #we{es=Etab}) ->
 digraph_edge(G, #edge{lf=Lf,rf=Rf,vs=Va,ve=Vb}) ->
     digraph_insert(G, Va, Vb, Lf),
     digraph_insert(G, Vb, Va, Rf).
-
-digraph_edge(G, Faces, #edge{lf=Lf,rf=Rf,vs=Va,ve=Vb}) ->
-    case gb_sets:is_member(Lf, Faces) of
-	false -> digraph_insert(G, Va, Vb, Lf);
-	true -> ok
-    end,
-    case gb_sets:is_member(Rf, Faces) of
-	false -> digraph_insert(G, Vb, Va, Rf);
-	true -> ok
-    end.
 
 digraph_insert(G, Va0, Vb0, Face) ->
     Va = {Va0,Face},
