@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.132 2003/07/25 20:14:09 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.133 2003/07/25 21:40:19 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -352,12 +352,16 @@ split(#dlo{split=#split{orig_we=#we{}=We}=Split}=D, Vs, St) ->
 split(D, Vs, St) ->
     split(D, #split{dyn_faces=sofs:set([], [face])}, Vs, St).
 
-split(#dlo{src_we=#we{es=Etab}}=D, #split{v2f=none}=Split, Vs, St) ->
-    V2F0 = foldl(fun(#edge{vs=Va,ve=Vb,lf=Lf,rf=Rf}, A) ->
-			 [{Va,Lf},{Va,Rf},{Vb,Lf},{Vb,Rf}|A]
-		 end, [], gb_trees:values(Etab)),
-    V2F = sofs:relation(V2F0, [{vertex,face}]),
-    F2V = sofs:converse(V2F),
+split(#dlo{src_we=#we{fs=Ftab}=We}=D, #split{v2f=none}=Split, Vs, St) ->
+    %% Efficiency note: Looping over the face table is slower than
+    %% looping over the edge table, but sofs:relation/2 will be
+    %% considerable faster, because an edge table loop will construct
+    %% a list that is twice as long (with duplicates).
+    F2V0 = wings_face:fold_faces(fun(F, V, _, _, A) ->
+					 [{F,V}|A]
+				 end, [], gb_trees:keys(Ftab), We),
+    F2V = sofs:relation(F2V0, [{face,vertex}]),
+    V2F = sofs:converse(F2V),
     split(D, Split#split{v2f=V2F,f2v=F2V}, Vs, St);
 split(#dlo{mirror=M,src_sel=Sel,src_we=#we{fs=Ftab0}=We,proxy_data=Pd}=D,
       #split{v2f=V2F,f2v=F2V,dyn_faces=Faces0}=Split0, Vs0, St) ->
