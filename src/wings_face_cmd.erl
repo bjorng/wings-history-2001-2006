@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.80 2003/04/24 06:43:31 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.81 2003/06/08 08:57:15 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -732,8 +732,8 @@ bridge(FaceA, FaceB, #we{vp=Vtab}=We) ->
 	length(VsA) =/= length(VsB) ->
 	    bridge_error("Faces must have the same number of vertices.");
 	true ->
-	    An = wings_face:face_normal(VsA, Vtab),
-	    Bn = wings_face:face_normal(VsB, Vtab),
+	    An = wings_face:face_normal_cw(VsA, Vtab),
+	    Bn = wings_face:face_normal_cw(VsB, Vtab),
 	    case e3d_vec:dot(An, Bn) of
 		Dot when Dot > 0.99 ->
 		    bridge_error("Faces must not point in the same direction.");
@@ -1163,7 +1163,7 @@ put_on({Mode,[{Id,Els}]}, #st{shapes=Shs}=St) ->
 put_on_1(Face, Axis, Target, We) ->
     Vs = wings_face:vertices_ccw(Face, We),
     Center = wings_vertex:center(Vs, We),
-    N = e3d_vec:neg(wings_face:face_normal(Vs, We)),
+    N = wings_face:face_normal_cw(Vs, We),
     RotAxis = e3d_mat:rotate_s_to_t(N, Axis),
     M0 = e3d_mat:translate(Target),
     M1 = e3d_mat:mul(M0, RotAxis),
@@ -1204,7 +1204,7 @@ clone_on({Mode,Sel}, #st{sel=[{Id,Faces}],shapes=Shs0}=St) ->
     Vs = wings_face:vertices_ccw(Face, We),
     Center = wings_vertex:center(Vs, We),
     Translate = e3d_mat:translate(e3d_vec:neg(Center)),
-    N = e3d_vec:neg(wings_face:face_normal(Vs, We)),
+    N = wings_face:face_normal_cw(Vs, We),
     #st{shapes=Shs,onext=Onext} =
 	clone_on_1(Translate, N, We, St#st{selmode=Mode,sel=Sel}),
     St#st{shapes=Shs,onext=Onext}.
@@ -1235,7 +1235,7 @@ clone_3(El, We, Tr, N, Clone, #st{selmode=Mode}=St) ->
 
 on_target(face, Face, We) ->
     Vs = wings_face:vertices_ccw(Face, We),
-    N = wings_face:face_normal(Vs, We),
+    N = wings_face:face_normal_ccw(Vs, We),
     Center = wings_vertex:center(Vs, We),
     {N,Center};
 on_target(edge, Edge, #we{es=Etab}=We) ->

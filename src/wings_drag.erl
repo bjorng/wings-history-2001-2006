@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.142 2003/06/04 06:51:52 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.143 2003/06/08 08:57:15 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -158,9 +158,9 @@ mirror_constrain(Tvs, #we{mirror=Face,fs=Ftab}=We) ->
     case gb_trees:is_defined(Face, Ftab) of
 	false -> Tvs;
 	true ->
-	    [V|_] = Vs = wings_face:vertices_ccw(Face, We),
+	    [V|_] = Vs = wings_face:vertices_cw(Face, We),
 	    VsSet = ordsets:from_list(Vs),
-	    N = wings_face:face_normal(Vs, We),
+	    N = wings_face:face_normal_cw(Vs, We),
 	    Vpos = wings_vertex:pos(V, We),
 	    mirror_constrain_1(Tvs, VsSet, {N,Vpos}, [])
     end.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.66 2003/05/20 17:30:26 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.67 2003/06/08 08:57:15 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -383,7 +383,7 @@ get_vec(edge, Edges, #we{vp=Vtab}=We) ->
     case wings_edge_loop:edge_loop_vertices(Edges, We) of
 	[Vs] -> 
 	    Center = wings_vertex:center(Vs, We),
-	    Vec = wings_face:face_normal(reverse(Vs), Vtab),
+	    Vec = wings_face:face_normal_ccw(Vs, Vtab),
 	    [{{Center,Vec},"Edge loop normal saved as axis."}];
 	_Other ->
 	    {none,"Multi-edge selection must form a single closed edge loop."}
@@ -403,7 +403,7 @@ get_vec(vertex, [Va,Vb]=Vs, We) ->
     [{{Center,Vec},"Direction between vertices saved as axis."}];
 %% 3-point (defines face) perpendicular
 get_vec(vertex, [_,_,_]=Vs, #we{vp=Vtab}=We) ->
-    Vec = wings_face:face_normal(Vs, Vtab),
+    Vec = wings_face:face_normal_ccw(Vs, Vtab),
     Center = wings_vertex:center(Vs, We),
     [{{Center,Vec},"3-point perp. normal saved as axis."}];
 %% Take the edge loop normal.
@@ -412,7 +412,7 @@ get_vec(vertex, Vs0, #we{vp=Vtab}=We) ->
     case wings_edge_loop:edge_loop_vertices(Edges, We) of
 	[Vs] -> 
 	    Center = wings_vertex:center(Vs, We),
-	    Vec = wings_face:face_normal(reverse(Vs), Vtab),
+	    Vec = wings_face:face_normal_cw(Vs, Vtab),
 	    [{{Center,Vec},"Edge loop normal saved as axis."}];
 	_Other ->
 	    {none,"Multi-vertex selection must form a single closed edge loop."}
@@ -435,7 +435,7 @@ get_vec(face, Faces, #we{vp=Vtab}=We) ->
     case wings_vertex:outer_partition(Faces, We) of
 	[Vs] ->
 	    Center = wings_vertex:center(Vs, We),
-	    Vec = wings_face:face_normal(reverse(Vs), Vtab),
+	    Vec = wings_face:face_normal_cw(Vs, Vtab),
 	    [{{Center,Vec},"Edge loop normal for region saved as axis."}];
 	_Other ->
 	    {none,"Multi-face selection must have a single edge loop."}

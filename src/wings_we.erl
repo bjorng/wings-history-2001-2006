@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.53 2003/05/11 06:34:37 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.54 2003/06/08 08:57:15 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -612,8 +612,8 @@ transform_vs(Matrix, #we{vp=Vtab0}=We) ->
 %%%
 
 normals(#we{fs=Ftab,he=He}=We) ->
-    FaceNormals0 = foldl(fun({Face,FaceRec}, Acc) ->
-				 [{Face,face_normal(Face, FaceRec, We)}|Acc]
+    FaceNormals0 = foldl(fun({Face,Edge}, Acc) ->
+				 [{Face,wings_face:normal(Face, Edge, We)}|Acc]
 			 end, [], gb_trees:to_list(Ftab)),
     FaceNormals = reverse(FaceNormals0),
     case FaceNormals of
@@ -735,16 +735,6 @@ update_digraph(G, V, #we{he=Htab}=We) ->
 		      digraph:add_edge(G, Rf, Lf)
 	      end
       end, [], V, We).
-    
-%% Face normal calculation.
-
-face_normal(Face, Edge, #we{vp=Vtab}=We) ->
-    Vs = wings_face:vertices_cw(Face, Edge, We),
-    face_normal_1(Vs, Vtab, []).
-
-face_normal_1([V|Vs], Vtab, Acc) ->
-    face_normal_1(Vs, Vtab, [gb_trees:get(V, Vtab)|Acc]);
-face_normal_1([], _, Acc) -> e3d_vec:normal(Acc).
 
 %%%
 %%% Returns sets of newly created items.

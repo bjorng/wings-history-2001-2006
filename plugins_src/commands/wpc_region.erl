@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_region.erl,v 1.8 2003/05/23 05:34:36 bjorng Exp $
+%%     $Id: wpc_region.erl,v 1.9 2003/06/08 08:57:15 bjorng Exp $
 %%
 
 -module(wpc_region).
@@ -82,9 +82,8 @@ move_region([Fs|Regs], We, Acc0) ->
     move_region(Regs, We, Acc);
 move_region([], _, Acc) -> Acc.
 
-move_region(OuterVs0, Faces, We, Acc) ->
-    OuterVs = reverse(OuterVs0),
-    PlaneNormal = wings_face:face_normal(OuterVs, We),
+move_region(OuterVs, Faces, We, Acc) ->
+    PlaneNormal = wings_face:face_normal_cw(OuterVs, We),
     [{PlaneNormal,wings_face:to_vertices(Faces, We)}|Acc].
 
 %%%
@@ -102,9 +101,8 @@ scale_region_1([Fs|Regs], We, Acc0) ->
     scale_region_1(Regs, We, Acc);
 scale_region_1([], _, Acc) -> Acc.
 
-scale_region_1(OuterVs0, Faces, We, Acc) ->
-    OuterVs = reverse(OuterVs0),
-    PlaneNormal = wings_face:face_normal(OuterVs, We),
+scale_region_1(OuterVs, Faces, We, Acc) ->
+    PlaneNormal = wings_face:face_normal_cw(OuterVs, We),
     WeTemp = wpa:vertex_flatten(OuterVs, PlaneNormal, We),
     Center = wings_vertex:center(OuterVs, WeTemp),
     Vs = wings_face:to_vertices(Faces, We),
@@ -137,9 +135,8 @@ rotate_region_1([Fs|Regs], We, Acc0) ->
     rotate_region_1(Regs, We, Acc);
 rotate_region_1([], _, Acc) -> Acc.
 
-rotate_region(OuterVs0, Faces, We, Acc) ->
-    OuterVs = reverse(OuterVs0),
-    PlaneNormal = wings_face:face_normal(OuterVs, We),
+rotate_region(OuterVs, Faces, We, Acc) ->
+    PlaneNormal = wings_face:face_normal_cw(OuterVs, We),
     Vs = wings_face:to_vertices(Faces, We),
     Center = wings_vertex:center(OuterVs, We),
     VsPos = wings_util:add_vpos(Vs, We),
@@ -176,7 +173,7 @@ flatten_region_1([Fs|Regs], We0) ->
 flatten_region_1([], We) -> We.
 
 flatten_region_2(Vs, We) ->
-    PlaneNormal = wings_face:face_normal(Vs, We),
+    PlaneNormal = wings_face:face_normal_ccw(Vs, We),
     wpa:vertex_flatten(Vs, PlaneNormal, We).
 
 %%%

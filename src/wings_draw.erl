@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.123 2003/06/07 08:36:33 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.124 2003/06/08 08:57:15 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -519,8 +519,7 @@ smooth_dlist(#we{he=Htab0}=We, #st{mat=Mtab}) ->
     end.
 
 smooth_faces(Faces, #we{mode=vertex}, _Mtab) ->
-    ListOp = gl:genLists(2),
-    ListTr = ListOp+1,
+    ListOp = gl:genLists(1),
     gl:newList(ListOp, ?GL_COMPILE),
     case wings_pref:get_value(show_colors) of
 	false -> draw_smooth_plain(Faces);
@@ -533,9 +532,7 @@ smooth_faces(Faces, #we{mode=vertex}, _Mtab) ->
 	    gl:disable(?GL_COLOR_MATERIAL)
     end,
     gl:endList(),
-    gl:newList(ListTr, ?GL_COMPILE),
-    gl:endList(),
-    {[ListOp,ListTr],false};
+    {[ListOp,none],false};
 smooth_faces(Faces, #we{mode=material}=We, Mtab) ->
     smooth_faces_0(show_materials, Faces, We, Mtab);
 smooth_faces(Faces, #we{mode=uv}=We, Mtab) ->
@@ -668,10 +665,10 @@ make_normals_dlist_1(edge, Edges, #we{es=Etab,vp=Vtab}=We) ->
 	    end, Et);
 make_normals_dlist_1(face, Faces, We) ->
     foreach(fun(Face) ->
-		    Vs = wings_face:vertices_ccw(Face, We),
+		    Vs = wings_face:vertices_cw(Face, We),
 		    C = wings_vertex:center(Vs, We),
 		    gl:vertex3fv(C),
-		    N = wings_face:face_normal(Vs, We),
+		    N = wings_face:face_normal_cw(Vs, We),
 		    gl:vertex3fv(e3d_vec:add(C, e3d_vec:mul(N, 0.3)))
 	    end, gb_sets:to_list(Faces));
 make_normals_dlist_1(body, _, #we{fs=Ftab}=We) ->
