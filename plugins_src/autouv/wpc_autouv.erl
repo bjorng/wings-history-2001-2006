@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.172 2003/12/02 15:49:35 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.173 2003/12/02 16:38:13 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -569,7 +569,7 @@ merge_texture(ImageBins,Wd,Hd,W,H,Acc) ->
 %%%%%%% Events handling and window redrawing 
    
 
-command_menu(body, X,Y, _Uvs) ->
+command_menu(body, X, Y) ->
     Rotate = [{"Free", free, "Rotate freely"},
 	      {"90"++[?DEGREE]++" CW",-90,
 	       "Rotate selection 90 degrees clockwise"},
@@ -588,20 +588,17 @@ command_menu(body, X,Y, _Uvs) ->
 % 	    {"Rescale All", rescale_all, "Pack the space in lower-left before rescaling"}
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu);
-
-command_menu(face, X,Y, _Uvs) ->
+command_menu(face, X, Y) ->
     Menu = [{"Face operations", ignore}, 
 	    {"Email your ideas", ignore}
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu);
-
-command_menu(edge, X,Y, _Uvs) ->
+command_menu(edge, X, Y) ->
     Menu = [{"Edge operations", ignore},
 	    {"Email your ideas", ignore}
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu);
-
-command_menu(vertex, X,Y, _Uvs) ->
+command_menu(vertex, X, Y) ->
     Menu = [{"Vertex operations", ignore},
 	    {"Email your ideas", ignore}
 	   ] ++ option_menu(),
@@ -706,49 +703,51 @@ handle_event({new_uv_state,St}, _) ->
     get_event(reset_dl(St));
 handle_event(Ev, St) ->
     case auv_pick:event(Ev, St) of
-	next -> handle_event_0(Ev, St);
+	next -> handle_event_1(Ev, St);
 	Other -> Other
     end.
 
-handle_event_0(Ev, #st{selmode=Mode,sel=Sel,shapes=Shs,bb=Uvs}) ->
-    handle_event_1(Ev, Uvs#uvstate{mode=Mode,sel=Sel,areas=Shs}).
-    
-handle_event_1({current_state,geom_display_lists,St}, Uvs) ->
+handle_event_1({current_state,geom_display_lists,St}, #st{bb=Uvs}=St0) ->
     case verify_state(St, Uvs) of
-	keep -> update_selection(St, Uvs);
+	keep ->
+	    #st{selmode=Mode,sel=Sel,shapes=Shs} = St0,
+	    update_selection(St, Uvs#uvstate{mode=Mode,sel=Sel,areas=Shs});
 	Other -> Other
     end;
-handle_event_1(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_RIGHT,x=X0,y=Y0}, 
-	       #uvstate{mode=Mode}=Uvs) ->
+handle_event_1(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_RIGHT,x=X0,y=Y0},
+	       #st{selmode=Mode}) ->
     {X,Y} = wings_wm:local2global(X0, Y0),
-    command_menu(Mode, X, Y, Uvs);
-handle_event_1(#keyboard{state=?SDL_PRESSED,sym=?SDLK_SPACE}, #uvstate{st=St}) ->
+    command_menu(Mode, X, Y);
+handle_event_1(#keyboard{state=?SDL_PRESSED,sym=?SDLK_SPACE}, #st{bb=#uvstate{st=St}}) ->
     wings_wm:send(geom, {new_state,wpa:sel_set(face, [], St)});
-handle_event_1({drop,_,DropData}, Uvs) ->
-    handle_drop(DropData, Uvs);
+handle_event_1({drop,_,DropData}, St) ->
+    handle_drop(DropData, St);
 handle_event_1({action,{auv,apply_texture}},
-	       #uvstate{st=St0,orig_we=OWe,matname=MatName0}=Uvs) ->
+	       #st{bb=#uvstate{st=GeomSt0,orig_we=OWe,matname=MatName0}=Uvs}=St) ->
     Tx = ?SLOW(get_texture(Uvs)),
     Charts = all_charts(Uvs),
     #we{name=Name,id=Id} = OWe,
-    {St1,MatName} = add_material(Tx, Name, MatName0, St0),
-    St = insert_uvcoords(Charts, Id, MatName, St1),
-    wings_wm:send(geom, {new_state,St}),
-    get_event(Uvs#uvstate{st=St,matname=MatName});
-handle_event_1({action, {auv, edge_options}}, Uvs) ->
+    {GeomSt1,MatName} = add_material(Tx, Name, MatName0, GeomSt0),
+    GeomSt = insert_uvcoords(Charts, Id, MatName, GeomSt1),
+    wings_wm:send(geom, {new_state,GeomSt}),
+    get_event(St#st{bb=Uvs#uvstate{st=GeomSt,matname=MatName}});
+handle_event_1(Ev, #st{selmode=Mode,sel=Sel,shapes=Shs,bb=Uvs}) ->
+    handle_event_2(Ev, Uvs#uvstate{mode=Mode,sel=Sel,areas=Shs}).
+    
+handle_event_2({action, {auv, edge_options}}, Uvs) ->
     edge_option_menu(Uvs);
-handle_event_1({action,{auv,quit}}, Uvs) ->
+handle_event_2({action,{auv,quit}}, Uvs) ->
     quit_menu(Uvs);
-handle_event_1(close, Uvs) ->
+handle_event_2(close, Uvs) ->
     quit_menu(Uvs);
-handle_event_1({action,{auv,quit,cancel}}, Uvs) ->
+handle_event_2({action,{auv,quit,cancel}}, Uvs) ->
     restore_wings_window(Uvs),
     delete;
-handle_event_1({action, {auv,quit,QuitOp}}, Uvs) ->
+handle_event_2({action, {auv,quit,QuitOp}}, Uvs) ->
     restore_wings_window(Uvs),
     wings_wm:send(geom, {action,{body,{?MODULE,uvmap_done,QuitOp,Uvs}}}),
     delete;
-handle_event_1({action, {auv, set_options, {EMode,BEC,BEW,Color,TexBG,TexSz}}},
+handle_event_2({action, {auv, set_options, {EMode,BEC,BEW,Color,TexBG,TexSz}}},
 	     Uvs0) ->
     Uvs1 = Uvs0#uvstate{option = 
 			#setng{edges = EMode, 
@@ -759,11 +758,11 @@ handle_event_1({action, {auv, set_options, {EMode,BEC,BEW,Color,TexBG,TexSz}}},
 			       texsz = {TexSz,TexSz}}
 		       },
     get_event(reset_dl(Uvs1));
-handle_event_1({action,{auv,Command}}, Uvs) ->
+handle_event_2({action,{auv,Command}}, Uvs) ->
     handle_command(Command, Uvs);
-handle_event_1({callback, Fun}, _) when function(Fun) ->
+handle_event_2({callback, Fun}, _) when function(Fun) ->
     Fun();
-handle_event_1(_Event, Uvs) ->
+handle_event_2(_Event, Uvs) ->
     ?DBG("Got unhandled Event ~p ~n", [_Event]),
     get_event(Uvs).
 
@@ -833,22 +832,20 @@ drag_filter({image,_,_}) ->
     {yes,"Drop: Change the texture image"};
 drag_filter(_) -> no.
 
-handle_drop({image,_,#e3d_image{width=W,height=H}=Im}, #uvstate{option=Opt0}=Uvs) ->
+handle_drop({image,_,#e3d_image{width=W,height=H}=Im}, #st{bb=Uvs0}=St) ->
     case W =:= H andalso is_power_of_two(W) of
 	false -> keep;
 	true ->
-	    Opt = Opt0#setng{color=false,edges=no_edges},    
-	    add_texture_image(Im, Uvs#uvstate{option=Opt})
+	    #uvstate{st=GeomSt0,orig_we=#we{name=Name},option=Opt0,matname=MatName0} = Uvs0,
+	    {GeomSt,MatName} = add_material(Im, Name, MatName0, GeomSt0),
+	    wings_wm:send(geom, {new_state,GeomSt}),
+	    Opt = Opt0#setng{color=false,edges=no_edges,texbg=true},
+	    Uvs = Uvs0#uvstate{st=GeomSt,matname=MatName,option=Opt},
+	    get_event(reset_dl(St#st{bb=Uvs}))
     end;
 handle_drop(_DropData, _) ->
     %%io:format("~P\n", [_DropData,40]),
     keep.
-
-add_texture_image(Im, #uvstate{st=St0,option=Opt,orig_we=OWe,matname=MatName0}=Uvs) ->
-    Name = OWe#we.name,
-    {St,MatName} = add_material(Im,Name,MatName0,St0),
-    wings_wm:send(geom, {new_state,St}),
-    get_event(reset_dl(Uvs#uvstate{st=St,matname=MatName,option=Opt#setng{texbg=true}})).
 
 is_power_of_two(X) ->
     (X band -X ) == X.
