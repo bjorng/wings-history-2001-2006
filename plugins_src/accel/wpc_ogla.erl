@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_ogla.erl,v 1.3 2004/04/20 18:14:28 bjorng Exp $
+%%     $Id: wpc_ogla.erl,v 1.4 2004/04/21 11:29:33 bjorng Exp $
 %%
 
 -module(wpc_ogla).
@@ -86,8 +86,6 @@ triangulate(N, Ps) ->
     Bin = vs_to_bin([N|Ps], []),
     {Tris,MorePs} = triangulate_1(erlang:port_control(wings_ogla_port, 4, Bin), []),
     {Tris,Ps++MorePs}.
-
-good(V, N) -> 1 =< V andalso V =< N.
     
 triangulate_1(<<0:32/native,T/binary>>, Acc) ->
     {reverse(Acc),triangulate_2(T, [])};
