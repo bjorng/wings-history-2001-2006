@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.162 2002/10/14 18:36:53 bjorng Exp $
+%%     $Id: wings.erl,v 1.163 2002/10/24 14:24:41 bjorng Exp $
 %%
 
 -module(wings).
@@ -628,10 +628,15 @@ measure(Base, #st{selmode=edge,sel=[{Id,Es}],shapes=Shs}) ->
 	    We = gb_trees:get(Id, Shs),
  	    [Edge] = gb_sets:to_list(Es),
 	    #edge{vs=Va,ve=Vb} = gb_trees:get(Edge, We#we.es),
- 	    Dist = e3d_vec:dist(wings_vertex:pos(Va, We),
-				wings_vertex:pos(Vb, We)),
-	    [Base|io_lib:format(". Length ~s",
-				[wings_util:nice_float(Dist)])];
+	    PosA = wings_vertex:pos(Va, We),
+	    PosB = wings_vertex:pos(Vb, We),
+ 	    Dist = e3d_vec:dist(PosA, PosB),
+	    {X,Y,Z} = e3d_vec:average([PosA,PosB]),
+	    [Base|io_lib:format(". Midpt ~s ~s ~s. Length ~s",
+				[wings_util:nice_float(X),
+				 wings_util:nice_float(Y),
+				 wings_util:nice_float(Z),
+				 wings_util:nice_float(Dist)])];
 	_ -> Base
     end;
 measure(Base, #st{selmode=face,sel=[{Id,Fs}],shapes=Shs}) ->
