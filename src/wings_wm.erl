@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.134 2003/11/30 21:50:09 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.135 2004/01/01 15:08:17 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -23,8 +23,7 @@
 	 update_window/2,clear_background/0,
 	 callback/1,current_state/1,get_current_state/0,notify/1,
 	 local2global/1,local2global/2,global2local/2,local_mouse_state/0,
-	 translation_change/0,
-	 draw_message/1,draw_completions/1]).
+	 translation_change/0]).
 
 %% Window information.
 -export([top_size/0,viewport/0,viewport/1,
@@ -1101,68 +1100,6 @@ message_setup() ->
     gl:color3b(0, 0, 0),
     gl:translatef(10, H-5.375, 0),
     {W,H}.
-
-%% Dirty hack to draw in the front buffer.
-draw_message(F) ->
-    ?CHECK_ERROR(),
-    gl:flush(),
-    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
-    gl:shadeModel(?GL_FLAT),
-    gl:disable(?GL_DEPTH_TEST),
-    gl:drawBuffer(?GL_FRONT),
-    {X,Y,W,H} = MsgViewport = viewport(message),
-    OldViewport = put(wm_viewport, MsgViewport),
-    gl:viewport(X, Y, W, H),
-    gl:matrixMode(?GL_PROJECTION),
-    gl:loadIdentity(),
-    glu:ortho2D(0, W, H, 0),
-    gl:matrixMode(?GL_MODELVIEW),
-    gl:loadIdentity(),
-    wings_io:set_color(?PANE_COLOR),
-    gl:recti(0, 0, W, H),
-    gl:color3i(0, 0, 0),
-    gl:translatef(10, H-5.5, 0),
-    Res = F(),
-    put(wm_viewport, OldViewport),
-    gl:drawBuffer(?GL_BACK),
-    gl:popAttrib(),
-    Res.
-
-draw_completions(F) ->
-    gl:flush(),
-    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
-
-    gl:matrixMode(?GL_PROJECTION),
-    gl:pushMatrix(),
-    gl:matrixMode(?GL_MODELVIEW),
-    gl:pushMatrix(),
-
-    OldViewport = viewport(),
-    {X,Y,W,H} = Viewport = viewport(geom),
-    gl:viewport(X, Y, W, H),
-    put(wm_viewport, Viewport),
-
-    gl:drawBuffer(?GL_FRONT),
-    wings_io:ortho_setup(),
-    gl:loadIdentity(),
-    Margin = 10,
-    gl:translatef(Margin, H / 6, 0),
-    wings_io:border(0, 0, W-2*Margin, 4*H div 6, wings_pref:get_value(menu_color)),
-    gl:translatef(10, ?LINE_HEIGHT, 0),
-    Res = F(),
-    gl:drawBuffer(?GL_BACK),
-
-    put(wm_viewport, OldViewport),
-
-    gl:matrixMode(?GL_MODELVIEW),
-    gl:popMatrix(),
-    gl:matrixMode(?GL_PROJECTION),
-    gl:popMatrix(),
-    gl:matrixMode(?GL_MODELVIEW),
-
-    gl:popAttrib(),
-
-    Res.
 
 %%%
 %%% Toplevel: create a window and a controller window at the same time.
