@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.46 2002/01/06 14:47:09 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.47 2002/01/07 22:46:18 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -227,7 +227,7 @@ draw_smooth_1([{Mat,Faces}|T], Mtab) ->
     draw_smooth_1(T, Mtab);
 draw_smooth_1([], Mtab) -> ok.
 
-draw_smooth_2([[_,_,_,_,_|_]=Vs|Fs]) ->
+draw_smooth_2([[_,_,_,_|_]=Vs|Fs]) ->
     %% This face needs tesselation.
     Tess = wings_draw_util:tess(),
     glu:tessNormal(Tess, 0, 0, 0),
@@ -254,7 +254,7 @@ draw_smooth_2([Vs|Fs]) ->
 draw_smooth_2([]) -> ok.
 
 %% Smooth drawing for vertex colors.
-draw_smooth_vcolor([{_,[_,_,_,_,_|_]=Vs}|T]) ->
+draw_smooth_vcolor([{_,[_,_,_,_|_]=Vs}|T]) ->
     Tess = wings_draw_util:tess(),
     glu:tessNormal(Tess, 0, 0, 0),
     glu:tessBeginPolygon(Tess),

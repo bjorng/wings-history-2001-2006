@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.9 2002/01/07 15:11:38 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.10 2002/01/07 22:46:18 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -35,7 +35,7 @@ tess() ->
 
 sel_face(Face, #we{vs=Vtab}=We) ->
     case wings_face:surrounding_vertices(Face, We) of
-	[_,_,_,_,_|_]=Vs ->
+	[_,_,_,_|_]=Vs ->
 	    {X,Y,Z} = wings_face:face_normal(Vs, We),
 	    Tess = tess(),
 	    glu:tessNormal(Tess, X, Y, Z),
@@ -71,7 +71,7 @@ face(Face, #we{fs=Ftab}=We) ->
 
 face(Face, Edge, #we{mode=vertex}=We) ->
     case wings_face:draw_info(Face, Edge, We) of
-	[_,_,_,_,_|_]=Vs ->
+	[_,_,_,_|_]=Vs ->
 	    {X,Y,Z} = N = wings_face:draw_normal(Vs),
 	    Tess = tess(),
 	    glu:tessNormal(Tess, X, Y, Z),
@@ -89,7 +89,7 @@ face(Face, Edge, #we{mode=vertex}=We) ->
     end;
 face(Face, Edge, #we{vs=Vtab}=We) ->
     case wings_face:surrounding_vertices(Face, Edge, We) of
-	[_,_,_,_,_|_]=Vs ->
+	[_,_,_,_|_]=Vs ->
 	    {X,Y,Z} = N = wings_face:face_normal(Vs, We),
 	    Tess = tess(),
 	    glu:tessNormal(Tess, X, Y, Z),
@@ -134,7 +134,7 @@ face_1([], Vtab) -> ok.
 
 flat_face(Face, Edge, #we{vs=Vtab}=We) ->
     case wings_face:surrounding_vertices(Face, Edge, We) of
-	[_,_,_,_,_|_]=Vs ->
+	[_,_,_,_|_]=Vs ->
 	    {X,Y,Z} = N = wings_face:face_normal(Vs, We),
 	    Tess = tess(),
 	    glu:tessNormal(Tess, X, Y, Z),
