@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: collect_bmp.erl,v 1.1 2001/08/14 18:16:34 bjorng Exp $
+%%     $Id: collect_bmp.erl,v 1.1.1.1 2001/08/14 18:16:34 bjorng Exp $
 %%
 
 -module(collect_bmp).
