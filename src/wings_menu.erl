@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.94 2003/03/04 19:44:06 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.95 2003/03/07 04:56:11 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -777,6 +777,8 @@ move_if_outside(X, Y, Mw, Mh, Mi) ->
 	X+Mw > W ->
 	    NewX = left_of_parent(Mw, W, Mi),
 	    move_if_outside(NewX, Y, Mw, Mh, Mi);
+	Y < 1 ->
+	    move_if_outside(X, 1, Mw, Mh, Mi);
 	Y+Mh > H ->
 	    move_if_outside(X, H-Mh, Mw, Mh, Mi);
 	true ->
