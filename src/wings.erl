@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.249 2003/06/25 16:50:56 bjorng Exp $
+%%     $Id: wings.erl,v 1.250 2003/06/25 17:05:17 bjorng Exp $
 %%
 
 -module(wings).
@@ -403,6 +403,14 @@ handle_event_3({drop,Pos,DropData}, St) ->
     handle_drop(DropData, Pos, St);
 handle_event_3(ignore, _St) -> keep.
 
+do_hotkey({edit,undo_toggle}=Cmd, St) ->
+    do_command(Cmd, St);
+do_hotkey({edit,undo}=Cmd, St) ->
+    do_command(Cmd, St);
+do_hotkey({edit,redo}=Cmd, St) ->
+    do_command(Cmd, St);
+do_hotkey({view,_}=Cmd, St) ->
+    do_command(Cmd, St);
 do_hotkey(Cmd, #st{sel=[]}=St0) ->
     case wings_pref:get_value(use_temp_sel) of
 	false ->
