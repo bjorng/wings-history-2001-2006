@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.26 2001/11/25 08:17:11 bjorng Exp $
+%%     $Id: wings.hrl,v 1.27 2001/11/25 18:21:10 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -66,11 +66,9 @@
 %% Main state record containing all objects and other important state.
 -record(st,
 	{shapes,				%All visible shapes
-	 hidden,				%Hidden shapes
 	 selmode,				%Selection mode:
 						% vertex, edge, face, body
 	 sel=[],				%Current sel: [{Id,GbSet}]
-	 hsel,					%Hidden sel: GbSet
 	 ssel,					%Saved selection.
 	 mat,					%Defined materials (GbTree).
 	 next_tx=100,				%Next OpenGL texture ID.

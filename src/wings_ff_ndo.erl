@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_ndo.erl,v 1.8 2001/11/22 15:46:29 bjorng Exp $
+%%     $Id: wings_ff_ndo.erl,v 1.9 2001/11/25 18:21:10 bjorng Exp $
 %%
 
 -module(wings_ff_ndo).
@@ -166,8 +166,8 @@ set_next_id(#we{es=Etab,vs=Vtab,fs=Ftab}=We) ->
 %% Export.
 %%
 
-export(Name, #st{hidden=Hidden,shapes=Shapes0}=St) ->
-    Shapes1 = gb_trees:values(Hidden) ++ gb_trees:values(Shapes0),
+export(Name, #st{shapes=Shapes0}=St) ->
+    Shapes1 = gb_trees:values(Shapes0),
     Shapes2 = foldl(fun(Sh, A) ->
 			shape(Sh, A)
 		end, [], Shapes1),

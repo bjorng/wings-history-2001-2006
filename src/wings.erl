@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.56 2001/11/25 15:48:10 bjorng Exp $
+%%     $Id: wings.erl,v 1.57 2001/11/25 18:21:10 bjorng Exp $
 %%
 
 -module(wings).
@@ -75,10 +75,8 @@ init_1() ->
 		      {"Help",help}]),
     Empty = gb_trees:empty(),
     St = #st{shapes=Empty,
-	     hidden=Empty,
 	     selmode=face,
 	     sel=[],
-	     hsel=Empty,
 	     ssel={face,[]},
 	     mat=wings_material:default(),
 	     saved=true,
@@ -494,22 +492,8 @@ command({tools,{move_to_bb,Dir}}, St) ->
 
 %% Objects menu.
 
-command({objects,show_all}, #st{hidden=Hidden}=St) ->
-    toggle_list(gb_trees:to_list(Hidden), St);
-command({objects,hide_all}, #st{shapes=Shapes}=St) ->
-    toggle_list(gb_trees:to_list(Shapes), St);
-command({objects,toggle_all}, #st{hidden=Hidden,shapes=Shapes}=St) ->
-    toggle_list(gb_trees:to_list(Shapes)++gb_trees:to_list(Hidden), St);
-command({objects,hide_selected}, #st{sel=Sel}=St) ->
-    toggle_list(Sel, St);
-command({objects,hide_unselected}, #st{sel=Sel,shapes=Shapes}=St) ->
-    Unsel = [Obj || {Id,_}=Obj <- gb_trees:to_list(Shapes),
-		    not keymember(Id, 1, Sel)],
-    toggle_list(Unsel, St);
-command({objects,{Id}}, St) when integer(Id) ->
+command({objects,Id}, St) when integer(Id) ->
     {save_state,rename_object(Id, St)};
-command({objects,Id}, St0) when integer(Id) ->
-    model_changed(toggle_visibility(Id, St0));
 
 %% Common commands.
 command({_,collapse}, St) ->
@@ -614,21 +598,12 @@ menu(X, Y, tools, St) ->
 	    {"Scale to Saved BB Proportionally",{scale_to_bb_prop,Dirs}},
 	    {"Move to Saved BB",{move_to_bb,all_xyz()}}},
     wings_menu:menu(X, Y, tools, Menu, St);
-menu(X, Y, objects, #st{shapes=Shapes,hidden=Hidden}=St) ->
-    All = sort(gb_trees:to_list(Shapes)++gb_trees:to_list(Hidden)),
+menu(X, Y, objects, #st{shapes=Shapes}=St) ->
+    All = gb_trees:to_list(Shapes),
     Menu0 = map(fun({Id,#shape{name=Name}}) ->
-			case is_visible(Id, St) of
-			    true ->  {"Hide "++Name,{Id}};
-			    false -> {"Show "++Name,Id}
-			end
-		end, All),
-    Menu = list_to_tuple([{"Show All",show_all},
-			  {"Hide All",hide_all},
-			  {"Toggle Visibility",toggle_all},
-			  separator,
-			  {"Hide Selected",hide_selected},
-			  {"Hide Unselected",hide_unselected},
-			  separator|Menu0]),
+		       {"Rename "++Name,Id}
+	       end, All),
+    Menu = list_to_tuple(Menu0),
     wings_menu:menu(X, Y, objects, Menu, St);
 menu(X, Y, help, St) ->
     Menu = {{"About",about}},
@@ -886,46 +861,6 @@ caption(#st{file=Name}=St) ->
     Caption = wings() ++ " - " ++ filename:basename(Name),
     sdl_video:wm_setCaption(Caption, Caption),
     St.
-
-is_visible(Id, #st{shapes=Shapes}) ->
-    gb_trees:is_defined(Id, Shapes).
-
-toggle_list(Ids, St) ->
-    foldl(fun({Id,_}, A) ->
-		  toggle_visibility(Id, A)
-	  end, model_changed(St), Ids).
-
-toggle_visibility(Id, #st{selmode=SelMode,sel=Sel0,hsel=Hsel0,
-			  shapes=Shapes0,hidden=Hidden0}=St) ->
-    case gb_trees:is_defined(Id, Shapes0) of
-	true ->
-	    {Shapes,Hidden} = move_shape(Id, Shapes0, Hidden0),
-	    case orddict:find(Id, Sel0) of
-		error ->
-		    St#st{shapes=Shapes,hidden=Hidden};
-		{ok,Items} ->
-		    Sel = orddict:erase(Id, Sel0),
-		    Hsel = gb_trees:insert(Id, {SelMode,Items}, Hsel0),
-		    St#st{sel=Sel,hsel=Hsel,shapes=Shapes,hidden=Hidden}
-	    end;
-	false ->
-	    {Hidden,Shapes} = move_shape(Id, Hidden0, Shapes0),
-	    case gb_trees:lookup(Id, Hsel0) of
-		none ->
-		    St#st{shapes=Shapes,hidden=Hidden};
-		{value,{SelMode,Items}} ->
-		    Hsel = gb_trees:delete(Id, Hsel0),
-		    Sel = orddict:store(Id, Items, Sel0),
-		    St#st{sel=Sel,hsel=Hsel,shapes=Shapes,hidden=Hidden};
-		{value,{OtherMode,Items}} ->
-		    Hsel = gb_trees:delete(Id, Hsel0),
-		    St#st{hsel=Hsel,shapes=Shapes,hidden=Hidden}
-	    end
-    end.
-
-move_shape(Id, From, To) ->    
-    Item = gb_trees:get(Id, From),
-    {gb_trees:delete(Id, From),gb_trees:insert(Id, Item, To)}.
 
 rename_object(Id, #st{shapes=Shapes0}=St) ->
     #shape{name=Name0} = Sh = gb_trees:get(Id, Shapes0),

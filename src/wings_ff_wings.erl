@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.12 2001/10/17 07:48:25 bjorng Exp $
+%%     $Id: wings_ff_wings.erl,v 1.13 2001/11/25 18:21:10 bjorng Exp $
 %%
 
 -module(wings_ff_wings).
@@ -101,8 +101,8 @@ old_import_objects(Shapes, St0) ->		% Version 0.
 
 %% Save a Wings file (in version 1).
 
-export(Name, #st{selmode=Mode,sel=Sel0,hidden=Hidden,shapes=Shapes0}=St) ->
-    Shapes1 = gb_trees:to_list(Hidden) ++ gb_trees:to_list(Shapes0),
+export(Name, #st{selmode=Mode,sel=Sel0,shapes=Shapes0}=St) ->
+    Shapes1 = gb_trees:to_list(Shapes0),
     ShapeSel = shape_sel(Shapes1, Sel0),
     Shapes = foldl(fun({Sh,Sel}, A) ->
 			   shape(Sh, Mode, Sel, A)
