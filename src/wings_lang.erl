@@ -47,24 +47,17 @@ str(K1,K2,K3,DefStr) ->
     str({K1,K2,K3}, DefStr).
 
 init() ->
-    Lang = 
-	case wings_pref:get_value(language) of 
-	    undefined -> 
-		wings_pref:set_value(language, ?DEF_LANG),
-		?DEF_LANG;
-	    Else ->
-		case lists:member(Else, available_languages()) of
-		    true -> 
-			Else;
-		    false ->
-			?DEF_LANG
-		end
-	end,
-    load_language(Lang),
-    ok.
+    wings_pref:set_default(language, ?DEF_LANG),
+    Lang = case wings_pref:get_value(language) of 
+	       ?DEF_LANG=L -> L;
+	       Other ->
+		   case lists:member(Other, available_languages()) of
+		       true -> Other;
+		       false -> ?DEF_LANG
+		   end
+	   end,
+    load_language(Lang).
 
-load_language(Lang) when atom(Lang) ->
-    load_language(atom_to_list(Lang));
 load_language(Lang) ->
     catch ets:delete(?MODULE), 
     case Lang of
