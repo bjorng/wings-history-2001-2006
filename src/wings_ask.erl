@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.42 2002/12/08 17:41:03 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.43 2002/12/09 14:17:45 dgud Exp $
 %%
 
 -module(wings_ask).
@@ -802,7 +802,7 @@ button_event(_Ev, _Fi, But) -> But.
 color(Def) ->
     Col = #col{val=Def},
     Fun = color_fun(),
-    {Fun,false,Col,10*?CHAR_WIDTH,?LINE_HEIGHT+2}.
+    {Fun,false,Col,3*?CHAR_WIDTH,?LINE_HEIGHT+2}.
 
 color_fun() ->
     fun({redraw,Active}, Fi, Col, Common) ->
