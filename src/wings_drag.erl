@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.132 2003/03/04 19:11:03 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.133 2003/03/06 18:31:16 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -368,8 +368,7 @@ handle_drag_event_1(Event, #drag{st=St}=Drag0) ->
 
 ungrab(#drag{x=Ox,y=Oy}) ->
     wings_wm:release_focus(),
-    wings_io:ungrab(),
-    sdl_mouse:warpMouse(Ox, Oy).
+    wings_io:ungrab(Ox, Oy).
 
 invalidate_fun(#dlo{drag=none}=D, _) -> D;
 invalidate_fun(#dlo{src_we=We}=D, _) -> D#dlo{src_we=We#we{es=none}}.

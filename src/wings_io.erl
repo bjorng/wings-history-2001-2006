@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.93 2003/03/01 07:41:39 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.94 2003/03/06 18:31:17 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -23,7 +23,7 @@
 -export([putback_event/1,putback_event_once/1,get_event/0,get_matching_events/1,
 	 poll_event/0,set_timer/2,cancel_timer/1]).
 
--export([reset_grab/0,grab/0,ungrab/0,is_grabbed/0,warp/2]).
+-export([reset_grab/0,grab/0,ungrab/2,is_grabbed/0,warp/2]).
 -export([ortho_setup/0]).
 
 -compile(inline).
@@ -459,14 +459,15 @@ do_grab(0) ->
     end;
 do_grab(_N) -> ok.
 
-ungrab() ->
+ungrab(X, Y) ->
     %%io:format("UNGRAB mouse~n", []),
     #io{grab_count=Cnt} = Io = get_state(),
     put_state(Io#io{grab_count=Cnt-1}),
     case Cnt-1 of
 	0 ->
-	    sdl_mouse:showCursor(true),
 	    sdl_video:wm_grabInput(?SDL_GRAB_OFF),
+	    sdl_mouse:warpMouse(X, Y),
+	    sdl_mouse:showCursor(true),
 	    no_grab;
 	_ ->
 	    still_grabbed
