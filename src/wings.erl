@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.34 2001/11/07 09:41:49 bjorng Exp $
+%%     $Id: wings.erl,v 1.35 2001/11/07 15:40:52 bjorng Exp $
 %%
 
 -module(wings).
@@ -82,9 +82,11 @@ init_1() ->
 	     last_command=ignore,
 	     hit_buf=sdl_util:malloc(?HIT_BUF_SIZE, ?GL_UNSIGNED_INT)},
     wings_view:init(),
+    wings_file:init(),
     resize(800, 600, St),
     caption(St),
     top_level(St, wings_undo:new(32)),
+    wings_file:finish(),
     wings_pref:finish(),
     sdl:quit(),
     ok.
@@ -120,7 +122,7 @@ top_level(St, Undo) ->
 
 top_level_1(St0, Undo0) ->
     case
-	%%catch
+	catch
 	main_loop(St0) of
 	St when record(St, st) ->		%Undoable operation.
 	    ?ASSERT(St#st.drag == undefined),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.4 2001/11/07 07:09:59 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.5 2001/11/07 15:40:53 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -137,7 +137,7 @@ presets() ->
      {"Negative Axes Intensity",neg_axes_intensity,0.8},
      separator,
      {"Vertex Size",vertex_size,4.0},
-     {"Vertex Size",selected_vertex_size,5.0},
+     {"Selected Vertex Size",selected_vertex_size,5.0},
      {"Edge Width",edge_width,2.0},
      {"Selected Edge Width",selected_edge_width,3.0}
     ].

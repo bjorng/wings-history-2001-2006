@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_ndo.erl,v 1.2 2001/11/05 05:58:52 bjorng Exp $
+%%     $Id: wings_ff_ndo.erl,v 1.3 2001/11/07 15:40:53 bjorng Exp $
 %%
 
 -module(wings_ff_ndo).
--export([import/2]).
+-export([import/2,export/2]).
 -include("wings.hrl").
 -import(lists, [sort/1,reverse/1,foldl/3,last/1]).
 
@@ -159,3 +159,57 @@ set_next_id(#we{es=Etab,vs=Vtab,fs=Ftab}=We) ->
 % show_first(Bin) ->
 %     io:format("~w\n", [Bin]).
 
+
+%%
+%% Export.
+%%
+
+export(Name, #st{hidden=Hidden,shapes=Shapes0}=St) ->
+    Shapes1 = gb_trees:values(Hidden) ++ gb_trees:values(Shapes0),
+    Shapes2 = foldl(fun(Sh, A) ->
+			shape(Sh, A)
+		end, [], Shapes1),
+    Shapes = reverse(Shapes2),
+    write_file(Name, Shapes).
+
+shape(#shape{name=Name,sh=We0}, Acc) ->
+    NameChunk = [<<(length(Name)):16>>|Name],
+    Header = <<1:8,1:8,0:16,0:72/unit:8>>,
+    We = wings_we:renumber(We0, 0),
+    #we{vs=Vs,es=Etab,fs=Ftab,he=Htab} = We,
+    EdgeChunk = write_edges(gb_trees:to_list(Etab), Htab, []),
+    FaceChunk = write_faces(gb_trees:values(Ftab), []),
+    VertexChunk = write_vertices(gb_trees:values(Vs), []),
+    FillChunk = [0,0,0,0,0],
+    [[NameChunk,Header,EdgeChunk,FaceChunk,VertexChunk,FillChunk]|Acc].
+
+write_edges([{Edge,Erec0}|Es], Htab, Acc) ->
+    Hardness = case gb_sets:is_member(Edge, Htab) of
+		   false -> 0;
+		   true -> 1
+	       end,
+    #edge{vs=Va,ve=Vb,lf=Lf,rf=Rf,ltpr=Ltpr,ltsu=Ltsu,rtpr=Rtpr,rtsu=Rtsu} = Erec0,
+    Erec = <<Vb:16,Va:16,Lf:16,Rf:16,Ltsu:16,Rtsu:16,Rtpr:16,Ltpr:16,
+    Hardness:8,255,255,255,255,255,255,255,255>>,
+    write_edges(Es, Htab, [Erec|Acc]);
+write_edges([], Htab, Acc) ->
+    list_to_binary([<<(length(Acc)):16>>|reverse(Acc)]).
+
+write_faces([#face{edge=Edge}|Fs], Acc) ->
+    write_faces(Fs, [<<Edge:16>>|Acc]);
+write_faces([], Acc) ->
+    list_to_binary([<<(length(Acc)):16>>|reverse(Acc)]).
+
+write_vertices([#vtx{pos={X,Y,Z},edge=Edge}|Fs], Acc) ->
+    Vtx = <<Edge:16,(X*10):32/float,(Y*10):32/float,(Z*10):32/float>>,
+    write_vertices(Fs, [Vtx|Acc]);
+write_vertices([], Acc) ->
+    list_to_binary([<<(length(Acc)):16>>|reverse(Acc)]).
+
+write_file(Name, Objects) ->
+    NumObjs = length(Objects),
+    Data = [<<?NDO_HEADER11,0:8,NumObjs:16,1:8>>|Objects],
+    case file:write_file(Name, Data) of
+	ok -> ok;
+	{error,Reason} -> {error,file:format_error(Reason)}
+    end.

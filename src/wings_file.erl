@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.27 2001/11/07 07:09:59 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.28 2001/11/07 15:40:53 bjorng Exp $
 %%
 
 -module(wings_file).
--export([menu/3,command/2]).
+-export([init/0,finish/0,menu/3,command/2]).
 
 -include("e3d.hrl").
 -include("wings.hrl").
@@ -20,6 +20,18 @@
 -import(lists, [sort/1,reverse/1,flatten/1,foldl/3]).
 -import(filename, [dirname/1]).
 -import(wings_draw, [model_changed/1]).
+
+init() ->
+    case wings_pref:get_value(current_directory) of
+	undefined -> ok;
+	Cwd -> file:set_cwd(Cwd)
+    end.
+
+finish() ->
+    case file:get_cwd() of
+	{ok,Cwd} -> wings_pref:set_value(current_directory, Cwd);
+	{error,_} -> ok
+    end.
 
 menu(X, Y, St) ->
     Menu = [{"New","Ctrl-N",new},
@@ -36,7 +48,8 @@ menu(X, Y, St) ->
 			{"3D Studio (.3ds)",tds},
 			{"Wawefront (.obj)",obj}}}},
 	    {"Export",{export,
-		       {{"3D Studio (.3ds)",tds},
+		       {{"Nendo (.ndo)",ndo},
+			{"3D Studio (.3ds)",tds},
 			{"Wawefront (.obj)",obj},
 			{"RenderMan (.rib)",rib}}}},
 	    separator|recent_files([{"Exit","Ctrl-Q",quit}])],
@@ -279,7 +292,8 @@ import_ndo(St0) ->
 
 export(tds, St) -> export(e3d_tds, ".3ds", St);
 export(rib, St) -> export(e3d_rib, ".rib", St);
-export(obj, St) -> export(e3d_obj, ".obj", St).
+export(obj, St) -> export(e3d_obj, ".obj", St);
+export(ndo, St) -> export_ndo(St).
 
 export(Mod, Ext, St) ->
     case output_file(export, file_prop(Ext)) of
@@ -287,6 +301,15 @@ export(Mod, Ext, St) ->
 	Name ->
 	    wings_getline:set_cwd(dirname(Name)),
 	    do_export(Mod, Name, St)
+    end.
+
+export_ndo(St) ->
+    Ext = ".ndo",
+    case output_file(export, file_prop(Ext)) of
+	aborted -> St;
+	Name ->
+	    wings_getline:set_cwd(dirname(Name)),
+	    wings_ff_ndo:export(Name, St)
     end.
 
 %%% Utilities.
