@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mesh.erl,v 1.33 2003/11/21 10:47:46 bjorng Exp $
+%%     $Id: e3d_mesh.erl,v 1.34 2004/02/10 13:21:03 raimo_niskanen Exp $
 %%
 
 -module(e3d_mesh).
@@ -18,6 +18,7 @@
 	 used_materials/1]).
 -export([triangulate_face/2,triangulate_face_with_holes/3]).
 -export([quadrangulate_face/2,quadrangulate_face_with_holes/3]).
+-export([slit_hard_edges/1,slit_hard_edges/2]).
 
 -include("e3d.hrl").
 -import(lists, [foreach/2,sort/1,reverse/1,reverse/2,seq/2,
@@ -164,6 +165,77 @@ partition(#e3d_mesh{fs=Faces0,he=He0}=Template) ->
 %%  Returns a sorted list of all materials used in the given mesh.
 used_materials(#e3d_mesh{fs=Fs0}) ->
     used_materials_1(Fs0, []).
+
+%% Algorithm for slitting hard edges.
+%%
+%% The resulting is not a closed body, rather a mess(h),
+%% but that does not matter. Some faces may get an extra vertex,
+%% so the mesh type may change from 'triangle' to 'polygon',
+%% unless the option 'slit_end_vertices' is used which will
+%% keep the vertex count.
+%%
+%% Vertices belonging to a hard edge are simply duplicated.
+%% The first time a hard edge is encountered, the face
+%% gets to keep the vertices, but subsequent times for the same
+%% hard edge - the faces gets new duplicate position vertices instead.
+%%
+%% Without the option 'slit_end_vertices', end vertices of 
+%% hard edge chains are not duplicated, since edges that go to the 
+%% end vertex might look hard in some renderers, non just the hard ones. 
+%% End vertices are those occuring only once in the hard edge list.
+%%
+%% Solo hard edges (no chain (or rather very short chain)) gets special 
+%% treatment. They get cut in two by a new own vertex, unless the option
+%% 'slit_end_vertices' is used which will simply duplicate both end vertices
+%% as for a longer hard edge chain.
+%%
+slit_hard_edges(Mesh) -> slit_hard_edges(Mesh, []).
+%%
+slit_hard_edges(Mesh0=#e3d_mesh{he=[]}, Options) when list(Options) -> Mesh0;
+slit_hard_edges(Mesh0=#e3d_mesh{vs=Vs0,vc=Vc0,tx=Tx0,ns=Ns0,fs=Fs0,he=He0},
+		Options) when list(Options) ->
+    %%io:format("Before: "),
+    %%print_mesh(Mesh0),
+    VsT = list_to_tuple(Vs0),
+    VcT = list_to_tuple(Vc0),
+    TxT = list_to_tuple(Tx0),
+    NsT = list_to_tuple(Ns0),
+    Old = Mesh0#e3d_mesh{vs=VsT,vc=VcT,tx=TxT,ns=NsT},
+    New = #e3d_mesh{vs={size(VsT),[]},vc={size(VcT),[]},
+		    tx={size(TxT),[]},ns={size(NsT),[]}},
+    VsGt = 
+	case proplists:get_bool(slit_end_vertices, Options) of
+	    false ->
+		lists:foldl(
+		  fun({V1,V2}, Gt) when V1 < V2 -> 
+			  gb_trees_increment(V2, 1, 
+					     gb_trees_increment(V1, 1, Gt)) end,
+		  gb_trees:empty(),
+		  He0);
+	    true ->
+		%% Fake a vertex count of 2 (i.e more than 1) for all
+		lists:foldl(
+		  fun({V1,V2}, Gt) when V1 < V2 -> 
+			  gb_trees:enter(V2, 2, 
+					     gb_trees:enter(V1, 2, Gt)) end,
+		  gb_trees:empty(),
+		  He0)
+	end,
+    HeGt = lists:foldl(
+	     fun({V1,V2}=E, Gt) when V1 < V2 -> 
+		     gb_trees:insert(E, 0, Gt) end,
+	     gb_trees:empty(),
+	     He0),
+    Mesh = 
+	case slit_hard_f(Old, VsGt, HeGt, Fs0, New, []) of
+	    #e3d_mesh{vs={_,[]}} -> Mesh0#e3d_mesh{he=[]};
+	    #e3d_mesh{type=Type,vs=Vs1,vc=Vc1,tx=Tx1,ns=Ns1,fs=Fs1} ->
+		Mesh0#e3d_mesh{type=Type,vs=Vs0++Vs1,vc=Vc0++Vc1,
+			      tx=Tx0++Tx1,ns=Ns0++Ns1,fs=Fs1,he=[]}
+	end,
+    %%io:format("After: "),
+    %%print_mesh(Mesh),
+    Mesh.
 
 %%%
 %%% End of exported functions. Local functions follow.
@@ -560,6 +632,161 @@ used_materials_1([#e3d_face{mat=[]}|Fs], Acc) ->
 used_materials_1([], Acc) -> ordsets:from_list(Acc).
 
 %%%
+%%% Help functions for slit_hard_edges/2.
+
+-ifdef(print_mesh_1).
+print_mesh(#e3d_mesh{type=T,vs=Vs,vc=Vc,tx=Tx,ns=Ns,fs=Fs,he=He,matrix=M}) ->
+    io:format("#e3d_mesh{type=~p,~nvs=~p,~nvc=~p,~ntx=~p,~nns=~p,~nfs=~p,~n"
+	      "he=~p,~nmatrix=~p}.~n",
+	      [T,Vs,Vc,Tx,Ns,Fs,He,M]).
+-endif.
+
+%% Loop through all faces
+%%
+slit_hard_f(_Old, _VsGt, _HeGt, [], 
+	    New=#e3d_mesh{vs={_,Vs},vc={_,Vc},tx={_,Tx},ns={_,Ns}}, NewFs) ->
+    New#e3d_mesh{vs=reverse(Vs),vc=reverse(Vc),tx=reverse(Tx),ns=reverse(Ns),
+		 fs=reverse(NewFs)};
+slit_hard_f(Old, VcGt, HeGt0, [F0|Fs], New0, NewFs) ->
+    {HeGt,OpsR} = slit_hard_q(F0, VcGt, HeGt0), % Reversed edge operations
+    {New,#e3d_face{vs=Vs,vc=Vc,tx=Tx,ns=Ns}} = slit_hard_x(Old, New0, OpsR),
+    F = F0#e3d_face{vs=Vs,vc=Vc,tx=Tx,ns=Ns},
+    slit_hard_f(Old, VcGt, HeGt, Fs, New, [F|NewFs]).
+
+%% Create a reversed edge operation list from a vertex list, vertex count 
+%% and hard edge count.
+%% Vertices that are part of a hard edge are marked for duplication
+%% except for hard edge chain end vertices,
+%% but if the chain is a solo edge (singleton chain) mark for cut.
+%%
+%% Possible operations are 'nop' - no operation, 'dup' - duplication
+%% and 'cut' - cut at midpoint by inserting extra vertex.
+%%
+slit_hard_q(F, VcGt, HeGt) -> slit_hard_q_1([F], F, VcGt, HeGt, []).
+%%
+slit_hard_q_1([], #e3d_face{vs=[_]}, _VcGt, HeGt, R) ->
+    {HeGt,R};
+slit_hard_q_1([#e3d_face{vs=[Vs1|_],vc=Vc1s,tx=Tx1s,ns=Ns1s}], 
+	      #e3d_face{vs=[VsN],vc=Vc,tx=Tx,ns=Ns}, VcGt, HeGt, R) ->
+    slit_hard_q_1([], 
+		  #e3d_face{vs=[VsN,Vs1],vc=Vc++Vc1s,tx=Tx++Tx1s,ns=Ns++Ns1s},
+		  VcGt, HeGt, R);
+slit_hard_q_1(F1s, #e3d_face{vs=[VsJ|Vs=[VsK|_]],vc=Vc,tx=Tx,ns=Ns},
+	      VcGt, HeGt0, R) ->
+    E = mk_edge(VsJ, VsK),
+    Fk = #e3d_face{vs=VsK,vc=hd2(Vc),tx=hd2(Tx),ns=hd2(Ns)},
+    Fs = #e3d_face{vs=Vs,vc=tail(Vc),tx=tail(Tx),ns=tail(Ns)},
+    case gb_trees:lookup(E, HeGt0) of
+	{value,0} -> % Never seen before -> nop, and mark as seen
+	    HeGt = gb_trees:update(E, 1, HeGt0),
+	    slit_hard_q_1(F1s, Fs, VcGt, HeGt, [{nop,Fk}|R]);
+	{value,_} -> % 1 or above
+	    case {gb_trees_count(VsJ, VcGt),gb_trees_count(VsK, VcGt)} of
+		{1,1} -> % Solo edge - cut
+		    slit_hard_q_1(F1s, Fs, VcGt, HeGt0, [{cut,Fk}|R]);
+		{_,1} -> % Dup first
+		    slit_hard_q_1(F1s, Fs, VcGt, HeGt0, [{du1,Fk}|R]);
+		{1,_} -> % Dup second
+		    slit_hard_q_1(F1s, Fs, VcGt, HeGt0, [{du2,Fk}|R]);
+		_ -> % Dup both
+		    slit_hard_q_1(F1s, Fs, VcGt, HeGt0, [{dup,Fk}|R])
+	    end;
+	none ->
+	    slit_hard_q_1(F1s, Fs, VcGt, HeGt0, [{nop,Fk}|R])
+    end.
+
+%% Tolerant list operations
+hd2([_,X|_]) -> [X];
+hd2([_]) -> [];
+hd2([]) -> [].
+
+tail([_|T]) -> T;
+tail([]) -> [].
+
+cons([], L) -> L;
+cons([X], L) -> [X|L].
+
+cons([], _, L) -> L;
+cons([X], Y, L) -> [X,Y|L]. % This one is weird on purpose.
+
+%% Execute the edge operation list.
+%%
+slit_hard_x(Old, New, Ops=[OpN|_]) -> 
+    slit_hard_x_1(Old, New, [OpN], Ops, #e3d_face{}, 0).
+%%
+slit_hard_x_1(Old, New=#e3d_mesh{type=triangle}, [], Ops=[_OpN], F, 3) ->
+    slit_hard_x_1(Old, New#e3d_mesh{type=polygon}, [], Ops, F, 3);
+slit_hard_x_1(_Old, New, [], [_OpN], 
+	      F=#e3d_face{vs=Vs,vc=Vc,tx=Tx,ns=Ns}, _C) ->
+    {New#e3d_mesh{type=polygon},F#e3d_face{vs=Vs,vc=Vc,tx=Tx,ns=Ns}};
+slit_hard_x_1(Old, New, [OpN], [OpK], F, C) ->
+    slit_hard_x_1(Old, New, [], [OpK,OpN], F, C);
+slit_hard_x_1(Old, New0, OpNs, [OpK|Ops=[OpJ|_]], F0, C) ->
+    case {OpJ,OpK} of
+	{{nop,Fj},{cut,Fk}} ->
+	    {New,F} = slit_hard_x_cut(Old, New0, F0, Fj, Fk),
+	    slit_hard_x_1(Old, New, OpNs, Ops, F, C+2);
+	{{cut,Fj},{nop,_Fk}} ->
+	    slit_hard_x_1(Old, New0, OpNs, Ops, slit_hard_x_nop(F0, Fj), C+1);
+	{{nop,Fj},{nop,_Fk}} ->
+	    slit_hard_x_1(Old, New0, OpNs, Ops, slit_hard_x_nop(F0, Fj), C+1);
+	{{du1,Fj},{du2,_Fk}} ->
+	    slit_hard_x_1(Old, New0, OpNs, Ops, slit_hard_x_nop(F0, Fj), C+1);
+	{{_,Fj},{_,_Fk}} -> % Duplicate Vj
+	    {New,F} = slit_hard_x_dup(Old, New0, F0, Fj),
+	    slit_hard_x_1(Old, New, OpNs, Ops, F, C+1)
+    end.
+
+slit_hard_x_cut(_Old=#e3d_mesh{vs=VsT,vc=VcT,tx=TxT,ns=NsT},
+		New=#e3d_mesh{vs={VsN,VsL},vc={VcN,VcL},
+			      tx={TxN,TxL},ns={NsN,NsL}}, 
+		F=#e3d_face{vs=Vs,vc=Vc,tx=Tx,ns=Ns},
+		_Fj=#e3d_face{vs=VsJ,vc=VcJ,tx=TxJ,ns=NsJ},
+		_Fk=#e3d_face{vs=VsK,vc=VcK,tx=TxK,ns=NsK}) ->
+    Pos = e3d_vec:average([element(VsJ+1, VsT),element(VsK+1, VsT)]),
+    Color = case {VcJ,VcK} of
+		{[Vcj],[Vck]} ->
+		    [wings_color:mix(
+		       0.5, element(Vcj+1, VcT), element(Vck+1, VcT))];
+		_ -> []
+	    end,
+    UV = case {TxJ,TxK} of
+	     {[Txj],[Txk]} ->
+		 [wings_color:mix(
+		    0.5, element(Txj+1, TxT), element(Txk+1, TxT))];
+	     _ -> []
+	 end,
+    Norm = case {NsJ,NsK} of
+	       {[Nsj],[Nsk]} ->
+		   [e3d_vec:average(
+		      [element(Nsj+1, NsT), element(Nsk+1, NsT)])];
+	       _ -> []
+	   end,
+    {New#e3d_mesh{vs={VsN+1,[Pos|VsL]},
+		  vc={VcN+1,cons(Color, VcL)},
+		  tx={TxN+1,cons(UV, TxL)},
+		  ns={NsN+1,cons(Norm, NsL)}},
+     F#e3d_face{vs=[VsJ,VsN|Vs],vc=cons(VcJ, VcN, Vc),
+		tx=cons(TxJ, TxN, Tx),ns=cons(NsJ, NsN, Ns)}}.
+
+slit_hard_x_nop(F=#e3d_face{vs=Vs,vc=Vc,tx=Tx,ns=Ns},
+		_Fj=#e3d_face{vs=VsJ,vc=VcJ,tx=TxJ,ns=NsJ}) ->
+    F#e3d_face{vs=[VsJ|Vs],vc=cons(VcJ, Vc),
+	       tx=cons(TxJ, Tx),ns=cons(NsJ, Ns)}.
+
+slit_hard_x_dup(_Old=#e3d_mesh{vs=VsT},
+		New=#e3d_mesh{vs={VsN,VsL}}, 
+		F=#e3d_face{vs=Vs,vc=Vc,tx=Tx,ns=Ns},
+		_Fj=#e3d_face{vs=VsJ,vc=VcJ,tx=TxJ,ns=NsJ}) ->
+    Pos = element(VsJ+1, VsT),
+    {New#e3d_mesh{vs={VsN+1,[Pos|VsL]}},
+     F#e3d_face{vs=[VsN|Vs],vc=cons(VcJ, Vc),
+		tx=cons(TxJ, Tx),ns=cons(NsJ, Ns)}}.
+
+mk_edge(V1, V2) when V1 > V2 -> {V2,V1};
+mk_edge(V1, V2) -> {V1,V2}.
+
+%%%
 %%% Common help functions.
 %%%
 
@@ -572,3 +799,15 @@ number_faces([], _Face, Acc) -> reverse(Acc).
 zip([V|Vs], [UV|UVs]) ->
     [{V,UV}|zip(Vs, UVs)];
 zip([], []) -> [].
+
+gb_trees_increment(Key, Inc, Gt) ->
+    case gb_trees:lookup(Key, Gt) of
+	{value,V} -> gb_trees:update(Key, V+Inc, Gt);
+	none -> gb_trees:insert(Key, Inc, Gt)
+    end.
+
+gb_trees_count(Key, Gt) ->
+    case gb_trees:lookup(Key, Gt) of
+	{value,V} -> V;
+	none -> 0
+    end.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.60 2004/01/28 23:44:49 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.61 2004/02/10 13:21:10 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -45,6 +45,8 @@
 -define(DEF_CAUS, false).
 -define(DEF_IOR, 1.0).
 -define(DEF_MIN_REFLE, 0.0).
+-define(DEF_USE_HARDNESS, false).
+-define(DEF_AUTOSMOOTH, true).
 -define(DEF_AUTOSMOOTH_ANGLE, 60.0).
 -define(DEF_SHADOW,true).
 -define(DEF_EMIT_RAD,true).
@@ -335,12 +337,17 @@ material_dialog(_Name, Mat) ->
     Ambient = rgba2rgb(proplists:get_value(ambient, OpenGL)),
     YafRay = proplists:get_value(?TAG, Mat, []),
     Minimized = proplists:get_value(minimized, YafRay, true),
+    ObjectMinimized = proplists:get_value(object_minimized, YafRay, true),
     Caus = proplists:get_value(caus, YafRay, ?DEF_CAUS),
     Shadow = proplists:get_value(shadow, YafRay, ?DEF_SHADOW),
     EmitRad = proplists:get_value(emit_rad, YafRay, ?DEF_EMIT_RAD),
     RecvRad = proplists:get_value(recv_rad, YafRay, ?DEF_RECV_RAD),
+    UseHardness = proplists:get_value(use_hardness, YafRay, ?DEF_USE_HARDNESS),
     AutosmoothAngle = 
 	proplists:get_value(autosmooth_angle, YafRay, ?DEF_AUTOSMOOTH_ANGLE),
+    Autosmooth = proplists:get_value(autosmooth, YafRay, 
+				     if AutosmoothAngle == 0.0 -> false;
+					true -> ?DEF_AUTOSMOOTH end),
     FresnelMinimized = proplists:get_value(fresnel_minimized, YafRay, true),
     IOR = proplists:get_value(ior, YafRay, ?DEF_IOR),
     MinRefle = proplists:get_value(min_refle, YafRay, ?DEF_MIN_REFLE),
@@ -353,14 +360,19 @@ material_dialog(_Name, Mat) ->
 	proplists:get_value(transmitted2, YafRay, DefTransmitted),
     Modulators = proplists:get_value(modulators, YafRay, def_modulators(Maps)),
     [{vframe,
-      [{hframe,[{"Caustics",Caus,[{key,{?TAG,caus}}]},
-		{"Cast Shadow",Shadow,[{key,{?TAG,shadow}}]},
-		{"Emit Rad",EmitRad,[{key,{?TAG,emit_rad}}]},
-		{"Recv Rad",RecvRad,[{key,{?TAG,recv_rad}}]}]},
-       {hframe,[{label,"Autosmooth Angle"},
-		{slider,{text,AutosmoothAngle,
-			 [{range,{0.0,180.0}},{width,5},
-			  {key,{?TAG,autosmooth_angle}}]}}]},
+      [{vframe,
+	[{hframe,[{"Cast Shadow",Shadow,[{key,{?TAG,shadow}}]},
+		  {"Emit Rad",EmitRad,[{key,{?TAG,emit_rad}}]},
+		  {"Recv Rad",RecvRad,[{key,{?TAG,recv_rad}}]}]},
+	 {hframe,[{"Use Edge Hardness",UseHardness,[{key,{?TAG,use_hardness}}]},
+		  {"Caustic",Caus,[{key,{?TAG,caus}}]}]},
+	 {hframe,[{"Autosmooth",Autosmooth,[{key,{?TAG,autosmooth}}]},
+		  {label,"Angle"},
+		  {slider,{text,AutosmoothAngle,
+			   [{range,{0.0,180.0}},{width,5},
+			    {key,{?TAG,autosmooth_angle}}]}}]}],
+	[{title,"Object Parameters"},{minimized,ObjectMinimized},
+	 {key,{?TAG,object_minimized}}]},
        {vframe,
 	[{hframe,[{label,"Index Of Refraction"},
 		  {text,IOR,[{range,{0.0,100.0}},{key,{?TAG,ior}}]}]},
@@ -431,7 +443,7 @@ def_modulators([_|Maps]) ->
     def_modulators(Maps).
 
 material_result(_Name, Mat0, [{{?TAG,minimized},_}|_]=Res0) ->
-    {Ps1,Res1} = split_list(Res0, 14),
+    {Ps1,Res1} = split_list(Res0, 17),
     Ps2 = [{Key,Val} || {{?TAG,Key},Val} <- Ps1],
     {Ps,Res} = modulator_result(Ps2, Res1),
     Mat = [{?TAG,Ps}|keydelete(?TAG, 1, Mat0)],
@@ -1375,21 +1387,39 @@ export_rgb(F, Type, {R,G,B}) ->
 
 
 
-export_object(F, NameStr, #e3d_mesh{}=Mesh, Mats) ->
-    #e3d_mesh{fs=Fs,vs=Vs,tx=Tx} = e3d_mesh:triangulate(Mesh),
+export_object(F, NameStr, Mesh0=#e3d_mesh{fs=Fs0,he=He0}, Mats) ->
     %% Find the default material
-    MM = sort(foldl(fun (#e3d_face{mat=[M|_]}, Ms) -> [M|Ms] end, [], Fs)),
+    MM = sort(foldl(fun (#e3d_face{mat=[M|_]}, Ms) -> [M|Ms] end, [], Fs0)),
     [{_Count,DefaultMaterial}|_] = reverse(sort(count_equal(MM))),
     MatPs = proplists:get_value(DefaultMaterial, Mats, []),
     OpenGL = proplists:get_value(opengl, MatPs),
     YafRay = proplists:get_value(?TAG, MatPs, []),
+    UseHardness = proplists:get_value(use_hardness, YafRay, ?DEF_USE_HARDNESS),
     Caus = proplists:get_value(caus, YafRay, ?DEF_CAUS),
     IOR = proplists:get_value(ior, YafRay, ?DEF_IOR),
     AutosmoothAngle = 
 	proplists:get_value(autosmooth_angle, YafRay, ?DEF_AUTOSMOOTH_ANGLE),
+    Autosmooth = proplists:get_value(autosmooth, YafRay, 
+				     if AutosmoothAngle == 0.0 -> false;
+					true -> ?DEF_AUTOSMOOTH end),
     Shadow = proplists:get_value(shadow, YafRay, ?DEF_SHADOW),
     EmitRad = proplists:get_value(emit_rad, YafRay, ?DEF_EMIT_RAD),
     RecvRad = proplists:get_value(recv_rad, YafRay, ?DEF_RECV_RAD),
+    %% Pre-process mesh
+    Mesh1 = #e3d_mesh{} = 
+	case {He0,UseHardness} of
+	    {[_|_],true} ->
+		io:format("Mesh ~s: slitting hard edges...", [NameStr]),
+		M1 = e3d_mesh:slit_hard_edges(Mesh0, [slit_end_vertices]),
+		io:format("done~n"),
+		M1;
+	    _ -> Mesh0
+	end,
+    io:format("Mesh ~s: triangulating...", [NameStr]),
+    #e3d_mesh{fs=Fs,vs=Vs,vc=Vc,tx=Tx} = e3d_mesh:triangulate(Mesh1),
+    io:format("done~n"),
+    io:format("Mesh ~s: exporting...", [NameStr]),
+    %%
     println(F, "<object name=\"~s\" shader_name=\"~s\" shadow=\"~s\"~n"++
 	    "        "++
 	    case Caus of true -> "caus_IOR=\"~.10f\" ";
@@ -1412,20 +1442,22 @@ export_object(F, NameStr, #e3d_mesh{}=Mesh, Mats) ->
 	false -> ok
     end,
     println(F, "    </attributes>"),
-    case AutosmoothAngle of
-	0.0 ->
+    case Autosmooth of
+	false ->
 	    println(F, "    <mesh>");
-	_ ->
+	true ->
 	    println(F, "    <mesh autosmooth=\"~.3f\">", [AutosmoothAngle])
     end,
     println(F, "        <points>"),
     export_vertices(F, Vs),
     println(F, "        </points>~n"++
 	    "        <faces>", []),
-    export_faces(F, Fs, DefaultMaterial, list_to_tuple(Tx)),
+    export_faces(F, Fs, DefaultMaterial, list_to_tuple(Tx), list_to_tuple(Vc)),
     println(F, "        </faces>~n"++
 	    "    </mesh>~n"++
-	    "</object>", []).
+	    "</object>", []),
+    io:format("done~n").
+
 
 export_vertices(_F, []) ->
     ok;
@@ -1445,10 +1477,10 @@ export_pos(F, Type, {X,Y,Z}) ->
 
 
 
-export_faces(_F, [], _DefMat, _TxT) ->
+export_faces(_F, [], _DefMat, _TxT, _VColT) ->
     ok;
-export_faces(F, [#e3d_face{vs=[A,B,C],tx=Tx,mat=[Mat|_]}|T], 
-	     DefaultMaterial, TxT) ->
+export_faces(F, [#e3d_face{vs=[A,B,C],vc=VCols,tx=Tx,mat=[Mat|_]}|T], 
+	     DefaultMaterial, TxT, VColT) ->
     Shader =
 	case Mat of
 	    DefaultMaterial -> "";
@@ -1474,14 +1506,41 @@ export_faces(F, [#e3d_face{vs=[A,B,C],tx=Tx,mat=[Mat|_]}|T],
 		  io_lib:nl(),"           u_c=\"",format(Uc),
 		  "\" v_c=\"",format(-Vc),"\""];
 	     _ ->
-		 io:format("WARNING! Face has ~w =/= 3texture coordinates~n",
+		 io:format("WARNING! Face has ~w =/= 3 texture coordinates~n",
 			    [length(Tx)]),
 		 ""
 	 end,
+    VCol = case {VColT,VCols} of
+	       {{},[]} -> "";
+	       {{},_} ->
+		   io:format("WARNING! Face refers to non-existing "
+			     "vertex colors~n"),
+		   "";
+	       {_,[]} ->
+		   %%io:format("WARNING! Face missing vertex colors~n"),
+		   "";
+	       {_,[VcA,VcB,VcC]} ->
+		   {VcAr,VcAg,VcAb} = element(1+VcA, VColT),
+		   {VcBr,VcBg,VcBb} = element(1+VcB, VColT),
+		   {VcCr,VcCg,VcCb} = element(1+VcC, VColT),
+		   [io_lib:nl(),"           vcol_a_r=\"",format(VcAr),
+		    "\" vcol_a_g=\"",format(VcAg),
+		    "\" vcol_a_b=\"",format(VcAb),"\"",
+		    io_lib:nl(),"           vcol_b_r=\"",format(VcBr),
+		    "\" vcol_b_g=\"",format(VcBg),
+		    "\" vcol_b_b=\"",format(VcBb),"\"",
+		    io_lib:nl(),"           vcol_c_r=\"",format(VcCr),
+		    "\" vcol_c_g=\"",format(VcCg),
+		    "\" vcol_c_b=\"",format(VcCb),"\""];
+	       _ ->
+		   io:format("WARNING! Face has ~w =/= 3 vertex colors~n",
+			     [length(VCols)]),
+		   ""
+	   end,
     println(F, ["        <f a=\"",format(A),
 		"\" b=\"",format(B),"\" c=\"",format(C),"\"",
-		Shader,UV,"/>"]),
-    export_faces(F, T, DefaultMaterial, TxT).
+		Shader,UV,VCol,"/>"]),
+    export_faces(F, T, DefaultMaterial, TxT, VColT).
 
 
 
@@ -1617,6 +1676,8 @@ export_camera(F, Name, Attr) ->
     Height = proplists:get_value(height, Attr),
     Ro = math:pi()/180.0,
     Dist = limit_dist(Distance),
+    %% Fov is horizontal angle from left to right border.
+    %% YafRay focal plane is 1 unit high.
     FocalDist = (0.5 / math:tan(limit_fov(Fov)*0.5*Ro)) * (Height / Width),
     Dy = Dist * math:sin(El*Ro),
     P = Dist * math:cos(El*Ro),
@@ -2088,3 +2149,10 @@ uniqstr(N) ->
 	M ->
 	    [$A+M-10|uniqstr(N div ?UNIQBASE)]
     end.
+
+-ifdef(print_mesh_1).
+print_mesh(#e3d_mesh{type=T,vs=Vs,vc=Vc,tx=Tx,ns=Ns,fs=Fs,he=He,matrix=M}) ->
+    io:format("#e3d_mesh{type=~p,~nvs=~p,~nvc=~p,~ntx=~p,~nns=~p,~nfs=~p,~n"
+	      "he=~p,~nmatrix=~p}.~n",
+	      [T,Vs,Vc,Tx,Ns,Fs,He,M]).
+-endif.
