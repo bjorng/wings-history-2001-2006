@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp8_mac_image.erl,v 1.7 2004/06/29 08:34:37 bjorng Exp $
+%%     $Id: wp8_mac_image.erl,v 1.8 2004/06/30 09:03:13 bjorng Exp $
 %%
 
 -module(wp8_mac_image).
@@ -88,6 +88,7 @@ read_image_2(<<W:32/native,H:32/native,SamplesPerPixel0:32/native,BytesPerRow:32
 			  _ -> SamplesPerPixel0
 		      end,
     Type = case SamplesPerPixel of
+	       1 -> g8;
 	       3 -> r8g8b8;
 	       4 -> r8g8b8a8
 	   end,
