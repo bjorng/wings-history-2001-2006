@@ -9,15 +9,16 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_tds.erl,v 1.17 2002/11/03 15:48:48 bjorng Exp $
+%%     $Id: e3d_tds.erl,v 1.18 2002/11/04 19:15:58 bjorng Exp $
 %%
 
 -module(e3d_tds).
 -export([import/1,export/2]).
 
 -include("e3d.hrl").
+-include("e3d_image.hrl").
 
--import(lists, [map/2,reverse/1,reverse/2,sort/1,foldl/3]).
+-import(lists, [map/2,reverse/1,reverse/2,sort/1,keysort/2,usort/1,foldl/3]).
 -define(FLOAT, float-little).
 
 %%%
@@ -82,7 +83,7 @@ editor(<<16#4000:16/little,Sz0:32/little,T0/binary>>,
 editor(<<16#3d3e:16/little,_Sz:32/little,Ver:32/little,T/binary>>, Acc) ->
     dbg("Mesh Version ~p ~n", [Ver]),
     editor(T, Acc);
-editor(<<16#0100:16/little,_Sz:32/little,Scale:32/float-little,T/binary>>,
+editor(<<16#0100:16/little,_Sz:32/little,Scale:32/?FLOAT,T/binary>>,
        Acc) ->
     dbg("Object Scale ~p ~n", [Scale]),
     editor(T, Acc);
@@ -142,10 +143,10 @@ trimesh(<<16#4140:16/little,Sz0:32/little,T0/binary>>, Acc) ->
     Tx = get_uv(Tx0),
     trimesh(T, Acc#e3d_mesh{tx=Tx});
 trimesh(<<16#4160:16/little,_Sz:32/little,T0/binary>>, Acc) ->
-    <<_V1X:32/float-little,_V1Y:32/float-little,_V1Z:32/float-little,
-     _V2X:32/float-little,_V2Y:32/float-little,_V2Z:32/float-little,
-     _V3X:32/float-little,_V3Y:32/float-little,_V3Z:32/float-little,
-     OX:32/float-little,OY:32/float-little,OZ:32/float-little,
+    <<_V1X:32/?FLOAT,_V1Y:32/?FLOAT,_V1Z:32/?FLOAT,
+     _V2X:32/?FLOAT,_V2Y:32/?FLOAT,_V2Z:32/?FLOAT,
+     _V3X:32/?FLOAT,_V3Y:32/?FLOAT,_V3Z:32/?FLOAT,
+     OX:32/?FLOAT,OY:32/?FLOAT,OZ:32/?FLOAT,
      T/binary>> = T0,
     _CS = {1.0,0.0,0.0,0.0,
 	  0.0,1.0,0.0,0.0,
@@ -283,7 +284,7 @@ mat_chunk(Type, Sz0, Bin, [{Name,Props}|Acc]) ->
     material(T, [{Name,[{Type,Value}|Props]}|Acc]).
 
 general(<<16#0010:16/little,_Sz:32/little, 
-	 R:32/float-little,G:32/float-little,B:32/float-little,
+	 R:32/?FLOAT,G:32/?FLOAT,B:32/?FLOAT,
 	 T/binary>>) ->
     general_rest(T),
     {R,G,B};
@@ -320,7 +321,7 @@ get_mat_faces(<<>>, Acc) -> reverse(Acc).
 
 get_uv(Bin) ->
     get_uv(Bin, []).
-get_uv(<<U:32/float-little,V:32/float-little,T/binary>>, Acc) ->
+get_uv(<<U:32/?FLOAT,V:32/?FLOAT,T/binary>>, Acc) ->
     get_uv(T, [{U,V}|Acc]);
 get_uv(<<>>, Acc) -> reverse(Acc).
 
@@ -422,15 +423,15 @@ dbg(Format, List) -> io:format(Format, List).
 
 export(Name, Objs) ->
     Version = make_chunk(16#0002, <<3:32/little>>),
-    Editor = make_editor(Objs),
+    Editor = make_editor(Name, Objs),
     Main = make_chunk(16#4D4D, [Version|Editor]),
     ok = file:write_file(Name, Main).
 
-make_editor(#e3d_file{objs=Objs0,mat=Mat0}) ->
+make_editor(Name, #e3d_file{objs=Objs0,mat=Mat0}) ->
     MeshVer = make_chunk(16#3d3e, <<3:32/little>>),
-    Unit = make_chunk(16#0100, <<(1.0):32/float-little>>),
+    Unit = make_chunk(16#0100, <<(1.0):32/?FLOAT>>),
     Objs = make_objects(Objs0),
-    Mat = make_material(Mat0),
+    Mat = make_material(Name, Mat0),
     make_chunk(16#3D3D, [MeshVer,Mat,Unit,Objs]).
 
 make_objects([#e3d_object{name=Name0,obj=Mesh0}|Objs]) ->
@@ -441,25 +442,40 @@ make_objects([#e3d_object{name=Name0,obj=Mesh0}|Objs]) ->
     [Chunk|make_objects(Objs)];
 make_objects([]) -> [].
 
-make_mesh(#e3d_mesh{vs=Vs,fs=Fs,he=He,matrix=_Matrix0}) ->
+make_mesh(Mesh0) ->
+    Mesh = split_vertices(Mesh0),
+    make_mesh_1(Mesh).
+
+make_mesh_1(#e3d_mesh{vs=Vs,fs=Fs,he=He,tx=Tx,matrix=_Matrix0}) ->
     %% XXX Matrix0 should be used here.
     VsChunk = make_vertices(Vs),
     FsChunk = make_faces(Fs, He),
-    MD = <<1.0:32/float-little,0.0:32/float-little,0.0:32/float-little,
-	  0.0:32/float-little,1.0:32/float-little,0.0:32/float-little,
-	  0.0:32/float-little,0.0:32/float-little,1.0:32/float-little,
-	  0.0:32/float-little,0.0:32/float-little,0.0:32/float-little>>,
+    MD = <<1.0:32/?FLOAT,0.0:32/?FLOAT,0.0:32/?FLOAT,
+	  0.0:32/?FLOAT,1.0:32/?FLOAT,0.0:32/?FLOAT,
+	  0.0:32/?FLOAT,0.0:32/?FLOAT,1.0:32/?FLOAT,
+	  0.0:32/?FLOAT,0.0:32/?FLOAT,0.0:32/?FLOAT>>,
     Matrix = make_chunk(16#4160, MD),
-    make_chunk(16#4100, [Matrix,VsChunk,FsChunk]).
+    UVs = make_uvs(Tx),
+    make_chunk(16#4100, [Matrix,VsChunk,FsChunk|UVs]).
 
 make_vertices(Vs) ->
     Chunk = [<<(length(Vs)):16/little>>|make_vertices(Vs, [])],
     make_chunk(16#4110, Chunk).
     
 make_vertices([{X,Y,Z}|Ps], Acc) ->
-    Chunk = <<X:32/float-little,Y:32/float-little,Z:32/float-little>>,
+    Chunk = <<X:32/?FLOAT,Y:32/?FLOAT,Z:32/?FLOAT>>,
     make_vertices(Ps, [Chunk|Acc]);
 make_vertices([], Acc) -> reverse(Acc).
+
+make_uvs([]) -> [];
+make_uvs(UVs) ->
+    Chunk = [<<(length(UVs)):16/little>>|make_uvs(UVs, [])],
+    make_chunk(16#4140, Chunk).
+    
+make_uvs([{U,V}|Ps], Acc) ->
+    Chunk = <<U:32/?FLOAT,V:32/?FLOAT>>,
+    make_uvs(Ps, [Chunk|Acc]);
+make_uvs([], Acc) -> reverse(Acc).
 
 make_faces(Fs, He) ->
     FaceChunk = [<<(length(Fs)):16/little>>|make_faces_1(Fs, [])],
@@ -494,14 +510,17 @@ make_smooth_groups(Fs, _He) ->
     Contents = lists:duplicate(length(Fs), <<1:32/little>>),
     make_chunk(16#4150, Contents).
 
-make_material(Mat) ->
-    [make_material_1(M) || M <- Mat].
+make_material(Filename, Mat) ->
+    Base =  filename:rootname(Filename, ".3ds"),
+    [make_material_1(Base, M) || M <- Mat].
 
-make_material_1({Name,Mat}) ->
+make_material_1(Base, {Name,Mat}) ->
     NameChunk = make_chunk(16#A000, [atom_to_list(Name),0]),
     OpenGL = proplists:get_value(opengl, Mat),
+    Maps = proplists:get_value(maps, Mat),
     MatChunks = make_material_2(OpenGL, []),
-    make_chunk(16#AFFF, [NameChunk|MatChunks]).
+    TxChunks = make_texture_materials(Maps, Base, Name, []),
+    make_chunk(16#AFFF, [NameChunk,MatChunks|TxChunks]).
 
 make_material_2([{diffuse,{_,_,_,Opac0}=Color}|T], Acc) ->
     Chunk = make_chunk(16#A020, make_rgb(Color)),
@@ -520,9 +539,28 @@ make_material_2([_|T], Acc) ->
     make_material_2(T, Acc);
 make_material_2([], Acc) -> Acc.
 
+make_texture_materials([{diffuse,Map}|T], Base, Name, Acc) ->
+    Tx = export_map(16#A200, "diff", Map, Base, Name),
+    make_texture_materials(T, Base, Name, [Tx|Acc]);
+make_texture_materials([{bump,Map}|T], Base, Name, Acc) ->
+    Tx = export_map(16#A230, "bump", Map, Base, Name),
+    make_texture_materials(T, Base, Name, [Tx|Acc]);
+make_texture_materials([_|T], Base, Name, Acc) ->
+    make_texture_materials(T, Base, Name, Acc);
+make_texture_materials([], _, _, Acc) -> Acc.
+
+export_map(_, _, none, _, _) -> ok;
+export_map(ChunkId, Label0, {W,H,Map}, Root, Name) ->
+    Label = "map_" ++ Label0,
+    MapFile = Root ++ "_" ++ atom_to_list(Name) ++ "_" ++ Label ++ ".bmp",
+    Image = #e3d_image{image=Map,width=W,height=H},
+    ok = e3d_image:save(Image, MapFile),
+    FnameChunk = make_chunk(16#A300, [filename:basename(MapFile),0]),
+    make_chunk(ChunkId, FnameChunk).
+
 make_rgb({R0,G0,B0,_}) when float(R0), float(G0), float(B0) ->
-    make_chunk(16#0010, <<R0:32/float-little,G0:32/float-little,
- 			 B0:32/float-little>>);
+    make_chunk(16#0010, <<R0:32/?FLOAT,G0:32/?FLOAT,
+ 			 B0:32/?FLOAT>>);
 make_rgb({R,G,B,_}) when integer(R), integer(G), integer(B) ->
     make_chunk(16#0011, <<R:8/little,G:8/little,B:8/little>>).
 
@@ -537,3 +575,67 @@ make_chunk(Tag, Contents) when binary(Contents) ->
     [<<Tag:16/little,Size:32/little>>|Contents];
 make_chunk(Tag, Contents) when list(Contents) ->
     make_chunk(Tag, list_to_binary(Contents)).
+
+%%%
+%%% Split vertices: Each vertex in the 3D Studio format can only have one
+%%% UV coordinate. Therefore, we must split each vertex that have different
+%%% UV coordinates in different faces.
+%%%
+
+split_vertices(#e3d_mesh{tx=[]}=Mesh) -> Mesh;
+split_vertices(#e3d_mesh{vs=Vtab0,fs=Fs0,tx=Tx0}=Mesh) ->
+    F = split_vertices_1(Fs0, []),
+    NextV = length(Vtab0),
+    Map = split_make_map(F, NextV, []),
+    Fs = split_remap_faces(Fs0, gb_trees:from_orddict(sort(Map)), []),
+    Rmap = keysort(2, Map),
+    Vtab = split_extend_vtab(Rmap, list_to_tuple(Vtab0), reverse(Vtab0)),
+    Tx = split_reorder_tx(Fs, list_to_tuple(Tx0), []),
+    Mesh#e3d_mesh{vs=Vtab,fs=Fs,tx=Tx}.
+
+split_vertices_1([#e3d_face{vs=[A,B,C],tx=[Ta,Tb,Tc]}|Faces], Acc) ->
+    split_vertices_1(Faces, [{A,Ta},{B,Tb},{C,Tc}|Acc]);
+split_vertices_1([], Acc) ->
+    R = sofs:relation(Acc),
+    F = sofs:relation_to_family(R),
+    sofs:to_external(F).
+
+split_make_map([{_,[_]}|T], NextV, Acc) ->
+    split_make_map(T, NextV, Acc);
+split_make_map([{V,[_|UVs]}|T], NextV, Acc0) ->
+    Acc = split_make_map_1(UVs, V, NextV, Acc0),
+    split_make_map(T, NextV+length(UVs), Acc);
+split_make_map([], _, Acc) -> Acc.
+
+split_make_map_1([UV|UVs], V, NextV, Acc) ->
+    split_make_map_1(UVs, V, NextV+1, [{{V,UV},NextV}|Acc]);
+split_make_map_1([], _, _, Acc) -> Acc.
+    
+split_remap_faces([#e3d_face{vs=[A0,B0,C0],tx=[Ta,Tb,Tc]}=F|Faces], Map, Acc) ->
+    A = split_remap_vtx(A0, Ta, Map),
+    B = split_remap_vtx(B0, Tb, Map),
+    C = split_remap_vtx(C0, Tc, Map),
+    split_remap_faces(Faces, Map, [F#e3d_face{vs=[A,B,C]}|Acc]);
+split_remap_faces([], _, Acc) -> reverse(Acc).
+
+split_remap_vtx(V, T, Map) ->
+    case gb_trees:lookup({V,T}, Map) of
+	none -> V;
+	{value,NewV} -> NewV
+    end.
+
+split_extend_vtab([{{V,_},_}|T], OldVtab, Acc) ->
+    split_extend_vtab(T, OldVtab, [element(V+1, OldVtab)|Acc]);
+split_extend_vtab([], _, Acc) -> reverse(Acc).
+
+split_reorder_tx([#e3d_face{vs=[A,B,C],tx=[Ta,Tb,Tc]}|Faces], OldTx, Acc0) ->
+    Acc = [{A,element(Ta+1, OldTx)},
+	   {B,element(Tb+1, OldTx)},
+	   {C,element(Tc+1, OldTx)}|Acc0],
+    split_reorder_tx(Faces, OldTx, Acc);
+split_reorder_tx([], _, Acc) ->
+    split_reorder_tx_1(usort(Acc), 0, []).
+
+split_reorder_tx_1([{I,UV}|UVs], I, Acc) ->
+    split_reorder_tx_1(UVs, I+1, [UV|Acc]);
+split_reorder_tx_1([], _, Acc) -> reverse(Acc).
