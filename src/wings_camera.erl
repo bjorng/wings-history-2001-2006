@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.94 2003/11/16 23:59:08 raimo_niskanen Exp $
+%%     $Id: wings_camera.erl,v 1.95 2003/11/17 04:52:15 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -142,15 +142,19 @@ desc(tds) -> "3ds max";
 desc(maya) -> "Maya";
 desc(mb) -> "Motionbuilder".
 
-info(1) -> "\""++desc(1)++"\" requires \""++desc(nendo)++"\" Camera Mode";
-info(2) -> "\""++desc(2)++"\" requires \""
-	       ++desc(nendo)++"\" or \""++desc(blender)++"\" Camera Modes";
+info(1) ->
+    "Note: Only the Nendo camera mode can be used with "
+	"a one-button mouse";
+info(2) ->
+    "Note: Only the Nendo and Blender camera modes can be used with "
+	"a two-button mouse";
 info(3) -> "";
 info(nendo) -> "";
-info(blender) -> "\""++desc(blender)++"\" requires at least \""
-		     ++desc(2)++"\" Mouse Buttons";
-info(Mode) -> "\""++desc(Mode)++"\" requires at least \""
-		  ++desc(3)++"\" Mouse Buttons".
+info(blender) ->
+    ["Note: The ",desc(blender),
+     " camera mode requires at least 2 mouse buttons"];
+info(Mode) ->
+    ["Note: The ",desc(Mode)," camera mode requires 3 mouse buttons"].
 
 help() ->
     case wings_pref:get_value(camera_mode) of
