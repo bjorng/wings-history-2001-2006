@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.47 2004/03/01 18:05:33 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.48 2004/03/20 18:42:37 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -63,7 +63,7 @@ command({tools,tweak}, St0) ->
     Active = wings_wm:this(),
     wings_wm:callback(fun() -> wings_util:menu_restriction(Active, [view]) end),
     St = wings_undo:init(St0#st{selmode=vertex,sel=[],sh=true}),
-    wings_draw:update_dlists(St),
+    wings_draw:refresh_dlists(St),
     T = #tweak{tmode=wait,orig_st=St0,st=St},
     help(T),
     {seq,push,update_tweak_handler(T)};
@@ -131,7 +131,7 @@ handle_tweak_event1(#mousebutton{button=3,state=?SDL_RELEASED}, T) ->
     exit_tweak(T);
 handle_tweak_event1(init_opengl, #tweak{st=St}) ->
     wings:init_opengl(St),
-    wings_draw:update_dlists(St),
+    wings_draw:refresh_dlists(St),
     keep;
 handle_tweak_event1(quit=Ev, T) ->
     wings_wm:later(Ev),
@@ -147,7 +147,7 @@ handle_tweak_event1({current_state,St}=Ev, T) ->
 handle_tweak_event1({new_state,St}=Ev, T) ->
     case topological_change(St) of
 	false ->
-	    wings_draw:update_dlists(St),
+	    wings_draw:refresh_dlists(St),
 	    update_tweak_handler(T#tweak{st=St});
 	true ->
 	    wings_wm:later(Ev),
@@ -168,15 +168,15 @@ handle_tweak_event1({action,Action}, #tweak{st=St0}=T) ->
 	    update_tweak_handler(T#tweak{st=St});
 	{edit,undo_toggle} ->
 	    St = wings_undo:undo_toggle(St0),
-	    wings_draw:update_dlists(St),
+	    wings_draw:refresh_dlists(St),
 	    update_tweak_handler(T#tweak{st=St});
 	{edit,undo} ->
 	    St = wings_undo:undo(St0),
-	    wings_draw:update_dlists(St),
+	    wings_draw:refresh_dlists(St),
 	    update_tweak_handler(T#tweak{st=St});
 	{edit,redo} ->
 	    St = wings_undo:redo(St0),
-	    wings_draw:update_dlists(St),
+	    wings_draw:refresh_dlists(St),
 	    update_tweak_handler(T#tweak{st=St});
 	_Ignore -> keep
     end;
@@ -199,7 +199,7 @@ refresh_dlists(frame, _) -> ok;
 refresh_dlists(toggle_lights, _) -> ok;
 refresh_dlists({along,_}, _) -> ok;
 refresh_dlists({toggle_lights,_}, _) -> ok;
-refresh_dlists(_, St) -> wings_draw:update_dlists(St).
+refresh_dlists(_, St) -> wings_draw:refresh_dlists(St).
 
 select_cmd(deselect, #tweak{st=St0}=T) ->
     St = St0#st{sh=true},
@@ -230,7 +230,7 @@ redraw(St) ->
     keep.
 
 begin_drag(MM, St, T) ->
-    wings_draw:update_dlists(St),
+    wings_draw:refresh_dlists(St),
     wings_draw_util:map(fun(D, _) ->
 				begin_drag_fun(D, MM, St, T)
 			end, []).
@@ -252,7 +252,7 @@ begin_drag_fun(D, _, _, _) -> D.
 end_drag(#tweak{st=St0}=T) ->
     St1 = wings_draw_util:map(fun end_drag/2, St0),
     St = wings_undo:save(St0, St1),
-    wings_draw:update_dlists(St),
+    wings_draw:refresh_dlists(St),
     wings_draw:update_mirror(),
     help(T),
     update_tweak_handler(T#tweak{tmode=wait,st=St}).

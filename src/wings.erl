@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.295 2004/03/17 07:05:46 bjorng Exp $
+%%     $Id: wings.erl,v 1.296 2004/03/20 18:42:38 bjorng Exp $
 %%
 
 -module(wings).
@@ -244,7 +244,7 @@ ask(Ask, St, Cb) ->
 main_loop(St) ->
     ?VALIDATE_MODEL(St),
     clear_mode_restriction(),
-    wings_draw:update_dlists(St),
+    wings_draw:refresh_dlists(St),
     wings_wm:current_state(St),
     wings_wm:dirty(),
     main_loop_noredraw(St).
@@ -327,7 +327,7 @@ handle_event_3(#mousemotion{}, _St) -> keep;
 handle_event_3(init_opengl, St) ->
     wings_wm:current_state(St),
     init_opengl(St),
-    wings_draw:update_dlists(St),
+    wings_draw:refresh_dlists(St),
     keep;
 handle_event_3(#expose{}, St) ->
     handle_event_3(redraw, St);

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.168 2004/03/09 19:40:40 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.169 2004/03/20 18:42:38 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -63,7 +63,7 @@ setup(Tvs, Units, Flags, St) ->
 	{matrix,TvMatrix} ->
 	    Workmode = wings_wm:get_prop(workmode),
 	    wings_wm:set_prop(workmode, true),
-	    wings_draw:update_dlists(St),
+	    wings_draw:refresh_dlists(St),
 	    wings_wm:set_prop(workmode, Workmode),
 	    insert_matrix(TvMatrix);
 	{general,General} ->

@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.209 2004/03/19 07:42:15 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.210 2004/03/20 18:42:37 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -433,7 +433,7 @@ option_menu() ->
 %%% Event handling
 
 get_event(#st{}=St) ->
-    wings_draw:update_dlists(St),
+    wings_draw:refresh_dlists(St),
     wings_wm:dirty(),
     get_event_nodraw(St).
 

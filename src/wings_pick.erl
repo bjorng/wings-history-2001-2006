@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.128 2004/01/25 17:55:51 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.129 2004/03/20 18:42:38 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -79,7 +79,7 @@ pick(X, Y, _, St0) ->
 	    clear_hilite_marquee_mode(Pick);
 	{PickOp,_,St} ->
 	    wings_wm:dirty(),
-	    wings_draw:update_dlists(St),
+	    wings_draw:refresh_dlists(St),
 	    Pick = #pick{st=St,op=PickOp},
 	    {seq,push,get_pick_event(Pick)}
     end.
@@ -111,12 +111,12 @@ handle_hilite_event(#mousemotion{x=X,y=Y}, #hl{prev=PrevHit,st=St}=HL) ->
 	none ->
 	    wings_wm:dirty(),
 	    insert_hilite_dl(none, St),
-	    wings_draw:update_dlists(St),
+	    wings_draw:refresh_dlists(St),
 	    get_hilite_event(HL#hl{prev=none});
 	Hit ->
 	    wings_wm:dirty(),
 	    insert_hilite_dl(Hit, St),
-	    wings_draw:update_dlists(St),
+	    wings_draw:refresh_dlists(St),
 	    get_hilite_event(HL#hl{prev=Hit})
     end;
 handle_hilite_event(init_opengl, #hl{st=St}) ->
@@ -407,7 +407,7 @@ pick_event(#mousemotion{x=X,y=Y}, #pick{op=Op,st=St0}=Pick) ->
 	none -> keep;
 	{Op,_,St} ->
 	    wings_wm:dirty(),
-	    wings_draw:update_dlists(St),
+	    wings_draw:refresh_dlists(St),
 	    get_pick_event(Pick#pick{st=St});
 	{_,_,_} -> keep
     end;

@@ -8,11 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.168 2004/03/16 23:19:34 raimo_niskanen Exp $
+%%     $Id: wings_draw.erl,v 1.169 2004/03/20 18:42:38 bjorng Exp $
 %%
 
 -module(wings_draw).
--export([invalidate_dlists/1,invalidate_dlists/2,update_dlists/1,update_sel_dlist/0,
+-export([refresh_dlists/1,
+	 invalidate_dlists/1,invalidate_dlists/2,
+	 update_sel_dlist/0,
 	 changed_we/2,split/3,original_we/1,update_dynamic/2,join/1,
 	 update_mirror/0,smooth_dlist/2]).
 
@@ -34,12 +36,12 @@
 	}).
 
 %%%
-%%% Update display lists.
+%%% Refresh the display lists from the contents of St.
 %%%
 
-update_dlists(St) ->
+refresh_dlists(St) ->
     invalidate_dlists(St),
-    do_update_dlists(St),
+    update_dlists(St),
     update_sel_dlist(),
     update_mirror().
 
@@ -184,23 +186,23 @@ face_ns_data(N, Ps) -> {N,Ps}.
 %% Pass 1 starts here. (Find out needed display lists.)
 %%
 
-do_update_dlists(#st{selmode=vertex}=St) ->
+update_dlists(#st{selmode=vertex}=St) ->
     case wings_pref:get_value(vertex_size) of
 	0.0 ->
-	    do_update_dlists_1([], St);
+	    update_dlists_1([], St);
 	PointSize->
-	    do_update_dlists_1([{vertex,PointSize}], St)
+	    update_dlists_1([{vertex,PointSize}], St)
     end;
-do_update_dlists(St) ->
-    do_update_dlists_1([], St).
+update_dlists(St) ->
+    update_dlists_1([], St).
 
-do_update_dlists_1(Need, St) ->
+update_dlists_1(Need, St) ->
     case wings_pref:get_value(show_normals) of
-	false -> do_update_dlists_2(Need, St);
-	true -> do_update_dlists_2([normals|Need], St)
+	false -> update_dlists_2(Need, St);
+	true -> update_dlists_2([normals|Need], St)
     end.
 
-do_update_dlists_2(Need0, St) ->
+update_dlists_2(Need0, St) ->
     Geom = wins_of_same_class(),
     Need1 = foldl(fun(W, A) ->
 			  case wings_wm:get_prop(W, workmode) of
@@ -218,9 +220,9 @@ do_update_dlists_2(Need0, St) ->
 			  end
 		  end, Need1, Geom),
     Need = ordsets:from_list(Need2),
-    do_update_dlists_3(Need, St).
+    update_dlists_3(Need, St).
 
-do_update_dlists_3(CommonNeed, St) ->
+update_dlists_3(CommonNeed, St) ->
     Need0 = wings_draw_util:fold(fun(D, A) ->
 					 need_fun(D, CommonNeed, St, A)
 				 end, []),

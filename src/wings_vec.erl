@@ -3,12 +3,12 @@
 %%
 %%     This module implements "vectors" and the secondary selection mode.
 %%
-%%  Copyright (c) 2002-2003 Bjorn Gustavsson.
+%%  Copyright (c) 2002-2004 Bjorn Gustavsson.
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.102 2003/11/10 20:14:25 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.103 2004/03/20 18:42:38 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -131,7 +131,7 @@ clear_sel(D, _) -> D#dlo{sel=none}.
 %%%
 
 get_event(Ss, St) ->
-    wings_draw:update_dlists(St),
+    wings_draw:refresh_dlists(St),
     wings_wm:dirty(),
     {replace,fun(Ev) -> handle_event(Ev, Ss, St) end}.
 
