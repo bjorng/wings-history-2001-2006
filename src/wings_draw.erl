@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.147 2003/08/30 09:17:19 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.148 2003/08/31 07:21:15 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -666,8 +666,8 @@ draw_vtx_faces_2([F|Fs], D) ->
     draw_vtx_faces_2(Fs, D);
 draw_vtx_faces_2([], _) -> ok.
 
-draw_vtx_faces_3([F|Fs], D) ->
-    wings_draw_util:vcol_face(F, D),
+draw_vtx_faces_3([[F|Cols]|Fs], D) ->
+    wings_draw_util:vcol_face(F, D, Cols),
     draw_vtx_faces_3(Fs, D);
 draw_vtx_faces_3([], _) -> ok.
 

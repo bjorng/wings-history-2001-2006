@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.108 2003/08/30 18:18:50 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.109 2003/08/31 07:21:15 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -529,36 +529,25 @@ prepare(Ftab, #we{mode=material}=We, St) ->
     MatFaces = wings_material:mat_faces(Ftab, We),
     {material,MatFaces,St}.
 
-vtx_color_split([{_,Edge}|_]=Ftab0, #we{es=Etab}) when is_integer(Edge) ->
-    Ftab1 = sofs:from_external(Ftab0, [{face,edge}]),
-    Ftab = sofs:domain(Ftab1),
-    FaceCol0 = vtx_color_split_1(gb_trees:values(Etab), []),
-    FaceCol1 = sofs:relation(FaceCol0, [{face,color}]),
-    FaceCol2 = sofs:restriction(FaceCol1, Ftab),
-    FaceCol = sofs:to_external(FaceCol2),
-    vtx_color_split_2(FaceCol, [], []);
+vtx_color_split([{_,Edge}|_]=Ftab0, We) when is_integer(Edge) ->
+    vtx_color_split_1(Ftab0, We, [], []);
 vtx_color_split(Ftab, _) -> vtx_smooth_color_split(Ftab).
 
-vtx_color_split_1([#edge{a=A,b=B,lf=Lf,rf=Rf}|Es], Acc) ->
-    vtx_color_split_1(Es, [{Lf,A},{Rf,B}|Acc]);
-vtx_color_split_1([], Acc) -> Acc.
-
-vtx_color_split_2([{F,Col}|Fs], SameAcc, DiffAcc) ->
-    vtx_color_split_3(Fs, F, Col, SameAcc, DiffAcc);
-vtx_color_split_2([], SameAcc, DiffAcc) ->
+vtx_color_split_1([{Face,Edge}|Fs], We, SameAcc, DiffAcc) ->
+    Cols = wings_face:vertex_info(Face, Edge, We),
+    case vtx_color_split_2(Cols) of
+	different -> vtx_color_split_1(Fs, We, SameAcc, [[Face|Cols]|DiffAcc]);
+	Col -> vtx_color_split_1(Fs, We, [{Col,Face}|SameAcc], DiffAcc)
+    end;
+vtx_color_split_1([], _, SameAcc, DiffAcc) ->
     {wings_util:rel2fam(SameAcc),DiffAcc}.
 
-vtx_color_split_3([{F,Col}|Fs], F, Col, SameAcc, DiffAcc) ->
-    vtx_color_split_3(Fs, F, Col, SameAcc, DiffAcc);
-vtx_color_split_3([{F,_}|Fs], F, _, SameAcc, DiffAcc) ->
-    vtx_color_split_4(Fs, F, SameAcc, [F|DiffAcc]);
-vtx_color_split_3(Fs, F, Col, SameAcc, DiffAcc) ->
-    vtx_color_split_2(Fs, [{Col,F}|SameAcc], DiffAcc).
+vtx_color_split_2([C,C|Cols]) -> vtx_color_split_3(Cols, C);
+vtx_color_split_2(_) -> different.
 
-vtx_color_split_4([{F,_}|Fs], F, SameAcc, DiffAcc) ->
-    vtx_color_split_4(Fs, F, SameAcc, DiffAcc);
-vtx_color_split_4(Fs, _, SameAcc, DiffAcc) ->
-    vtx_color_split_2(Fs, SameAcc, DiffAcc).
+vtx_color_split_3([C|Cols], C) -> vtx_color_split_3(Cols, C);
+vtx_color_split_3([_|_], _) -> different;
+vtx_color_split_3([], C) -> C.
 
 vtx_smooth_color_split(Ftab) ->
     vtx_smooth_color_split_1(Ftab, [], []).
@@ -685,12 +674,12 @@ vcol_face(Face, #dlo{src_we=We,ns=Ns}) ->
 	    gl:normal3fv(N),
 	    wings__du:vcol_face(N, VsPos, Cols)
     end;
-vcol_face(Face, #we{fs=Ftab}=We) ->
+vcol_face(Face, #we{fs=Ftab,vp=Vtab}=We) ->
     Edge = gb_trees:get(Face, Ftab),
-    vcol_face(Face, Edge, We).
+    Vs0 = wings_face:vinfo_cw(Face, Edge, We),
+    vcol_face_1(Vs0, Vtab, [], []).
 
-vcol_face(Face, Edge, #dlo{src_we=We,ns=Ns}) ->
-    Cols = wings_face:vertex_info(Face, Edge, We),
+vcol_face(Face, #dlo{ns=Ns}, Cols) ->
     case gb_trees:get(Face, Ns) of
 	[N|VsPos] ->
 	    gl:normal3fv(N),
@@ -698,10 +687,7 @@ vcol_face(Face, Edge, #dlo{src_we=We,ns=Ns}) ->
 	{N,VsPos} ->
 	    gl:normal3fv(N),
 	    wings__du:vcol_face(N, VsPos, Cols)
-    end;
-vcol_face(Face, Edge, #we{vp=Vtab}=We) ->
-    Vs0 = wings_face:vinfo_cw(Face, Edge, We),
-    vcol_face_1(Vs0, Vtab, [], []).
+    end.
 
 vcol_face_1([[V|Col]|Vs], Vtab, Nacc, VsAcc) ->
     Pos = gb_trees:get(V, Vtab),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.59 2003/08/18 17:11:35 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.60 2003/08/31 07:21:15 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -586,8 +586,8 @@ draw_vtx_faces_2([F|Fs], We) ->
     draw_vtx_faces_2(Fs, We);
 draw_vtx_faces_2([], _) -> ok.
 
-draw_vtx_faces_3([F|Fs], We) ->
-    uv_face(F, We),
+draw_vtx_faces_3([[F|Cols]|Fs], We) ->
+    vcol_face(F, We, Cols),
     draw_vtx_faces_3(Fs, We);
 draw_vtx_faces_3([], _) -> ok.
 
@@ -646,9 +646,6 @@ mat_face_1([], _, VsPos) ->
 	    ok
     end.
 
-uv_face(Face, #we{fs=Ftab}=We) ->
-    uv_face(Face, gb_trees:get(Face, Ftab), We).
-
 uv_face(Face, Edge, #we{vp=Vtab}=We) ->
     Vs0 = wings_face:vinfo_cw(Face, Edge, We),
     uv_face_1(Vs0, Vtab, [], []).
@@ -664,8 +661,23 @@ uv_face_1([], _, Nacc, Vs) ->
 uv_face_2([[Pos|Attr]|T]) ->
     case Attr of
 	{_,_}=UV -> gl:texCoord2fv(UV);
-	{_,_,_}=Col -> gl:color3fv(Col)
+	{_,_,_} -> gl:texCoord2f(0.0, 0.0)
     end,
     gl:vertex3dv(Pos),
     uv_face_2(T);
 uv_face_2([]) -> ok.
+
+vcol_face(Face, We, Cols) ->
+    VsPos = wings_face:vertex_positions(Face, We),
+    gl:normal3fv(e3d_vec:normal(VsPos)),
+    vcol_face_1(VsPos, Cols).
+
+vcol_face_1([P|Ps], [{_,_,_}=Col|Cols]) ->
+    gl:color3fv(Col),    
+    gl:vertex3dv(P),
+    vcol_face_1(Ps, Cols);
+vcol_face_1([P|Ps], [_|Cols]) ->
+    gl:color3f(1.0, 1.0, 1.0),
+    gl:vertex3dv(P),
+    vcol_face_1(Ps, Cols);
+vcol_face_1([], []) -> ok.
