@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.36 2002/02/07 19:57:21 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.37 2002/02/10 18:14:29 bjorng Exp $
 %f%
 
 -module(wings_face_cmd).
@@ -514,7 +514,7 @@ bridge(#st{shapes=Shapes0,sel=[{IdA,FacesA},{IdB,FacesB}]}=St0) ->
 	    Shapes = gb_trees:update(IdA, We, Shapes1),
 	    Sel = [{IdA,gb_sets:from_list([FA,FB])}],
 	    St1 = wings_sel:set(Sel, St0),
-	    St = St0#st{shapes=Shapes},
+	    St = St1#st{shapes=Shapes},
 	    bridge(St);
 	Other ->
 	    bridge_error()
