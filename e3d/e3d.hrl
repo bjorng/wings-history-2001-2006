@@ -3,12 +3,12 @@
 %%
 %%     Record definition for generic in-memory 3D file format.
 %%
-%%  Copyright (c) 2001 Bjorn Gustavsson
+%%  Copyright (c) 2001-2002 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d.hrl,v 1.3 2001/09/17 07:19:18 bjorng Exp $
+%%     $Id: e3d.hrl,v 1.4 2002/01/02 12:27:32 bjorng Exp $
 %%
 
 -record(e3d_file,
@@ -17,7 +17,8 @@
 	 creator=""}).				%Creator string.
 
 -record(e3d_object,
-	{name,					%Name of object (string).
+	{name,					%Name of object (string),
+						% or 'undefined' if no name.
 	 obj,					%Object implementation.
 	 attr=[]}).				%List of attributes.
 
@@ -36,5 +37,4 @@
 	 tx=[],					%List of texture indices.
 	 mat=[],				%Materials for face.
 	 vis=-1}).				%Visible edges (as in 3DS).
-
 

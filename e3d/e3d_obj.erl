@@ -3,12 +3,12 @@
 %%
 %%     Functions for reading and writing Wawefront ASCII files (.obj).
 %%
-%%  Copyright (c) 2001 Bjorn Gustavsson
+%%  Copyright (c) 2001-2002 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_obj.erl,v 1.15 2001/12/28 22:32:19 bjorng Exp $
+%%     $Id: e3d_obj.erl,v 1.16 2002/01/02 12:27:32 bjorng Exp $
 %%
 
 -module(e3d_obj).
@@ -130,6 +130,8 @@ parse(["vn",X0,Y0,Z0|_], #ost{vn=Vn}=Ost) ->
 parse(["f"|Vlist0], #ost{f=Ftab,mat=Mat}=Ost) ->
     Vlist = collect_vs(Vlist0, Ost),
     Ost#ost{f=[{Mat,Vlist}|Ftab]};
+parse(["g"], Ost) ->
+    Ost;
 parse(["g"|Names], #ost{ignore_groups=true}=Ost) ->
     Ost;
 parse(["g"|Names], #ost{name=OldName}=Ost) ->
@@ -137,9 +139,11 @@ parse(["g"|Names], #ost{name=OldName}=Ost) ->
 	{[Name|_],Name} -> Ost;
 	{[Name|_],_} -> Ost#ost{name=Name}
     end;
-parse(["o"|Names], #ost{ignore_groups=true,name=OldName}=Ost) ->
+parse(["o"], Ost) ->
+    Ost;
+parse(["o"|Names], #ost{name=OldName}=Ost) ->
     case {Names,OldName} of
-	{[Name|_],undefined} -> Ost#ost{name=Name};
+	{[Name|_],undefined} -> Ost#ost{ignore_groups=true,name=Name};
 	{_,_} -> Ost
     end;
 parse(["usemtl"|[Mat|_]], Ost) ->
