@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_fbx.erl,v 1.1 2005/03/11 05:55:48 bjorng Exp $
+%%     $Id: wpc_fbx.erl,v 1.2 2005/03/11 18:00:55 bjorng Exp $
 %%
 
 -module(wpc_fbx).
@@ -527,8 +527,10 @@ import_mesh(mesh, GlobalTransform, Acc) ->
     N = call(?ImpNumVertices),
     cast(?ImpVertices),
     Vs = import_points(N, []),
-    cast(?ImpNormals),
-    Ns = import_points(N, []),
+    %% Ignore normals for now.
+%%     cast(?ImpNormals),
+%%     Ns = import_points(N, []),
+    Ns = [],
     NumFaces = call(?ImpNumPolygons),
     Fs = import_faces(NumFaces-1, []),
     Mesh0 = #e3d_mesh{type=polygon,vs=Vs,ns=Ns,fs=Fs},
@@ -776,7 +778,8 @@ import_one_tx(I) ->
 %%%
 
 import_points(0, Acc) -> reverse(Acc);
-import_points(N, Acc) -> import_points(N-1, [call(?ImpPoint)|Acc]).
+import_points(N, Acc) ->
+    import_points(N-1, [call(?ImpPoint)|Acc]).
 
 import_faces(Face, Acc) when Face < 0 -> Acc;
 import_faces(Face, Acc) ->
@@ -831,6 +834,7 @@ pop_node() ->
 node_type() ->
     case call(?ImpNodeType) of
         ?NodeEmpty -> empty;
+        ?NodeNull -> null;
         ?NodeMarker -> marker;
         ?NodeSkeleton -> skeleton;
         ?NodeMesh -> mesh;
@@ -838,7 +842,10 @@ node_type() ->
         ?NodePatch -> patch;
         ?NodeCamera -> camera;
         ?NodeCameraSwitcher -> camera_switcher;
-        ?NodeLight -> light
+        ?NodeLight -> light;
+	?NodeOpticalReference -> optical_reference;
+	?NodeOpticalMarker -> optical_marker;
+	?NodeUnknown -> uknown
     end.
 
 node_name() ->

@@ -8,7 +8,7 @@
  *  See the file "license.terms" for information on usage and redistribution
  *  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
  *
- *     $Id: wings_fbx.cxx,v 1.1 2005/03/11 05:55:48 bjorng Exp $
+ *     $Id: wings_fbx.cxx,v 1.2 2005/03/11 18:00:55 bjorng Exp $
  */
 
 
@@ -409,8 +409,11 @@ fbx_control(unsigned int command,
       if (lNodeAttribute == 0) {
         send_integer(res, NodeEmpty);
       } else {
-        int type;
+        int type = 0;
         switch (lNodeAttribute->GetAttributeType()) {
+        case KFbxNodeAttribute::eNULL:
+          type = NodeNull;
+          break;
         case KFbxNodeAttribute::eMARKER:
           type = NodeMarker;
           break;
@@ -435,6 +438,15 @@ fbx_control(unsigned int command,
         case KFbxNodeAttribute::eLIGHT:
           type = NodeLight;
           break;
+        case KFbxNodeAttribute::eOPTICAL_REFERENCE:
+          type = NodeOpticalReference;
+          break;
+        case KFbxNodeAttribute::eOPTICAL_MARKER:
+          type = NodeOpticalMarker;
+          break;
+	default:
+	  type = NodeUnknown;
+	  break;
         }
         send_integer(res, type);
       }
