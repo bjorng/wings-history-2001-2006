@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.115 2004/03/14 05:48:12 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.116 2004/03/19 07:54:19 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -268,7 +268,11 @@ misc_prefs() ->
 		    "Problem occurs on some Matrox cards"},
 		   {dummy_axis_letter,
 		    "Wings crashes if axes are turned off",
-		    "Problem occurs on some Matrox cards"}]),
+		    "Problem occurs on some Matrox cards"},
+		   {jumpy_camera,
+		    "Camera moves and interactive commands are jumpy",
+		    "Problem occurs on Mac OS X 10.3 (Panther)"}
+		  ]),
        [{title,"Workarounds"}]}
      ]}.
 
@@ -628,6 +632,11 @@ defaults() ->
      %% Compatibility preferences.
      {text_display_lists,true},
      {dummy_axis_letter,false},
+     {jumpy_camera,case {os:type(),os:version()} of
+		       {{unix,darwin},{Maj,Min,_}}
+		       when Maj >= 7, Min >= 3 -> true;
+		       _ -> false
+		   end},
 
      %% Advanced features.
      {advanced_menus,false},

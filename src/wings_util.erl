@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.90 2004/03/09 19:40:40 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.91 2004/03/19 07:54:19 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -677,7 +677,10 @@ min(A, B) when A < B -> A;
 min(_A, B) -> B.
 
 lowpass(X, Y) ->
-    {lowpass(X),lowpass(Y)}.
+    case wings_pref:get_value(jumpy_camera) of
+	false -> {X,Y};
+	true -> {lowpass(X),lowpass(Y)}
+    end.
 
 lowpass(N) when N > 0 -> lowpass_1(N);
 lowpass(N) -> -lowpass_1(-N).
@@ -687,4 +690,4 @@ lowpass_1(N) when N =< 15 -> (N-7)*0.6 + lowpass_1(7);
 lowpass_1(N) when N =< 30 -> (N-15)*0.5 + lowpass_1(15);
 lowpass_1(N) when N =< 50 -> (N-30)*0.05 + lowpass_1(30);
 lowpass_1(_) -> lowpass_1(50).
-    
+
