@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.81 2003/01/26 19:18:42 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.82 2003/01/26 20:57:10 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -256,33 +256,41 @@ hotkeys(Names) ->
 get_menu_event(Mi) ->
     {replace,fun(Ev) -> handle_menu_event(Ev, Mi) end}.
 
-handle_menu_event(Event, Mi0) ->
-    case Event of
-	#keyboard{keysym=KeySym} ->
-	    wings_wm:dirty(),
-	    handle_key(KeySym, Mi0);
-	#mousemotion{x=X,y=Y} ->
-	    Mi1 = update_highlight(X, Y, Mi0),
-	    Mi = set_submenu_timer(Mi1, Mi0, X, Y),
-	    get_menu_event(Mi);
-	#mousebutton{} ->
-	    button_pressed(Event, Mi0);
-	redraw ->
-	    redraw(Mi0),
-	    keep;
-	#mi{}=Mi ->				%Key bound/unbound.
-	    help_text(Mi),
-	    wings_wm:dirty(),
-	    get_menu_event(Mi);
-	clear_submenu ->
-	    wings_wm:delete({menu,Mi0#mi.level+1}),
-	    keep;
-	quit ->
-	    wings_wm:send(menubar, clear_menu_selection),
-	    wings_io:putback_event(quit),
-	    delete_all(Mi0);
-	_IgnoreMe -> keep
-    end.
+handle_menu_event(redraw, Mi) ->
+    redraw(Mi),
+    keep;
+handle_menu_event(lost_focus, Mi) ->
+    {_,X,Y} = wings_wm:local_mouse_state(),
+    {W,H} = wings_wm:win_size(),
+    if
+	X < 0; X >= W -> keep;
+	Y < 0 -> mousemotion(X, 0, Mi);
+	true -> mousemotion(X, H-2, Mi)
+    end;
+handle_menu_event(#keyboard{keysym=KeySym}, Mi) ->
+    wings_wm:dirty(),
+    handle_key(KeySym, Mi);
+handle_menu_event(#mousemotion{x=X,y=Y}, Mi) ->
+    mousemotion(X, Y, Mi);
+handle_menu_event(#mousebutton{}=Ev, Mi) ->
+    button_pressed(Ev, Mi);
+handle_menu_event(#mi{}=Mi, _) ->				%Key bound/unbound.
+    help_text(Mi),
+    wings_wm:dirty(),
+    get_menu_event(Mi);
+handle_menu_event(clear_submenu, #mi{level=Level}) ->
+    wings_wm:delete({menu,Level+1}),
+    keep;
+handle_menu_event(quit, Mi) ->
+    wings_wm:send(menubar, clear_menu_selection),
+    wings_io:putback_event(quit),
+    delete_all(Mi);
+handle_menu_event(_, _) -> keep.
+
+mousemotion(X, Y, Mi0) ->
+    Mi1 = update_highlight(X, Y, Mi0),
+    Mi = set_submenu_timer(Mi1, Mi0, X, Y),
+    get_menu_event(Mi).
 
 button_pressed(#mousebutton{state=?SDL_RELEASED}, #mi{ignore_rel=true}=Mi) ->
     get_menu_event(Mi#mi{ignore_rel=false});
