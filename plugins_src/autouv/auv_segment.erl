@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.14 2002/10/22 12:05:35 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.15 2002/10/22 14:14:07 bjorng Exp $
 
 -module(auv_segment).
 
@@ -576,7 +576,8 @@ segment_by_cluster(Rel0, We) ->
 %%%
 
 cut_model(Cuts, [Faces], We) ->
-    Map = reverse(foldl(fun(F, A) -> [{F,F}|A] end, [], Faces)),
+    Vs = wings_face:to_vertices(Faces),
+    Map = reverse(foldl(fun(V, A) -> [{V,V}|A] end, [], Vs)),
     cut_model_1(Cuts, [{We,Map}]);
 cut_model(Cuts, Clusters, We) ->
     AllFaces = wings_sel:get_all_items(face, We),
@@ -712,7 +713,6 @@ digraph_insert(G, Va0, Vb0, Face) ->
 connect(G, Wid, We, Ends) ->
     Cs0 = digraph_utils:components(G),
     Cs = remove_winged_vs(Cs0),
-    ?DBG("Comps ~p ~nafter remove ~p~n", [Cs0, Cs]),
     connect(G, Cs, Wid, We, Ends, []).
 
 connect(G, [C|Cs], Wid, We0, Ends, Closed) ->
