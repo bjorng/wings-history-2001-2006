@@ -8,18 +8,24 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_image.erl,v 1.14 2003/09/20 13:34:03 dgud Exp $
+%%     $Id: e3d_image.erl,v 1.15 2003/10/29 13:20:11 dgud Exp $
 %%
 
 -module(e3d_image).
 
 -include("e3d_image.hrl").
 
+%% Basic functionality
+
 -export([load/1, load/2, 
 	 convert/2, convert/3, convert/4, 
-	 height2normal/2,
 	 save/2, save/3,
 	 bytes_pp/1, pad_len/2, format_error/1]).
+
+%% Normal map handing
+-export([height2normal/2,
+	 height2normal/3,
+	 buildNormalMipmaps/1]).
 
 %% internal exports
 -export([noswap1/8,noswap3/8,noswap4/8,
@@ -138,6 +144,20 @@ bytes_pp(b8g8r8a8) -> 4;
 bytes_pp(#e3d_image{bytes_pp = Bpp}) ->
     Bpp.
 
+
+%% Func: height2normal(Image, Scale, GenMipMap)  
+%% Args: Image = #e3d_image, Scale = number, GenMipMap == Bool
+%% Rets: {#e3d_image,[{MM_Lev,W,H,Bin}]}  | {error, Reason}
+%% Desc: Filter and build a normalmap from a heightmap.
+%%       assumes the heightmap is greyscale.
+height2normal(Image, Scale, GenMipMap) ->
+    NM  = height2normal(Image, Scale),
+    MMs = case GenMipMap of
+	      true -> buildNormalMipmaps(NM);
+	      false -> []
+	  end,
+    {NM, MMs}.
+
 %% Func: height2normal(Image, Scale)  
 %% Args: Image = #e3d_image, Scale = number
 %% Rets: #e3d_image | {error, Reason}
@@ -148,7 +168,8 @@ height2normal(Old = #e3d_image{width=W,bytes_pp=B,alignment=A,image=I,name=Name}
     RSz  = W*B + Extra,
     <<Row1:RSz/binary,Row2:RSz/binary,Rest/binary>> = I,
     New = bumps(Row1,Row2,Rest,RSz,B,Row1,Scale,[]),
-    Old#e3d_image{bytes_pp=3,type=r8g8b8, image=New, filename=none, name=Name++"bump"}.
+    Old#e3d_image{bytes_pp=3,type=r8g8b8, image=New, alignment=1,
+		  filename=none, name=Name++"bump"}.
 	
 %bumps(Row1,Row2,Rest,RSz,B,First,Acc) ->
 bumps(R1,R2,Rest,RSz,B,First,S,Bump) 
@@ -194,6 +215,96 @@ bumpmapRow(R1,R2,F,B,Scale,BR) ->
 	   round(128.0+127.0*Ny),
 	   round(128.0+127.0*Nz)],
     bumpmapRow(Row1,Row2,F,B,Scale,[RGB|BR]).
+
+%  buildNormalMipmaps(Image) -> [{Level,W,H,Bin}]
+%  Generates all mipmap levels from an Normalmap
+%% Perfect for
+%% gl:texImage2D(?GL_TEXTURE_2D, Level, ?GL_RGB8, HW, HH, 0,
+%%		    ?GL_RGB, ?GL_UNSIGNED_BYTE, Down);
+
+buildNormalMipmaps(#e3d_image{width=W,height=H,image=Bin,
+			      alignment=1, type=r8g8b8}) ->
+    buildNormalMipmaps(1, W, H, Bin);
+buildNormalMipmaps(Image) ->
+    buildNormalMipmaps(convert(Image,r8g8b8,1)).
+buildNormalMipmaps(Level, W, H, Bin) -> 
+    %% Half width and height but not beyond one.     
+    HW = case W div 2 of Tw when Tw == 0 -> 1; Tw -> Tw end,
+    HH = case H div 2 of Th when Th == 0 -> 1; Th -> Th end,    
+    Down = downSampleNormalMap(W,H,Bin),
+    if (HW>1) or (HH>1) ->
+	    [{Level,HW,HH,Down} | buildNormalMipmaps(Level+1, HW,HH,Down)];
+       true ->
+	    [{Level,HW,HH,Down}]
+    end.
+
+-define(N2RGB(XX), round(128.0+127.0*(XX))).
+downSampleNormalMap(W,H,Bin) ->
+    I = if H == 1 -> 0; true -> H-2 end,    
+    J = if W == 1 -> 0; true -> W-2 end,
+    downSampleNormalMap(I,J,W,H,Bin,[]).
+
+downSampleNormalMap(I,_J,_W,_H,_Bin,Acc) when I < 0 ->
+    list_to_binary(Acc);
+downSampleNormalMap(I,J0,W,H,Bin,Acc) when J0 < 0 ->
+    J = if W == 1 -> 0; true -> W-2 end,
+    downSampleNormalMap(I-2,J,W,H,Bin,Acc);
+downSampleNormalMap(I,J,W,H,Bin,Acc) ->
+    OneOver127 = 1.0/127.0,
+    %% OneOver255 = 1.0/255.0,
+
+    %% The "%w2" and "%h2" modulo arithmetic makes sure that
+    %% Nx1 and 1xN normal map levels are handled correctly.
+
+    %% Fetch the four vectors (and magnitude) to be downsampled. 
+
+    %% Don't have 32bits normal-maps for yet..
+    
+    %% M0=OneOver255*M00, M1=OneOver255*M10,
+    %% M2=OneOver255*M20, M3=OneOver255*M30,
+
+    P0 = (I*W+J)*3,
+    P1 = ((I*W+((J+1) rem W))*3),
+    P2 = ((((I+1) rem H)*W+J)*3),
+    P3 = ((((I+1) rem H)*W+((J+1) rem W))*3),
+    <<_:P0/binary, X0,Y0,Z0, _/binary>> = Bin,
+    <<_:P1/binary, X1,Y1,Z1, _/binary>> = Bin,
+    <<_:P2/binary, X2,Y2,Z2, _/binary>> = Bin,
+    <<_:P3/binary, X3,Y3,Z3, _/binary>> = Bin,
+
+    M0=1.0,M1=1.0,M2=1.0,M3=1.0,
+
+    %% Sum 2x2 footprint of red component scaled 
+    %% back to [-1,1] floating point range. 
+    X = M0*(OneOver127*float(X0)-1.0)+M1*(OneOver127*float(X1)-1.0)+
+	M2*(OneOver127*float(X2)-1.0)+M3*(OneOver127*float(X3)-1.0),
+
+    %%  Sum 2x2 footprint of green component scaled back to [-1,1] 
+    %%  floating point range. 
+    Y = M0*(OneOver127*float(Y0)-1.0)+M1*(OneOver127*float(Y1)-1.0)+
+	M2*(OneOver127*float(Y2)-1.0)+M3*(OneOver127*float(Y3)-1.0),
+
+    %% Sum 2x2 footprint of blue component scaled back to [-1,1]
+    %% floating point range. 
+    Z = M0*(OneOver127*float(Z0)-1.0)+M1*(OneOver127*float(Z1)-1.0)+
+	M2*(OneOver127*float(Z2)-1.0)+M3*(OneOver127*float(Z3)-1.0),
+
+    L = math:sqrt(X*X+Y*Y+Z*Z),
+    if L > 0.00005 ->
+%	    SL = L / 4,
+% 	    M = if SL > 1.0 -> 255;
+% 		   true -> 255*SL
+% 		end,
+	    %% Normalize the vector to unit length and convert to RGB
+	    InvL = 1.0/L,
+	    New = [?N2RGB(X*InvL),?N2RGB(Y*InvL),?N2RGB(Z*InvL)], %M],
+	    downSampleNormalMap(I,J-2,W,H,Bin, [New|Acc]);
+       true ->
+	    %% Ugh, a zero length vector.  Avoid division by zero and just
+	    %% use the unpeturbed normal (0,0,1). 
+	    New = [128,128,255], %,0], 
+	    downSampleNormalMap(I,J-2,W,H,Bin, [New|Acc])
+    end.
 
 %% Helpers 
 file_extension(FileName) ->
