@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.12 2002/08/02 20:14:40 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.13 2002/08/18 08:43:06 bjorng Exp $
 %%
 
 -module(wings_wm).
--export([init/0,top_window/1,dirty/0,new/4,delete/1,
+-export([init/0,top_window/1,dirty/0,clean/0,new/4,delete/1,
 	 offset/3,pos/1,set_active/1,
 	 top_size/0,viewport/0,viewport/1,
 	 local2global/2,global2local/2,local_mouse_state/0,
@@ -54,6 +54,9 @@ init() ->
 
 dirty() ->
     put(wm_dirty, dirty).
+
+clean() ->
+    erase(wm_dirty).
 
 new(Name, {X,Y,Z}, {W,H}, Op) when is_integer(X), is_integer(Y),
 				   is_integer(W), is_integer(H) ->
@@ -136,10 +139,17 @@ top_window(Op) ->
 event_loop() ->
     case get(wm_dirty) of
 	undefined ->
-	    Event = wings_io:get_event(),
-	    dispatch_event(Event);
-	_ -> redraw_all()
+	    get_and_dispatch();
+	_ ->
+	    case wings_io:poll_event() of
+		{new_state,_}=Ev -> get_and_dispatch();
+		_ -> redraw_all()
+	    end
     end.
+
+get_and_dispatch() ->
+    Event = wings_io:get_event(),
+    dispatch_event(Event).
 
 dispatch_event(#resize{w=W,h=H}=Event) ->
     put(wm_top_size, {W,H}),

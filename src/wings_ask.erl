@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.28 2002/08/10 20:44:44 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.29 2002/08/18 08:43:06 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -351,6 +351,7 @@ return_result(_, _, _, #s{call=EndFun}=S, Res) ->
 	    delete(S);
 	#st{}=St ->
 	    wings_io:putback_event({new_state,St}),
+	    wings_wm:clean(),
 	    delete(S);
 	Action when is_tuple(Action); is_atom(Action) ->
 	    wings_io:putback_event({action,Action}),
