@@ -10,11 +10,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_collapse.erl,v 1.40 2004/12/25 19:50:07 bjorng Exp $
+%%     $Id: wings_collapse.erl,v 1.41 2004/12/26 09:18:34 bjorng Exp $
 %%
 
 -module(wings_collapse).
--export([collapse/1,collapse_vertices/2,collapse_edge/2,collapse_edge/3]).
+-export([collapse/1,collapse_vertices/2,collapse_edge/2,collapse_edge/3,
+	 fast_collapse_edge/2]).
 
 -include("wings.hrl").
 -import(lists, [map/2,foldl/3,reverse/1,sort/1,keymember/3,member/2]).
@@ -140,6 +141,10 @@ collapse_edges(Edges0, #we{id=Id,es=Etab}=We0, SelAcc)->
 		end, gb_sets:empty(), Edges),
     {We,[{Id,Sel}|SelAcc]}.
 
+fast_collapse_edge(Edge, #we{es=Etab}=We)->
+    #edge{vs=Vkeep,ve=Vremove} = Rec = gb_trees:get(Edge, Etab),
+    internal_collapse_edge(Edge, Vkeep, Vremove, Rec, We).
+
 collapse_edge(Edge, #we{es=Etab}=We)->
     case gb_trees:lookup(Edge, Etab) of
 	{value,#edge{vs=Vkeep}=Rec} -> 
@@ -154,58 +159,57 @@ collapse_edge(Edge, Vkeep, #we{es=Etab}=We)->
 	none -> We
     end.
 
-collapse_edge_1(Edge, Vkeep, Rec,
-		#we{es=Etab0,he=Htab0,fs=Ftab0,vc=Vct0,vp=Vtab0}=We0)->
-    case Rec of
-	#edge{vs=Vkeep,ve=Vremove} -> ok;
-	#edge{ve=Vkeep,vs=Vremove} -> ok
+collapse_edge_1(Edge, Vkeep, Rec, We0) ->
+    Faces = case Rec of
+		#edge{vs=Vkeep,ve=Vremove,lf=Lf,rf=Rf} -> [Lf,Rf];
+		#edge{ve=Vkeep,vs=Vremove,lf=Lf,rf=Rf} -> [Lf,Rf]
     end,
     case is_waist(Vkeep, Vremove, We0) of
 	true -> We0;
 	false ->
-	    #edge{lf=LF,rf=RF,ltpr=LP,ltsu=LS,rtpr=RP,rtsu=RS} = Rec,
-
-	    %% Move kept vertex. Delete the other one.
-	    Vct1 = gb_trees:update(Vkeep, RP, Vct0),
-	    PosKeep = gb_trees:get(Vkeep, Vtab0),
-	    Vtab1 = case gb_trees:get(Vremove, Vtab0) of
-			PosKeep -> Vtab0;
-			PosRemove ->
-			    Pos = e3d_vec:average(PosKeep, PosRemove),
-			    gb_trees:update(Vkeep, Pos, Vtab0)
-		    end,
-
-	    %% Patch all predecessors and successors of
-	    %% the edge we will remove.
-	    Etab1 = wings_edge:patch_edge(LP, LS, LF, Edge, Etab0),
-	    Etab2 = wings_edge:patch_edge(LS, LP, LF, Edge, Etab1),
-	    Etab3 = wings_edge:patch_edge(RP, RS, RF, Edge, Etab2),
-	    Etab4 = wings_edge:patch_edge(RS, RP, RF, Edge, Etab3),
-	    
-	    %% Patch the face entries for the surrounding faces.
-	    Ftab1= wings_face:patch_face(LF, Edge, LP, Ftab0),
-	    Ftab = wings_face:patch_face(RF, Edge, RP, Ftab1),
-	    
-	    %% Now we can safely remove the edge and vertex.
-	    Etab5 = gb_trees:delete(Edge, Etab4),
-	    Htab = gb_trees:delete_any(Edge, Htab0),
-	    Vct = gb_trees:delete(Vremove, Vct1),
-	    Vtab = gb_trees:delete(Vremove, Vtab1),
-	    
-	    %% ... change all references to the kept vertex.
-	    %% We iterate on the original data structure, and operates
-	    %% on our updated edge table.
-	    Etab = slim_patch_vtx_refs(Vremove, Vkeep, We0, Etab5),
-
-	    We1 = We0#we{vc=Vct,vp=Vtab,he=Htab,fs=Ftab,es=Etab},
+	    We1 = internal_collapse_edge(Edge, Vkeep, Vremove, Rec, We0),
 	    We = foldl(fun(_Face, bad_edge) -> bad_edge;
 			  (Face, W) -> wings_face:delete_if_bad(Face, W)
-		       end, We1, [LF,RF]),
+		       end, We1, Faces),
 	    case We of
 		bad_edge -> We0;
 		_ -> We
 	    end
     end.
+
+internal_collapse_edge(Edge, Vkeep, Vremove, Rec,
+		       #we{es=Etab0,he=Htab0,fs=Ftab0,
+			   vc=Vct0,vp=Vtab0}=We)->
+    Etab1 = slim_patch_vtx_refs(Vremove, Vkeep, We, Etab0),
+    Etab2 = gb_trees:delete(Edge, Etab1),
+    Htab = gb_trees:delete_any(Edge, Htab0),
+    Vct1 = gb_trees:delete(Vremove, Vct0),
+	    
+    #edge{lf=LF,rf=RF,ltpr=LP,ltsu=LS,rtpr=RP,rtsu=RS} = Rec,
+    Vct = gb_trees:update(Vkeep, RP, Vct1),
+
+    %% Move kept vertex. Delete the other one.
+    PosKeep = gb_trees:get(Vkeep, Vtab0),
+    Vtab1 = case gb_trees:get(Vremove, Vtab0) of
+		PosKeep -> Vtab0;
+		PosRemove ->
+		    Pos = e3d_vec:average(PosKeep, PosRemove),
+		    gb_trees:update(Vkeep, Pos, Vtab0)
+	    end,
+    Vtab = gb_trees:delete(Vremove, Vtab1),
+
+    %% Patch all predecessors and successors of
+    %% the edge we will remove.
+    Etab3 = wings_edge:patch_edge(LP, LS, LF, Edge, Etab2),
+    Etab4 = wings_edge:patch_edge(LS, LP, LF, Edge, Etab3),
+    Etab5 = wings_edge:patch_edge(RP, RS, RF, Edge, Etab4),
+    Etab = wings_edge:patch_edge(RS, RP, RF, Edge, Etab5),
+	    
+    %% Patch the face entries for the surrounding faces.
+    Ftab1= wings_face:patch_face(LF, Edge, LP, Ftab0),
+    Ftab = wings_face:patch_face(RF, Edge, RP, Ftab1),
+
+    We#we{vc=Vct,vp=Vtab,he=Htab,fs=Ftab,es=Etab}.
 
 %%
 %% The Collapse command on vertices.
@@ -339,13 +343,12 @@ is_waist(Va, Vb, We) ->
 
 slim_patch_vtx_refs(OldV, NewV, We, Acc) ->
     wings_vertex:fold(
-      fun(Edge, _, _, Tab) ->
-	      case gb_trees:lookup(Edge, Tab) of
-		  {value,#edge{vs=OldV}=Rec} ->
+      fun(Edge, _, Rec, Tab) ->
+	      case Rec of
+		  #edge{vs=OldV} ->
 		      gb_trees:update(Edge, Rec#edge{vs=NewV}, Tab);
-		  {value,#edge{ve=OldV}=Rec} ->
-		      gb_trees:update(Edge, Rec#edge{ve=NewV}, Tab);
-		  none -> Tab			%An deleted edge.
+		  #edge{ve=OldV} ->
+		      gb_trees:update(Edge, Rec#edge{ve=NewV}, Tab)
 	      end
       end, Acc, OldV, We).
 
