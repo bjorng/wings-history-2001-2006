@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mesh.erl,v 1.47 2005/02/03 07:26:21 bjorng Exp $
+%%     $Id: e3d_mesh.erl,v 1.48 2005/02/03 07:30:33 bjorng Exp $
 %%
 
 -module(e3d_mesh).
@@ -155,10 +155,11 @@ vertex_normals(#e3d_mesh{fs=Ftab,vs=Vtab0,he=He}=Mesh) ->
     Mesh#e3d_mesh{fs=Faces,ns=Normals}.
 
 %% renumber(Mesh0) -> Mesh
-%%  Removes vertices and vertex attributes such as  UV coordinates and
+%%  Removes vertices and vertex attributes such as UV coordinates and
 %%  vertex normals that are not referenced from any faces and renumbers
 %%  vertices and attributes to remove the gaps.
-%%  XXX Bug: Vertex colors are not handled here.
+%%  XXX Vertex colors are not renumbered yet, meaning that there can
+%%  remain unused vertex colors.
 renumber(#e3d_mesh{tx=Tx,vs=Vtab,ns=Ns}=Mesh) ->
     {UsedVs,UsedUv,UsedNs} = rn_used_vs(Mesh),
     if
