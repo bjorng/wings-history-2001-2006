@@ -8,32 +8,43 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.90 2003/03/10 18:44:53 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.91 2003/03/11 06:37:33 bjorng Exp $
 %%
 
 -module(wings_wm).
 -export([toplevel/5,toplevel/6,set_knob/3]).
--export([init/0,enter_event_loop/0,dirty/0,clean/0,reinit_opengl/0,
+-export([init/0,enter_event_loop/0,dirty/0,reinit_opengl/0,
 	 new/4,delete/1,raise/1,
 	 link/2,hide/1,show/1,is_hidden/1,
-	 get_props/1,
-	 get_prop/1,get_prop/2,lookup_prop/1,lookup_prop/2,
-	 set_prop/2,set_prop/3,erase_prop/1,erase_prop/2,
-	 message/1,message/2,message_right/1,
 	 later/1,send/2,send_after_redraw/2,
-	 menubar/1,menubar/2,get_menubar/1,
 	 set_timer/2,cancel_timer/1,
 	 this/0,offset/3,move/2,move/3,pos/1,windows/0,is_window/1,
+	 window_below/2,
 	 update_window/2,clear_background/0,
 	 callback/1,current_state/1,get_current_state/0,notify/1,
-	 grab_focus/0,grab_focus/1,release_focus/0,
-	 grabbed_focus_window/0,actual_focus_window/0,
-	 top_size/0,viewport/0,viewport/1,
-	 win_size/0,win_ul/0,win_rect/0,
-	 win_size/1,win_ul/1,win_ur/1,win_ll/1,win_z/1,win_rect/1,
 	 local2global/1,local2global/2,global2local/2,local_mouse_state/0,
 	 translation_change/0,me_modifiers/0,set_me_modifiers/1,
 	 draw_message/1,draw_completions/1,draw_resizer/2]).
+
+%% Window information.
+-export([top_size/0,viewport/0,viewport/1,
+	 win_size/0,win_ul/0,win_rect/0,
+	 win_size/1,win_ul/1,win_ur/1,win_ll/1,win_z/1,
+	 win_center/1,win_rect/1]).
+
+%% Focus management.
+-export([grab_focus/0,grab_focus/1,release_focus/0,
+	 grabbed_focus_window/0,actual_focus_window/0]).
+
+%% Setting the information bar message.
+-export([message/1,message/2,message_right/1]).
+
+%% Menubar management.
+-export([menubar/1,menubar/2,get_menubar/1]).
+
+%% Window property mangagement.
+-export([get_props/1,get_prop/1,get_prop/2,lookup_prop/1,lookup_prop/2,
+	 set_prop/2,set_prop/3,erase_prop/1,erase_prop/2]).
 
 %% Obsolete.
 -export([active_window/0]).
@@ -122,7 +133,7 @@ get_menubar(Name) ->
     Bar.
 
 later(Ev) ->
-    wings_io:putback_event({wm,{send_to,active_window(),Ev}}),
+    wings_io:putback_event({wm,{send_to,this(),Ev}}),
     keep.
 
 send(Name, Ev) ->
@@ -199,9 +210,9 @@ delete_windows(Name, W0) ->
     case gb_trees:lookup(Name, W0) of
 	none -> W0;
 	{value,#win{links=Links}} ->
-	    Active = active_window(),
+	    This = this(),
 	    W = gb_trees:delete_any(Name, W0),
-	    foldl(fun(L, A) when L =/= Active ->
+	    foldl(fun(L, A) when L =/= This ->
 			  delete_windows(L, A);
 		     (_, A) -> A
 		  end, W, Links)
@@ -378,13 +389,13 @@ viewport(Name) ->
     {X,Y,W,H}.
 
 win_size() ->
-    win_size(active_window()).
+    win_size(this()).
 
 win_ul() ->
-    win_ul(active_window()).
+    win_ul(this()).
 
 win_rect() ->
-    win_rect(active_window()).
+    win_rect(this()).
 
 win_size(Name) ->
     #win{w=W,h=H} = get_window_data(Name),
@@ -409,6 +420,10 @@ win_z(Name) ->
 win_rect(Name) ->
     #win{x=X,y=Y,w=W,h=H} = get_window_data(Name),
     {{X,Y},{W,H}}.
+
+win_center(Name) ->
+    #win{x=X,y=Y,w=W,h=H} = get_window_data(Name),
+    {X+W div 2,Y+H div 2}.
 
 local2global(#mousebutton{x=X0,y=Y0}=Ev) ->
     {X,Y} = local2global(X0, Y0),
@@ -438,21 +453,21 @@ get_props(Win) ->
     gb_trees:to_list(Props).
 
 get_prop(Name) ->
-    get_prop(active_window(), Name).
+    get_prop(this(), Name).
 
 get_prop(Win, Name) ->
     #win{props=Props} = get_window_data(Win),
     gb_trees:get(Name, Props).
     
 lookup_prop(Name) ->
-    lookup_prop(active_window(), Name).
+    lookup_prop(this(), Name).
 
 lookup_prop(Win, Name) ->
     #win{props=Props} = get_window_data(Win),
     gb_trees:lookup(Name, Props).
 
 set_prop(Name, Value) ->
-    set_prop(active_window(), Name, Value).
+    set_prop(this(), Name, Value).
 
 set_prop(Win, Name, Value) ->
     #win{props=Props0} = Data = get_window_data(Win),
@@ -460,7 +475,7 @@ set_prop(Win, Name, Value) ->
     put_window_data(Win, Data#win{props=Props}).
 
 erase_prop(Name) ->
-    erase_prop(active_window(), Name).
+    erase_prop(this(), Name).
 
 erase_prop(Win, Name) ->
     #win{props=Props0} = Data = get_window_data(Win),
@@ -571,7 +586,7 @@ redraw_all() ->
     gl:swapBuffers(),
     maybe_clear(early, EarlyBC),		%Clear immediately after
 						%buffer swap (early).
-    erase(wm_dirty),
+    clean(),
     wings_io:arrow(),
     event_loop().
 
@@ -582,11 +597,11 @@ maybe_clear(late, false) ->
 maybe_clear(_, _) -> ok.
 
 clear_background() ->
-    Name = active_window(),
+    Name = this(),
 
-    %% "Optimization": Check if we really need to clear the area
-    %% occupied by the window. We actually lose time on my iMac.
-    %% But given a slow OpenGL implementation, it is a win.
+    %% Optimization: Check if we really need to clear the area
+    %% occupied by the window. Given a slow OpenGL implementation,
+    %% it is a big win.
     case any_window_below(Name) of
 	true -> clear_background_1(Name);
 	false -> ok
@@ -801,15 +816,18 @@ find_active_0(Ev) ->
 	#mousemotion{x=X,y=Y} -> ok;
 	_ -> {_,X,Y} = sdl_mouse:getMouseState()
     end,
-    find_active_1(reverse(sort(gb_trees:values(get(wm_windows)))), X, Y).
+    window_below(X, Y).
 
-find_active_1([#win{x=Wx,y=Wy,w=W,h=H,name=Name}|T], X, Y) ->
+window_below(X, Y) ->
+    All = reverse(sort(gb_trees:values(get(wm_windows)))),
+    window_below_1(All, X, Y).
+
+window_below_1([#win{x=Wx,y=Wy,w=W,h=H,name=Name}|T], X, Y) ->
     case {X-Wx,Y-Wy} of
-	{Rx,Ry} when 0 =< Rx, Rx < W,0 =< Ry, Ry < H ->
-	    Name;
-	_ -> find_active_1(T, X, Y)
+	{Rx,Ry} when 0 =< Rx, Rx < W,0 =< Ry, Ry < H -> Name;
+	_ -> window_below_1(T, X, Y)
     end;
-find_active_1(_, _, _) -> none.
+window_below_1(_, _, _) -> none.
 
 %%%
 %%% Utility functions.
