@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.60 2003/01/12 19:55:46 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.61 2003/01/12 20:50:41 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -25,7 +25,7 @@
 	 grab_focus/0,grab_focus/1,release_focus/0,has_focus/1,focus_window/0,
 	 top_size/0,viewport/0,viewport/1,
 	 win_size/0,win_ul/0,win_rect/0,
-	 win_size/1,win_ul/1,win_ur/1,win_z/1,win_rect/1,
+	 win_size/1,win_ul/1,win_ur/1,win_ll/1,win_z/1,win_rect/1,
 	 local2global/1,local2global/2,global2local/2,local_mouse_state/0,
 	 translation_change/0,me_modifiers/0,set_me_modifiers/1,
 	 draw_message/1,draw_completions/1,draw_resizer/2]).
@@ -309,6 +309,10 @@ win_ul(Name) ->
 win_ur(Name) ->
     #win{x=X,y=Y,w=W} = get_window_data(Name),
     {X+W,Y}.
+
+win_ll(Name) ->
+    #win{x=X,y=Y,h=H} = get_window_data(Name),
+    {X,Y+H}.
 
 win_z(Name) ->
     #win{z=Z} = get_window_data(Name),
