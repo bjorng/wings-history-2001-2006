@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.51 2003/06/03 08:27:13 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.52 2003/06/12 06:20:38 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -298,7 +298,6 @@ redraw(#ts{lines=Lines0,first=First}=Ts) ->
     wings_io:ortho_setup(),
     {W,H} = wings_wm:win_size(),
     wings_io:border(0, 0, W-1, H-1, {1.0,1.0,1.0}),
-    gl:color3f(0.0, 0.0, 0.0),
     gl:translated(4, 4+?LINE_HEIGHT, 0),
     Lines = lists:nthtail(First, Lines0),
     foldl(fun(L, Y) ->
@@ -332,7 +331,6 @@ handle_splash_event(redraw) ->
     wings_io:ortho_setup(),
     {Xs,Ys} = wings_wm:win_size(),
     wings_io:raised_rect(0, 0, Xs, Ys),
-    gl:color3f(0.0, 0.0, 0.0),
     gl:recti(3, 3, Xs-3, Ys-3),
     gl:color3f(1.0, 1.0, 1.0),
     gl:recti(4, 4, Xs-4, Ys-4),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.103 2003/05/22 19:53:03 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.104 2003/06/12 06:20:41 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -24,7 +24,7 @@
 	 poll_event/0,set_timer/2,cancel_timer/1]).
 
 -export([reset_grab/0,grab/0,ungrab/2,is_grabbed/0,warp/2]).
--export([ortho_setup/0]).
+-export([ortho_setup/0,ortho_setup/1]).
 
 -compile(inline).
 
@@ -98,9 +98,28 @@ make_font_dlists(C, Base) ->
 
 info(Info) ->
     ortho_setup(),
+    blend(wings_pref:get_value(info_background_color),
+	  fun(Color) ->
+		  set_color(Color),
+		  N = info_lines(Info),
+		  {W,_} = wings_wm:win_size(),
+		  gl:recti(0, 0, W, N*?LINE_HEIGHT)
+	  end),
     set_color(wings_pref:get_value(info_color)),
     text_at(4, ?CHAR_HEIGHT, Info).
 
+info_lines(Info) ->
+    info_lines_1(Info, 1).
+
+info_lines_1([$\n|T], Lines) ->
+    info_lines_1(T, Lines+1);
+info_lines_1([H|T], Lines) when is_list(H) ->
+    info_lines_1(T, info_lines_1(H, Lines));
+info_lines_1([_|T], Lines) ->
+    info_lines_1(T, Lines);
+info_lines_1([], Lines) -> Lines.
+
+blend({_,_,_,0.0}, _) -> ok;
 blend({_,_,_,1.0}=Color, Draw) -> Draw(Color);
 blend(Color, Draw) ->
     gl:enable(?GL_BLEND),
@@ -241,6 +260,14 @@ draw_reverse(S0) ->
     end.
 
 ortho_setup() ->
+    gl:color3f(0, 0, 0),
+    ortho_setup_1().
+
+ortho_setup(Color) ->
+    set_color(Color),
+    ortho_setup_1().
+
+ortho_setup_1() ->
     ?CHECK_ERROR(),
     gl:shadeModel(?GL_FLAT),
     gl:disable(?GL_DEPTH_TEST),
@@ -249,8 +276,7 @@ ortho_setup() ->
     {_,_,W,H} = wings_wm:viewport(),
     glu:ortho2D(0, W, H, 0),
     gl:matrixMode(?GL_MODELVIEW),
-    gl:loadIdentity(),
-    gl:color3f(0, 0, 0).
+    gl:loadIdentity().
 
 get_state() ->
     get(wings_io).

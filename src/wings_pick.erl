@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.94 2003/06/10 19:31:53 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.95 2003/06/12 06:20:41 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -97,8 +97,8 @@ get_hilite_event(HL) ->
 
 handle_hilite_event(redraw, #hl{redraw=#st{sel=[]}=St,prev={_,Where,{_,Elem}}}) ->
     Info = case Where of
-	       original -> io_lib:format("#~p\n", [Elem]);
-	       mirror -> io_lib:format("#~p (in mirror)\n", [Elem])
+	       original -> io_lib:format("#~p", [Elem]);
+	       mirror -> io_lib:format("#~p (in mirror)", [Elem])
 	   end,
     wings:redraw(Info, St),
     keep;

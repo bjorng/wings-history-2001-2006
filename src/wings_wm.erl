@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.110 2003/06/06 16:22:37 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.111 2003/06/12 06:20:42 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -403,7 +403,8 @@ viewport(Name) ->
     {X,Y,W,H}.
 
 win_size() ->
-    win_size(this()).
+    {_,_,W,H} = get(wm_viewport),
+    {W,H}.
 
 win_ul() ->
     win_ul(this()).
@@ -1136,8 +1137,7 @@ draw_resizer(X, Y) ->
     gl:disable(?GL_TEXTURE_2D).
 
 message_setup() ->
-    wings_io:ortho_setup(),
-    wings_io:set_color(?PANE_COLOR),
+    wings_io:ortho_setup(?PANE_COLOR),
     {W,H} = win_size(),
     gl:recti(0, 0, W, H),
     gl:color3i(0, 0, 0),

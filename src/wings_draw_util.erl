@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.78 2003/06/10 19:31:52 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.79 2003/06/12 06:20:36 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -223,7 +223,6 @@ render(#st{selmode=Mode}=St) ->
 		  ?GL_LINE_BIT bor ?GL_COLOR_BUFFER_BIT bor
 		  ?GL_LIGHTING_BIT),
     wings_io:ortho_setup(),
-    gl:color3f(0, 0, 0),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
     {W,H} = wings_wm:win_size(),
     gl:rectf(0.5, 0.5, W-0.5, H-0.5),
