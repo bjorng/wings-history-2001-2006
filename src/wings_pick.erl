@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.20 2001/12/13 11:35:45 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.21 2001/12/23 11:28:36 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -417,8 +417,11 @@ pick_all(DrawFaces, X0, Y0, W, H, St0) ->
     wings_view:perspective(),
     wings_view:model_transformations(),
     St = case DrawFaces of
-	     true -> select_draw(St0);
-	     false -> marque_draw(St0)
+	     true ->
+		 select_draw(St0);
+	     false ->
+		 marque_draw(St0),
+		 St0
 	 end,
     gl:flush(),
     case gl:renderMode(?GL_RENDER) of
