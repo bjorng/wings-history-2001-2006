@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_obj.erl,v 1.6 2002/09/18 13:16:06 bjorng Exp $
+%%     $Id: wpc_obj.erl,v 1.7 2002/10/28 18:00:16 bjorng Exp $
 %%
 
 -module(wpc_obj).
@@ -78,7 +78,9 @@ do_export(Ask, Op, _Exporter, St) when is_atom(Ask) ->
 	       end);
 do_export(Attr, _Op, Exporter, _St) when is_list(Attr) ->
     set_pref(Attr),
-    Exporter(props(), export_fun(Attr)).
+    SubDivs = proplists:get_value(subdivisions, Attr, 0),
+    Ps = [{subdivisions,SubDivs}|props()],
+    Exporter(Ps, export_fun(Attr)).
 
 export_fun(Attr) ->
     fun(Filename, Contents) ->
@@ -93,15 +95,19 @@ export_1(Filename, Contents0, Attr) ->
     end.
 
 dialog(import) ->
-    [{label,"Import scale"},{text,get_pref(import_scale, 1.0),[{key,import_scale}]},
-     {label,"(Export scale)"},{text,get_pref(export_scale, 1.0),[{key,export_scale}]}];
+    [{label_column,
+      [{"Import scale",{text,get_pref(import_scale, 1.0),[{key,import_scale}]}},
+       {"(Export scale)",{text,get_pref(export_scale, 1.0),[{key,export_scale}]}}]}];
 dialog(export) ->
     [{"One group per material",get_pref(group_per_material, true),
       [{key,group_per_material}]},
      {"Vue d'Esprit workaround",get_pref(dot_slash_mtllib, false),
       [{key,dot_slash_mtllib}]},
-     {label,"(Import scale)"},{text,get_pref(import_scale, 1.0),[{key,import_scale}]},
-     {label,"Export scale"},{text,get_pref(export_scale, 1.0),[{key,export_scale}]}].
+     {label_column,
+	[{"(Import scale)",{text,get_pref(import_scale, 1.0),[{key,import_scale}]}},
+	 {"Export scale",{text,get_pref(export_scale, 1.0),[{key,export_scale}]}},
+	 {"Sub-division Steps",{text,get_pref(subdivisions, 0),
+				[{key,subdivisions},{range,0,4}]}} ]} ].
 
 get_pref(Key, Def) ->
     wpa:pref_get(?MODULE, Key, Def).
