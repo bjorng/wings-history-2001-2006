@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_hotkey.erl,v 1.22 2002/05/11 08:47:50 bjorng Exp $
+%%     $Id: wings_hotkey.erl,v 1.23 2002/05/12 05:00:16 bjorng Exp $
 %%
 
 -module(wings_hotkey).
@@ -246,11 +246,9 @@ default_keybindings() ->
      {$r,               {view,reset}},
      {$R,               {wings,reset}},
      {$s,               {view,shade_selected}},
-     {$S,               {view,shade_all}},
      {$u,               {view,auto_rotate}},
      {$v,               {select,vertex}},
      {$w,               {view,wireframe_selected}},
-     {$W,               {view,wireframe_all}},
      {$x,               {view,{along,x}}},
      {$y,               {view,{along,y}}},
      {$z,               {view,{along,z}}},

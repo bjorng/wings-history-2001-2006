@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.53 2002/05/11 08:47:50 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.54 2002/05/12 05:00:16 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -33,10 +33,8 @@ menu(X, Y, St) ->
 	    {"Workmode",workmode,crossmark(workmode)},
 	    {"Smoothed Preview",smoothed_preview},
 	    separator,
-	    {"Wireframe Selected",wireframe_selected},
-	    {"Wireframe All",wireframe_all},
-	    {"Shade Selected",shade_selected},
-	    {"Shade All",shade_all},
+	    {"Wireframe",wireframe_selected},
+	    {"Shade",shade_selected},
 	    separator,
 	    {"Show Saved BB",show_bb,crossmark(show_bb)},
 	    {"Show Edges",show_edges,crossmark(show_edges)},
@@ -87,24 +85,23 @@ command(flatshade, St) ->
 command(smoothshade, St) ->
     wings_pref:set_value(workmode, false),
     St;
+command(wireframe_selected, #st{sel=[]}=St) ->
+    mode_change_all(true),
+    St;
 command(wireframe_selected, St) ->
     mode_change_sel(true),
     St;
-command(wireframe_all, St) ->
-    mode_change_all(true),
+command(shade_selected, #st{sel=[]}=St) ->
+    mode_change_all(false),
     St;
 command(shade_selected, St) ->
     mode_change_sel(false),
-    St;
-command(shade_all, St) ->
-    mode_change_all(false),
     St;
 command(orthogonal_view, St) ->
     toggle_option(orthogonal_view),
     St;
 command(show_textures, St) ->
     toggle_option(show_textures),
-    wings_draw:model_changed(),
     St;
 command(aim, St) ->
     aim(St),
@@ -125,9 +122,14 @@ command(rotate_left, St) ->
 command(align_to_selection, St) ->
     aim(St),
     align_to_selection(St);
-command(virtual_mirror, #st{selmode=face}=St) ->
-    wings_draw_util:update(fun virtual_mirror/2, []),
-    St#st{sel=[]};
+command(virtual_mirror, #st{sel=[],shapes=Shs0}=St) ->
+    case break_mirror(Shs0) of
+	Shs0 -> St;
+	Shs -> {save_state,St#st{shapes=Shs}}
+    end;
+command(virtual_mirror, #st{selmode=face}=St0) ->
+    St = wings_sel:map(fun virtual_mirror_fun/2, St0),
+    {save_state,St#st{sel=[]}};
 command(virtual_mirror, _) ->
     wings_util:error("Virtual mirror requires a face selection.");
 command(toggle_lights, St) ->
@@ -149,33 +151,25 @@ mode_change_all(eol, _) -> eol;
 mode_change_all(D, Wire) -> {D#dlo{wire=Wire},Wire}.
 
 mode_change_sel(Wire) ->
-    wings_draw_util:update(fun mode_change_sel/2, Wire).
+    wings_draw_util:map(fun mode_change_sel/2, Wire).
 
-mode_change_sel(eol, _) -> eol;
 mode_change_sel(#dlo{src_sel={_,_}}=D, Wire) -> {D#dlo{wire=Wire},Wire};
 mode_change_sel(D, Wire) -> {D,Wire}.
 
-virtual_mirror(eol, _) -> eol;
-virtual_mirror(#dlo{src_sel={face,Elems},src_we=We}=D, _) ->
-    case gb_sets:to_list(Elems) of
+virtual_mirror_fun(Faces, We) ->
+    case gb_sets:to_list(Faces) of
 	[Face] ->
-	    setup_virtual_mirror(D, Face, We);
+	    We#we{mirror=Face};
 	_ ->
 	    wings_util:error("Only a single face must be selected per object.")
-    end;
-virtual_mirror(D, _) -> D#dlo{mirror=none}.
+    end.
 
-setup_virtual_mirror(D, Face, We) ->
-    N = wings_face:normal(Face, We),
-    Vs = wings_face:surrounding_vertices(Face, We),
-    Center = wings_vertex:center(Vs, We),
-    RotBack = e3d_mat:rotate_to_z(N),
-    Rot = e3d_mat:transpose(RotBack),
-    Mat0 = e3d_mat:mul(e3d_mat:translate(Center), Rot),
-    Mat1 = e3d_mat:mul(Mat0, e3d_mat:scale(1.0, 1.0, -1.0)),
-    Mat2 = e3d_mat:mul(Mat1, RotBack),
-    Mat = e3d_mat:mul(Mat2, e3d_mat:translate(e3d_vec:neg(Center))),
-    D#dlo{mirror=e3d_mat:expand(Mat)}.
+break_mirror(Shapes) ->
+    foldl(fun(#we{mirror=none}, Shs) ->
+		  Shs;
+	     (#we{id=Id}=We, Shs) ->
+		  gb_trees:update(Id, We#we{mirror=none}, Shs)
+	  end, Shapes, gb_trees:values(Shapes)).
 
 %%%
 %%% The Auto Rotate command.
