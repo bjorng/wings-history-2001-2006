@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_pick.erl,v 1.12 2003/11/29 07:19:09 bjorng Exp $
+%%     $Id: auv_pick.erl,v 1.13 2004/01/26 10:51:54 bjorng Exp $
 %%
 
 -module(auv_pick).
@@ -556,13 +556,13 @@ draw_dlist(#dlo{pick=Pick,src_we=#we{id=Id}}=D) ->
 
 draw_1(We) ->
     Tess = wings_draw_util:tess(),
-    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_GLVERTEX),
-    glu:tessCallback(Tess, ?GLU_TESS_EDGE_FLAG, ?ESDL_TESSCB_NONE),
     glu:tessCallback(Tess, ?GLU_TESS_BEGIN, ?ESDL_TESSCB_GLBEGIN),
     glu:tessCallback(Tess, ?GLU_TESS_END, ?ESDL_TESSCB_GLEND),
+    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_GLVERTEX),
     draw_2(We),
-    wings_draw_util:init_cb(Tess),
-    gl:edgeFlag(?GL_TRUE).
+    glu:tessCallback(Tess, ?GLU_TESS_BEGIN, ?ESDL_TESSCB_NONE),
+    glu:tessCallback(Tess, ?GLU_TESS_END, ?ESDL_TESSCB_NONE),
+    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_VERTEX_DATA).
     
 draw_2(#we{name=Ch}=We) ->
     #ch{fs=Fs} = Ch,
