@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.163 2003/12/08 19:34:32 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.164 2004/01/25 16:03:34 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -780,7 +780,6 @@ mat_faces_1([{Mat,Faces}|T], We, Mtab) ->
 	true ->
 	    wings_draw_util:begin_end(fun() -> draw_uv_faces(Faces, We) end)
     end,
-    gl:edgeFlag(?GL_TRUE),
     gl:popAttrib(),
     mat_faces_1(T, We, Mtab);
 mat_faces_1([], _, _) -> ok.

@@ -3,12 +3,12 @@
 %%
 %%     This module implements the Smooth command for objects and faces.
 %%
-%%  Copyright (c) 2001-2003 Bjorn Gustavsson
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.64 2003/12/05 19:59:55 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.65 2004/01/25 16:03:39 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -612,7 +612,6 @@ mat_faces_1([{Mat,Faces}|T], We, Mtab) ->
 	    draw_uv_faces(Faces, We),
 	    gl:'end'()
     end,
-    gl:edgeFlag(?GL_TRUE),
     gl:popAttrib(),
     mat_faces_1(T, We, Mtab);
 mat_faces_1([], _, _) -> ok.

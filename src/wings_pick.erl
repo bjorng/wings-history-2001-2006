@@ -3,12 +3,12 @@
 %%
 %%     This module handles picking using OpenGL.
 %%
-%%  Copyright (c) 2001-2003 Bjorn Gustavsson
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.126 2003/11/29 07:19:09 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.127 2004/01/25 16:03:39 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -804,12 +804,8 @@ draw_dlist(#dlo{mirror=Matrix,pick=Pick,src_we=#we{id=Id}}=D) ->
 draw_1(#dlo{src_we=#we{perm=Perm}}=D) when ?IS_SELECTABLE(Perm) ->
     Tess = wings_draw_util:tess(),
     glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_GLVERTEX),
-    glu:tessCallback(Tess, ?GLU_TESS_EDGE_FLAG, ?ESDL_TESSCB_NONE),
-    glu:tessCallback(Tess, ?GLU_TESS_BEGIN, ?ESDL_TESSCB_GLBEGIN),
-    glu:tessCallback(Tess, ?GLU_TESS_END, ?ESDL_TESSCB_GLEND),
     draw_2(D),
-    wings_draw_util:init_cb(Tess),
-    gl:edgeFlag(?GL_TRUE);
+    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_VERTEX_DATA);
 draw_1(_) -> ok.
     
 draw_2(#dlo{ns=Ns,src_we=#we{mirror=Mirror}}) ->

@@ -3,16 +3,16 @@
 %%
 %%     Utilities for drawing objects.
 %%
-%%  Copyright (c) 2001-2003 Bjorn Gustavsson
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.117 2004/01/20 13:47:02 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.118 2004/01/25 16:03:38 bjorng Exp $
 %%
 
 -module(wings_draw_util).
--export([init/0,init_cb/1,delete_dlists/0,tess/0,begin_end/1,begin_end/2,
+-export([init/0,delete_dlists/0,tess/0,begin_end/1,begin_end/2,
 	 update/2,map/2,fold/2,changed_materials/1,
 	 render/1,call/1,
 	 prepare/3,
@@ -38,7 +38,12 @@ init() ->
     end,
     Tess = glu:newTess(),
     put(wings_tesselator, Tess),
-    init_cb(Tess),
+
+    glu:tessCallback(Tess, ?GLU_TESS_BEGIN, ?ESDL_TESSCB_GLBEGIN),
+    glu:tessCallback(Tess, ?GLU_TESS_END, ?ESDL_TESSCB_GLEND),
+    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_VERTEX_DATA),
+    glu:tessCallback(Tess, ?GLU_TESS_EDGE_FLAG, ?ESDL_TESSCB_NONE),
+    glu:tessCallback(Tess, ?GLU_TESS_COMBINE, ?ESDL_TESSCB_COMBINE),
 
     Dl = case get_dl_data() of
 	     undefined -> [];
@@ -66,13 +71,6 @@ init() ->
 	 16#AA,16#AA,16#AA,16#AA,16#55,16#55,16#55,16#55,
 	 16#AA,16#AA,16#AA,16#AA,16#55,16#55,16#55,16#55>>,
     gl:polygonStipple(P).
-
-init_cb(Tess) ->
-    glu:tessCallback(Tess, ?GLU_TESS_BEGIN, ?ESDL_TESSCB_NONE),
-    glu:tessCallback(Tess, ?GLU_TESS_END, ?ESDL_TESSCB_NONE),
-    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_VERTEX_DATA),
-    glu:tessCallback(Tess, ?GLU_TESS_EDGE_FLAG, ?ESDL_TESSCB_GLEDGEFLAG),
-    glu:tessCallback(Tess, ?GLU_TESS_COMBINE, ?ESDL_TESSCB_COMBINE).
 
 delete_dlists() ->
     case erase(wings_wm:get_prop(display_lists)) of
