@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.34 2002/03/02 14:29:35 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.35 2002/03/02 21:26:11 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -54,55 +54,68 @@ prune_defaults(List) ->
     List -- defaults().
 
 menu(_St) ->
-    [{"Color Preferences",fun(_, _) ->
-				  {edit,{preferences,color_prefs}}
-			  end,[],[]},
-     {"Other Preferences",fun(_, _) ->
-				  {edit,{preferences,other_prefs}}
-			  end,[],[]}].
+    [{"Preferences",fun(_, _) ->
+			    {edit,{preferences,prefs}}
+		    end,[],[]}].
 
-command(color_prefs, St) ->
-    Qs0 = [{"Background Color",background_color},
-	   {"Grid Color",grid_color},
-	   {"Face Color",face_color},
-	   {"Hard Edge Color",hard_edge_color},
-	   separator,
-	   {"Selection Color",selected_color},
-	   {"Unselected Hilite",unselected_hlite},
-	   {"Selected Hilite",selected_hlite},
-	   separator,
-	   {"+X Color",x_color},
-	   {"+Y Color",y_color},
-	   {"+Z Color",z_color},
-	   {"-X Color",neg_x_color},
-	   {"-Y Color",neg_y_color},
-	   {"-Z Color",neg_z_color}],
-    Qs = make_query(Qs0),
-    wings_ask:ask(Qs, St, fun(Res) -> {edit,{preferences,{set,Res}}} end);
-command(other_prefs, St) ->
-    Qs0 = [{"Vertex Size",vertex_size},
-	   {"Selected Vertex Size",selected_vertex_size},
-	   {"Edge Width",edge_width},
-	   {"Selected Edge Width",selected_edge_width},
-	   {"Auto-save interval (min)",autosave_time},
-	   {hframe,[{"Vertices",vertex_hilite},
-		    {"Edges",edge_hilite},
-		    {"Faces",face_hilite},
-		    {"Objects",body_hilite}],
+command(prefs, St) ->
+    Qs0 = [{hframe,
+	    [{vframe,
+	      [{"Unselected Size",vertex_size},
+	       {"Selected Size",selected_vertex_size}],
+	      [{title,"Vertex Display"}]},
+	     {vframe,
+	      [{"Unselected Width",edge_width},
+	       {"Selected Width",selected_edge_width}],
+	      [{title,"Edge Display"}]}],
+	    []},
+	   {hframe,
+	    [{color,"Background",background_color},
+	     {color,"Face",face_color},
+	     {color,"Selection",selected_color},
+	     {color,"Hard Edges",hard_edge_color}],
+	    [{title,"Colors"}]},
+	   {hframe,
+	    [{color,"Color",grid_color},
+	     {"Force Axis-Aligned Grid",force_show_along_grid}],
+	    [{title,"Grid"}]},
+	   {vframe,
+	    [{hframe,
+	      [{"Vertices",vertex_hilite},
+	       {"Edges",edge_hilite},
+	       {"Faces",face_hilite},
+	       {"Objects",body_hilite}],[]},
+	     {hframe,
+	      [{color,"Unselected",unselected_hlite},
+	       {color,"Selected",selected_hlite}],[]}],
 	    [{title,"Highlighting"}]},
 	   {hframe,
-	    [{vframe,[{"Size",active_vector_size},
+	    [{vframe,[{"Length",active_vector_size},
 		     {"Width",active_vector_width},
-		     {"Color",active_vector_color}],
+		     {color,"Color",active_vector_color}],
 	      [{title,"Vector Display"}]},
 	     {vframe,[{"Angle",auto_rotate_angle},
 		      {"Delay (ms)",auto_rotate_delay}],
 	      [{title,"Auto Rotate"}]}],[]},
-	   {"Show Axis Letters",show_axis_letters},
-	   {"Force Axis-aligned Grid",force_show_along_grid},
-	   {"Show Memory Used",show_memory_used},
-	   {"Display List Optimization",display_list_opt},
-	   {"Advanced Menus",advanced_menus}],
+	   {hframe,
+	    [{vframe,
+	      [{"Show Axis Letters",show_axis_letters},
+	       {hframe,
+		[{color,"+X Color",x_color},
+		 {color,"-X Color",neg_x_color}],[]},
+	       {hframe,
+		[{color,"+Y Color",y_color},
+		 {color,"-Y Color",neg_y_color}],[]},
+	       {hframe,
+		[{color,"+Z Color",z_color},
+		 {color,"-Z Color",neg_z_color}],[]}],
+	      [{title,"Axes"}]},
+	     {vframe,
+	      [{"Auto-save interval (min)",autosave_time},
+	       {"Show Memory Used",show_memory_used},
+	       {"Display List Optimization",display_list_opt},
+	       {"Advanced Menus",advanced_menus}],
+	      [{title,"Miscellanous"}]}],[]}],
     Qs = make_query(Qs0),
     wings_ask:ask(Qs, St, fun(Res) -> {edit,{preferences,{set,Res}}} end);
 command({set,List}, _St) ->
@@ -125,6 +138,9 @@ make_query([_|_]=List)  ->
 make_query({Str,Key}) when is_list(Str) ->
     Def = get_value(Key),
     {Str,Def,[{key,Key}]};
+make_query({color,Str,Key}) when is_list(Str) ->
+    Def = get_value(Key),
+    {color,Str,Def,[{key,Key}]};
 make_query(Tuple) when is_tuple(Tuple) ->
     list_to_tuple([make_query(El) || El <- tuple_to_list(Tuple)]);
 make_query(Other) -> Other.
