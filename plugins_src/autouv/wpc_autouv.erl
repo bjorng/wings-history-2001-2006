@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.149 2003/08/15 09:48:44 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.150 2003/08/16 08:53:00 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -596,14 +596,15 @@ redraw(#uvstate{mode=Mode,geom=Geom}=Uvs0) ->
     Uvs.
 
 command_menu(body, X,Y, _Uvs) ->
-    Rotate = [{"Z    Free",  free, "Drag mouse to rotate free"},
-	      {"Z   90 deg", 90, " "},
-	      {"Z  -90 deg", -90, " "},
-	      {"Z  180 deg", 180, " "},
+    Rotate = [{"Free", free, "Rotate freely"},
+	      {"90"++[?DEGREE]++" CW",-90,
+	       "Rotate selection 90 degrees clockwise"},
+	      {"90"++[?DEGREE]++" CCW",90,
+	       "Rotate selection 90 degrees counter-clockwise"},
+	      {"180"++[?DEGREE],180,"Rotate selection 180 degrees"},
 	      separator,
-	      {"X  180 deg", rot_x_180, "Flip Y coordinates"},
-	      {"Y  180 deg", rot_y_180, "Flip X coordinates"}],
-
+	      {"Flip Horizontal",flip_horizontal,"Flip selection horizontally"},
+	      {"Flip Vertical",flip_vertical,"Flip selection vertically"}],
     Menu = [{"Face Group operations", ignore},
 	    separator,
 	    {"Move", move, "Move selected faces"},
@@ -797,29 +798,26 @@ handle_event_1(_Event, Uvs) ->
 %     get_event(reset_dl(Uvs0#uvstate{areas=RscAreas}));
 handle_command({rotate,free}, Uvs) ->
     handle_command(rotate, Uvs);
-handle_command({rotate,Deg}, #uvstate{mode=Mode,sel=Sel0}=Uvs0) ->
-    Uvs = case Deg of
-	      rot_y_180 ->
-		  Sel = [transpose_x(Mode, A) || A <- Sel0],
-		  Uvs0#uvstate{sel=Sel};
-	      rot_x_180 ->
-		  Sel = [transpose_y(Mode, A) || A <- Sel0],
-		  Uvs0#uvstate{sel=Sel};
-	      Deg ->
-		  Sel = [rotate_chart(C, Deg) || C <- Sel0],
-		  Uvs0#uvstate{op=undefined,sel=Sel}
-	  end,
+handle_command({rotate,flip_horizontal}, Uvs0) ->
+    Uvs = sel_map(fun(_, We) -> flip_horizontal(We) end, Uvs0),
+    get_event(Uvs);
+handle_command({rotate,flip_vertical}, Uvs0) ->
+    Uvs = sel_map(fun(_, We) -> flip_vertical(We) end, Uvs0),
+    get_event(Uvs);
+handle_command({rotate,Deg}, Uvs0) ->
+    Uvs = sel_map(fun(_, We) -> rotate_chart(Deg, We) end, Uvs0),
     get_event(Uvs);
 handle_command(_, #uvstate{sel=[]}) ->
     keep;
 handle_command(NewOp, Uvs) ->
     get_event(Uvs#uvstate{op=#op{name=NewOp,undo=Uvs}}).
 
-handle_mousemotion(#mousemotion{xrel = DX0, yrel = DY0, x=MX0,y=MY0}, Uvs0) ->
-    #uvstate{geom={X0Y0,MW0,X0Y0,MH0},op=Op,sel=Sel0}=Uvs0,
+handle_mousemotion(#mousemotion{x=MX0,y=MY0}, Uvs0) ->
+    #uvstate{geom={X0Y0,MW0,X0Y0,MH0},op=Op}=Uvs0,
     {_,_,W,H} = wings_wm:viewport(),
     {DX,DY} = case Op#op.prev of 
-		  undefined -> {DX0,DY0}; 
+		  undefined -> {0,0};
+						% {DX0,DY0}; 
 		  {MX1,MY1}->  %% Don't trust relative mouse event
 		      {MX0-MX1, MY0-MY1}
 	      end,
@@ -827,16 +825,14 @@ handle_mousemotion(#mousemotion{xrel = DX0, yrel = DY0, x=MX0,y=MY0}, Uvs0) ->
     MH = -(MH0-X0Y0) * DY/H,
 %%    ?DBG("Viewp ~p ~p ~p ~p ~p ~p~n", [MW,MH,DX,DY,MX,MY]),
     NewOp = Op#op{prev={MX0,MY0}},
-    case Op#op.name of
-	move ->
-	    Sel = [move_chart(A, 4*MW, 4*MH) || A <- Sel0],
-	    get_event(Uvs0#uvstate{sel=Sel,op=NewOp});
-	rotate ->
-	    Sel1 = [rotate_chart(A, MW*180)|| A <- Sel0],
-	    get_event(Uvs0#uvstate{sel = Sel1, op=NewOp});
-	_ ->
-	    keep
-    end.
+    Uvs1 = Uvs0#uvstate{op=NewOp},
+    Uvs = case Op#op.name of
+	      move ->
+		  sel_map(fun(_, We) -> move_chart(4*MW, 4*MH, We) end, Uvs1);
+	      rotate ->
+		  sel_map(fun(_, We) -> rotate_chart(MW*180, We) end, Uvs1)
+	  end,
+    get_event(Uvs).
 
 drag_filter({image,_,_}) ->
     {yes,"Drop: Change the texture image"};
@@ -903,24 +899,29 @@ wings_select_faces(As, Id, St) ->
 
 %%%% GUI Operations
 
-move_chart({Id,We}, Dx, Dy) ->
+move_chart(Dx, Dy, We) ->
     Translate = e3d_mat:translate(Dx, Dy, 0.0),
-    {Id,wings_we:transform_vs(Translate, We)}.
+    wings_we:transform_vs(Translate, We).
 
-rotate_chart({Id,We}, Angle) ->
+rotate_chart(Angle, We) ->
     Center = wings_vertex:center(We),
     Rot0 = e3d_mat:translate(e3d_vec:neg(Center)),
     Rot1 = e3d_mat:mul(e3d_mat:rotate(float(trunc(Angle)), {0.0,0.0,1.0}), Rot0),
     Rot = e3d_mat:mul(e3d_mat:translate(Center), Rot1),
-    {Id,wings_we:transform_vs(Rot, We)}.
+    wings_we:transform_vs(Rot, We).
 
-transpose_x(body, {Id,#we{vp=Vpos0}=We}) ->
-    Vpos = [{V,{-X,Y,Z}} || {V,{X,Y,Z}} <- gb_trees:to_list(Vpos0)],
-    {Id,We#we{vp=gb_trees:from_orddict(Vpos)}}.
+flip_horizontal(We) ->
+    flip(e3d_mat:scale(-1.0, 1.0, 1.0), We).
 
-transpose_y(body, {Id,#we{vp=Vpos0}=We}) ->
-    Vpos = [{Nr, {X,-Y,Z}} || {Nr, {X,Y,Z}} <- gb_trees:to_list(Vpos0)],
-    {Id,We#we{vp=gb_trees:from_orddict(Vpos)}}.
+flip_vertical(We) ->
+    flip(e3d_mat:scale(1.0, -1.0, 1.0), We).
+
+flip(Flip, We) ->
+    Center = wings_vertex:center(We),
+    T0 = e3d_mat:translate(e3d_vec:neg(Center)),
+    T1 = e3d_mat:mul(Flip, T0),
+    T = e3d_mat:mul(e3d_mat:translate(Center), T1),
+    wings_we:transform_vs(T, We).
 
 % rescale_all(Charts0) ->
 %     Charts = gb_trees:values(Charts0),
@@ -1105,3 +1106,7 @@ merge_chart_lists(NewAreas, AreaTree) ->
     foldl(fun({K,#we{}=Chart}, TreeBB) when is_integer(K) ->
  		  gb_trees:insert(K, Chart, TreeBB) 
  	  end, AreaTree, NewAreas).
+
+sel_map(F, #uvstate{sel=Sel0}=Uvs) ->
+    Sel = [{Id,F(0, We)} || {Id,We} <- Sel0],
+    Uvs#uvstate{sel=Sel}.
