@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.178 2004/06/11 09:55:41 raimo_niskanen Exp $
+%%     $Id: wings_ask.erl,v 1.179 2004/06/13 01:24:58 raimo_niskanen Exp $
 %%
 
 -module(wings_ask).
@@ -336,7 +336,8 @@ ask_unzip([], Labels, Vals) ->
 %%     Flags = {range,{Min,Max}}|{width,CharW}|{password,Bool}|RegularFlag
 %%     CharW = integer() >= 1
 %%         %% Min and Max should be of same type as Def and is not
-%%         %% allowed with a String field.
+%%         %% allowed with a String field. 
+%%         %% Min can also be '-infinity' and Max 'infinity'.
 %%         %% CharW is in characters. Default width is 30 for
 %%         %% String fields, 8 for integer() and 12 for float().
 %%
@@ -2924,6 +2925,11 @@ validator(Val, _Flags) when is_list(Val) ->
 integer_validator(Flags) ->
     case proplists:get_value(range, Flags) of
 	undefined -> {8,fun accept_all/1,fun all_chars/1};
+	{'-infinity',infinity} -> {8,fun accept_all/1,fun all_chars/1};
+	{Min,infinity} when is_integer(Min) ->
+	    {20,integer_range(Min, infinity),fun all_chars/1};
+	{'-infinity',Max} when is_integer(Max) ->
+	    {20,integer_range('-infinity', Max),fun all_chars/1};
 	{Min,Max} when is_integer(Min), is_integer(Max), Min =< Max ->
 	    Digits = trunc(math:log(Max-Min+1)/math:log(10))+2,
 	    {Digits,integer_range(Min, Max),fun all_chars/1}
@@ -2932,6 +2938,11 @@ integer_validator(Flags) ->
 float_validator(Flags) ->
     case proplists:get_value(range, Flags) of
 	undefined -> {12,fun accept_all/1,fun all_chars/1};
+	{'-infinity',infinity} -> {12,fun accept_all/1,fun all_chars/1};
+	{Min,infinity} when is_float(Min) ->
+	    {20,float_range(Min, infinity),fun all_chars/1};
+	{'-infinity',Max} when is_float(Max) ->
+	    {20,float_range('-infinity', Max),fun all_chars/1};
 	{Min,Max} when is_float(Min), is_float(Max), Min =< Max ->
 	    Digits = min(trunc(math:log(Max-Min+1)/math:log(10))+8, 20),
 	    {Digits,float_range(Min, Max),fun all_chars/1}
@@ -2963,9 +2974,14 @@ all_chars(_) -> true.
 integer_range(Min, Max) ->
     fun(Str) ->
 	    case eval_integer(Str) of
-		error -> integer_to_list(Min);
-		Int when Int < Min -> integer_to_list(Min);
-		Int when Int > Max -> integer_to_list(Max);
+		error when Min =/= '-infinity' -> 
+		    integer_to_list(Min);
+		error when Max =/= infinity -> 
+		    integer_to_list(Max);
+		Int when Min =/= '-infinity', Int < Min -> 
+		    integer_to_list(Min);
+		Int when Max =/= infinity, Int > Max -> 
+		    integer_to_list(Max);
 		Int when is_integer(Int) -> ok
 	    end
     end.
@@ -2973,9 +2989,14 @@ integer_range(Min, Max) ->
 float_range(Min, Max) ->
     fun(Str) ->
 	    case eval_float(Str) of
-		error -> wings_util:nice_float(Min);
-		Float when Float < Min -> wings_util:nice_float(Min);
-		Float when Float > Max -> wings_util:nice_float(Max);
+		error when Min =/= '-infinity' -> 
+		    wings_util:nice_float(Min);
+		error when Max =/= infinity -> 
+		    wings_util:nice_float(Max);
+		Float when Min =/= '-infinity', Float < Min -> 
+		    wings_util:nice_float(Min);
+		Float when Max =/= infinity, Float > Max -> 
+		    wings_util:nice_float(Max);
 		Float when is_float(Float) -> ok
 	    end
     end.
