@@ -8,13 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_getline.erl,v 1.12 2002/07/12 07:40:53 bjorng Exp $
+%%     $Id: wings_getline.erl,v 1.13 2002/11/17 18:19:21 bjorng Exp $
 %%
 
 -module(wings_getline).
 -export([filename/2,string/1,string/2,yes_no/1]).
 
--import(lists, [reverse/1,reverse/2,prefix/2,nthtail/2]).
+-import(lists, [reverse/1,reverse/2,prefix/2,nthtail/2,member/2]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -147,10 +147,10 @@ key(C, #text{bef=Bef0}=Ts0) when $\s =< C, C < 256 ->
 key(_, Ts) -> Ts.
 
 complete(#text{ext=undefined}=Ts) -> Ts;
-complete(#text{ext=Ext,bef=Bef0,aft=[]}=Ts) ->
+complete(#text{ext=Exts,bef=Bef0,aft=[]}=Ts) ->
     Wc = reverse(Bef0, "*"),
     Alts0 = filelib:wildcard(Wc),
-    Alts = transform_names(Alts0, Ext, []),
+    Alts = transform_names(Alts0, Exts, []),
     case match(reverse(Bef0), Alts) of
 	no -> Ts;
 	{yes,Chars} ->
@@ -158,16 +158,19 @@ complete(#text{ext=Ext,bef=Bef0,aft=[]}=Ts) ->
     end;
 complete(Ts) -> Ts.
 
-transform_names([N|Ns], Ext, Acc) ->
+transform_names([N|Ns], Exts, Acc) ->
     case filelib:is_dir(N) of
-	true -> transform_names(Ns, Ext, [N++"/"|Acc]);
+	true -> transform_names(Ns, Exts, [N++"/"|Acc]);
 	false ->
-	    case filename:extension(N) of
-		Ext -> transform_names(Ns, Ext, [N|Acc]);
-		_ -> transform_names(Ns, Ext, Acc)
+	    case is_good_extension(filename:extension(N), Exts) of
+		true -> transform_names(Ns, Exts, [N|Acc]);
+		false -> transform_names(Ns, Exts, Acc)
 	    end
     end;
 transform_names([], _, Acc) -> Acc.
+
+is_good_extension(Ext, Exts) ->
+    member(Ext, Exts).
 
 update(#text{bef=BefC,aft=AftC,x=X,y=Y}, #text{bef=BefP,aft=AftP}) ->
     update(reverse(BefC, AftC), reverse(BefP, AftP), X, Y).
