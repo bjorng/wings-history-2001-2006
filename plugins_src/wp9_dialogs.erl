@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp9_dialogs.erl,v 1.39 2004/02/05 06:47:38 bjorng Exp $
+%%     $Id: wp9_dialogs.erl,v 1.40 2004/02/21 20:47:42 raimo_niskanen Exp $
 %%
 
 -module(wp9_dialogs).
@@ -209,7 +209,7 @@ dir_menu(Dir0, Acc) ->
 		_ -> {filename:basename(Dir0),Dir0}
 	    end,
     case filename:dirname(Dir0) of
-	Dir0 -> reverse(Acc, [Entry]);
+	Dir0 -> [Entry|Acc];
 	Dir -> dir_menu(Dir, [Entry|Acc])
     end.
 
