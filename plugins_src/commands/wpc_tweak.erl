@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.31 2003/04/16 05:34:12 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.32 2003/04/16 07:57:07 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -38,8 +38,7 @@
 	 pos0,				  	%Original position.
 	 pos,					%Current position.
 	 mag,
-	 mm,					%original|mirror
-	 plane
+	 mm					%original|mirror
 	 }).
 
 -record(mag,
@@ -225,12 +224,11 @@ begin_drag(MM, St, T) ->
 begin_drag_fun(#dlo{src_we=We}=D, _, _, _) when ?IS_LIGHT(We) -> D;
 
 begin_drag_fun(#dlo{src_sel={Mode,Els},src_we=We}=D0, MM, St, T) ->
-    [V|_] = Vs0 = sel_to_vs(Mode, gb_sets:to_list(Els), We),
+    Vs0 = sel_to_vs(Mode, gb_sets:to_list(Els), We),
     Center = wings_vertex:center(Vs0, We),
     {Vs,Magnet} = begin_magnet(T, Vs0, Center, We),
     D = wings_draw:split(D0, Vs, St),
-    Plane = mirror_plane(V, We),
-    D#dlo{drag=#drag{vs=Vs0,pos0=Center,pos=Center,mag=Magnet,mm=MM,plane=Plane}};
+    D#dlo{drag=#drag{vs=Vs0,pos0=Center,pos=Center,mag=Magnet,mm=MM}};
 begin_drag_fun(D, _, _, _) -> D.
 
 end_drag(#tweak{st=St0}=T) ->
@@ -260,12 +258,11 @@ do_tweak(DX, DY) ->
 				do_tweak(D, DX, DY)
 			end, []).
     				
-do_tweak(#dlo{drag=#drag{pos=Pos0,mag=Mag0,mm=MM,plane=Plane}=Drag,
+do_tweak(#dlo{drag=#drag{pos=Pos0,mag=Mag0,mm=MM}=Drag,
 	      src_we=#we{id=Id}}=D0, DX, DY) ->
     Matrices = wings_util:get_matrices(Id, MM),
     {Xs,Ys,Zs} = obj_to_screen(Matrices, Pos0),
-    Pos1 = screen_to_obj(Matrices, {Xs+DX,Ys-DY,Zs}),
-    Pos = mirror_constrain(Plane, Pos1),
+    Pos = screen_to_obj(Matrices, {Xs+DX,Ys-DY,Zs}),
     {Vtab,Mag} = magnet_tweak(Mag0, Pos),
     D = D0#dlo{sel=none,drag=Drag#drag{pos=Pos,mag=Mag}},
     wings_draw:update_dynamic(D, Vtab);
@@ -280,11 +277,6 @@ screen_to_obj({MVM,PM,VP}, {Xs,Ys,Zs}) ->
 	{true, X,Y,Z} -> {X,Y,Z};
 	{1, X,Y,Z} -> {X,Y,Z}			%Workaround for new ESDL (ugly).
     end.
-
-mirror_plane(_, #we{mirror=none}) -> none;
-mirror_plane(V, #we{mirror=Face}=We) ->
-    MirrorVs = wpa:face_vertices(Face, We),
-    mirror_plane(V, MirrorVs, We).
 
 mirror_plane(V, MirrorVs, We) ->
     case member(V, MirrorVs) of
@@ -386,7 +378,7 @@ near(Center, Vs, MagVs, MirrorVs, #tweak{mag_r=R,mag_type=Type}, We) ->
 	      end, [], MagVs),
     foldl(fun(V, A) ->
 		  Plane = mirror_plane(V, MirrorVs, We),
-		  Pos = wings_vertex:pos(V, We),
+		  Pos = wpa:vertex_pos(V, We),
 		  [{V,Pos,Plane,0.0,1.0}|A]
 	  end, M, Vs).
     
@@ -396,7 +388,6 @@ mf(spike, D0, R) when is_float(D0), is_float(R) ->
     D = (R-D0)/R,
     D*D.
 
-magnet_tweak(none, _)  -> {[],none};
 magnet_tweak(#mag{orig=Orig,vs=Vs}=Mag, Pos) ->
     Vec = e3d_vec:sub(Pos, Orig),
     Vtab = foldl(fun({V,P0,Plane,_,Inf}, A) ->
@@ -406,7 +397,6 @@ magnet_tweak(#mag{orig=Orig,vs=Vs}=Mag, Pos) ->
 		 end, [], Vs),
     {Vtab,Mag#mag{vtab=Vtab}}.
 
-magnet_end(none, Vtab) -> Vtab;
 magnet_end(#mag{vtab=Vs}, Vtab) ->
     foldl(fun({V,Vtx}, Vt) ->
 		  gb_trees:update(V, Vtx, Vt)
