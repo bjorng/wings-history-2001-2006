@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.62 2003/02/24 05:02:16 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.63 2003/03/07 18:34:03 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -19,6 +19,7 @@
 	 rmb_format/1,
 	 message/1,message/2,yes_no/1,
 	 get_matrices/2,mirror_matrix/1,
+	 mirror_flatten/2,
 	 cap/1,upper/1,stringify/1,add_vpos/2,update_vpos/2,
 	 gb_trees_smallest_key/1,gb_trees_largest_key/1,
 	 nice_float/1,
@@ -130,6 +131,21 @@ mirror_matrix(Id) ->
 
 mirror_matrix(#dlo{mirror=Matrix,src_we=#we{id=Id}}, Id) -> Matrix;
 mirror_matrix(_, Acc) -> Acc.
+
+mirror_flatten(_, #we{mirror=none}=We) -> We;
+mirror_flatten(OldWe, #we{mirror=Face,vp=Vtab0}=We) ->
+    PlaneNormal = wings_face:normal(Face, OldWe),
+    FaceVs = wings_face:to_vertices(gb_sets:singleton(Face), OldWe),
+    Origin = wings_vertex:center(FaceVs, OldWe),
+    M0 = e3d_mat:translate(Origin),
+    M = e3d_mat:mul(M0, e3d_mat:project_to_plane(PlaneNormal)),
+    Flatten = e3d_mat:mul(M, e3d_mat:translate(e3d_vec:neg(Origin))),
+    Vtab = foldl(fun(V, Vt) ->
+			 Pos0 = gb_trees:get(V, Vt),
+			 Pos = e3d_mat:mul_point(Flatten, Pos0),
+			 gb_trees:update(V, Pos, Vt)
+		 end, Vtab0, wings_face:surrounding_vertices(Face, We)),
+    We#we{vp=Vtab}.
 
 rel2fam(Rel) ->
     sofs:to_external(sofs:relation_to_family(sofs:relation(Rel))).

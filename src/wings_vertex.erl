@@ -3,12 +3,12 @@
 %%
 %%     This module contains utility functions for vertices.
 %%
-%%  Copyright (c) 2001-2002 Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex.erl,v 1.36 2002/12/26 22:37:18 bjorng Exp $
+%%     $Id: wings_vertex.erl,v 1.37 2003/03/07 18:34:03 bjorng Exp $
 %%
 
 -module(wings_vertex).
@@ -267,12 +267,13 @@ flatten(Vs, PlaneNormal, We) when is_list(Vs) ->
 flatten(Vs, PlaneNormal, We) ->
     flatten(gb_sets:to_list(Vs), PlaneNormal, We).
 
-flatten(Vs, PlaneNormal, Center, #we{vp=Vtab0}=We) when is_list(Vs) ->
+flatten(Vs, PlaneNormal, Center, #we{vp=Vtab0}=We0) when is_list(Vs) ->
     Flatten = flatten_matrix(Center, PlaneNormal),
     Vtab = foldl(fun(V, Tab0) ->
-			 flatten_move(V, Flatten, We, Tab0)
+			 flatten_move(V, Flatten, Tab0)
 		 end, Vtab0, Vs),
-    We#we{vp=Vtab};
+    We = We0#we{vp=Vtab},
+    wings_util:mirror_flatten(We0, We);
 flatten(Vs, PlaneNormal, Center, We) ->
     flatten(gb_sets:to_list(Vs), PlaneNormal, Center, We).
 
@@ -281,25 +282,10 @@ flatten_matrix(Origin, PlaneNormal) ->
     M = e3d_mat:mul(M0, e3d_mat:project_to_plane(PlaneNormal)),
     e3d_mat:mul(M, e3d_mat:translate(e3d_vec:neg(Origin))).
 
-flatten_move(V, Matrix, We, Tab0) ->
+flatten_move(V, Matrix, Tab0) ->
     Pos0 = gb_trees:get(V, Tab0),
-    Pos1 = e3d_mat:mul_point(Matrix, Pos0),
-    Pos = mirror_constrain(V, Pos1, We),
+    Pos = e3d_mat:mul_point(Matrix, Pos0),
     gb_trees:update(V, Pos, Tab0).
-
-mirror_constrain(_, Pos, #we{mirror=none}) -> Pos;
-mirror_constrain(V, Pos, #we{mirror=Face}=We) ->
-    MirrorVs = wings_face:surrounding_vertices(Face, We),
-    case member(V, MirrorVs) of
-	false -> Pos;
-	true ->
-	    Plane = wings_face:face_normal(MirrorVs, We),
-	    Point = pos(hd(MirrorVs), We),
-	    ToPoint = e3d_vec:sub(Point, Pos),
-	    Dot = e3d_vec:dot(ToPoint, Plane),
-	    ToPlane = e3d_vec:mul(Plane, Dot),
-	    e3d_vec:add(Pos, ToPlane)
-    end.
 
 %% dissolve(Vertex, We) -> We|error
 %%  Remove a "winged vertex" - a vertex with exactly two edges.

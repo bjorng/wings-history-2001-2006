@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.74 2003/03/01 17:01:25 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.75 2003/03/07 18:34:02 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -593,7 +593,8 @@ smooth(Faces0, #we{id=Id}=We0, Acc) ->
     We1 = smooth_regions(Rs, We0),
     NewFaces = wings_we:new_items(face, We0, We1),
     NewVs = wings_we:new_items(vertex, We0, We1),
-    We = smooth_connect(NewVs, NewFaces, We1),
+    We2 = smooth_connect(NewVs, NewFaces, We1),
+    We = wings_util:mirror_flatten(We0, We2),
     {We,[{Id,NewFaces}|Acc]}.
 
 smooth_regions([Faces0|Rs], #we{he=Htab}=We0) ->
@@ -618,18 +619,25 @@ smooth_connect(Vs, Faces0, We0) ->
     FaceVs1 = sofs:from_external(FaceVs0, [{face,[vertex]}]),
     FaceVs2 = sofs:drestriction(FaceVs1, Faces),
     FaceVs = sofs:to_external(FaceVs2),
-    smooth_connect_1(FaceVs, We0).
+    smooth_connect_0(FaceVs, We0).
 
-smooth_connect_1([{Face,[V]}|Fvs], We0) ->
-    Iter0 = wings_face:iterator(Face, We0),
+smooth_connect_0([{Face,Vs}|Fvs], #we{fs=Ftab}=We0) ->
+    case gb_trees:get(Face, Ftab) of
+	#face{mat='_hole_'} ->
+	    smooth_connect_0(Fvs, We0);
+	_ ->
+	    We = smooth_connect_1(Face, Vs, We0),
+	    smooth_connect_0(Fvs, We)
+    end;
+smooth_connect_0([], We) -> We.
+
+smooth_connect_1(Face, [V], We) ->
+    Iter0 = wings_face:iterator(Face, We),
     IterCw = wings_face:skip_to_cw(V, Iter0),
     IterCcw = wings_face:skip_to_ccw(V, Iter0),
-    We = smooth_connect_2(IterCw, IterCcw, V, Face, We0),
-    smooth_connect_1(Fvs, We);
-smooth_connect_1([{Face,Vs}|Fvs], We0) ->
-    We = wings_vertex:connect(Face, Vs, We0),
-    smooth_connect_1(Fvs, We);
-smooth_connect_1([], We) -> We.
+    smooth_connect_2(IterCw, IterCcw, V, Face, We);
+smooth_connect_1(Face, Vs, We) ->
+    wings_vertex:connect(Face, Vs, We).
 
 smooth_connect_2(IterCw0, IterCcw0, V, Face, We0) ->
     case {wings_face:next_cw(IterCw0),wings_face:next_ccw(IterCcw0)} of
