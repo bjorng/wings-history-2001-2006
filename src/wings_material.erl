@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.93 2003/04/22 04:22:50 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.94 2003/04/25 19:38:37 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -706,9 +706,16 @@ merge([{M,_}|T]=L) ->
 	false -> merge_1(L, [])
     end.
 
-merge_1([{M,#we{fs=Ftab}}|T], Acc) ->
-    merge_1(T, [force_list(M, Ftab)|Acc]);
+merge_1([{M,#we{es=Etab}}|T], Acc) when is_atom(M) ->
+    FsM = merge_2(gb_trees:values(Etab), M, []),
+    merge_1(T, [FsM|Acc]);
+merge_1([{FsM,_}|T], Acc) ->
+    merge_1(T, [FsM|Acc]);
 merge_1([], Acc) -> lists:merge(Acc).
+
+merge_2([#edge{lf=Lf,rf=Rf}|T], M, Acc) ->
+    merge_2(T, M, [{Lf,M},{Rf,M}|Acc]);
+merge_2([], _, Acc) -> ordsets:from_list(Acc).
 
 all_same([{M,_}|T], M) ->
     all_same(T, M);
