@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.120 2003/08/31 19:43:45 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.121 2003/09/01 17:27:03 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -431,11 +431,10 @@ raw_pick(X0, Y0, St) ->
     gl:enable(?GL_CULL_FACE),
     draw(),
     gl:disable(?GL_CULL_FACE),
-    case get_hits(HitBuf) of
+    Hits = get_hits(HitBuf),
+    case best_face_hit(Hits) of
 	none -> none;
-	Hits ->
-	    {Id,Face} = best_face_hit(Hits),
-	    convert_hit(Id, Face, X, Y, St)
+	{Id,Face} -> convert_hit(Id, Face, X, Y, St)
     end.
 
 update_selection({Mode,MM,{Id,Item}}, #st{sel=Sel0}=St) ->
@@ -469,7 +468,7 @@ update_selection(Id, Item, [], Acc) ->
 get_hits(HitBuf) ->
     gl:flush(),
     case gl:renderMode(?GL_RENDER) of
-	0 -> none;
+	0 -> [];
 	NumHits ->
  	    HitData = sdl_util:read(HitBuf, 5*NumHits),
  	    get_hits_1(NumHits, HitData, [])
@@ -483,40 +482,54 @@ get_hits_1(N, [2,_,_,A,B|T], Acc) ->
 %%% Filter face hits to obtain just one hit.
 %%%
 
+best_face_hit([]) -> none;
 best_face_hit([Hit]) -> Hit;
 best_face_hit(Hits0) ->
     Hits = sort([{abs(Id),Id,Face} || {Id,Face} <- Hits0]),
-    EyePoint = wings_view:eye_point(),
+    {_,_,W,H} =  wings_wm:viewport(),
+    Model = gl:getDoublev(?GL_MODELVIEW_MATRIX),
+    Proj = gl:getDoublev(?GL_PROJECTION_MATRIX),
+    ViewPort = {0,0,W,H},
+    Orig = glu:unProject(0, 0, 0, Model, Proj, ViewPort),
+    Dir0 = glu:unProject(0, 0, 0.5, Model, Proj, ViewPort),
+    Dir = e3d_vec:norm(e3d_vec:sub(Dir0, Orig)),
+    ViewRay = {Orig,Dir},
     {_,Best,_} = wings_draw_util:fold(fun(D, A) ->
-					      best_face_hit_1(D, EyePoint, A) end,
+					      best_face_hit_1(D, ViewRay, A) end,
 				      {Hits,none,infinite}),
     Best.
 
-best_face_hit_1(#dlo{src_we=#we{id=Id}=We}, EyePoint,
+best_face_hit_1(#dlo{src_we=#we{id=Id}=We,ns=Ns}, EyePoint,
 		{[{Id,_,_}|_],_,_}=A) ->
-    best_face_hit_2(We, EyePoint, A);
+    best_face_hit_2(We, Ns, EyePoint, A);
 best_face_hit_1(_, _, A) -> A.
 
-best_face_hit_2(#we{id=AbsId}=We, EyePoint, {[{AbsId,Id,Face}|Hits],PrevHit,DistSqr0}) ->
-    Mtx = if 
-	      Id < 0 -> wings_util:mirror_matrix(AbsId);
-	      true -> identity
-	  end,
-    Vs = wings_face:vertices_cw(Face, We),
-    Center = mul_point(Mtx, wings_vertex:center(Vs, We)),
-    Vec = e3d_vec:sub(Center, EyePoint),
-    DistSqr = e3d_vec:dot(Vec, Vec),
-    A = if
-	    DistSqr < DistSqr0 ->
-		{Hits,{Id,Face},DistSqr};
+best_face_hit_2(#we{id=AbsId}=We, Ns, Ray, {[{AbsId,Id,Face}|Hits],Hit0,T0}) ->
+    case gb_trees:get(Face, Ns) of
+	[N|[P0|_]] -> ok;
+	{N,[P0|_]} -> ok
+    end,
+    P = if 
+	    Id < 0 ->
+		e3d_mat:mul_point(wings_util:mirror_matrix(AbsId), P0);
 	    true ->
-		{Hits,PrevHit,DistSqr0}
+		P0
 	end,
-    best_face_hit_2(We, EyePoint, A);
-best_face_hit_2(_, _, A) -> A.
-
-mul_point(identity, P) -> P;
-mul_point(Mtx, P) -> e3d_mat:mul_point(Mtx, P).
+    {Orig,Dir} = Ray,
+    A = case e3d_vec:dot(N, Dir) of
+	    Den when abs(Den) < 1.0e-20 ->
+		{Hits,Hit0,T0};
+	    Den ->
+		T = (e3d_vec:dot(N, P) - e3d_vec:dot(N, Orig)) / Den,
+		if
+		    T < T0 ->
+			{Hits,{Id,Face},T};
+		    true ->
+			{Hits,Hit0,T0}
+		end
+	end,
+    best_face_hit_2(We, Ns, Ray, A);
+best_face_hit_2(_, _, _, A) -> A.
 
 %%
 %% Given a face selection hit, return the correct vertex/edge/face/body.
