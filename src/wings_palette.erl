@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_palette.erl,v 1.2 2004/05/13 14:03:24 bjorng Exp $
+%%     $Id: wings_palette.erl,v 1.3 2004/05/14 05:25:40 bjorng Exp $
 %%
 -module(wings_palette).
 
@@ -93,8 +93,8 @@ event(close, #pst{cols=Cols}) ->
     put(?MODULE, Cols),
     delete;
 event(got_focus, _) ->
-    Msg = wings_util:button_format("Set Color on selection", [],
-				   "Show Palette menu "),
+    Msg = wings_util:button_format("Assign color to selection", [],
+				   "Show menu"),
     wings_wm:message(Msg),
     wings_wm:dirty();
 event({current_state,St}, Pst) ->
