@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.130 2003/11/28 15:35:03 raimo_niskanen Exp $
+%%     $Id: wings_ask.erl,v 1.131 2003/11/28 18:28:01 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -901,7 +901,7 @@ mktree_container_1([Q|Qs], Sto0, I0, R) ->
     {Fi,Sto,I} = mktree(Q, Sto0, I0),
     mktree_container_1(Qs, Sto, I, [Fi|R]).
 
--record(oframe, {style,				%menu|tabs
+-record(oframe, {style,				%menu|tabs|buttons
 		 w,h,				%header size
 		 titles}).			%tuple() of list()
 
@@ -920,6 +920,12 @@ mktree_oframe(Qs, Def, Sto0, I0, Flags) when integer(Def), Def >= 1 ->
 			   fun (Title, Width) ->
 				   max(wings_text:width(Title), Width)
 			   end, 0, Titles),
+			 ?LINE_HEIGHT+10};
+		    buttons -> 
+			{lists:foldl(
+			   fun (Title, Width) ->
+				   2*Cw+Width+wings_text:width(Title)
+			   end, 10+2*Cw, Titles),
 			 ?LINE_HEIGHT+10};
 		    tabs -> 
 			{lists:foldl(
@@ -1338,6 +1344,15 @@ oframe_event(#mousebutton{x=Xb,button=1,state=?SDL_PRESSED},
 			Other -> Other
 		    end
 	    end;
+	#oframe{style=buttons,titles=Titles} ->
+	    case oframe_which_tab(X, Xb, Titles) of
+		undefined -> keep;
+		Val ->
+		    case hook(Hook, update, [var(Key, I), I, Val, Sto0]) of
+			{store,Sto} -> {layout,Sto};
+			Other -> Other
+		    end
+	    end;
 	#oframe{style=menu} ->
 	    oframe_event({key,$\s,0,$\s}, Path, Sto0)
     end;
@@ -1355,7 +1370,8 @@ oframe_event({key,$\s,0,$\s}, [#fi{x=X,y=Y,key=Key,index=I}|_], Sto) ->
 	#oframe{w=W,style=menu,titles=Titles} ->
 	    Menu = oframe_menu(Titles),
 	    menu_popup(X+10, Y, W, Menu, gb_trees:get(var(Key, I), Sto), []);
-	#oframe{style=tabs} -> keep
+	#oframe{style=tabs} -> keep;
+	#oframe{style=button} -> keep
     end;
 oframe_event({key,_,_,2}, Path, Sto) -> % Ctrl-B
     oframe_step(-1, Path, Sto);
@@ -1371,7 +1387,8 @@ oframe_which_tab(X0, Xb, Titles, Cw, I) when I =< size(Titles) ->
     W = Cw + wings_text:width(element(I, Titles)) + Cw,
     if  Xb < X0+W -> I;
 	true -> oframe_which_tab(X0+W, Xb, Titles, Cw, I+1)
-    end.
+    end;
+oframe_which_tab(_, _, _, _, _) -> undefined.
 
 oframe_menu(Titles) -> oframe_menu(Titles, 1).
 
@@ -1412,6 +1429,23 @@ oframe_redraw(Active,
 		  gl:'end'()
 	  end),
     oframe_redraw_titles(Active, X0, Y0, Ht-5, I, Titles),
+    keep;
+oframe_redraw(Active, 
+	      #fi{x=X0,y=Y0,w=W0,h=H0,extra=#container{active=I}},
+	      #oframe{style=buttons,h=Ht,titles=Titles}) ->
+    Y = Y0+((Ht-10+4) div 2),
+    H = H0-(Y-Y0+5),
+    ColLow = color4_lowlight(),
+    ColHigh = color4_highlight(),
+    blend(fun(_Col) ->
+		  gl:'begin'(?GL_LINES),
+ 		  hline(X0, Y, W0, ColLow, ColHigh),
+		  hline(X0, Y+H-2, W0, ColLow, ColHigh),
+		  vline(X0, Y+1, H-4, ColLow, ColHigh),
+		  vline(X0+W0, Y+1, H-4, ColLow, ColHigh),
+		  gl:'end'()
+	  end),
+    oframe_redraw_titles(Active, X0+10, Y0, Ht-5, I, Titles),
     keep.
 
 oframe_redraw_titles(Focus, X, Y, H, Active, Titles) -> 
@@ -1454,6 +1488,16 @@ oframe_step(Step, [#fi{key=Key,index=I,hook=Hook,
 		       extra=#container{fields=Fields}}|_], Sto0) ->
     case gb_trees:get(-I, Sto0) of
 	#oframe{style=tabs} ->
+	    Var = var(Key, I),
+	    Val = gb_trees:get(Var, Sto0) + Step,
+	    if 1 =< Val, Val =< size(Fields) ->
+		    case hook(Hook, update, [Var, I, Val, Sto0]) of
+			{store,Sto} -> {layout,Sto};
+			Other -> Other
+		    end;
+	       true -> keep
+	    end;
+	#oframe{style=buttons} ->
 	    Var = var(Key, I),
 	    Val = gb_trees:get(Var, Sto0) + Step,
 	    if 1 =< Val, Val =< size(Fields) ->
