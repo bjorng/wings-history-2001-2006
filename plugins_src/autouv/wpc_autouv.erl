@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.237 2004/05/10 12:31:23 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.238 2004/05/10 13:49:59 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -369,26 +369,51 @@ command_menu(body, X, Y) ->
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu);
 command_menu(face, X, Y) ->
+    Scale = scale_directions(),
+    Rotate = rotate_directions(),
     Menu = [{basic,{"Face operations",ignore}},
-	    {"Move",move,"Move selected faces"}
+	    {"Move",move,"Move selected faces",[magnet]},
+	    {"Scale",{scale,Scale},"Scale selected faces"},
+	    {"Rotate",{rotate,Rotate},"Rotate selected faces"}
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu);
 command_menu(edge, X, Y) ->
+    Scale = scale_directions(),
+    Rotate = rotate_directions(),
     Menu = [{basic,{"Edge operations",ignore}},
 	    {basic,separator},
-	    {"Move",move,"Move selected edges"}
+	    {"Move",move,"Move selected edges",[magnet]},
+	    {"Scale",{scale,Scale},"Scale selected edges"},
+	    {"Rotate",{rotate,Rotate},"Rotate selected edges"}
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu);
 command_menu(vertex, X, Y) ->
-    Scale =  [{"Uniform",    scale_uniform, "Scale in both directions"},
-	      {"Horizontal", scale_x, "Scale horizontally (X dir)"},
-	      {"Vertical",   scale_y, "Scale vertically (Y dir)"}],
+    Scale = scale_directions(),
+    Rotate = rotate_directions(),
     Menu = [{basic,{"Vertex operations",ignore}},
 	    {basic,separator},
-	    {"Move",move,"Move selected vertices"},
-	    {"Scale",{scale,Scale},"Scale selected vertices"}
+	    {"Move",move,"Move selected vertices",[magnet]},
+	    {"Scale",{scale,Scale},"Scale selected vertices"},
+	    {"Rotate",{rotate,Rotate},"Rotate selected vertices"}
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu).
+
+scale_directions() ->
+    [{"Uniform",    scale_uniform, "Scale in both directions"},
+     {"Horizontal", scale_x, "Scale horizontally (X dir)"},
+     {"Vertical",   scale_y, "Scale vertically (Y dir)"}].
+
+rotate_directions() ->
+    [{"Free",free,"Rotate freely"},
+     {"90"++[?DEGREE]++" CW",-90,
+      "Rotate selection 90 degrees clockwise"},
+     {"90"++[?DEGREE]++" CCW",90,
+      "Rotate selection 90 degrees counter-clockwise"},
+     {"180"++[?DEGREE],180,"Rotate selection 180 degrees"},
+     separator,
+     {"Flip Horizontal",flip_horizontal,"Flip selection horizontally"},
+     {"Flip Vertical",flip_vertical,"Flip selection vertically"}].
+
 
 option_menu() ->
     [separator,
@@ -454,6 +479,9 @@ handle_event_1({action,{auv,{remap,Method}}}, St0) ->
 handle_event_1({action,{auv,quit}}, _St) ->
     cleanup_before_exit(),
     delete;
+handle_event_1({vec_command,Command,_St}, _) when is_function(Command) ->
+    %% Use to execute command with vector arguments (see wings_vec.erl).
+    catch Command();
 handle_event_1(close, _St) ->
     cleanup_before_exit(),
     delete;
@@ -474,19 +502,19 @@ handle_event_1(got_focus, _) ->
     Message = wings_util:join_msg([Msg1,Msg2,Msg3]),
     wings_wm:message(Message),
     wings_wm:dirty();
-handle_event_1(_Event, St) ->
-    ?DBG("Got unhandled Event ~p ~n", [_Event]),
-    get_event(St).
+handle_event_1(_, _) ->
+    keep.
 
 new_state(#st{bb=#uvstate{}=Uvs}=St0) ->
     GeomSt = update_geom_selection(St0),
     St1 = St0#st{bb=Uvs#uvstate{st=GeomSt}},
     St = update_selected_uvcoords(St1),
     get_event(St).
-%%    get_event(St#st{selmode=body,sh=false}).
 
 handle_command(move, St) ->
     drag(wings_move:setup(free_2d, St));
+handle_command({move,Magnet}, St) ->
+    drag(wings_move:setup({free_2d,Magnet}, St));
 handle_command({scale,scale_uniform}, St) ->
     drag(wings_scale:setup({uniform,center}, St));
 handle_command({scale,scale_x}, St) ->
@@ -511,6 +539,8 @@ handle_command(tighten, St) ->
     tighten(St);
 handle_command(delete, St) ->
     get_event(delete_charts(St));
+handle_command({'ASK',Ask}, St) ->
+    wings:ask(Ask, St, fun handle_command/2);
 handle_command(_, #st{sel=[]}) ->
     keep.
 
@@ -920,5 +950,5 @@ geom2auv_vs_1([], _, _, Acc) -> sort(Acc).
 auv2geom_edges(Es, #we{name=#ch{me=Me}}) ->
     Es -- Me.
 
-geom2auv_edges(Es, We) ->
+geom2auv_edges(Es, _We) ->
     Es.

@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.55 2004/05/08 17:46:39 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.56 2004/05/10 13:49:59 bjorng Exp $
 
 -module(auv_segment).
 
@@ -861,14 +861,10 @@ collect_maybe_add(Work, Face, {Faces,Edges}, We, Res) ->
 	      end
       end, Work, Face, We).
 
-%%%
-%%% Given a model having UV coordinates, partition it into charts.
-%%%
 
-uv_to_charts(Faces0, Dict, We) ->
-    Faces = gb_sets:from_list(Faces0),
-    Cuts = gb_sets:from_list(wings_face:inner_edges(Faces0, We)),
-    uv_to_charts_1(Faces, We, Dict, Cuts, []).
+%%%
+%%% Build a map {F,V} => UV.
+%%%
 
 fv_to_uv_map(Fs, We) ->
     fv_to_uv_map(Fs, We, []).
@@ -878,6 +874,15 @@ fv_to_uv_map([F|Fs], We, Acc0) ->
     fv_to_uv_map(Fs, We, Acc);
 fv_to_uv_map([], _, Acc) ->
     gb_trees:from_orddict(sort(Acc)).
+
+%%%
+%%% Given a model having UV coordinates, partition it into charts.
+%%%
+
+uv_to_charts(Faces0, Dict, We) ->
+    Faces = gb_sets:from_list(Faces0),
+    Cuts = gb_sets:from_list(wings_face:inner_edges(Faces0, We)),
+    uv_to_charts_1(Faces, We, Dict, Cuts, []).
 
 uv_to_charts_1(Faces0, We, D, Cuts0, Charts) ->
     case gb_trees:is_empty(Faces0) of
