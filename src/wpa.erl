@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.28 2003/05/04 07:13:30 bjorng Exp $
+%%     $Id: wpa.erl,v 1.29 2003/05/04 10:00:41 bjorng Exp $
 %%
 -module(wpa).
 -export([ask/3,ask/4,dialog/3,dialog/4,error/1,yes_no/1,
 	 bind_unicode/2,bind_virtual/3,
-	 import/2,import/3,import_filename/1,
+	 import/2,import/3,import_filename/2,
 	 export/3,export_selected/3,export_filename/2,
 	 pref_get/2,pref_get/3,pref_set/2,pref_set/3,pref_delete/2,
 	 sel_get/1,sel_set/2,sel_set/3,sel_map/2,sel_fold/3,sel_convert/3,
@@ -25,9 +25,12 @@
 	 face_dissolve/2,
 	 edge_loop_vertices/2,
 	 obj_name/1,obj_id/1,
-	 camera_info/1,lights/1,
+	 camera_info/1,lights/1,import_lights/2,
 	 image_formats/0,image_read/1
 	]).
+
+%% Not recommended.
+-export([import_filename/1]).
 
 -include("wings.hrl").
 -include("e3d.hrl").
@@ -77,9 +80,19 @@ import(#e3d_file{}=E3dFile, St) ->
 import(Props, Importer, St) ->
     wings_file:import(Props, Importer, St).
 
+%% This function is not recommend. It will be removed in
+%% a future release. Use import_filename/2 instead.
+%%
 %% returns: FilenameString | aborted
 import_filename(Prop) ->
     wings_file:import_filename(Prop).
+
+%% The Continuation fun will be called like this
+%%
+%%     Continuation(aborted | {error,Message} | Filename)
+%%
+import_filename(Props, Continuation) ->
+    Continuation(wings_file:import_filename(Props)).
 
 export(Props, Exporter, St) ->
     wings_file:export(Props, Exporter, St),
@@ -272,6 +285,9 @@ camera_info([], _) -> [].
 
 lights(St) ->
     wings_light:export(St).
+
+import_lights(Lights, St) ->
+    wings_light:import(Lights, St).
 
 %%%
 %%% Images.
