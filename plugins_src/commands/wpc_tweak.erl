@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.3 2002/05/14 07:04:09 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.4 2002/05/15 11:42:37 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -21,10 +21,12 @@
 -include_lib("wings.hrl").
 -include_lib("e3d.hrl").
 
+-import(lists, [member/2]).
+
 -record(tweak,
 	{tmode,					% wait or drag
-	 ox,oy,					% Original X,Y
-	 cx,cy,					% Current X,Y`
+	 ox,oy,					% original X,Y
+	 cx,cy,					% current X,Y
 	 orig_st,				% keeps undo, selection
 	 st}).					% wings st record (working)
 
@@ -153,11 +155,12 @@ begin_drag(MM, St) ->
 				begin_drag_fun(D, MM, St)
 			end, []).
 
-begin_drag_fun(#dlo{src_sel={vertex,Vs0},src_we=#we{vs=Vtab}}=D0, MM, St) ->
+begin_drag_fun(#dlo{src_sel={vertex,Vs0},src_we=#we{vs=Vtab}=We}=D0, MM, St) ->
     [V] = Vs = gb_sets:to_list(Vs0),
     Vtx = gb_trees:get(V, Vtab),
     {D,SplitData} = wings_draw:split(D0, Vs, St),
-    D#dlo{drag={V,Vtx,MM,SplitData}};
+    Plane = mirror_plane(V, We),
+    D#dlo{drag={V,Vtx,MM,Plane,SplitData}};
 begin_drag_fun(D, _, _) -> D.
 
 end_drag(#tweak{st=St0}=T) ->
@@ -167,7 +170,7 @@ end_drag(#tweak{st=St0}=T) ->
     wings_io:message(help()),
     update_tweak_handler(T#tweak{tmode=wait,st=St}).
 
-end_drag(#dlo{src_we=#we{id=Id},drag={V,Vtx,_,_}}=D, #st{shapes=Shs0}=St0) ->
+end_drag(#dlo{src_we=#we{id=Id},drag={V,Vtx,_,_,_}}=D, #st{shapes=Shs0}=St0) ->
     #we{vs=Vtab0} = We0 = gb_trees:get(Id, Shs0),
     Vtab = gb_trees:update(V, Vtx, Vtab0),
     We = We0#we{vs=Vtab},
@@ -181,14 +184,15 @@ do_tweak(DX, DY) ->
 				do_tweak(D, DX, DY)
 			end, []).
 				
-do_tweak(#dlo{drag={V,#vtx{pos=Pos0}=Vtx0,MM,SplitData},
+do_tweak(#dlo{drag={V,#vtx{pos=Pos0}=Vtx0,MM,Plane,SplitData},
 	      src_we=#we{id=Id}}=D0, DX, DY) ->
     Matrices = wings_util:get_matrices(Id, MM),
     {Xs,Ys,Zs} = obj_to_screen(Matrices, Pos0),
-    Pos = screen_to_obj(Matrices, {Xs+DX,Ys-DY,Zs}),
+    Pos1 = screen_to_obj(Matrices, {Xs+DX,Ys-DY,Zs}),
+    Pos = mirror_constrain(Plane, Pos1),
     Vtx = Vtx0#vtx{pos=Pos},
     Vtab = [{V,Vtx}],
-    D = D0#dlo{sel=none,drag={V,Vtx,MM,SplitData}},
+    D = D0#dlo{sel=none,drag={V,Vtx,MM,Plane,SplitData}},
     wings_draw:update_dynamic(D, SplitData, Vtab);
 do_tweak(D, _, _) -> D.
 
@@ -199,3 +203,18 @@ obj_to_screen({MVM,PM,VP}, {X,Y,Z}) ->
 screen_to_obj({MVM,PM,VP}, {Xs,Ys,Zs}) ->
     {true, X,Y,Z} = glu:unProject(Xs, Ys, Zs, MVM, PM, VP),
     {X,Y,Z}.
+
+mirror_plane(V, #we{mirror=none}) -> none;
+mirror_plane(V, #we{mirror=Face}=We) ->
+    Vs = wpa:face_vertices(Face, We),
+    case member(V, Vs) of
+	false -> none;
+	true -> {wings_face:face_normal(Vs, We),wpa:vertex_pos(hd(Vs), We)}
+    end.
+
+mirror_constrain(none, Pos) -> Pos;
+mirror_constrain({Plane,Point}, Pos) ->
+    ToPoint = e3d_vec:sub(Point, Pos),
+    Dot = e3d_vec:dot(ToPoint, Plane),
+    ToPlane = e3d_vec:mul(Plane, Dot),
+    e3d_vec:add(Pos, ToPlane).

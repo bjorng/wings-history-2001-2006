@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.81 2002/05/14 19:59:08 dgud Exp $
+%%     $Id: wings_drag.erl,v 1.82 2002/05/15 11:42:38 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -17,6 +17,8 @@
 -define(NEED_ESDL, 1).
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
+
+-define(CAMMAX, 150).
 
 -import(lists, [foreach/2,map/2,foldl/3,sort/1,keysort/2,
 		reverse/1,reverse/2,concat/1,member/2]).
@@ -86,14 +88,15 @@ break_apart(#dlo{src_we=#we{id=Id}=We}=D0, [{Id,TvList}|Tvs], St) ->
     {D#dlo{drag={FunList,SplitData}},Tvs};
 break_apart(D, Tvs, _) -> {D,Tvs}.
 
-combine_tvs(TvList, #we{vs=Vtab}) ->
+combine_tvs(TvList, #we{vs=Vtab}=We) ->
     {FunList,VecVs0} = split_tv(TvList, [], []),
-    SS = sofs:from_term(VecVs0, [{vec,[vertex]}]),
+    VecVs1 = mirror_constrain(VecVs0, We),
+    SS = sofs:from_term(VecVs1, [{vec,[vertex]}]),
     FF = sofs:relation_to_family(SS),
     FU = sofs:family_union(FF),
-    VecVs1 = sofs:to_external(FU),
+    VecVs2 = sofs:to_external(FU),
     Affected = foldl(fun({_,Vs}, A) -> Vs++A end, [], VecVs1),
-    case insert_vtx_data(VecVs1, Vtab, []) of
+    case insert_vtx_data(VecVs2, Vtab, []) of
 	[] -> combine_tv_1(FunList, Affected, []);
 	VecVs -> combine_tv_1(FunList, Affected, [translate_fun(VecVs)])
     end.
@@ -125,6 +128,25 @@ insert_vtx_data([], _Vtab, Acc) -> Acc.
 insert_vtx_data_1([V|Vs], Vtab, Acc) ->
     insert_vtx_data_1(Vs, Vtab, [{V,gb_trees:get(V, Vtab)}|Acc]);
 insert_vtx_data_1([], _Vtab, Acc) -> Acc.
+
+mirror_constrain(VecVs, #we{mirror=none}) -> VecVs;
+mirror_constrain(VecVs0, #we{mirror=Face}=We) ->
+    Vs = wings_face:surrounding_vertices(Face, We),
+    VsSet = gb_sets:from_list(Vs),
+    N = wings_face:face_normal(Vs, We),
+    VecVs1 = sofs:from_external(VecVs0, [{vec,[vertex]}]),
+    VecVs2 = sofs:family_to_relation(VecVs1),
+    VecVs = sofs:to_external(VecVs2),
+    mirror_constrain_1(VecVs, N, VsSet, []).
+
+mirror_constrain_1([{Vec0,V}|T], N, VsSet, Acc) ->
+    case gb_sets:is_member(V, VsSet) of
+	false -> mirror_constrain_1(T, N, VsSet, [{Vec0,[V]}|Acc]);
+	true ->
+	    Vec = wings_util:project_vector(Vec0, N),
+	    mirror_constrain_1(T, N, VsSet, [{Vec,[V]}|Acc])
+    end;
+mirror_constrain_1([], _, _, Acc) -> Acc.
 
 insert_matrix(Tvs) ->
     Id = e3d_mat:identity(),
@@ -313,8 +335,6 @@ motion(X, Y, Drag0) ->
     Move = constrain(Dx0, Dy0, Drag),
     {motion_update(Move, Drag),Move}.
 
--define(CAMMAX, 150).
-
 mouse_range(X0, Y0, #drag{x=OX,y=OY,xs=Xs0,ys=Ys0, xt=Xt0, yt=Yt0}=Drag) ->
 %%    io:format("Mouse Range ~p ~p~n", [{X0,Y0}, {OX,OY,Xs0,Ys0}]),
     XD0 = (X0 - OX),
@@ -495,6 +515,7 @@ norm_update([], Old, Acc) ->
 redraw(#drag{st=St}) ->
     wings_draw_util:map(fun clear_sel_dlists/2, []),
     wings_draw:update_sel_dlist(),
+    wings_draw:update_mirror(),
     wings_draw_util:render(St),
     wings_io:update(St).
 

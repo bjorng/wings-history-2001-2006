@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.37 2002/05/12 17:36:01 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.38 2002/05/15 11:42:38 bjorng Exp $
 %%
 
 -module(wings_util).
--export([error/1,share/1,share/3,make_vector/1,
+-export([error/1,share/1,share/3,make_vector/1,project_vector/2,
 	 message/2,yes_no/1,serious_yes_no/1,
 	 get_matrices/2,mirror_matrix/1,
 	 cap/1,upper/1,stringify/1,add_vpos/2,update_vpos/2,
@@ -46,6 +46,9 @@ make_vector(z) -> {0.0,0.0,1.0};
 make_vector(free) -> free;
 make_vector(normal) -> normal;
 make_vector(intrude) -> normal.
+
+project_vector(Vec, Plane) ->
+    e3d_vec:sub(Vec, e3d_vec:mul(Plane, e3d_vec:dot(Vec, Plane))).
 
 message(Message, St) ->
     %% XXX Dirty kludge until we get windows working. Store St where
