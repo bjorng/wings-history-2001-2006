@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.82 2002/05/15 11:42:38 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.83 2002/05/15 12:07:51 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -515,7 +515,6 @@ norm_update([], Old, Acc) ->
 redraw(#drag{st=St}) ->
     wings_draw_util:map(fun clear_sel_dlists/2, []),
     wings_draw:update_sel_dlist(),
-    wings_draw:update_mirror(),
     wings_draw_util:render(St),
     wings_io:update(St).
 
