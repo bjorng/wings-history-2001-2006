@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.104 2003/03/01 06:37:42 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.105 2003/03/01 07:31:30 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -18,6 +18,9 @@
 	 current/0,set_current/1,
 	 projection/0,perspective/0,
 	 model_transformations/0,model_transformations/1,eye_point/0]).
+
+%% XXX Just to eliminate warnings.
+-export([subd_preview/1]).
 
 -define(NEED_ESDL, 1).
 -define(NEED_OPENGL, 1).
@@ -107,6 +110,11 @@ command(workmode, St) ->
     St;
 command(smoothed_preview, St) ->
     ?SLOW(smoothed_preview(St));
+% XXX Not in this release.
+%     case wings_wm:get_prop(workmode) of
+% 	false -> ?SLOW(smoothed_preview(St));
+% 	true -> ?SLOW(subd_preview(St))
+%     end;		    
 command(toggle_wireframe, #st{sel=[]}=St) ->
     mode_change_all(toggle, St),
     St;
@@ -466,6 +474,7 @@ smooth_event_1(_, _) -> keep.
 
 smooth_exit(#sm{st=St}) ->
     wings_wm:later({new_state,St}),
+    invalidate_smoothed(),
     wings_wm:dirty(),
     pop.
 
@@ -618,6 +627,185 @@ smooth_edges(_Plain, Cool, false, #sm{edge_style=cool}) ->
     gl:shadeModel(?GL_FLAT),
     gl:color3f(1, 1, 1),
     wings_draw_util:call(Cool).
+
+%%%
+%%% Subdivied Preview.
+%%%
+
+-record(sub,
+	{st					%State
+	}).
+
+subd_preview(St) ->
+    Sm = #sub{st=St},
+    subd_help(Sm),
+    subd_dlist(St),
+    wings_wm:dirty(),
+    Active = wings_wm:active_window(),
+    wings_wm:callback(fun() ->
+			      wings_util:menu_restriction(Active, [view])
+		      end),
+    {seq,push,get_subd_event(Sm)}.
+
+subd_help(_) ->
+    Normal = wings_util:button_format([], [], "Normal Mode"),
+    wings_wm:message(Normal).
+
+get_subd_event(Sm) ->
+    {replace,fun(Ev) -> subd_event(Ev, Sm) end}.
+
+subd_event(Ev, Sm) ->
+    case wings_camera:event(Ev, fun() -> subd_redraw(Sm) end) of
+	next -> subd_event_1(Ev, Sm);
+	Other -> Other
+    end.
+
+subd_event_1(redraw, Sm) ->
+    subd_redraw(Sm),
+    keep;
+subd_event_1(got_focus, Sm) ->
+    subd_help(Sm),
+    wings_wm:dirty();
+subd_event_1(#mousemotion{}, _) -> keep;
+subd_event_1(#mousebutton{state=?SDL_PRESSED}, _) -> keep;
+subd_event_1(#mousebutton{button=3,state=?SDL_RELEASED}, Sm) ->
+    subd_exit(Sm);
+subd_event_1(#keyboard{keysym=#keysym{sym=?SDLK_ESCAPE}}, Sm) ->
+    subd_exit(Sm);
+subd_event_1(#keyboard{}=Kb, _) ->
+    case wings_hotkey:event(Kb) of
+	next -> keep;
+	Action -> wings_wm:send(wings_wm:active_window(), {action,Action})
+    end;
+subd_event_1({action,{view,View}}, #sm{st=St}=Sm) ->
+    case View of
+	workmode ->
+	    subd_exit(Sm);
+	smoothed_preview ->
+	    subd_exit(Sm);
+	{along,_Axis}=Cmd ->
+	    command(Cmd, St),
+	    wings_wm:dirty(),
+	    keep;
+	reset ->
+	    reset(),
+	    wings_wm:dirty(),
+	    keep;
+	orthogonal_view ->
+	    toggle_option(orthogonal_view),
+	    wings_wm:dirty(),
+	    keep;
+	toggle_lights ->
+	    toggle_lights(),
+	    wings_wm:dirty(),
+	    keep;
+	auto_rotate ->
+	    auto_rotate(fun() -> subd_redraw(Sm) end);
+	_ ->
+	    keep
+    end;
+subd_event_1(init_opengl, #sub{st=St}) ->
+    wings:init_opengl(St),
+    pop;
+subd_event_1(quit, Sm) ->
+    wings_wm:later(quit),
+    subd_exit(Sm);
+subd_event_1({current_state,#st{shapes=Shs}=St}, #sub{st=#st{shapes=Shs}}=Sm) ->
+    subd_refresh_dlist(St),
+    get_subd_event(Sm#sub{st=St});
+subd_event_1({current_state,St}, Sm) ->
+    subd_dlist(St),
+    wings_wm:dirty(),
+    get_subd_event(Sm#sub{st=St});
+subd_event_1(_, _) -> keep.
+
+subd_exit(#sub{st=St}) ->
+    wings_wm:later({new_state,St}),
+    invalidate_smoothed(),
+    wings_wm:dirty(),
+    pop.
+
+subd_refresh_dlist(St) ->
+    wings_draw_util:map(fun(D, []) ->
+				subd_refresh_dlist(D, St)
+			end, []).
+
+subd_refresh_dlist(#dlo{src_we=#we{light=L}}=D, _) when L =/= none -> {D,[]};
+subd_refresh_dlist(#dlo{smoothed=none,drag=none,src_we=We}=D, St) ->
+    subd_dlist_1(D, We, St);
+subd_refresh_dlist(#dlo{smoothed=none}=D, St) ->
+    subd_dlist_1(D, wings_draw:original_we(D), St);
+subd_refresh_dlist(D, _) -> D.
+
+subd_dlist(St) ->
+    wings_draw_util:map(fun(D, []) ->
+				subd_dlist(D, St)
+			end, []).
+
+subd_dlist(#dlo{src_we=#we{light=L}}=D, _) when L =/= none -> {D,[]};
+subd_dlist(#dlo{drag=none,src_we=We}=D, St) ->
+    subd_dlist_1(D, We, St);
+subd_dlist(#dlo{smoothed=none}=D, St) ->
+    subd_dlist_1(D, wings_draw:original_we(D), St);
+subd_dlist(D, _) -> D.
+
+subd_dlist_1(D, We0, St) ->
+    #we{fs=Ftab} = We = wings_subdiv:smooth(We0),
+
+    List = gl:genLists(1),
+    gl:newList(List, ?GL_COMPILE),
+    wings_draw:draw_faces(gb_trees:to_list(Ftab), We, St),
+    gl:endList(),
+
+    D#dlo{smoothed=List}.
+
+subd_redraw(Sm) ->
+    wings_wm:clear_background(),
+    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
+    wings_io:ortho_setup(),
+    {W,H} = wings_wm:win_size(),
+    gl:color3i(0, 0, 0),
+    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
+    gl:rectf(0, 0, W-0.5, H-0.5),
+    gl:enable(?GL_DEPTH_TEST),
+    gl:enable(?GL_CULL_FACE),
+    gl:frontFace(?GL_CCW),
+    projection(),
+    model_transformations(true),
+    wings_draw_util:fold(fun(D, _) -> subd_redraw(D, Sm) end, []),
+    gl:popAttrib().
+
+subd_redraw(#dlo{mirror=none}=D, Sm) ->
+    subd_redraw_1(D, Sm);
+subd_redraw(#dlo{mirror=Matrix}=D, Sm) ->
+    gl:frontFace(?GL_CCW),
+    subd_redraw_1(D, Sm),
+    gl:frontFace(?GL_CW),
+    gl:pushMatrix(),
+    gl:multMatrixf(Matrix),
+    subd_redraw_1(D, Sm),
+    gl:popMatrix(),
+    gl:frontFace(?GL_CCW);
+subd_redraw(_, _) -> ok.
+
+subd_redraw_1(#dlo{src_we=#we{light=L}}, _Sm) when L =/= none -> ok;
+subd_redraw_1(#dlo{smoothed=Dlist,work=Work}, _Sm) ->
+    ?CHECK_ERROR(),
+    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
+    gl:shadeModel(?GL_SMOOTH),
+    gl:enable(?GL_LIGHTING),
+    gl:enable(?GL_POLYGON_OFFSET_FILL),
+    wings_draw_util:call(Dlist),
+    gl:polygonOffset(2.0, 2.0),
+    gl:disable(?GL_POLYGON_OFFSET_FILL),
+    gl:disable(?GL_LIGHTING),
+    gl:shadeModel(?GL_FLAT),
+    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
+    gl:color3f(0, 0, 1),
+    wings_draw_util:call(Work).
+
+invalidate_smoothed() ->
+    wings_draw_util:fold(fun(D, _) -> D#dlo{smoothed=none} end, []).
 
 %%%
 %%% Other stuff.

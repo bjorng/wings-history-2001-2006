@@ -8,13 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.105 2003/02/24 05:02:16 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.106 2003/03/01 07:31:30 bjorng Exp $
 %%
 
 -module(wings_draw).
 -export([update_dlists/1,update_sel_dlist/0,
 	 split/3,original_we/1,update_dynamic/2,
-	 update_mirror/0,smooth_dlist/2]).
+	 update_mirror/0,draw_faces/3,smooth_dlist/2]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
