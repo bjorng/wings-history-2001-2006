@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.36 2002/09/10 09:07:09 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.37 2002/09/10 09:13:23 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -585,10 +585,7 @@ transform_vs(Matrix, #we{vs=Vtab0}=We) ->
 %%% Calculate normals.
 %%%
 
-normals(We) ->
-    ?TC(normals_1(We)).
-    
-normals_1(#we{fs=Ftab,he=He}=We) ->
+normals(#we{fs=Ftab,he=He}=We) ->
     FaceNormals0 = foldl(fun({Face,FaceRec}, Acc) ->
 				 [{Face,face_normal(Face, FaceRec, We)}|Acc]
 			 end, [], gb_trees:to_list(Ftab)),
