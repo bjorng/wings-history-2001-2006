@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.62 2004/02/10 23:03:41 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.63 2004/02/11 23:40:14 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -52,6 +52,7 @@
 -define(DEF_SHADOW,true).
 -define(DEF_EMIT_RAD,true).
 -define(DEF_RECV_RAD,true).
+-define(DEF_FAST_FRESNEL,false).
 
 %% Render
 -define(DEF_AA_PASSES, 0).
@@ -355,6 +356,7 @@ material_dialog(_Name, Mat) ->
 					true -> ?DEF_AUTOSMOOTH end),
     FresnelMinimized = proplists:get_value(fresnel_minimized, YafRay, true),
     IOR = proplists:get_value(ior, YafRay, ?DEF_IOR),
+    FastFresnel = proplists:get_value(fast_fresnel, YafRay, ?DEF_FAST_FRESNEL),
     MinRefle = proplists:get_value(min_refle, YafRay, ?DEF_MIN_REFLE),
     Reflected = proplists:get_value(reflected, YafRay, Ambient),
     Transmitted = 
@@ -365,8 +367,10 @@ material_dialog(_Name, Mat) ->
 	proplists:get_value(transmitted2, YafRay, DefTransmitted),
     Modulators = proplists:get_value(modulators, YafRay, def_modulators(Maps)),
     [{vframe,
-      [{vframe,
-	[{hframe,[{"Cast Shadow",Shadow,[{key,{?TAG,shadow}}]},
+      [{hframe,[help_button(material_dialog)]},
+       {vframe,
+	[{hframe,[help_button({material_dialog,object}),
+		  {"Cast Shadow",Shadow,[{key,{?TAG,shadow}}]},
 		  {"Emit Rad",EmitRad,[{key,{?TAG,emit_rad}}]},
 		  {"Recv Rad",RecvRad,[{key,{?TAG,recv_rad}}]}]},
 	 {hframe,[{"Use Edge Hardness",UseHardness,[{key,{?TAG,use_hardness}}]},
@@ -379,8 +383,10 @@ material_dialog(_Name, Mat) ->
 	[{title,"Object Parameters"},{minimized,ObjectMinimized},
 	 {key,{?TAG,object_minimized}}]},
        {vframe,
-	[{hframe,[{label,"Index Of Refraction"},
-		  {text,IOR,[{range,{0.0,100.0}},{key,{?TAG,ior}}]},
+	[{hframe,[help_button({material_dialog,fresnel}),
+		  {label,"Index Of Refraction"},
+		  {text,IOR,[{range,{0.0,100.0}},{key,{?TAG,ior}}]}]},
+	 {hframe,[{"Fast Fresnel",FastFresnel,[{key,{?TAG,fast_fresnel}}]},
 		  {"Total Internal Reflection",TIR,[{key,{?TAG,tir}}]}]},
 	 {hframe,[{label,"Minimum Reflection"},
 		  {slider,{text,MinRefle,[{range,{0.0,1.0}},{width,5},
@@ -449,7 +455,7 @@ def_modulators([_|Maps]) ->
     def_modulators(Maps).
 
 material_result(_Name, Mat0, [{{?TAG,minimized},_}|_]=Res0) ->
-    {Ps1,Res1} = split_list(Res0, 18),
+    {Ps1,Res1} = split_list(Res0, 19),
     Ps2 = [{Key,Val} || {{?TAG,Key},Val} <- Ps1],
     {Ps,Res} = modulator_result(Ps2, Res1),
     Mat = [{?TAG,Ps}|keydelete(?TAG, 1, Mat0)],
@@ -1276,11 +1282,14 @@ export_shader(F, Name, Mat, ExportDir) ->
     end,
     IOR = proplists:get_value(ior, YafRay, ?DEF_IOR),
     TIR = proplists:get_value(tir, YafRay, ?DEF_TIR),
+    FastFresnel = proplists:get_value(fast_fresnel, YafRay, ?DEF_FAST_FRESNEL),
     MinRefle = proplists:get_value(min_refle, YafRay, ?DEF_MIN_REFLE),
     println(F, "        <IOR value=\"~.10f\"/>~n"
 	    "        <tir value=\"~s\"/>~n"
+	    "        <fast_fresnel value=\"~s\"/>~n"
 	    "        <min_refle value=\"~.10f\"/>~n"
-	    "    </attributes>", [IOR,format(TIR),MinRefle]),
+	    "    </attributes>", 
+	    [IOR,format(TIR),format(FastFresnel),MinRefle]),
     foldl(fun ({modulator,Ps}=M, N) when list(Ps) ->
 		  case export_modulator(F, [Name,$_,format(N)], 
 					Maps, M, Opacity) of
@@ -1763,7 +1772,7 @@ export_background(F, Name, Ps) ->
 	sunsky ->
 	    Power = proplists:get_value(power, YafRay, ?DEF_POWER),
 	    AddSun = (Power > 0.0),
-	    Turbidity = proplists:get_value(turbidity, Ps, ?DEF_TURBIDITY),
+	    Turbidity = proplists:get_value(turbidity, YafRay, ?DEF_TURBIDITY),
 	    Position = proplists:get_value(position, OpenGL, {1.0,1.0,1.0}),
 	    println(F, "~n            turbidity=\"~.3f\" add_sun=\"~s\">", 
 		    [Turbidity,format(AddSun)]),
@@ -2184,3 +2193,53 @@ print_mesh(#e3d_mesh{type=T,vs=Vs,vc=Vc,tx=Tx,ns=Ns,fs=Fs,he=He,matrix=M}) ->
 	      "he=~p,~nmatrix=~p}.~n",
 	      [T,Vs,Vc,Tx,Ns,Fs,He,M]).
 -endif.
+
+help_button(Subject) ->
+    Title = help(title, Subject),
+    TextFun = fun () -> help(text, Subject) end,
+    {help,Title,TextFun}.
+
+help(title, material_dialog) ->
+    "YafRay Material Properties";
+help(text, material_dialog) ->
+    [<<"Each Material create a YafRay shader. The OpenGL properties "
+      "that map to YafRay shader parameters are:">>,
+     <<"Diffuse * Opacity -> 'color'.">>,
+     <<"Specular -> 'specular'.">>,
+     <<"Shininess * 128-> 'hard'.">>];
+help(title, {material_dialog,object}) ->
+    "YafRay Material Properties: Object Parameters";
+help(text, {material_dialog,object}) ->
+    [<<"Object Parameters are applied to whole objects, namely those "
+      "that have this material on a majority of their faces.">>,
+     <<"Mapping to YafRay object parameters:">>,
+     <<"Cast Shadow -> 'shadow'.">>,
+     <<"Emit Rad -> 'emit_rad'.">>,
+     <<"Recv Rad -> 'recv_rad'.">>,
+     <<"Use Edge Hardness -> Emulate hard edges by "
+      "slitting the object mesh along hard edges.">>,
+     <<"Caustic -> Make the object caustic, i.e refract and "
+      "reflect photons but not get hit by them. This is done by "
+      "setting options 'caus_IOR', 'caus_rcolor' and 'caus_tcolor' "
+      "from the corresponding Fresnel Parameters.">>,
+     <<"Autosmooth Angle -> 'autosmooth'.">>];
+help(title, {material_dialog,fresnel}) ->
+    "YafRay Material Properties: Fresnel Parameters";
+help(text, {material_dialog,fresnel}) ->
+    [<<"Fresnel Parameters affect how rays reflect off and refract in "
+      "glass-like materials. This is a different light model than the "
+      "OpenGL (Diffuse,Specular,Shininess) model and they do not often "
+      "go well together.">>,
+     <<"Mapping to YafRay shader parameters:">>,
+     <<"Index Of Refraction -> 'ior'.">>,
+     <<"Total Internal Reflection -> 'tir'.">>,
+     <<"Minimum Reflection -> 'min_refle'.">>,
+     <<"Reflected -> 'reflected'.">>,
+     <<"Transmitted -> 'transmitted'.">>,
+     <<"Set Default -> Sets 'transmitted' to Diffuse * (1 - Opacity). "
+      "This makes a semi-transparent object in OpenGL look the same in "
+      "YafRay provided that Index Of Refraction is 1.0.">>,
+     <<"Grazing Angle Colors -> Use the secondary Reflected and Transmitted "
+      "colors following that show from grazing angles of the material. "
+      "For a glass with green edges set Transmitted to white and "
+      "Grazing Angle Transmitted to green.">>].

@@ -8,11 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.63 2004/01/18 10:46:19 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.64 2004/02/11 23:40:19 raimo_niskanen Exp $
 %%
 
 -module(wings_help).
 -export([menu/1,command/2]).
+-export([help_window/2]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -274,8 +275,10 @@ help_window(Title, []) ->
 help_window(Title, Text) ->
     help_window(help, Title, Text).
 
-help_window(Name, Title, Text) ->
+help_window(Name, Title, Text0) ->
     wings_wm:delete(Name),
+    Text = [if is_binary(Line) -> binary_to_list(Line);
+	       true -> Line end || Line <- Text0],
     {Rows,Lines} = wings_text:break_lines(Text, 60),
     {W,H} = wings_wm:top_size(),
     MaxH = trunc(H*0.75),

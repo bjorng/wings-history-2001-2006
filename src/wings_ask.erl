@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.169 2004/02/11 14:36:15 dgud Exp $
+%%     $Id: wings_ask.erl,v 1.170 2004/02/11 23:40:19 raimo_niskanen Exp $
 %%
 
 -module(wings_ask).
@@ -317,6 +317,10 @@ ask_unzip([], Labels, Vals) ->
 %%
 %% {String,Bool[,RegularFlags]}			-- Checkbox
 %%
+%% {help,Title,HelpLines}                       -- Help button
+%%     Title = String
+%%     HelpLines = [HelpLine] | fun() -> [HelpLine]
+%%     HelpLine = String
 %%
 %%
 %% What happens?
@@ -1070,6 +1074,9 @@ mktree({button,Label,Action}, Sto, I) ->
     mktree_button(Label, Action, Sto, I, []);
 mktree({button,Label,Action,Flags}, Sto, I) ->
     mktree_button(Label, Action, Sto, I, Flags);
+%%
+mktree({help,Title,HelpLines}, Sto, I) ->
+    mktree({button,"Help",keep,[help_hook(Title,HelpLines)]}, Sto, I);
 %%
 mktree({custom,W,H,Custom}, Sto, I) ->
     mktree_custom(W, H, Custom, Sto, I, []);
@@ -2309,6 +2316,20 @@ browse_hook_fun(Ps0, TextKey, TextHook) ->
 	    end;
        (_, _) -> void
     end.
+
+help_hook(Title, HelpLines0) ->
+    {hook,
+     fun (update, _) ->
+	     HelpLines = if is_function(HelpLines0) ->
+				 HelpLines0();
+			    is_list(HelpLines0) ->
+				 HelpLines0 end,
+	     wings_help:help_window(Title, HelpLines),
+	     keep;
+	 (_, _) -> void
+     end}.
+
+
 
 %%%
 %%% Color box.
