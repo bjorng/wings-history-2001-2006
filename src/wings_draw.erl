@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.159 2003/10/27 17:04:49 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.160 2003/11/09 19:20:24 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -459,6 +459,7 @@ split(#dlo{mirror=M,src_sel=Sel,src_we=#we{fs=Ftab0}=We,proxy_data=Pd,ns=Ns0}=D,
 		    FtabDyn0 = sofs:restriction(Ftab, Faces0),
 		    case D#dlo.work of
 			[List|_] -> Faces0;
+			{call,_,_}=List -> Faces0;
 			List when is_integer(List) -> Faces0
 		    end;
 		false ->
