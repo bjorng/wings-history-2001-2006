@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_tds.erl,v 1.37 2004/06/23 19:12:18 bjorng Exp $
+%%     $Id: e3d_tds.erl,v 1.38 2004/06/23 19:31:24 bjorng Exp $
 %%
 
 -module(e3d_tds).
@@ -154,7 +154,7 @@ block(16#3d3e, <<Ver:32/little>>, Acc) ->
     Acc;
 block(16#4100, TriMesh0, no_mesh) ->
     dbg("Triangular mesh: ~p\n", [size(TriMesh0)]),
-    TriMesh1 = trimesh(TriMesh0, #e3d_mesh{type=triangle}),
+    TriMesh1 = fold_chunks(fun trimesh/3, #e3d_mesh{type=triangle}, TriMesh0),
     TriMesh = add_uv_to_faces(TriMesh1),
     clean_mesh(TriMesh);
 block(16#4700, Camera, Mesh) ->
@@ -164,64 +164,50 @@ block(Tag, Chunk, Mesh) ->
     dbg("~.16#: ~P\n", [Tag,Chunk,15]),
     Mesh.
 
-trimesh(<<16#4110:16/little,Sz0:32/little,NumVs:16/little,T0/binary>>, Acc) ->
-    dbg("Vertices ~p bytes NumVs=~p\n", [Sz0,NumVs]),
-    Sz = Sz0 - 8,
-    <<Vs0:Sz/binary,T/binary>> = T0,
+trimesh(16#4110, <<NumVs:16/little,Vs0/binary>>, Acc) ->
+    dbg("~p vertices\n", [NumVs]),
     Vs = get_bin_vectors(Vs0),
-    trimesh(T, Acc#e3d_mesh{vs=Vs});
-trimesh(<<16#4120:16/little,Sz0:32/little,NFaces:16/little,T0/binary>>, Acc) ->
-    dbg("~p faces, ~p bytes\n", [NFaces,Sz0]),
-    Sz = Sz0 - 8,
+    Acc#e3d_mesh{vs=Vs};
+trimesh(16#4120, <<NFaces:16/little,Contents/binary>>, Acc) ->
+    dbg("~p faces\n", [NFaces]),
     Fsz = NFaces * 2 * 4,
-    Dsz = Sz - Fsz,
-    <<Faces0:Fsz/binary,Desc:Dsz/binary,T/binary>> = T0,
+    <<Faces0:Fsz/binary,Desc/binary>> = Contents,
     Faces1 = get_faces(Faces0),
-    {Faces,Smooth} = face_desc(Desc, {Faces1,[]}),
-    trimesh(T, Acc#e3d_mesh{fs=Faces,he=Smooth});
-trimesh(<<16#4140:16/little,Sz0:32/little,T0/binary>>, Acc) ->
-    dbg("Texture coordinates ~w\n", [Sz0]),
-    Sz = Sz0 - 8,
-    <<_:16,Tx0:Sz/binary,T/binary>> = T0,
+    {Faces,Smooth} = face_desc(Desc, Faces1),
+    Acc#e3d_mesh{fs=Faces,he=Smooth};
+trimesh(16#4140, <<NumTx:16/little,Tx0/binary>>, Acc) ->
+    dbg("~p texture coordinates\n", [NumTx]),
     Tx = get_uv(Tx0),
-    trimesh(T, Acc#e3d_mesh{tx=Tx});
-trimesh(<<16#4160:16/little,_Sz:32/little,T0/binary>>, Acc) ->
-    <<V1X:32/?FLOAT,V1Y:32/?FLOAT,V1Z:32/?FLOAT,
-     V2X:32/?FLOAT,V2Y:32/?FLOAT,V2Z:32/?FLOAT,
-     V3X:32/?FLOAT,V3Y:32/?FLOAT,V3Z:32/?FLOAT,
-     OX:32/?FLOAT,OY:32/?FLOAT,OZ:32/?FLOAT,
-     T/binary>> = T0,
+    Acc#e3d_mesh{tx=Tx};
+trimesh(16#4160, <<V1X:32/?FLOAT,V1Y:32/?FLOAT,V1Z:32/?FLOAT,
+		  V2X:32/?FLOAT,V2Y:32/?FLOAT,V2Z:32/?FLOAT,
+		  V3X:32/?FLOAT,V3Y:32/?FLOAT,V3Z:32/?FLOAT,
+		  OX:32/?FLOAT,OY:32/?FLOAT,OZ:32/?FLOAT>>, Acc) ->
     Matrix = {V1X,V1Y,V1Z,
 	      V2X,V2Y,V2Z,
 	      V3X,V3Y,V3Z,
 	      OX,OY,OZ},
     [{current_name,Name}] = ets:lookup(?MODULE, current_name),
     ets:insert(?MODULE, {{local_matrix,Name},Matrix}),
-    trimesh(T, Acc);
-trimesh(<<Tag:16/little,Sz0:32/little,T0/binary>>, Acc) ->
-    Sz = Sz0 - 6,
-    <<Chunk:Sz/binary,T/binary>> = T0,
-    dbg("~.16#: ~P\n", [Tag,Chunk,20]),
-    trimesh(T, Acc);
-trimesh(<<>>, Acc) -> Acc.
+    Acc;
+trimesh(Tag, Chunk, Acc) ->
+    dbg("~.16#: ~P\n", [Tag,Chunk,15]),
+    Acc.
 
-face_desc(<<16#4130:16/little,Sz0:32/little,T0/binary>>, {Faces0,SG}) ->
-    Sz = Sz0 - 6,
-    <<MatList0:Sz/binary,T/binary>> = T0,
+face_desc(Bin, Faces) ->
+    fold_chunks(fun face_desc/3, {Faces,[]}, Bin).
+
+face_desc(16#4130, MatList0, {Faces0,SG}) ->
     {Name0,MatList} = get_cstring(MatList0),
     Name = list_to_atom(Name0),
-    dbg("Material ref: ~p\n", [Name]),
     MatFaces0 = get_mat_faces(MatList),
     MatFaces = sort(MatFaces0),
+    dbg("Material ~p used by ~p face(s)\n", [Name0,length(MatFaces)]),
     Faces = insert_mat(Faces0, MatFaces, 0, Name, []),
-    face_desc(T, {Faces,SG});
-face_desc(<<16#4150:16/little,Sz0:32/little,T0/binary>>, {Faces,_}) ->
-    dbg("Smoothing groups ~p bytes\n", [Sz0]),
-    Sz = Sz0 - 6,
-    <<Smooth0:Sz/binary,T/binary>> = T0,
-    Smooth = get_smooth_groups(Smooth0),
-    face_desc(T, {Faces,Smooth});
-face_desc(<<>>, Acc) -> Acc.
+    {Faces,SG};
+face_desc(16#4150, Smooth, {Faces,_}) ->
+    dbg("Smoothing groups for ~p faces\n", [size(Smooth) div 4]),
+    {Faces,get_smooth_groups(Smooth)}.
 
 material(<<16#A000:16/little,Sz0:32/little,T0/binary>>, Acc) ->
     Sz = Sz0 - 6,
