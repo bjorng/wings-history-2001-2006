@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_3ds.erl,v 1.11 2005/02/15 06:41:48 bjorng Exp $
+%%     $Id: wpc_3ds.erl,v 1.12 2005/02/19 10:01:05 bjorng Exp $
 %%
 
 -module(wpc_3ds).
@@ -88,7 +88,10 @@ do_export(Ask, Op, _Exporter, _St) when is_atom(Ask) ->
 do_export(Attr, _Op, Exporter, _St) when is_list(Attr) ->
     set_pref(Attr),
     SubDivs = proplists:get_value(subdivisions, Attr, 0),
-    Ps = [{subdivisions,SubDivs}|props()],
+    Normals = proplists:get_bool(include_normals, Attr),
+    Uvs = proplists:get_bool(include_uvs, Attr),
+    Ps = [{include_uvs,Uvs},{include_normals,Normals},
+	  {subdivisions,SubDivs}|props()],
     Exporter(Ps, export_fun(Attr)).
 
 export_fun(Attr) ->
