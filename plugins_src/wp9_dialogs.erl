@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp9_dialogs.erl,v 1.37 2004/01/04 10:22:17 bjorng Exp $
+%%     $Id: wp9_dialogs.erl,v 1.38 2004/01/17 01:50:03 raimo_niskanen Exp $
 %%
 
 -module(wp9_dialogs).
@@ -218,8 +218,7 @@ up_button(update, {Var,_I,Val,Sto0}) ->
     Dir0 = gb_trees:get(directory, Sto0),
     Dir = filename:dirname(Dir0),
     Sto1 = gb_trees:update(directory, Dir, Sto0),
-    Sto2 = gb_trees:update(filename, "", Sto1),
-    Sto = gb_trees:update(Var, Val, Sto2),
+    Sto = gb_trees:update(Var, Val, Sto1),
     {done,Sto};
 up_button(_, _) -> void.
 

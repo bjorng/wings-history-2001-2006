@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.162 2004/01/16 00:22:44 raimo_niskanen Exp $
+%%     $Id: wings_ask.erl,v 1.163 2004/01/17 01:50:04 raimo_niskanen Exp $
 %%
 
 -module(wings_ask).
@@ -2230,15 +2230,26 @@ button_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #but{label=Label}, DisEnabled) ->
 
 browse_hook_fun(Ps0, TextKey, TextHook) ->
     fun(update, {_,I,_,Sto0}) ->
-	    Name0 = gb_trees:get(var(TextKey, I), Sto0),
+	    %% This ".junk" trick is to get Name and Dir right 
+	    %% even with empty filename.
+	    Name0 = gb_trees:get(var(TextKey, I), Sto0)++".junk",
 	    Dir = filename:dirname
 		    (filename:absname
-		     (Name0++".junk", 
-		      wings_pref:get_value(current_directory))),
-	    Ps = [{directory,Dir}|Ps0],
+		     (Name0, wings_pref:get_value(current_directory))),
+	    Name = filename:basename(Name0, ".junk"),
+	    Ps1 = 
+		case proplists:is_defined(directory, Ps0) of
+		    true -> Ps0;
+		    false -> [{directory,Dir}|Ps0]
+		end,
+	    Ps = 
+		case proplists:is_defined(default_filename, Ps1) of
+		    true -> Ps1;
+		    false -> [{default_filename,Name}|Ps1]
+		end,
 	    Parent = wings_wm:this(),
-	    F = fun(Name) ->
-			wings_wm:send(Parent, {drop,{filename,Name}})
+	    F = fun(Filename) ->
+			wings_wm:send(Parent, {drop,{filename,Filename}})
 		end,
 	    DlgType = proplists:get_value(dialog_type, Ps),
 	    wings_plugin:call_ui({file,DlgType,Ps,F}),

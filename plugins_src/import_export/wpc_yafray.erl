@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.54 2004/01/16 00:22:44 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.55 2004/01/17 01:50:04 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -94,6 +94,7 @@
 -define(DEF_AMBIENT_TYPE, hemilight).
 -define(DEF_BACKGROUND_FILENAME, "").
 -define(DEF_BACKGROUND_EXPOSURE_ADJUST, 0).
+-define(DEF_BACKGROUND_MAPPING, probe).
 -define(DEF_BACKGROUND_POWER, 1.0).
 -define(DEF_SAMPLES, 256).
 
@@ -246,7 +247,7 @@ command_file(render, Attr, St) when is_list(Attr) ->
     case get_var(rendering) of
 	false ->
 	    SubDiv = get_pref(subdivisions, ?DEF_SUBDIVISIONS),
-	    wpa:export(props(tga, SubDiv),
+	    wpa:export(props(render, SubDiv),
 		       fun_export_2(attr(St, [{?TAG_RENDER,true}|Attr])), St);
        _RenderFile ->
 	    wpa:error("Already rendering.")
@@ -274,15 +275,20 @@ command_file(?TAG_RENDER, {Pid,Result,Ack}, _St) ->
 command_file(Op, Attr, St) when is_list(Attr) ->
     set_pref(Attr),
     SubDiv = get_pref(subdivisions, ?DEF_SUBDIVISIONS),
-    wpa:Op(props(?TAG, SubDiv), fun_export_2(attr(St, Attr)), St);
+    wpa:Op(props(Op, SubDiv), fun_export_2(attr(St, Attr)), St);
 command_file(Op, Ask, _St) when is_atom(Ask) ->
-    wpa:dialog(Ask, "YafRay Export Options", export_dialog(export),
+    wpa:dialog(Ask, "YafRay Export Options", export_dialog(Op),
 	       fun(Attr) -> {file,{Op,{?TAG,Attr}}} end).
 
-props(tga, SubDiv) ->
-    [{ext,".tga"},{ext_desc,"Targa File"},{subdivisions,SubDiv}];
-props(?TAG, SubDiv) ->
-    [{ext,".xml"},{ext_desc,"YafRay File"},{subdivisions,SubDiv}].
+props(render, SubDiv) ->
+    [{title,"Render"},{ext,".tga"},{ext_desc,"Targa File"},
+     {subdivisions,SubDiv}];
+props(export, SubDiv) ->
+    [{title,"Export"},{ext,".xml"},{ext_desc,"YafRay File"},
+     {subdivisions,SubDiv}];
+props(export_selected, SubDiv) ->
+    [{title,"Export Selected"},{ext,".xml"},{ext_desc,"YafRay File"},
+     {subdivisions,SubDiv}].
 
 -record(camera_info, {aim,distance_to_aim,azimuth,elevation,tracking,fov}).
 
@@ -694,6 +700,8 @@ light_dialog(_Name, ambient, Ps) ->
 		       {extensions,[{".hdr","High Dynamic Range Image"}]}],
     BgExpAdj = proplists:get_value(background_exposure_adjust, Ps, 
 				   ?DEF_BACKGROUND_EXPOSURE_ADJUST),
+    BgMapping = proplists:get_value(background_mapping, Ps, 
+				    ?DEF_BACKGROUND_MAPPING),
     BgPower = proplists:get_value(background_power, Ps, 
 				  ?DEF_BACKGROUND_POWER),
     Type = proplists:get_value(type, Ps, ?DEF_AMBIENT_TYPE),
@@ -722,7 +730,9 @@ light_dialog(_Name, ambient, Ps) ->
 	[{hook,light_hook({?TAG,background}, [image])}]},
        {hframe,[{label,"Exposure Adjust"},
 		{text,BgExpAdj,[{key,{?TAG,background_exposure_adjust}},
-				{range,{-128,127}}]}],
+				{range,{-128,127}}]},
+		{menu,[{"Angular Map",probe},{"Spherical Map",spherical}],
+		 BgMapping,[{key,{?TAG,background_mapping}}]}],
 	[{hook,light_hook({?TAG,background}, 'HDRI')}]},
        {hframe,[{label,"Power"},
 		{text,BgPower,[{key,{?TAG,background_power}},
@@ -763,9 +773,9 @@ light_result([{{?TAG,type},photonlight}|_]=Ps) ->
 light_result([_,{{?TAG,background},_}|_]=Ps) ->
     split_list(Ps, 4);
 light_result([{{?TAG,type},hemilight}|_]=Res) ->
-    split_list(Res, 8);
+    split_list(Res, 9);
 light_result([{{?TAG,type},pathlight}|_]=Res) ->
-    split_list(Res, 8);
+    split_list(Res, 9);
 light_result(Tail) ->
 %    erlang:display({?MODULE,?LINE,Tail}),
     {[],Tail}.
@@ -775,7 +785,7 @@ light_result(Tail) ->
 pref_edit(St) ->
     Dialogs = get_pref(dialogs, ?DEF_DIALOGS),
     Renderer = get_pref(renderer, ?DEF_RENDERER),
-    BrowseProps = [{dialog_type,open_dialog},
+    BrowseProps = [{dialog_type,open_dialog},{directory,"/"},
 		   case os:type() of
 		       {win32,_} -> 
 			   {extensions,[{".exe","Windows Executable"}]};
@@ -881,12 +891,15 @@ export_dialog(Operation) ->
 			       filter_hook(dof_filter)]}]}],
       [{title,"Filters"}]}
      |
-     case Operation of render ->
+     case Operation of 
+	 render ->
 	     [{hframe,[{label,"Options"},
 		       {text,Options,[{key,options}]},
 		       {"Load Image",LoadImage,[{key,load_image}]}],
 	       [{title,"Rendering Job"}]}];
 	 export ->
+	     [];
+	 export_selected ->
 	     []
      end].
 
@@ -1578,7 +1591,10 @@ export_background(F, Name, Ps) ->
 					  ?DEF_BACKGROUND_FILENAME),
 	    BgExpAdj = proplists:get_value(background_exposure_adjust, YafRay, 
 					   ?DEF_BACKGROUND_EXPOSURE_ADJUST),
-	    println(F, " exposure_adjust=\"~w\">", [BgExpAdj]),
+	    BgMapping = proplists:get_value(background_mapping, YafRay, 
+					    ?DEF_BACKGROUND_MAPPING),
+	    println(F, "~n            exposure_adjust=\"~w\" mapping=\"~s\">", 
+		    [BgExpAdj,format(BgMapping)]),
 	    println(F, "    <filename value=\"~s\" />", [BgFname]);
 	image ->
 	    BgFname = proplists:get_value(background_filename_image, YafRay,
