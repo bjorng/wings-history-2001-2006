@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.321 2004/11/02 07:20:34 bjorng Exp $
+%%     $Id: wings.erl,v 1.322 2004/11/04 07:48:30 bjorng Exp $
 %%
 
 -module(wings).
@@ -929,7 +929,10 @@ shape_info(#we{id=Id,name=Name,fs=Ftab,es=Etab,vp=Vtab,mode=Mode}) ->
     Faces = gb_trees:size(Ftab),
     Edges = gb_trees:size(Etab),
     Vertices = gb_trees:size(Vtab),
-    io_lib:format(?STR(shape_info,1,"Object ~p \"~s\" has ~p polygons, ~p edges, ~p vertices.\n Mode is ~p"),
+    io_lib:format(?STR(shape_info,1,
+		       "Object ~p \"~s\" has ~p polygons, "
+		       "~p edges, ~p vertices.\n"
+		       "Mode is ~p"),
 		  [Id,Name,Faces,Edges,Vertices,Mode]).
 
 shape_info(Objs, Shs) ->
@@ -942,8 +945,9 @@ shape_info([{Id,_}|Objs], Shs, On, Vn, En, Fn) ->
     Vertices = gb_trees:size(Vtab),
     shape_info(Objs, Shs, On+1, Vn+Vertices, En+Edges, Fn+Faces);
 shape_info([], _Shs, N, Vertices, Edges, Faces) ->
-    io_lib:format(?STR(shape_info,2,"~p objects, ~p faces, ~p edges, ~p vertices"),
-		[N,Faces,Edges,Vertices]).
+    io_lib:format(?STR(shape_info,2,
+		       "~p objects, ~p faces, ~p edges, ~p vertices"),
+		  [N,Faces,Edges,Vertices]).
 
 caption(#st{file=undefined}=St) ->
     Caption = wings(),
