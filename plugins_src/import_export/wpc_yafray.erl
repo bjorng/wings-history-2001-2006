@@ -8,14 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.78 2004/05/04 09:53:09 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.79 2004/05/10 21:08:24 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
 
 -export([init/0,menu/2,dialog/2,command/2]).
-
--export([uquote/1]). % Debug
 
 
 
@@ -111,6 +109,11 @@
 -define(DEF_BACKGROUND_MAPPING, probe).
 -define(DEF_BACKGROUND_POWER, 1.0).
 -define(DEF_SAMPLES, 256).
+%% Global Photonlight
+-define(DEF_GLOBALPHOTONLIGHT_PHOTONS, 50000).
+-define(DEF_GLOBALPHOTONLIGHT_RADIUS, 1.0).
+-define(DEF_GLOBALPHOTONLIGHT_DEPTH, 2).
+-define(DEF_GLOBALPHOTONLIGHT_SEARCH, 200).
 
 %% Modulator
 -define(DEF_MOD_ENABLED, true).
@@ -697,7 +700,7 @@ light_dialog(Name, Ps) ->
 		{vframe, [{label,"Power"}]},
 		{vframe,[{text,Power,
 			  [{range,{0.0,10000.0}},{key,{?TAG,power}}]}]}]}|
-       light_dialog(Name, Type,YafRay)],
+       light_dialog(Name, Type, YafRay)],
       [{title,"YafRay Options"},{key,{?TAG,minimized}},{minimized,Minimized}]}].
 
 light_dialog(_Name, point, Ps) ->
@@ -797,15 +800,44 @@ light_dialog(_Name, ambient, Ps) ->
     Samples = proplists:get_value(samples, Ps, ?DEF_SAMPLES),
     Depth = proplists:get_value(depth, Ps, ?DEF_DEPTH),
     UseQMC = proplists:get_value(use_QMC, Ps, ?DEF_USE_QMC),
+    GplPhotons = proplists:get_value(globalphotonlight_photons, Ps,
+				     ?DEF_GLOBALPHOTONLIGHT_PHOTONS),
+    GplRadius = proplists:get_value(globalphotonlight_radius, Ps,
+				    ?DEF_GLOBALPHOTONLIGHT_RADIUS),
+    GplDepth = proplists:get_value(globalphotonlight_depth, Ps,
+				   ?DEF_GLOBALPHOTONLIGHT_DEPTH),
+    GplSearch = proplists:get_value(globalphotonlight_search, Ps,
+				    ?DEF_GLOBALPHOTONLIGHT_SEARCH),
     [{hframe,
       [{hradio,[{"Hemilight",hemilight},
-		{"Pathlight",pathlight}],Type,[layout,{key,{?TAG,type}}]},
-       {"Use QMC",UseQMC,[{key,{?TAG,use_QMC}}]}]},
+		{"Pathlight",pathlight},
+		{"Global Photonlight",globalphotonlight}],
+	Type,[layout,{key,{?TAG,type}}]},
+       {"Use QMC",UseQMC,[{key,{?TAG,use_QMC}},
+			  light_hook({?TAG,type}, [hemilight,pathlight])]}]},
      {hframe,[{label,"Samples"}, 
 	      {text,Samples,[{range,1,1000000},{key,{?TAG,samples}}]},
 	      {hframe,[{label,"Depth"},
 		       {text,Depth,[{range,1,100},{key,{?TAG,depth}}]}],
-	       [light_hook({?TAG,type}, pathlight)]}]},
+	       [light_hook({?TAG,type}, pathlight)]}],
+      [light_hook({?TAG,type}, [hemilight,pathlight])]},
+     {hframe,[{vframe,[{label,"Photons"},
+		       {label,"Depth"}]},
+	      {vframe,[{text,GplPhotons,
+			[{range,0,1000000},
+			 {key,{?TAG,globalphotonlight_photons}}]},
+		       {text,GplDepth,
+			[{range,1,100},
+			 {key,{?TAG,globalphotonlight_depth}}]}]},
+	      {vframe,[{label,"Radius"},
+		       {label,"Search"}]},
+	      {vframe,[{text,GplRadius,
+			[{range,1.0,1000000.0},
+			 {key,{?TAG,globalphotonlight_radius}}]},
+		       {text,GplSearch,
+			[{range,0,1000000},
+			 {key,{?TAG,globalphotonlight_search}}]}]}],
+      [light_hook({?TAG,type}, [globalphotonlight])]},
      {vframe,
       [{hradio,[{"HDRI",'HDRI'},
 		{"Image",image},
@@ -883,9 +915,11 @@ light_result([_,{{?TAG,background},_}|_]=Ps) -> % infinite
 light_result([_,{{?TAG,arealight_samples},_}|_]=Ps) -> % area
     split_list(Ps, 3);
 light_result([{{?TAG,type},hemilight}|_]=Ps) ->
-    split_list(Ps, 10);
+    split_list(Ps, 14);
 light_result([{{?TAG,type},pathlight}|_]=Ps) ->
-    split_list(Ps, 10);
+    split_list(Ps, 14);
+light_result([{{?TAG,type},globalphotonlight}|_]=Ps) ->
+    split_list(Ps, 14);
 light_result(Ps) ->
 %    erlang:display({?MODULE,?LINE,Ps}),
     {[],Ps}.
@@ -1728,30 +1762,55 @@ export_light(F, Name, spot, OpenGL, YafRay) ->
     println(F, "</light>"),
     undefined;
 export_light(F, Name, ambient, OpenGL, YafRay) ->
-    Bg = proplists:get_value(background, YafRay, ?DEF_BACKGROUND),
+    Type = proplists:get_value(type, YafRay, ?DEF_AMBIENT_TYPE),
     Power = proplists:get_value(power, YafRay, ?DEF_POWER),
-    if Power > 0.0 ->
-	    Type = proplists:get_value(type, YafRay, ?DEF_AMBIENT_TYPE),
-	    Samples = proplists:get_value(samples, YafRay, ?DEF_SAMPLES),
-	    UseQMC = proplists:get_value(use_QMC, YafRay, ?DEF_USE_QMC),
-	    println(F,"<light type=\"~w\" name=\"~s\" "
-		    "power=\"~.3f\" use_QMC=\"~s\"", 
-		    [Type,Name,Power,format(UseQMC)]),
-	    case Type of
-		hemilight ->
-		    Ambient = proplists:get_value(ambient, OpenGL, 
-						  ?DEF_BACKGROUND_COLOR),
-		    println(F,"       samples=\"~w\">", [Samples]),
-		    export_rgb(F, color, Ambient);
-		pathlight ->
-		    Depth = proplists:get_value(depth, YafRay, ?DEF_DEPTH),
-		    println(F,"       samples=\"~w\" depth=\"~w\">", 
-			    [Samples,Depth])
-	    end,
+    case Type of
+	hemilight when Power > 0.0 ->
+	    println(F,"<light type=\"~w\" name=\"~s\" power=\"~.3f\"", 
+		    [Type,Name,Power]),
+	    UseQMC = proplists:get_value(use_QMC, YafRay, 
+					 ?DEF_USE_QMC),
+	    Ambient = proplists:get_value(ambient, OpenGL, 
+					  ?DEF_BACKGROUND_COLOR),
+	    Samples = proplists:get_value(samples, YafRay, 
+					  ?DEF_SAMPLES),
+	    println(F,"       use_QMC=\"~s\" samples=\"~w\">", 
+		    [format(UseQMC),Samples]),
+	    export_rgb(F, color, Ambient),
 	    println(F, "</light>");
-       true -> ok
+	hemilight -> ok;
+	pathlight when Power > 0.0 ->
+	    println(F,"<light type=\"~w\" name=\"~s\" power=\"~.3f\"", 
+		    [Type,Name,Power]),
+	    UseQMC = proplists:get_value(use_QMC, YafRay, 
+					 ?DEF_USE_QMC),
+	    Depth = proplists:get_value(depth, YafRay, ?DEF_DEPTH),
+	    Samples = proplists:get_value(samples, YafRay, 
+					  ?DEF_SAMPLES),
+	    println(F,"       use_QMC=\"~s\" samples=\"~w\" depth=\"~w\">", 
+		    [format(UseQMC),Samples,Depth]),
+	    println(F, "</light>");
+	pathlight -> ok;
+	globalphotonlight ->
+	    println(F,"<light type=\"~w\" name=\"~s\"", [Type,Name]),
+	    GplPhotons = proplists:get_value(
+			   globalphotonlight_photons, YafRay,
+			   ?DEF_GLOBALPHOTONLIGHT_PHOTONS),
+	    GplRadius = proplists:get_value(
+			  globalphotonlight_radius, YafRay,
+			  ?DEF_GLOBALPHOTONLIGHT_RADIUS),
+	    GplDepth = proplists:get_value(
+			 globalphotonlight_depth, YafRay,
+			 ?DEF_GLOBALPHOTONLIGHT_DEPTH),
+	    GplSearch = proplists:get_value(
+			  globalphotonlight_search, YafRay,
+			  ?DEF_GLOBALPHOTONLIGHT_SEARCH),
+	    println(F,"       photons=\"~w\" radius=\"~.3f\" "
+		    "depth=\"~w\" search=\"~w\">", 
+		    [GplPhotons,GplRadius,GplDepth,GplSearch]),
+	    println(F, "</light>")
     end,
-    Bg;
+    proplists:get_value(background, YafRay, ?DEF_BACKGROUND);
 export_light(F, Name, area, OpenGL, YafRay) ->
     Color = proplists:get_value(diffuse, OpenGL, {1.0,1.0,1.0,1.0}),
     #e3d_mesh{vs=Vs,fs=Fs0} = proplists:get_value(mesh, OpenGL, #e3d_mesh{}),
