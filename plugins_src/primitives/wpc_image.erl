@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_image.erl,v 1.9 2002/12/10 13:26:58 raimo_niskanen Exp $
+%%     $Id: wpc_image.erl,v 1.10 2003/01/30 12:15:45 bjorng Exp $
 %%
 
 -module(wpc_image).
@@ -23,21 +23,13 @@
 init() ->
     true.
 
-menu({shape}, Menu) ->
-    insert_before_more(Menu);
+menu({tools}, Menu) ->
+    Menu ++ [separator,
+	     {"Make Image Plane...",make_image_plane,
+	      "Create a plane containing an image"}];
 menu(_, Menu) -> Menu.
 
-insert_before_more([H|_]=More) when element(1, element(2, H)) == more ->
-    [image_menu(),separator|More];
-insert_before_more([H|T]) ->
-    [H|insert_before_more(T)];
-insert_before_more([]) ->
-    [image_menu()].
-
-image_menu() ->
-    {"Image...",image}.
-
-command({shape,image}, _St) -> make_image();
+command({tools,make_image_plane}, _St) -> make_image();
 command(_, _) -> next.
 
 make_image() ->
@@ -48,7 +40,7 @@ make_image() ->
 	    Props = [{filename,Name},{type,r8g8b8},{alignment,1}],
 	    case wpa:image_read(Props) of
 		#e3d_image{}=Image ->
-		    make_image_1(Image);
+		    make_image_1(Name, Image);
 		{error,Error} ->
 		    E = io_lib:format("Failed to load \"~s\": ~s\n",
 				      [Name,file:format_error(Error)]),
@@ -56,10 +48,13 @@ make_image() ->
 	    end
     end.
 
-make_image_1(Image0) ->
+make_image_1(Name0, Image0) ->
+    Name = filename:rootname(filename:basename(Name0)),
     Image1 = strip_any_alpha(Image0),
-    #e3d_image{width=W0,height=H0,image=Pixels,order=Order} = Image1,
-    {W,H,_} = Image = pad_image({W0,H0,Pixels}),
+    #e3d_image{width=W0,height=H0} = Image1,
+    Image = pad_image(Image1),
+    #e3d_image{width=W,height=H,order=Order} = Image,
+    ImageId = wings_image:new(Name, Image),
     case can_texture_be_loaded(Image) of
 	false ->
 	    wings_util:error("The image cannot be loaded as a texture "
@@ -80,7 +75,7 @@ make_image_1(Image0) ->
 	    Vs = [{0.0,-Y,-X},{0.0,Y,-X},{0.0,Y,X},{0.0,-Y,X}],
 	    Mesh = #e3d_mesh{type=polygon,fs=Fs,vs=Vs,tx=Tx},
 	    Obj = #e3d_object{obj=Mesh},
-	    Mat = [{image,[{maps,[{diffuse,Image}]}]},
+	    Mat = [{image,[{maps,[{diffuse,ImageId}]}]},
 		   {default,[]}],
 	    {new_shape,"image",Obj,Mat}
     end.
@@ -92,33 +87,34 @@ ratio(W, H) -> {W/H,1.0}.
 strip_any_alpha(#e3d_image{type=r8g8b8}=Image) -> Image;
 strip_any_alpha(#e3d_image{type=r8g8b8a8}=Image) -> e3d_image:convert(Image, r8g8b8).
     
-can_texture_be_loaded({W,H,Pixels}) ->
+can_texture_be_loaded(#e3d_image{width=W,height=H,image=Pixels}) ->
     gl:texImage2D(?GL_PROXY_TEXTURE_2D, 0, ?GL_RGB,
 		  W, H, 0, ?GL_RGB, ?GL_UNSIGNED_BYTE, Pixels),
     W == gl:getTexLevelParameteriv(?GL_PROXY_TEXTURE_2D, 0,
 				   ?GL_TEXTURE_WIDTH).
-pad_image({W0,H,Pixels0}=Image) ->
+
+pad_image(#e3d_image{width=W0,image=Pixels0}=Image) ->
     case nearest_power_two(W0) of
 	W0 ->
 	    pad_image_1(Image);
 	W ->
 	    Pad = zeroes(3*(W-W0)),
 	    Pixels = pad_rows(Pixels0, 3*W0, Pad, []),
-	    pad_image_1({W,H,Pixels})
+	    pad_image_1(Image#e3d_image{width=W,image=Pixels})
     end.
 
-pad_image_1({W,H0,Pixels0}=Image) ->
+pad_image_1(#e3d_image{width=W,height=H0,image=Pixels0}=Image) ->
     case nearest_power_two(H0) of
 	H0 ->
 	    pad_image_2(Image);
 	H ->
 	    Pad = zeroes(3*W*(H-H0)),
 	    Pixels = [Pixels0|Pad],
-	    pad_image_2({W,H,Pixels})
+	    pad_image_2(Image#e3d_image{height=H,image=Pixels})
     end.
 
-pad_image_2({W,H,Pixels}) when is_list(Pixels) ->
-    {W,H,list_to_binary(Pixels)};
+pad_image_2(#e3d_image{image=Pixels}=Image) when is_list(Pixels) ->
+    Image#e3d_image{image=list_to_binary(Pixels)};
 pad_image_2(Image) -> Image.
 
 pad_rows(Bin, W, Pad, Acc) ->
