@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.36 2003/01/03 19:50:44 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.37 2003/01/04 16:25:15 bjorng Exp $
 %%
 
 -module(wings_shape).
@@ -145,16 +145,21 @@ event(_, _) -> keep.
 
 help(-1, _) -> wings_wm:message("");
 help(_, visibility) ->
-    wings_wm:message("[L] Toggle visibility of active object  "
-		     "[Alt]+[L] Toggle visibility of all other objects");
+    help_1("Toggle visibility of active object",
+	   "Toggle visibility of all other objects");
 help(_, lock) ->
-    wings_wm:message("[L] Lock/unlock active object  "
-		     "[Alt]+[L] Lock/unlock all objects");
+    help_1("Lock/unlock active object",
+	   "Lock/unlock all objects");
 help(_, name) ->
-    wings_wm:message("[R] Rename object");
+    {_,_,Three} = wings_camera:button_names(),
+    wings_wm:message([Three," Rename object"]);
 help(_, selection) ->
-    wings_wm:message("[L] Toggle selection for active object  "
-		     "[Alt]+[L] Toggle selection for all other objects").
+    help_1("Toggle selection for active object",
+	   "Toggle selection for all other objects").
+
+help_1(OneMsg, ThreeMsg) ->
+    {One,_,Three} = wings_camera:button_names(),
+    wings_wm:message([One," ",OneMsg,"  ",Three," ",ThreeMsg]).
 
 update_state(St, #ost{first=OldFirst}=Ost0) ->
     #ost{first=First0} = Ost = update_state_1(St, Ost0),
@@ -254,33 +259,31 @@ do_action(X, Y, Button, #ost{first=First,os=Objs}=Ost) ->
     end.
 
 do_action_1(visibility, 1, We, Ost) -> toggle_visibility(We, Ost);
+do_action_1(visibility, 3, We, Ost) -> toggle_visibility_all(We, Ost);
 do_action_1(lock, 1, We, Ost) -> toggle_lock(We, Ost);
+do_action_1(lock, 3, We, Ost) -> toggle_lock_all(We, Ost);
 do_action_1(name, 3, We, _Ost) -> rename_object(We);
 do_action_1(selection, 1, We, Ost) -> toggle_sel(We, Ost);
+do_action_1(selection, 3, We, Ost) -> toggle_sel_all(We, Ost);
 do_action_1(_, _, _, _) -> keep.
 
-toggle_visibility(#we{id=Id,perm=Perm}=We, #ost{st=St0}=Ost) ->
-    case wings_wm:me_modifiers() of
-	Mod when Mod band ?ALT_BITS =/= 0 ->
-	    toggle_visibility_all(We, Ost),
-	    get_event(Ost#ost{op=none});
-	_ ->
-	    {Op,St} = if
-			  ?IS_VISIBLE(Perm) -> 
-			      {hide,hide_object(Id, St0)};
-			  true ->
-			      {show,restore_object(Id, St0)}
-		      end,
-	    wings_wm:send(geom, {new_state,St}),
-	    get_event(Ost#ost{op=Op})
-    end.
+toggle_visibility(#we{id=Id,perm=Perm}, #ost{st=St0}=Ost) ->
+    {Op,St} = if
+		  ?IS_VISIBLE(Perm) -> 
+		      {hide,hide_object(Id, St0)};
+		  true ->
+		      {show,restore_object(Id, St0)}
+	      end,
+    wings_wm:send(geom, {new_state,St}),
+    get_event(Ost#ost{op=Op}).
 
-toggle_visibility_all(#we{id=Id}, #ost{os=Objs,st=St0}) ->
+toggle_visibility_all(#we{id=Id}, #ost{os=Objs,st=St0}=Ost) ->
     St = case are_all_visible(Objs, Id) of
 	     false -> restore_all(St0);
 	     true -> hide_others(Id, St0)
 	 end,
-    wings_wm:send(geom, {new_state,St}).
+    wings_wm:send(geom, {new_state,St}),
+    get_event(Ost#ost{op=none}).
 
 are_all_visible([#we{id=Id}|T], Id) ->
     are_all_visible(T, Id);
@@ -291,30 +294,21 @@ are_all_visible([#we{perm=P}|T], Id) ->
     end;
 are_all_visible([], _) -> true.
 
-toggle_lock(#we{id=Id,perm=Perm}=We, #ost{st=St0}=Ost) ->
-    case wings_wm:me_modifiers() of
-	Mod when Mod band ?ALT_BITS =/= 0 ->
-	    toggle_lock_all(We, Ost),
-	    get_event(Ost#ost{op=none});
-	_ ->
-	    if
-		?IS_NOT_VISIBLE(Perm) ->
-		    keep;
-		?IS_SELECTABLE(Perm) ->
-		    wings_wm:send(geom, {new_state,lock_object(Id, St0)}),
-		    get_event(Ost#ost{op=lock});
-		true ->
-		    wings_wm:send(geom, {new_state,restore_object(Id, St0)}),
-		    get_event(Ost#ost{op=unlock})
-	    end
-    end.
+toggle_lock(#we{perm=Perm}, _) when ?IS_NOT_VISIBLE(Perm) -> keep;
+toggle_lock(#we{id=Id,perm=Perm}, #ost{st=St0}=Ost) when ?IS_SELECTABLE(Perm) ->
+    wings_wm:send(geom, {new_state,lock_object(Id, St0)}),
+    get_event(Ost#ost{op=lock});
+toggle_lock(#we{id=Id}, #ost{st=St0}=Ost) ->
+    wings_wm:send(geom, {new_state,restore_object(Id, St0)}),
+    get_event(Ost#ost{op=unlock}).
 
-toggle_lock_all(#we{id=Id}, #ost{st=St0,os=Objs}) ->
+toggle_lock_all(#we{id=Id}, #ost{st=St0,os=Objs}=Ost) ->
     St = case are_all_visible_locked(Objs, Id) of
 	     true -> restore_all(St0);
 	     false -> lock_others(Id, St0)
 	 end,
-    wings_wm:send(geom, {new_state,St}).
+    wings_wm:send(geom, {new_state,St}),
+    get_event(Ost#ost{op=none}).
 
 are_all_visible_locked([#we{id=Id}|T], Id) ->
     are_all_visible_locked(T, Id);
@@ -338,35 +332,33 @@ rename_object(#we{id=Id,name=Name}) ->
 		     (_) -> ignore
 		  end).
 
-toggle_sel(#we{id=Id,perm=P}=We, #ost{st=St0,sel=Sel}=Ost) ->
-    case wings_wm:me_modifiers() of
-	Mod when Mod band ?ALT_BITS =/= 0 ->
-	    toggle_sel_all(We, Ost),
-	    get_event(Ost#ost{op=none});
-	_ ->
-	    case keymember(Id, 1, Sel) of
-		false when ?IS_SELECTABLE(P) ->
-		    St = wings_sel:select_object(Id, St0),
-		    wings_wm:send(geom, {new_state,St}),
-		    get_event(Ost#ost{op=select});
-		true ->
-		    St = wings_sel:deselect_object(Id, St0),
-		    wings_wm:send(geom, {new_state,St}),
-		    get_event(Ost#ost{op=deselect});
-		false ->
-		    get_event(Ost#ost{op=none})
-	    end
+toggle_sel(#we{id=Id,perm=P}, #ost{st=St0,sel=Sel}=Ost) ->
+    case keymember(Id, 1, Sel) of
+	false when ?IS_SELECTABLE(P) ->
+	    St = wings_sel:select_object(Id, St0),
+	    wings_wm:send(geom, {new_state,St}),
+	    get_event(Ost#ost{op=select});
+	true ->
+	    St = wings_sel:deselect_object(Id, St0),
+	    wings_wm:send(geom, {new_state,St}),
+	    get_event(Ost#ost{op=deselect});
+	false ->
+	    get_event(Ost#ost{op=none})
     end.
 
-toggle_sel_all(_, #ost{sel=[],st=St0}) ->
+toggle_sel_all(We, Ost) ->
+    toggle_sel_all_1(We, Ost),
+    get_event(Ost#ost{op=none}).
+
+toggle_sel_all_1(_, #ost{sel=[],st=St0}) ->
     St = wings_sel_cmd:select_all(St0),
     wings_wm:send(geom, {new_state,St});
-toggle_sel_all(#we{id=Id}, #ost{sel=[{Id,_}],st=St0}) ->
+toggle_sel_all_1(#we{id=Id}, #ost{sel=[{Id,_}],st=St0}) ->
     St = wings_sel_cmd:select_all(St0#st{sel=[]}),
     wings_wm:send(geom, {new_state,St});
-toggle_sel_all(#we{id=Id,perm=P}, #ost{st=St}) when ?IS_SELECTABLE(P) ->
+toggle_sel_all_1(#we{id=Id,perm=P}, #ost{st=St}) when ?IS_SELECTABLE(P) ->
     wings_wm:send(geom, {new_state,wings_sel:select_object(Id, St#st{sel=[]})});
-toggle_sel_all(_, _) -> ok.
+toggle_sel_all_1(_, _) -> ok.
 
 repeat_latest(_, #ost{active=-1}) -> ok;
 repeat_latest(Field, #ost{first=First,active=Obj,os=Objs}=Ost) ->
