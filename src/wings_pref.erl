@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.85 2003/06/12 06:20:41 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.86 2003/06/12 11:40:49 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -365,7 +365,7 @@ locate(File) ->
 defaults() ->
     [{background_color,{0.4,0.4,0.4}},
      {info_color,{0.0,0.0,0.0}},
-     {info_background_color,{0.8,0.8,0.8,1.0}},
+     {info_background_color,{0.8,0.8,0.8,0.5}},
      {grid_color,{0.0,0.0,0.0}},
      {edge_color,{0.0,0.0,0.0}},
      {hard_edge_color,{0.0,0.5,0.0}},
