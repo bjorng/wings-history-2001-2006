@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile.win32,v 1.6 2002/08/03 06:56:34 bjorng Exp $
+#     $Id: Makefile.win32,v 1.7 2002/09/08 08:19:06 bjorng Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -19,7 +19,9 @@ EBIN=..\..\plugins\primitives
 ERLC=erlc
 WINGS_SRC=../../src
 WINGS_E3D=../../e3d
-ESDL=..\..\..\esdl
+!if !defined(ESDL_PATH)
+ESDL_PATH=..\..\..\esdl
+!endif
 
 TARGET_FILES= \
 	$(EBIN)\wpc_image.beam \
@@ -33,7 +35,7 @@ REMOVE_FILES=$(TARGET_FILES:.beam=.removed)
 # ----------------------------------------------------
 # FLAGS
 # ----------------------------------------------------
-ERL_FLAGS = -I $(WINGS_SRC) -I $(WINGS_E3D) -I $(ESDL)/include
+ERL_FLAGS = -I $(WINGS_SRC) -I $(WINGS_E3D) -I $(ESDL_PATH)/include
 ERL_COMPILE_FLAGS = -W $(TYPE_FLAGS)
 
 # ----------------------------------------------------
