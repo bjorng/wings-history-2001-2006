@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.53 2001/11/23 14:37:53 bjorng Exp $
+%%     $Id: wings.erl,v 1.54 2001/11/24 18:38:50 bjorng Exp $
 %%
 
 -module(wings).
@@ -522,9 +522,7 @@ command({_,{rotate,Type}}, St) ->
 command({_,{scale,Type}}, St) ->
     wings_scale:setup(Type, St).
 
-popup_menu(X0, Y0, #st{selmode=Mode,sel=Sel}=St) ->
-    X = X0 + 5,
-    Y = Y0 + 5,
+popup_menu(X, Y, #st{selmode=Mode,sel=Sel}=St) ->
     case {Sel,Mode} of
  	{[],_} -> shape_menu(X, Y, St);
  	{_,vertex} -> vertex_menu(X, Y, St);
@@ -656,7 +654,7 @@ shape_menu(X, Y, St0) ->
 	    {"Torus",{torus}},
 	    separator,
 	    {"Grid",{grid}}},
-    wings_menu:menu(X, Y, shape, Menu).
+    wings_menu:popup_menu(X, Y, shape, Menu).
 
 vertex_menu(X, Y, St) ->
     XYZ = xyz(),
@@ -682,7 +680,7 @@ vertex_menu(X, Y, St) ->
 	    {"Magnet",{magnet,{{"Gaussian",{gaussian,directions()}},
 			       {"Linear",{linear,directions()}}}}},
 	    {"Deform",wings_deform:sub_menu(St)}},
-    wings_menu:menu(X, Y, vertex, Menu).
+    wings_menu:popup_menu(X, Y, vertex, Menu).
 
 edge_menu(X, Y, St) ->
     Menu = {{"Edge operations",ignore},
@@ -712,7 +710,7 @@ edge_menu(X, Y, St) ->
 				   {"Hard",hard}}}},
 	    separator,
 	    {"Loop Cut",loop_cut}},
-        wings_menu:menu(X, Y, edge, Menu).
+        wings_menu:popup_menu(X, Y, edge, Menu).
  
 face_menu(X, Y, St) ->
     Menu = {{"Face operations",ignore},
@@ -748,7 +746,7 @@ face_menu(X, Y, St) ->
 	    {"Smooth",smooth},
 	    separator,
 	    {"Set Material",{set_material,materials(St)}}},
-    wings_menu:menu(X, Y, face, Menu).
+    wings_menu:popup_menu(X, Y, face, Menu).
 body_menu(X, Y, St) ->
     Dir = {{"Free",free},
 	   {"X",x},
@@ -775,7 +773,7 @@ body_menu(X, Y, St) ->
 	    separator,
 	    {"Duplicate",{duplicate,Dir}},
 	    {"Delete","Bksp",delete}},
-    wings_menu:menu(X, Y, body, Menu).
+    wings_menu:popup_menu(X, Y, body, Menu).
 
 materials(#st{mat=Mat0}) ->
     L0 = map(fun(Id) ->

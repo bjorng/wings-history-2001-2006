@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.11 2001/11/16 18:19:41 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.12 2001/11/24 18:38:50 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -20,7 +20,7 @@
 	 draw_icon/3,draw_icon/5,
 	 draw_message/1,draw_completions/1]).
 -export([putback_event/1,get_event/0,flush_events/0,
-	 periodic_event/2,cancel_periodic_event/0,has_periodic_event/0,
+	 set_timer/2,cancel_timer/1,
 	 enter_event_loop/1]).
 -export([grab/0,ungrab/0]).
 -export([setup_for_drawing/0,cleanup_after_drawing/0]).
@@ -429,12 +429,6 @@ read_events(Eq0) ->
 	{N,Evs} -> read_events(enter_events(Evs, Eq0))
     end.
 
-flush_timer_events() ->
-    receive
-	{event,_} -> flush_timer_events()
-    after 0 -> ok
-    end.
-	    
 enter_events(Evs, Eq0) ->
     foldl(fun(E, Q) -> queue:in(E, Q) end, Eq0, Evs).
 
@@ -448,8 +442,7 @@ read_out(Eq0) ->
 	    {Event,Eq};
 	{empty,Eq} ->
 	    receive
-		{event,Event} ->
-		    flush_timer_events(),
+		{timeout,Ref,{event,Event}} when is_reference(Ref) ->
 		    {Event,Eq0}
 	    after 3 ->
 		    read_events(Eq)
@@ -465,31 +458,19 @@ read_out(Motion, Eq0) ->
 	Other -> {Motion,Eq0}
     end.
 
-periodic_event(Ms, Event0) ->
-    Parent = self(),
-    Event = {event,{action,Event0}},
-    F = fun(Self) ->
-		receive
-		after Ms ->
-			Parent ! Event,
-			Self(Self)
-		end
-	end,
-    spawn_link(fun() ->
-		       register(wings_periodic, self()),
-		  F(F)
-	  end).
+%%%
+%%% Timer support.
+%%%
 
-cancel_periodic_event() ->
-    case whereis(wings_periodic) of
-	undefined -> ok;
-	Periodic ->
-	    unlink(Periodic),
-	    exit(Periodic, kill)
+set_timer(Time, Event) ->
+    erlang:start_timer(Time, self(), {event,Event}).
+
+cancel_timer(Ref) ->
+    erlang:cancel_timer(Ref),
+    receive
+	{timeout,Ref,_} -> ok
+    after 0 -> ok
     end.
-
-has_periodic_event() ->
-    whereis(wings_periodic) =/= undefined.
 
 %%%
 %%% Mouse grabbing.
