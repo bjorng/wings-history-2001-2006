@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.41 2002/11/06 14:38:58 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.42 2002/11/07 07:19:30 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -25,7 +25,7 @@
 
 -import(lists, [sort/1, map/2, foldl/3, reverse/1, 
 		append/1,delete/2, usort/1, max/1, min/1,
-		member/2,foreach/2]).
+		member/2,foreach/2,keysearch/3]).
 
 init() ->
     true.
@@ -47,8 +47,8 @@ menu(_, Menu) -> Menu.
 
 command({body,?MODULE}, St) ->
     start_uvmap(St);
-command({body,{?MODULE,do_edit,We}}, St) ->
-    do_edit(We, St);
+command({body,{?MODULE,do_edit,{We,MatName,Faces}}}, St) ->
+    do_edit(MatName, Faces, We, St);
 command({body,{?MODULE,show_map,Info}}, St) ->
     {MappedCharts,We,Vmap,OrigWe} = Info,
     init_show_maps(MappedCharts, We, Vmap, OrigWe, St);
@@ -353,7 +353,7 @@ check_isolated_vertex(V, We) ->
 %%% Edit interface.
 %%%
 
-start_edit(_Id, We0, St) ->
+start_edit(_Id, We, St) ->
     DefVar = {answer,edit},
     Qs = [{vframe,[{alt,DefVar,"Edit existing UV mapping",edit},
 		   {alt,DefVar,"Discard existing UV mapping and start over",discard}],
@@ -362,16 +362,48 @@ start_edit(_Id, We0, St) ->
 		     fun([Reply]) ->
 			     case Reply of
 				 edit ->
-				     %% Hack to avoid getting caught in the
-				     %% dialog box's viewport.
-				     Act = {action,{body,{?MODULE,do_edit,We0}}},
-				     wings_io:putback_event(Act),
-				     ignore;
+				     start_edit_1(We, St);
 				 discard ->
-				     wings_io:putback_event({action,{body,?MODULE}}),
-				     discard_uvmap(We0, St)
+				     Act = {action,{body,?MODULE}},
+				     wings_io:putback_event(Act),
+				     discard_uvmap(We, St)
 			     end
 		     end).
+
+start_edit_1(#we{name=ObjName,fs=Ftab}=We, St) ->
+    MatNames0 = foldl(fun({Face,#face{mat=Mat}}, A) ->
+			      [{Mat,Face}|A]
+		      end, [], gb_trees:to_list(Ftab)),
+    MatNames1 = sofs:to_external(sofs:relation_to_family(sofs:relation(MatNames0))),
+    MatNames = [Mat || {Name,_}=Mat <- MatNames1, has_texture(Name, St)],
+    case MatNames of
+	[] ->
+	    Faces = gb_trees:keys(Ftab),
+	    MatName = list_to_atom(ObjName ++ "_auv"),
+	    gen_edit_event(MatName, Faces, We);
+	[{MatName,Faces}] ->
+	    gen_edit_event(MatName, Faces, We);
+	[{First,_}|_]=Ms ->
+	    Act = {callback,fun() -> start_edit_cb(First, Ms, We) end},
+	    wings_io:putback_event(Act),
+	    ignore
+    end.
+
+start_edit_cb(First, Ms, We) ->
+    DefVar = {answer,First},
+    Qs = [{vframe,
+	   [{alt,DefVar,"Material "++atom_to_list(M),M} || {M,_} <- Ms],
+	   [{title,"Choose Material"}]}],
+    wings_ask:dialog(Qs,
+		     fun([Mat]) ->
+			     {value,{_,Faces}} = keysearch(Mat, 1, Ms),
+			     gen_edit_event(Mat, Faces, We)
+		     end).
+
+gen_edit_event(MatName, Faces, We) ->
+    Act = {action,{body,{?MODULE,do_edit,{We,MatName,Faces}}}},
+    wings_io:putback_event(Act),
+    ignore.
 
 discard_uvmap(#we{fs=Ftab}=We0, St) ->
     Faces = gb_trees:keys(Ftab),
@@ -380,16 +412,16 @@ discard_uvmap(#we{fs=Ftab}=We0, St) ->
     We = wings_we:uv_to_color(We0, St),
     mark_segments(Charts, Cuts, We, St).
 
-do_edit(We, St0) ->
-    Areas = #areas{matname=MatName} = init_edit(We, St0),
+do_edit(MatName, Faces, We, St) ->
+    Areas = #areas{matname=MatName} = init_edit(MatName, Faces, We),
     Geom = init_drawarea(),
-    TexSz = get_texture_size(MatName, St0#st.mat),
-    Uvs = #uvstate{st=wings_select_faces([], Areas#areas.we, St0),
-		   origst=St0,
+    TexSz = get_texture_size(MatName, St),
+    Uvs = #uvstate{st=wings_select_faces([], Areas#areas.we, St),
+		   origst=St,
 		   areas=Areas,
 		   geom=Geom, 
 		   option=#setng{color=false,texbg=true,texsz=TexSz}},
-    {seq,{push,dummy}, get_event(Uvs)}.
+    {seq,{push,dummy},get_event(Uvs)}.
 
 segment(Mode, #st{shapes=Shs}=St) ->
     [{_,We}] = gb_trees:to_list(Shs),
@@ -477,14 +509,7 @@ insert_coords([{V0,{Face,{S,T,_}}}|Rest], Vmap, #we{es=Etab0}=We) ->
     insert_coords(Rest, Vmap, We#we{es=Etab});
 insert_coords([], _, We) -> We.
 
-init_edit(#we{fs=Ftab0}=We0, St0) ->
-    MatNames0 = foldl(fun({Face,#face{mat=Mat}}, A) ->
-			      [{Mat,Face}|A]
-		      end, [], gb_trees:to_list(Ftab0)),
-    MatNames1 = sofs:to_external(sofs:relation_to_family(sofs:relation(MatNames0))),
-    MatNames = [Mat || {Name,_}=Mat <- MatNames1,
-		       has_texture(Name, St0)],
-    [{MatName,Faces}|_] = MatNames,
+init_edit(MatName, Faces, We0) ->
     FvUvMap = auv_segment:fv_to_uv_map(Faces, We0),
     {Charts,Cuts} = auv_segment:uv_to_charts(Faces, FvUvMap, We0),
     {We,Vmap} = auv_segment:cut_model(Charts, Cuts, We0#we{mode=material}),
@@ -526,7 +551,7 @@ has_texture(MatName, Materials) ->
     Maps = proplists:get_value(maps,Mat, []),
     none /= proplists:get_value(diffuse, Maps, none).
 
-get_texture_size(MatName, Materials) ->
+get_texture_size(MatName, #st{mat=Materials}) ->
     Mat = gb_trees:get(MatName, Materials),
     Maps = proplists:get_value(maps, Mat, []),
     case proplists:get_value(diffuse, Maps, none) of
@@ -1070,7 +1095,7 @@ handle_event(MB=#mousebutton{x=MX},
 	Other -> Other
     end;
 handle_event(Ev = #keyboard{state = ?SDL_PRESSED, keysym = Sym}, 
-	     Uvs0=#uvstate{sel = Sel0,areas=As=#areas{we=We,as=Curr0}}) ->
+	     Uvs0=#uvstate{sel = Sel0,areas=As=#areas{we=We}}) ->
     case Sym of
 	#keysym{sym = ?SDLK_SPACE} ->
 	    get_event(Uvs0#uvstate{sel = [],
