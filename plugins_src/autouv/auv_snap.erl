@@ -156,9 +156,26 @@ update_uv_fun(Vs) ->
 insert_uvs(St0) ->
     wings_sel:map(fun(Items, We=#we{vp=Vs,es=Etab0}) ->  
 			  AddUv = update_uv_fun(Vs),
-			  Etab = wings_face:fold_faces(AddUv, Etab0, Items, We),
-			  We#we{es=Etab}
+			  Etab1 = wings_face:fold_faces(AddUv, Etab0, Items, We),
+			  Etab2 = gb_trees:to_list(Etab1),
+			  Etab = rm_vertexcolors(Etab2, []),
+			  We#we{es=gb_trees:from_orddict(Etab)}
 		  end, St0).
+
+rm_vertexcolors([{Id,E=#edge{a=A0, b=B0}}|Rest], Acc) ->
+    A = if size(A0) == 3 ->
+		{0.0,0.0};
+	   true ->
+		A0
+	end,
+    B = if size(B0) == 3 ->
+		{0.0,0.0};
+	   true ->
+		B0
+	end,
+    rm_vertexcolors(Rest, [{Id,E#edge{a=A,b=B}}|Acc]);
+rm_vertexcolors([],Acc) ->
+    lists:reverse(Acc).
 
 set_materials(Image,St0) ->     
     Fix = fun(Items,We0,NewMats0) ->
