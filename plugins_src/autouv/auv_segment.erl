@@ -9,14 +9,14 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.59 2004/07/31 18:46:15 dgud Exp $
+%%     $Id: auv_segment.erl,v 1.60 2004/12/22 07:13:57 bjorng Exp $
 
 -module(auv_segment).
 
 -export([create/2,segment_by_material/1,cut_model/3,
 	 normalize_charts/3,map_vertex/2,map_edge/2,
 	 fv_to_uv_map/2,uv_to_charts/3,
-	 finalize_charts/1,finalize_chart/2]).
+	 finalize_chart/2]).
 
 -ifdef(DEBUG).
 -export([degrees/0, find_features/3, build_seeds/2]). %% Debugging
@@ -965,16 +965,8 @@ is_cutting_edge(#edge{vs=Va,ve=Vb,lf=Lf,rf=Rf}, D) ->
 	gb_trees:get({Lf,Vb}, D) =/= gb_trees:get({Rf,Vb}, D).
 
 %%%
-%%% Finalize charts for use in AutoUV.
+%%% Finalize a chart for use in AutoUV.
 %%%
-
-finalize_charts(Cs) ->
-    finalize_charts_1(Cs, length(Cs), []).
-
-finalize_charts_1([{Fs,We0}|Cs], Id, Acc) ->
-    We = finalize_chart(Fs, We0#we{id=Id}),
-    finalize_charts_1(Cs, Id-1, [We|Acc]);
-finalize_charts_1([], 0, Acc) -> Acc.
 
 finalize_chart(Fs, #we{fs=Ftab0}=We0) ->
     NotNeeded = ordsets:subtract(gb_trees:keys(Ftab0), Fs),
