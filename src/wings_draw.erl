@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.32 2001/11/29 13:41:01 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.33 2001/12/02 15:46:41 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -36,21 +36,19 @@ render(#st{shapes=Shapes}=St0) ->
     ?CHECK_ERROR(),
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     ?CHECK_ERROR(),
+    Smooth = wings_pref:get_value(smooth_preview),
     St1 = update_display_lists(St0),
-    St = make_sel_dlist(St1),
+    St = make_sel_dlist(Smooth, St1),
     wings_view:projection(),
     wings_view:model_transformations(),
     ground_and_axes(),
-    draw_shapes(St),
+    case Smooth of
+	true -> draw_smooth_shapes(St);
+	false -> draw_plain_shapes(St)
+    end,
     gl:popAttrib(),
     ?CHECK_ERROR(),
     St.
-
-draw_shapes(St) ->
-    case wings_pref:get_value(smooth_preview) of
-	true -> draw_smooth_shapes(St);
-	false -> draw_plain_shapes(St)
-    end.
 
 draw_smooth_shapes(#st{dl=DL}=St) ->
     gl:enable(?GL_CULL_FACE),
@@ -109,17 +107,6 @@ draw_plain_shapes(#st{selmode=SelMode}=St) ->
 	    draw_faces(St)
     end,
 
-    %% If vertex selection mode, draw vertices.
-    case SelMode of
-	vertex ->
-	    gl:color3f(0.0, 0.0, 0.0), 
-	    gl:pointSize(wings_pref:get_value(vertex_size)),
-	    gl:enable(?GL_POLYGON_OFFSET_POINT),
-	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_POINT),
-	    draw_faces(St);
-	NotVertex -> ok
-    end,
-
     gl:disable(?GL_POLYGON_OFFSET_LINE),
     gl:disable(?GL_POLYGON_OFFSET_POINT),
     gl:disable(?GL_POLYGON_OFFSET_FILL),
@@ -130,24 +117,17 @@ draw_plain_shapes(#st{selmode=SelMode}=St) ->
 sel_color() ->
     gl:color3fv(wings_pref:get_value(selected_color)).
 
-draw_sel(#st{sel=[],dl=#dl{sel=none}}=St) -> ok;
 draw_sel(#st{selmode=edge,dl=#dl{sel=DlistSel}}) ->
-    sel_color(),
     gl:lineWidth(wings_pref:get_value(selected_edge_width)),
     gl:callList(DlistSel);
 draw_sel(#st{selmode=vertex,dl=#dl{sel=DlistSel}}) ->
-    sel_color(),
     gl:pointSize(wings_pref:get_value(selected_vertex_size)),
     gl:callList(DlistSel);
 draw_sel(#st{dl=#dl{sel=DlistSel}}) ->
     gl:enable(?GL_POLYGON_OFFSET_FILL),
     gl:polygonOffset(1.0, 1.0),
-    sel_color(),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
-    case catch gl:callList(DlistSel) of
-	{'EXIT',_} -> exit({bad_call_list,DlistSel});
-	_ -> ok
-    end.
+    gl:callList(DlistSel).
     
 draw_faces(#st{dl=#dl{faces=DlistFaces}}) ->
     gl:callList(DlistFaces).
@@ -189,20 +169,16 @@ update_display_lists(St) -> St.
 %     draw_edges(Es, Vtab);
 % draw_edges([], Vtab) -> ok.
 
-make_sel_dlist(#st{sel=[],dl=DL}=St) ->
-    St#st{dl=DL#dl{sel=none}};
-make_sel_dlist(#st{dl=#dl{sel=none}}=St) ->
-    do_make_sel_dlist(St);
-make_sel_dlist(#st{sel=Sel,dl=#dl{old_sel=Sel}}=St) ->
-    St;
-make_sel_dlist(#st{dl=DL}=St) ->
-    do_make_sel_dlist(St);
-make_sel_dlist(St) -> St.
+make_sel_dlist(Smooth, #st{dl=#dl{sel=none}}=St) ->
+    do_make_sel_dlist(Smooth, St);
+make_sel_dlist(_, #st{sel=Sel,dl=#dl{old_sel=Sel}}=St) -> St;
+make_sel_dlist(Smooth, #st{dl=DL}=St) -> do_make_sel_dlist(Smooth, St);
+make_sel_dlist(Smooth, St) -> St.
 
-do_make_sel_dlist(#st{sel=Sel,dl=DL}=St) ->
+do_make_sel_dlist(Smooth, #st{sel=Sel,dl=DL}=St) ->
     DlistSel = ?DL_SEL,
     gl:newList(DlistSel, ?GL_COMPILE),
-    draw_selection(St),
+    draw_selection(Smooth, St),
     gl:endList(),
     St#st{dl=DL#dl{old_sel=Sel,sel=DlistSel}}.
 
@@ -312,19 +288,20 @@ draw_hard_edges_1(#we{es=Etab,he=Htab,vs=Vtab}) ->
 %% Draw the currently selected items.
 %%
 
-draw_selection(#st{selmode=body}=St) ->
+draw_selection(Smooth, #st{selmode=body}=St) ->
+    sel_color(),
     wings_sel:foreach(
       fun(_, #shape{sh=Data}) ->
 	      draw_faces(Data, false, St)
-      end, St),
-    St;
-draw_selection(#st{selmode=face}=St) ->
+      end, St);
+draw_selection(Smooth, #st{selmode=face}=St) ->
+    sel_color(),
     wings_sel:foreach(
       fun(Face, #shape{sh=#we{fs=Ftab}=We}) ->
 	      wings_draw_util:sel_face(Face, We)
-      end, St),
-    St;
-draw_selection(#st{selmode=edge}=St) ->
+      end, St);
+draw_selection(Smooth, #st{selmode=edge}=St) ->
+    sel_color(),
     gl:'begin'(?GL_LINES),
     wings_sel:foreach(
       fun(Edge, #shape{sh=#we{es=Etab,vs=Vtab}}=Sh) ->
@@ -332,16 +309,46 @@ draw_selection(#st{selmode=edge}=St) ->
 	      gl:vertex3fv(lookup_pos(Vstart, Vtab)),
 	      gl:vertex3fv(lookup_pos(Vend, Vtab))
       end, St),
-    gl:'end'(),
-    St;
-draw_selection(#st{selmode=vertex}=St) ->
+    gl:'end'();
+draw_selection(Smooth, #st{selmode=vertex}=St) ->
     gl:'begin'(?GL_POINTS),
-    wings_sel:foreach(
-      fun(V, #shape{sh=#we{vs=Vtab}}) ->
-	      gl:vertex3fv(lookup_pos(V, Vtab))
-      end, St),
-    gl:'end'(),
-    St.
+    draw_vtx_sel(Smooth, St),
+    gl:'end'().
+
+draw_vtx_sel(Smooth, #st{shapes=Shapes,sel=Sel}) ->
+    draw_vtx_sel(gb_trees:to_list(Shapes), Sel, Smooth).
+
+draw_vtx_sel([{Id1,#shape{sh=#we{vs=Vtab}}}|Shs], [{Id2,_}|_]=Sel, true)
+  when Id1 < Id2 ->
+    draw_vtx_sel(Shs, Sel, true);
+draw_vtx_sel([{Id1,#shape{sh=#we{vs=Vtab}}}|Shs], [{Id2,_}|_]=Sel, false)
+  when Id1 < Id2 ->
+    gl:color3f(0, 0, 0),
+    foreach(fun(#vtx{pos=Pos}) -> gl:vertex3fv(Pos) end,
+	    gb_trees:values(Vtab)),
+    draw_vtx_sel(Shs, Sel, false);
+draw_vtx_sel([{_,#shape{sh=#we{vs=Vtab}}}|Shs], [], true) -> ok;
+draw_vtx_sel([{_,#shape{sh=#we{vs=Vtab}}}|Shs], [], false) ->
+    gl:color3f(0, 0, 0),
+    foreach(fun(#vtx{pos=Pos}) -> gl:vertex3fv(Pos) end,
+	    gb_trees:values(Vtab)),
+    draw_vtx_sel(Shs, [], false);
+draw_vtx_sel([{Id,#shape{sh=#we{vs=Vtab0}}}|Shs], [{Id,Vs}|Sel], Smooth) ->
+    Vtab = sofs:from_external(gb_trees:to_list(Vtab0), [{vertex,data}]),
+    R = sofs:from_external(gb_sets:to_list(Vs), [vertex]),
+    SelVs = sofs:restriction(Vtab, R),
+    DrawFun = fun({_,#vtx{pos=Pos}}) -> gl:vertex3fv(Pos) end,
+    sel_color(),
+    foreach(DrawFun, sofs:to_external(SelVs)),
+    case Smooth of
+	true -> ok;
+	false ->
+	    gl:color3f(0, 0, 0),
+	    NonSelVs = sofs:drestriction(Vtab, R),
+	    foreach(DrawFun, sofs:to_external(NonSelVs))
+    end,
+    draw_vtx_sel(Shs, Sel, Smooth);
+draw_vtx_sel([], [], Smooth) -> ok.
 
 lookup_pos(Key, Tree) ->
     #vtx{pos=Pos} = gb_trees:get(Key, Tree),
