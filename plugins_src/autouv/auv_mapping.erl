@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.26 2002/11/08 14:13:59 dgud Exp $
+%%     $Id: auv_mapping.erl,v 1.27 2002/12/01 21:44:20 raimo_niskanen Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -25,13 +25,20 @@
 %%    Without the Agonizing Pain
 %% by
 %%  Jonathan Richard Shewchuk, March 7, 1994
+%%
+%% The Column Norm Preconditioning was stumbeled upon, just briefly
+%% mentioned, in the paper:
+%%      Incomplete Factorization Preconditioning
+%%        for Linear Least Squares Problems
+%% by
+%%      Xiaoge Wang, 1994
 
 %% All credits about the LSQCM implementation goes to Raimo, who
 %% implemented the lot. 
 
 -module(auv_mapping).
 
--export([lsq/2, lsq/4, find_pinned/2]). % Debug entry points
+-export([lsq/2, lsq/3, find_pinned/2]). % Debug entry points
 
 -ifdef(lsq_standalone).
 -define(DBG(Fmt,Args), io:format(?MODULE_STRING++":~p: "++(Fmt), 
@@ -146,9 +153,9 @@ lsqcm(Fs, We) ->
     ?DBG("LSQ ~p ~p~n", [V1,V2]),
 %    Idstr = lists:flatten(io_lib:format("~p", [Id])),
 %    {ok, Fd} = file:open("raimo_" ++ Idstr, [write]),
-%    io:format(Fd, "{~w, ~w, ~w}.~n", [Vs1,V1,V2]),
+%    io:format(Fd, "{~w, ~w}.~n", [Vs1,[V1,V2]]),
 %    file:close(Fd),
-    case ?TC(lsq(Vs1,V1,V2)) of
+    case ?TC(lsq(Vs1,[V1,V2])) of
 	{error, What} ->
 	    ?DBG("TXMAP error ~p~n", [What]),
 	    exit({txmap_error, What});
@@ -228,20 +235,14 @@ reorder_edge_loop(V1, [H|Tail], Acc) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 
-lsq(Name, Method) ->
-    {ok, [{L, P1, P2}]} = file:consult(Name),
-    lsq(L, P1, P2, Method).
+lsq(L, Lpuv) when list(Lpuv) ->
+    lsq(L, Lpuv, env);
+lsq(Name, Method) when atom(Method) ->
+    {ok, [{L, Lpuv}]} = file:consult(Name),
+    lsq(L, Lpuv, Method).
 
-lsq(L, P1, P2) ->
-    lsq(L, P1, P2, env).
 
-lsq(_, {P,_} = PUV1, {P,_} = PUV2, _) ->
-    {error, {invalid_arguments, [PUV1, PUV2]}};
-lsq(_, {_,{U1,V1}} = PUV1, {_,{U2,V2}} = PUV2, _)
-  when U1 == U2, V1 == V2 -> % Coarse comparision, not match
-    {error, {invalid_arguments, [PUV1, PUV2]}};
-lsq(L, {_P1,{U1,V1}} = PUV1, {_P2,{U2,V2}} = PUV2, Method)
-  when list(L), number(U1), number(V1), number(U2), number(V2) ->
+lsq(L, Lpuv, Method) when list(L), list(Lpuv), atom(Method) ->
     Method_1 =
 	case Method of 
 	    env ->
@@ -255,53 +256,61 @@ lsq(L, {_P1,{U1,V1}} = PUV1, {_P2,{U2,V2}} = PUV2, Method)
 	    M ->
 		M
 	end,
-    case catch lsq_int(L, PUV1, PUV2, Method_1) of
+    case catch lsq_int(L, Lpuv, Method_1) of
 	{'EXIT', Reason} ->
 	    exit(Reason);
 	badarg ->
-	    erlang:fault(badarg, [L, PUV1, PUV2]);
+	    erlang:fault(badarg, [L, Lpuv]);
 	Result ->
 	    Result
     end;
-lsq(L, P1, P2, Method) ->
-    erlang:fault(badarg, [L, P1, P2, Method]).
+lsq(L, Lpuv, Method) ->
+    erlang:fault(badarg, [L, Lpuv, Method]).
 
-lsq_int(L, {P1,{U1,V1}} = PUV1, {P2,{U2,V2}} = PUV2, Method) ->
+lsq_int(L, Lpuv, Method) ->
     %% Create a dictionary and a reverse dictionary for all points
     %% in the indata. Translate the point identities into a
     %% continous integer sequence.
-    {M, Dict, Rdict} = lsq_points(L),
-    {N, L1, L2} = lsq_triangles(L, Dict, M),
-    Q1 = case dict:find(P1, Dict) of 
-	     {ok, Q_1} -> Q_1;
-	     error -> throw({error, {invalid_arguments, [PUV1]}})
-	 end,
-    Q2 = case dict:find(P2, Dict) of 
-	     {ok, Q_2} -> Q_2;
-	     error -> throw({error, {invalid_arguments, [PUV2]}})
-	 end,
-    Q1uv = {Q1,{U1,V1}},
-    Q2uv = {Q2,{U2,V2}},
+    ?DBG("lsq_int - Lpuv = ~p~n", [Lpuv]),
+    {M,Dict,Rdict} = lsq_points(L),
+    {N,L1,L2} = lsq_triangles(L, Dict, M),
+    Lquv = 
+	lists:sort( % Must be sorted for pick() and insert() to work.
+	  lists:map(
+	    fun ({P,{U,V} = UV} = PUV) when number(U), number(V) ->
+		    case dict:find(P, Dict) of
+			{ok,Q} -> {Q,UV};
+			error -> throw({error,{invalid_arguments,[PUV]}})
+		    end;
+		(PUV) ->
+		    throw({error,{invalid_arguments,[PUV]}})
+	    end,
+	    Lpuv)),
+    ?DBG("lsq_int - Lquv = ~p~n", [Lquv]),
+    {Np,Usum,Vsum} =
+	lists:foldl(
+	  fun ({_,{U,V}}, {Np1,Usum1,Vsum1}) ->
+		  {Np1+1,Usum1+U,Vsum1+V}
+	  end,
+	  {0,0,0}, Lquv),
     %% Build the basic submatrixes 
     %% M1 = Re(M), M2 = Im(M), M2n = -M2
-    {M1,M2,M2n} = 
-	?TC(build_basic(M,L1,L2)),
+    {M1,M2,M2n} = ?TC(build_basic(M,L1,L2)),
     %% Compile the basic submatrixes into the ones related to 
     %% free points (Mf*) i.e unknown, 
     %% and pinned points (Mp*).
-    {{Mf1c,Mp1c},{Mf2c,Mp2c},{Mf2nc,Mp2nc},UVa,UVb} =
-	?TC(build_cols(M1,M2,M2n,Q1uv,Q2uv)),
+    {Mfp1c,Mfp2c,Mfp2nc,LuLv} = ?TC(build_cols(M1,M2,M2n,Lquv)),
+    ?DBG("lsq_int - LuLv = ~p~n", [LuLv]),
     %% Compose the matrix and vector to solve
     %% for a Least SQares solution.
-    {Af,B} = 
-	?TC(build_matrixes(N,Mf1c,Mp1c,Mf2c,Mp2c,Mf2nc,Mp2nc,UVa,UVb)),
+    {Af,B} = ?TC(build_matrixes(N,Mfp1c,Mfp2c,Mfp2nc,LuLv)),
     ?DBG("Solving matrixes~n", []),
     X = case Method of
 	    ge ->
 		?TC(minimize(Af,B));
 	    _ ->
-		X0 = auv_matrix:vector(lists:duplicate(M-2, (U1+U2)/2)++
-				       lists:duplicate(M-2, (V1+V2)/2)),
+		X0 = auv_matrix:vector(lists:duplicate(M-2, Usum/Np)++
+				       lists:duplicate(M-2, Vsum/Np)),
 		{_,X1} = ?TC(minimize_cg(Af, X0, B, Method)),
 		X1
 	end,
@@ -309,30 +318,34 @@ lsq_int(L, {P1,{U1,V1}} = PUV1, {P2,{U2,V2}} = PUV2, Method) ->
     %% Extract the vector of previously unknown points,
     %% and insert the pinned points. Re-translate the
     %% original point identities.
-    ?TC(lsq_result(X, Q1uv,Q2uv, Rdict)).
+    ?TC(lsq_result(X, Lquv, Rdict)).
 
-    
-    
+
+
 build_basic(M,L1,L2) ->
     M1 = auv_matrix:rows(M, L1),
     M2 = auv_matrix:rows(M, L2),
     M2n = auv_matrix:rows(M, [auv_matrix:mult(-1, X) || X <- L2]),
     {M1,M2,M2n}.
 
-build_cols(M1,M2,M2n,Q1uv,Q2uv) ->
+build_cols(M1,M2,M2n,Lquv) ->
     %% Build column lists of the M matrixes
     M1c = auv_matrix:cols(M1),
     M2c = auv_matrix:cols(M2),
     M2nc = auv_matrix:cols(M2n),
     %% Split the column lists into free (Mf) and pinned (Mp)
-    [{Qa,UVa}, {Qb,UVb}] = lists:sort([Q1uv,Q2uv]),
-    QaQb = [Qa, Qb],
-    {Mf1c,Mp1c} = pick(M1c, QaQb),
-    {Mf2c,Mp2c} = pick(M2c, QaQb),
-    {Mf2nc,Mp2nc} = pick(M2nc, QaQb),
-    {{Mf1c,Mp1c},{Mf2c,Mp2c},{Mf2nc,Mp2nc},UVa,UVb}.
+    {Lq,Lu,Lv} = split_quv(Lquv), % Lquv is sorted
+    {pick(M1c, Lq),pick(M2c, Lq),pick(M2nc, Lq), Lu++Lv}.
 
-build_matrixes(N,Mf1c,Mp1c,Mf2c,Mp2c,Mf2nc,Mp2nc,{Ua,Va},{Ub,Vb}) ->
+split_quv(Lquv) ->
+    split_quv(Lquv, [], [], []).
+
+split_quv([], Lq, Lu, Lv) ->
+    {lists:reverse(Lq),lists:reverse(Lu),lists:reverse(Lv)};
+split_quv([{Q,{U,V}} | Lquv], Lq, Lu, Lv) ->
+    split_quv(Lquv, [Q | Lq], [U | Lu], [V | Lv]).
+
+build_matrixes(N,{Mf1c,Mp1c},{Mf2c,Mp2c},{Mf2nc,Mp2nc},LuLv) ->
     %% Build the matrixes Af and Ap, and vector B
     %% A = [ M1 -M2 ],  B = Ap U, U is vector of pinned points
     %%     [ M2  M1 ]
@@ -342,9 +355,19 @@ build_matrixes(N,Mf1c,Mp1c,Mf2c,Mp2c,Mf2nc,Mp2nc,{Ua,Va},{Ub,Vb}) ->
     Apu = auv_matrix:cols(N, Mp1c++Mp2nc),
     Apl = auv_matrix:cols(N, Mp2c++Mp1c),
     Ap = auv_matrix:cat_rows(Apu, Apl),
-    U = auv_matrix:vector(4, [{1,-Ua}, {2,-Ub}, {3,-Va}, {4,-Vb}]),
+    {Np,K_LuLv} = keyseq_neg(LuLv),
+    U = auv_matrix:vector(Np, K_LuLv),
+    ?DBG("build_matrixes - U = ~p~n", [U]),
     B = auv_matrix:mult(Ap, U),
     {Af, B}.
+
+keyseq_neg(L) ->
+    keyseq(1, L, []).
+
+keyseq(N, [], R) ->
+    {N-1,lists:reverse(R)};
+keyseq(N, [X | L], R) ->
+    keyseq(N+1, L, [{N,-X} | R]).
 
 %%               _   _    2
 %% Minimize || A x - b ||  
@@ -552,7 +575,7 @@ lsq_triangles(L, Dict, M) ->
 %% Extract the result from vector X and combine it with the 
 %% pinned points. Re-translate the point identities.
 %%
-lsq_result(X, QUV1, QUV2, Rdict) ->
+lsq_result(X, Lquv, Rdict) ->
     {MM,1} = auv_matrix:dim(X),
 %     {_,UlistVlistR} =
 % 	lists:foldl(
@@ -574,22 +597,24 @@ lsq_result(X, QUV1, QUV2, Rdict) ->
 	      (Other, State) ->
 		  throw({error, {?FILE, ?LINE, [Other, State, X]}})
 	  end, {Vlist, []}, Ulist),
-    UVlist = insert(lists:reverse(UVlistR), lists:sort([QUV1, QUV2])),
+    UVlist = insert(lists:reverse(UVlistR), Lquv),
     {_, TxMapR} =
 	lists:foldl(
 	  fun (UV, {Q,R}) ->
 		  {Q+1,[{dict:fetch(Q, Rdict),UV} | R]}
 	  end, {1,[]}, UVlist),
-    {ok, lists:reverse(TxMapR)}.
+    TxMap = lists:reverse(TxMapR),
+    ?DBG("lsq_result - TxMap = ~p~n", [TxMap]),
+    {ok, TxMap}.
 
 
 
 %% Picks terms with specified indexes from a list.
 %%
-%% L: list of indexes in ascending order
-%% P: list of terms
+%% L: list of terms
+%% P: list of indexes in ascending order
 %%
-%% Return: {P_remaining, P_picked}
+%% Return: {L_remaining, L_picked}
 %%
 pick(L, P) 
   when list(L), list(P) ->
@@ -618,6 +643,10 @@ pick(_, _, _, _, _) ->
 
 
 %% Insert terms with specified indexes in a list
+%%
+%% L: List of terms
+%% S: List of {Pos,Term} tuples with Term to be 
+%%    inserted at position Pos in L
 %%
 insert(L, S)
   when list(L), list(S) ->
