@@ -8,18 +8,15 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_matedit.erl,v 1.1 2001/11/20 13:53:30 bjorng Exp $
+%%     $Id: wings_matedit.erl,v 1.2 2001/11/20 16:23:36 bjorng Exp $
 %%
 
 -module(wings_matedit).
 -compile(export_all).
 
--include_lib("esdl/include/sdl.hrl").
--include_lib("esdl/include/gl.hrl").
--include_lib("esdl/include/glu.hrl").
--include_lib("esdl/include/sdl_events.hrl").
--include_lib("esdl/include/sdl_video.hrl").
--include_lib("esdl/include/sdl_keyboard.hrl").
+-define(NEED_OPENGL, 1).
+-define(NEED_ESDL, 1).
+-include("wings.hrl").
 
 %% Material record.
 -record(mat,
@@ -37,7 +34,10 @@
 
 -record(s, {ambient, diffuse, specular, shininess = 0.0, transp = 1.0,
 	    prev, %% Prev color used in cancel
-	    x,y,w,h, bgc = {0.6, 0.6, 0.5}}). %% Windows stuff
+	    x,y,w,h, bgc = {0.6, 0.6, 0.5},
+	    orig_w,
+	    orig_h
+	   }). %% Windows stuff
 -record(c, {name, x, y, rgb = {1,1,1}, cx = 0, cy = 0, lscale = 1.0}).
 
 -define(COLORCIRCLE_RADIE, 50).	 
@@ -84,15 +84,16 @@ go() ->
     sdl:quit(),
     Res.
 
-edit(X,Y, PC) when record(PC, mat) ->
+edit(X, Y, PC) when record(PC, mat) ->
     Amb  = convert_material(PC#mat.ambient),
     Diff = convert_material(PC#mat.diffuse),
     Spec = convert_material(PC#mat.specular),
 
-    S = #s{x = X, y = Y, w = 550, h = 200},
-    gl:viewport(X,Y,S#s.w, S#s.h),
-    gl:matrixMode(?GL_PROJECTION),
-    gl:pushMatrix(),
+    [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
+    S = #s{x = X, y = Y, w = 550, h = 200, orig_w=W, orig_h=H},
+%%    gl:viewport(X,Y,S#s.w, S#s.h),
+%%  gl:matrixMode(?GL_PROJECTION),
+%%%     gl:pushMatrix(),
     gl:loadIdentity(),
 
     NS = S#s{ambient = Amb#c{name = "Ambient", 
@@ -108,7 +109,7 @@ edit(X,Y, PC) when record(PC, mat) ->
 	     shininess = PC#mat.shininess,
 	     prev = PC
 	    },	  
-    %%    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
+    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     gl:pixelStorei(?GL_UNPACK_ALIGNMENT, 1),
     %% Standard blend function
     gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
@@ -122,6 +123,7 @@ edit(X,Y, PC) when record(PC, mat) ->
     gl:disable (?GL_LIGHTING),
     gl:disable(?GL_COLOR_MATERIAL),    
     gl:disable(?GL_LIGHT0),
+    gl:disable(?GL_LIGHT1),
     gl:enable(?GL_LIGHT6),
     gl:lightfv(?GL_LIGHT6, ?GL_POSITION, {0.5, 0.5, -2, 1}),
     gl:lightfv(?GL_LIGHT6, ?GL_AMBIENT,  {0.3, 0.3, 0.3, 1}),
@@ -133,23 +135,27 @@ edit(X,Y, PC) when record(PC, mat) ->
 %    gl:disable (?GL_TEXTURE_3D),
     gl:shadeModel (?GL_SMOOTH),
     case catch color_picker_loop(NS) of
-	{'EXIT', normal} ->
-	    gl:disable(?GL_LIGHT6),
-	    gl:matrixMode(?GL_PROJECTION),
-	    gl:popMatrix(),
-	    {ok, S#s.prev};
+	{'EXIT',normal} ->
+	    restore_state(S),
+	    S#s.prev;
 	{'EXIT', {normal, Material}} ->
-	    gl:disable(?GL_LIGHT6),
-	    gl:matrixMode(?GL_PROJECTION),
-	    gl:popMatrix(),
-	    {ok, Material};
+	    restore_state(S),
+	    Material;
 	{'EXIT', Reason} ->
 	    io:format("Error Material Selection failed with Reason ~p ~n", [Reason]),
-	    gl:disable(?GL_LIGHT6),
-	    gl:matrixMode(?GL_PROJECTION),
-	    gl:popMatrix(),
-	    {ok, S#s.prev}
+	    restore_state(S),
+	    S#s.prev
     end.
+
+restore_state(#s{orig_w=W,orig_h=H}) ->
+    gl:viewport(0, 0, W, H),
+    gl:enable(?GL_LIGHT0),
+    gl:enable(?GL_LIGHT1),
+    gl:disable(?GL_LIGHT6),
+%%  gl:matrixMode(?GL_PROJECTION),
+%%  gl:popMatrix().
+    gl:popAttrib(),
+    ok.
 
 color_picker_loop(S) ->
     gl:viewport(S#s.x,S#s.y,S#s.w, S#s.h),
@@ -158,7 +164,7 @@ color_picker_loop(S) ->
     glu:ortho2D(0, S#s.w, 0, S#s.h),
     gl:matrixMode(?GL_MODELVIEW),
     gl:loadIdentity(),	  
-    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
+%%    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
 
     %%% Draw Window..
     gl:color3fv(S#s.bgc),  %% Get clear color from preferences
@@ -233,7 +239,7 @@ color_picker_loop(S) ->
  
     %% Transparency Indicator
     TiPosX = ?BORDER_W + S#s.transp * TandSXLen,
-    SiPosX = STextX + (1 - S#s.shininess) * TandSXLen,
+    SiPosX = STextX + S#s.shininess * TandSXLen,
     draw_centered_box(TiPosX, TandSY - ?LSCALEX/2, 4, ?LSCALEX + 6, black),
     %% Shininess Indicator
     draw_centered_box(SiPosX, TandSY - ?LSCALEX/2, 4, ?LSCALEX + 6, black),
@@ -281,21 +287,24 @@ color_picker_loop(S) ->
     gl:materialfv(?GL_FRONT, ?GL_AMBIENT, AmbM),
     gl:materialfv(?GL_FRONT, ?GL_DIFFUSE, DiffM),
     gl:materialfv(?GL_FRONT, ?GL_SPECULAR, SpecM),
-    gl:materialfv(?GL_FRONT, ?GL_SHININESS, S#s.shininess),
+    io:format("shininess = ~p\n", [(1.0-S#s.shininess)*128.0]),
+    gl:materialfv(?GL_FRONT, ?GL_SHININESS, (1.0-S#s.shininess)*128.0),
     gl:enable(?GL_LIGHTING),
     gl:enable(?GL_BLEND),
     gl:enable(?GL_DEPTH_TEST),
     Obj = glu:newQuadric(),
     glu:quadricDrawStyle(Obj, ?GLU_FILL),
     glu:quadricNormals(Obj, ?GLU_SMOOTH),
-    glu:sphere(Obj, 1, 20, 20),
+    glu:sphere(Obj, 1, 50, 50),
     glu:deleteQuadric(Obj),
     gl:disable(?GL_LIGHTING),
     gl:disable(?GL_BLEND),
     gl:disable(?GL_DEPTH_TEST),
     gl:swapBuffers(),
     Ns = 
-	case catch check_event(S) of
+	case
+	    %%catch
+	    check_event(S) of
 	    quit ->
 		exit(normal); 
 	    {select, X0, Y0} when 
@@ -373,7 +382,7 @@ color_picker_loop(S) ->
 			Transp = (X0 - ?BORDER_W) / TandSXLen,
 			S#s{transp = Transp};
 		    X0 >= STextX, X0 =< STextX + TandSXLen -> %% Shin
-			Shininess = 1 - ((X0 - STextX) / TandSXLen),
+			Shininess = ((X0 - STextX) / TandSXLen),
 			S#s{shininess = Shininess};
 		    true ->
 			S
@@ -410,6 +419,7 @@ draw_filled_box(X1,X2,Y1,Y2) ->
     gl:vertex2f(X2,  Y2),
     gl:vertex2f(X2,  Y1),
     gl:glEnd().
+
 draw_box(X1,X2,Y1,Y2) ->
     gl:glBegin(?GL_LINE_LOOP),
     gl:vertex2f(X1,  Y1),
@@ -417,6 +427,7 @@ draw_box(X1,X2,Y1,Y2) ->
     gl:vertex2f(X2,  Y2),
     gl:vertex2f(X2,  Y1),
     gl:glEnd().
+
 draw_centered_box(X,Y, XSz, YSz, BorB) ->
     X1 = X - XSz / 2,
     X2 = X + XSz / 2,
@@ -610,6 +621,7 @@ convert_material(Mat) ->
 	       cx = Sat * math:cos(Rad), cy = Sat * math:sin(Rad), 
 	       lscale = Value}
     end.
+
 rgb_to_hsv({R,G,B}) ->
     rgb_to_hsv(R,G,B).
 rgb_to_hsv(R,G,B) ->
@@ -639,12 +651,14 @@ fixdeg(Hue) ->
     Hue.
 
 check_event(S) ->
-    case catch sdl_events:pollEvent() of 
-	#quit{} -> 
+    Event = wings_io:get_event(),
+    io:format("~p\n", [Event]),
+    case Event of
+	quit ->
 	    quit;
 	[] -> 
 	    ok;
-	no_event -> 
+	no_event ->
 	    ok;
 	Quit when record(Quit, keyboard) -> 
 	    if 
@@ -657,14 +671,7 @@ check_event(S) ->
 		    ok
 	    end;		    
 	{mousebutton,0,1,0, X,Y} ->
-	    WindowsSizeH = 400,
-	    %% X 0 Y 0 Upper Left 
-	    Res = {select, X - S#s.x, (WindowsSizeH - Y) - S#s.y},
-%	    io:format("XY ~p => State ~p ~p => ~p ref ~p ~n",
-%		      [{X, Y}, {S#s.x, S#s.y}, {S#s.w, S#s.h}, 
-%		       Res,
-%		       {(S#s.ambient)#c.x, (S#s.ambient)#c.y}]),
-	    Res;
+	    translate_position(X, Y, S);
 	
 	{mousebutton,0,1,1, X,Y} ->
 	    ok;
@@ -676,7 +683,16 @@ check_event(S) ->
 	{NE, Evs} ->
 	    io:format("Got ~p events: ~p~n", [NE, Evs]),
 	    ok;
+	#mousemotion{x=X,y=Y,state=State} when State band 1 =:= 1 ->
+	    translate_position(X, Y, S);
+	#mousemotion{} ->
+	    ok;
 	Event -> 
 	    io:format("Got event ~p~n", [Event]),
 	    ok	  
     end.
+
+translate_position(X, Y, S) ->
+    WindowsSizeH = S#s.orig_h,
+    %% X 0 Y 0 Upper Left 
+    {select, X - S#s.x, (WindowsSizeH - Y) - S#s.y}.

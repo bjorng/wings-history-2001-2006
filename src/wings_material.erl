@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.8 2001/11/20 12:49:22 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.9 2001/11/20 16:23:36 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -155,7 +155,8 @@ to_external({Name,#mat{ambient=Amb,diffuse=Diff,specular=Spec,
 
 edit(Name, #st{mat=Mtab0}=St) ->
     Mat0 = gb_trees:get(Name, Mtab0),
-    Mat = wings_io:display(fun(_, _) -> edit_1(Name, Mat0) end),
+    Mat = setup_fun(wings_matedit:edit(150, 200, Mat0)),
+    io:format("~w\n", [Mat]),
     Mtab = gb_trees:update(Name, Mat, Mtab0),
     St#st{mat=Mtab}.
 
