@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.92 2003/11/13 18:20:12 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.93 2003/11/13 18:46:44 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -184,16 +184,20 @@ button_format(LmbMsg) ->
 button_format(LmbMsg, MmbMsg) ->
     button_format(LmbMsg, MmbMsg, []).
     
+button_format(Msg, [], Msg) when Msg =/= [] ->
+    Buttons = wings_pref:get_value(num_buttons),
+    Lmb = drop_last(lmb_name()),
+    Rmb = rmb_name(Buttons),
+    [Lmb,$,,Rmb,?CSEP|Msg];
 button_format(LmbMsg, Msg, Msg) when Msg =/= [] ->
     Buttons = wings_pref:get_value(num_buttons),
     Lmb = lmb_name(),
-    Mmb0 = mmb_name(Buttons),
+    Mmb = drop_last(mmb_name(Buttons)),
     Rmb = rmb_name(Buttons),
     Lmsg = if
 	       LmbMsg =/= [] -> [Lmb,?CSEP|LmbMsg];
 	       true -> []
 	   end,
-    Mmb = reverse(tl(reverse(Mmb0))),
     RMmsg = [Mmb,$,,Rmb,?CSEP|Msg],
     join_msg(Lmsg, RMmsg);
 button_format(LmbMsg, MmbMsg, RmbMsg) ->
@@ -214,6 +218,9 @@ button_format(LmbMsg, MmbMsg, RmbMsg) ->
 	       true -> []
 	   end,
     join_msg(Lmsg, join_msg(Mmsg, Rmsg)).
+
+drop_last(S) ->
+    reverse(tl(reverse(S))).
 
 lmb_name() -> "L:".
 
