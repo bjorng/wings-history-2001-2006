@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.48 2004/10/24 05:51:39 bjorng Exp $
+#     $Id: Makefile,v 1.49 2004/12/05 13:37:41 bjorng Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -26,7 +26,10 @@ else
 TYPE_FLAGS=+debug_info
 endif
 
+# Note: wings_lang must be compiled before other modules -
+# it contains a parse transform.
 MODULES= \
+	wings_lang \
 	user_default \
 	wings \
 	wings_align \
@@ -57,7 +60,6 @@ MODULES= \
 	wings_import \
 	wings_init \
 	wings_io \
-	wings_lang \
 	wings_light \
 	wings_magnet \
 	wings_material \
@@ -103,7 +105,7 @@ TARGET_FILES= $(MODULES:%=$(EBIN)/%.beam)
 # ----------------------------------------------------
 ERL_FLAGS += -pa $(ESDL_PATH)/ebin +warn_unused_vars
 ERL_COMPILE_FLAGS += -I$(ESDL_PATH)/include -I ../e3d -W $(TYPE_FLAGS) \
- '-Dwings_version="$(WINGS_VSN)"'
+ '-Dwings_version="$(WINGS_VSN)"' -pa ../ebin
 
 # ----------------------------------------------------
 # Targets
@@ -114,8 +116,8 @@ opt debug:
 
 common: $(TARGET_FILES)
 
-template:
-	erl -pa $(EBIN) -run wings_lang generate_template -run erlang halt
+template: opt
+	erl -pa $(EBIN) -run wings_lang generate_template ../ebin -run erlang halt
 
 lang: template
 	cp *.lang $(EBIN)

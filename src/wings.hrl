@@ -8,8 +8,10 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.106 2004/10/13 13:59:46 dgud Exp $
+%%     $Id: wings.hrl,v 1.107 2004/12/05 13:37:41 bjorng Exp $
 %%
+
+-compile({parse_transform,wings_lang}).
 
 -ifdef(NEED_ESDL).
 -include_lib("esdl/include/sdl.hrl").
@@ -52,6 +54,7 @@
 -define(TC(Cmd), wings_util:tc(fun() -> Cmd end, ?MODULE, ?LINE)).
 
 -define(STR(A,B,Str), wings_lang:str({?MODULE,A,B},Str)).
+-define(__(Key,Str), wings_lang:str({?MODULE,Key},Str)).
 				       
 -ifdef(DEBUG).
 -define(ASSERT(E), case E of

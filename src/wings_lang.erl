@@ -8,28 +8,30 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_lang.erl,v 1.10 2004/12/05 08:10:40 bjorng Exp $
+%%     $Id: wings_lang.erl,v 1.11 2004/12/05 13:37:41 bjorng Exp $
 %%
 %%  Totally rewritten but Riccardo is still the one who did the hard work.
 %%
 
 -module(wings_lang).
--include("wings.hrl").
 
 %% Wings API.
 -export([init/0,str/2,
 	 available_languages/0,load_language/1]).
 
 %% Translation support tools.
--export([generate_template/0,generate_template/1,diff/1,diff/2]).
+-export([generate_template/1,diff/1,diff/2]).
 
--import(lists, [reverse/1,reverse/2,foreach/2]).
+%% Parse transform ASPI (called by compiler).
+-export([parse_transform/2,format_error/1]).
+
+-import(lists, [reverse/1,reverse/2,foreach/2,foldl/3]).
 
 -define(DEF_LANG_STR, "en").			% English
 -define(DEF_LANG_ATOM, en).			% English
 -define(LANG_DIRS, ["ebin","src","plugins"]).
 
-str(Key, DefStr) ->
+str({_,_,_}=Key, DefStr) ->
     case get(?MODULE) of
 	?DEF_LANG_ATOM -> DefStr;
 	_ ->
@@ -170,130 +172,70 @@ get_key([{Key,Found}|Rest],Key,Acc) -> {Found,lists:reverse(Acc,Rest)};
 get_key([Miss|Rest],Key,Acc) -> get_key(Rest,Key,[Miss|Acc]);
 get_key([],_,Acc) -> lists:reverse(Acc).
 
-generate_template() ->
-    {ok,Cwd} = file:get_cwd(),
-    generate_template(Cwd).
-
-generate_template(Dir) ->
-    Fs = files(Dir),
-    OutFile0 = case filename:basename(Dir) of
-		   "." -> "wings";
-		   "src" -> "wings";
-		   DirName -> DirName
-	       end,
-    OutFile = OutFile0 ++ "_en.lang",
-    {ok, Fd} = file:open(OutFile, [write]),
+generate_template([Dir]) ->
+    OutFile = case filename:basename(Dir) of
+		  "ebin" -> "wings";
+		  DirName -> DirName
+	      end ++ "_en.lang",
+    Fs = filelib:wildcard(filename:join(Dir, "*.beam")),
     io:format("Writing: ~p\n", [filename:absname(OutFile)]),
-    Write = fun(File) -> 
-		    scan_file(File, Fd)
-	    end,
-    try lists:foreach(Write, reverse(Fs))
-    after file:close(Fd)
+    {ok,Out} = file:open(OutFile, [write]),
+    io:put_chars(Out, "%% -*- mode:erlang; erlang-indent-level: 2 -*-\n"),
+    try foreach(fun(File) -> scan_file(File, Out) end, reverse(Fs))
+	after
+	    file:close(Out)
+	end.
+
+scan_file(Filename, Out) ->
+    case beam_lib:chunks(Filename, [abstract_code]) of
+	{ok,{Mod,[{abstract_code,{raw_abstract_v1,Forms}}]}} ->
+	    Strs = get_strings(Forms),
+	    output_strings(Strs, Mod, Out);
+	{ok,{Mod,_}} ->
+	    io:format("~p: Missing or wrong version of abstract format.\n",
+		      [Mod]);
+	{error,{Mod,Error}} ->
+	    io:format("~p: Problems: ~p\n", [Mod,Error])
     end.
 
-scan_file(FileName, Out) ->
-    Mod = list_to_atom(filename:rootname(filename:basename(FileName))),
-    {ok,Bin} = file:read_file(FileName),
-    File = binary_to_list(Bin),
-    search_and_gen_strs(File, Mod, Out, []).
+get_strings(Forms) ->
+    put(?MODULE, []),
+    get_str_1(Forms),
+    erase(?MODULE).
 
-search_and_gen_strs([], Mod, Out, Acc0) ->
-    generate_strs(lists:usort(Acc0), Mod, Out);
-search_and_gen_strs(File0, Mod, Out, Acc0) ->
-    File1 = skip(File0),
-    {File,Acc} = get_args(File1, Acc0),
-    search_and_gen_strs(File, Mod, Out, Acc).
+get_str_1({call,_,{remote,_,{atom,_,wings_lang},{atom,_,str}},
+	   [{tuple,_,[{atom,_,_},{atom,_,N},{_,_,Key}]},
+	    {string,_,S}]}) ->
+    put(?MODULE, [{N,{Key,S}}|get(?MODULE)]);
+get_str_1({string,_,_}) -> ok;			%Optimization only.
+get_str_1([H|T]) ->
+    get_str_1(H),
+    get_str_1(T);
+get_str_1(Tuple) when is_tuple(Tuple) ->
+    get_str_1(tuple_to_list(Tuple));
+get_str_1(_) -> ok.
 
-generate_strs(Refs, Mod, Out) ->
-    ModStr = atom_to_list(Mod),
-    io:format("~s~s", [ModStr,dots(20-length(ModStr))]),
-    case length(Refs) of
-	0 ->
-	    io:put_chars(" none\n");
-	N ->
-	    io:format("~5w\n", [N]),
-	    io:format(Out,"{~p,~n [~n",[Mod]),
-	    format_lang(Refs, Mod, undefined, Out)
-    end.
+output_strings([], _, _) -> ok;
+output_strings(S0, Mod, Out) ->
+    S1 = sofs:relation(S0),
+    S2 = sofs:relation_to_family(S1),
+    S = sofs:to_external(S2),
+    io:format(Out, "{~p,\n [\n", [Mod]),
+    foldl(fun(E, Sep) -> output_strings_1(E, Sep, Out) end, [], S),
+    io:put_chars(Out, "\n ]}.\n").
 
-dots(N) when N < 0 -> dots(0);
-dots(N) -> lists:duplicate(3+N, $.).
+output_strings_1({Name,List}, OuterSep, Out) ->
+    io:put_chars(Out, OuterSep),
+    io:format(Out,    "  {~p,\n", [Name]),
+    io:put_chars(Out, "   [\n"),
+    foldl(fun(E, Sep) -> output_string(E, Sep, Out) end, [], List),
+    io:format(Out,    "\n   ]}", []),
+    ",\n".
 
-format_lang([{Func,Id,Str}=This|R], Mod, Func, Fd) ->
-    io:format(Fd,"    {~p,~p}",[Id,Str]),
-    close_expr(This, R, Fd),
-    format_lang(R, Mod, Func, Fd);
-format_lang([{Func,Id,Str}=This|R], Mod, _, Fd) ->
-    io:format(Fd,"  {~p,~n   [{~p,~p}",[Func,Id,Str]),
-    close_expr(This, R, Fd),
-    format_lang(R, Mod, Func, Fd);
-format_lang([], _, _, _) -> ok.
-
-close_expr({Func,_,_}, [{Func,_,_}|_],Fd) ->
-    io:format(Fd,",~n",[]);
-close_expr({_,_,_}, [],Fd) ->
-    io:format(Fd,"]}]}.~n",[]);
-close_expr({_,_,_}, _,Fd) ->
-    io:format(Fd,"]},~n",[]).
-
-get_args([], Acc) -> {[], Acc};
-get_args(Str0, Acc) ->
-    {Func, Str1} = get_id(Str0, []),
-    {Id, Str2}   = get_id(Str1, []),    
-    {Info,Str}   = get_info(Str2, []),
-    {Str, [{Func,Id,Info}|Acc]}.
-
-get_id([$,|Rest], Acc) -> {to_erltype(lists:reverse(Acc)),Rest};
-get_id([$   |R],Acc) -> get_id(R,Acc);
-get_id([$\t |R],Acc) -> get_id(R,Acc);
-get_id([$\n |R],Acc) -> get_id(R,Acc);
-get_id([C|R],Acc) -> get_id(R,[C|Acc]).
-
-to_erltype(List) ->
-    case catch list_to_integer(List) of
-	{'EXIT', _} ->
-	    list_to_atom(List);
-	Int -> 
-	    Int
-    end.
-
-get_info(Str0, Acc0) ->
-    [$"|Str1] = skip_ws(Str0),
-    {Acc,Str2} = get_info1(Str1,Acc0),
-    case skip_ws(Str2) of
-	Str = [$"|_] -> get_info(Str, Acc);
-	[$)|Str] -> {lists:reverse(Acc), Str}
-    end.
-
-get_info1([$"|R], Acc) -> {Acc, R};
-get_info1([$\\,$t|R], Acc) -> get_info1(R,[$\t|Acc]);
-get_info1([$\\,$n|R], Acc) -> get_info1(R,[$\n|Acc]);
-get_info1([$\\,C|R], Acc) -> get_info1(R,[C|Acc]);
-get_info1([C|R],Acc) -> get_info1(R,[C|Acc]).
-    
-skip_ws([$\s |R]) -> skip_ws(R);
-skip_ws([$\t |R]) -> skip_ws(R);
-skip_ws([$\n |R]) -> skip_ws(R);
-skip_ws(R) -> R.
-
-skip([$?,$S,$T,$R,$( | Rest]) -> Rest;
-skip([_|Rest]) -> skip(Rest);
-skip([]) -> [].
-
-files(Dir) ->
-    {ok,Fs0} = file:list_dir(Dir),
-    Filter = 
-	fun(File,Acc) ->
-		F = filename:join(Dir,File),
-		case filelib:is_file(F) andalso 
-		    filename:extension(F) == ".erl" of
-		    true ->
-			[F|Acc];
-		    false ->
-			Acc
-		end
-	end,
-    lists:foldl(Filter, [], lists:sort(Fs0)).
+output_string({Key,Str}, Sep, Out) ->
+    io:put_chars(Out, Sep),
+    io:format(Out, "    {~p,~p}", [Key,Str]),
+    ",\n".
 
 get_en_template(Name) ->
     get_en_template_1(reverse(filename:rootname(Name))).
@@ -303,4 +245,87 @@ get_en_template_1([$_|T]) ->
 get_en_template_1([_|T]) ->
     get_en_template_1(T).
     
-    
+%%%
+%%% Parse transform follows.
+%%%
+
+-define(STRINGS, wings_lang_transform_strings).
+-define(FUNCTION_NAME, wings_lang_transform_function_name).
+-define(ERRORS, wings_lang_transform_errors).
+-define(FILENAME, wings_lang_transform_filename).
+
+parse_transform(Forms0, _Opts) ->
+    put(?ERRORS, []),
+    put(?STRINGS, []),
+    Forms = transform(Forms0),
+    check_strings(erase(?STRINGS)),
+    erase(?FILENAME),
+    case erase(?ERRORS) of
+	[] ->
+	    Forms;
+ 	Errors ->
+	    {error,reverse(Errors),[]}
+    end.
+
+format_error({duplicate_key,Key,Line}) ->
+    io_lib:format("Key ~p already used for a different string at line ~p",
+		  [Key,Line]).
+
+transform({attribute,_,file,{Filename,_}}=Form) ->
+    put(?FILENAME, Filename),
+    Form;
+transform({function,L,Name,Arity,Cs}) ->
+    put(?FUNCTION_NAME, Name),
+    {function,L,Name,Arity,transform(Cs)};
+transform({call,L,{remote,_,{atom,_,wings_lang},{atom,_,str}}=Rem,
+	   [{tuple,_,[{atom,_,M}=Mod,Key]},
+	    {string,_,S}=Str]}) ->
+    FunName = get(?FUNCTION_NAME),
+    K = literal_key(Key),
+    add_string({{M,FunName,K},{S,L}}),
+    {call,L,Rem,[{tuple,L,[Mod,{atom,L,FunName},Key]},Str]};
+transform({string,_,_}=Str) ->
+    Str;
+transform({Tag,Line}=Tuple) when is_constant(Tag), is_integer(Line) ->
+    Tuple;
+transform({Tag,Line,Term}=Tuple)
+  when is_constant(Tag), is_integer(Line), is_constant(Term) ->
+    Tuple;
+transform({Tag,Line,Term}) when is_constant(Tag), is_integer(Line) ->
+    {Tag,Line,transform(Term)};
+transform([H|T]) ->
+    [transform(H)|transform(T)];
+transform(Tuple) when is_tuple(Tuple) ->
+    transform_tuple(1, size(Tuple), Tuple, []);
+transform(Term) -> Term.
+
+transform_tuple(I, Size, Tuple, Acc) when I =< Size ->
+    E = transform(element(I, Tuple)),
+    transform_tuple(I+1, Size, Tuple, [E|Acc]);
+transform_tuple(_, _, _, Acc) ->
+    list_to_tuple(reverse(Acc)).
+
+check_strings(Strs0) ->
+    Strs1 = sofs:relation(Strs0),
+    Strs2 = sofs:relation_to_family(Strs1),
+    Strs = sofs:to_external(Strs2),
+    foreach(fun check_string/1, Strs).
+
+check_string({_,[_]}) -> ok;
+check_string({{_,_,Key},[{Str,Line}|Ss]}) ->
+    foreach(fun({S,_}) when S =:= Str -> ok;
+	       ({_,L}) -> add_error(L, {duplicate_key,Key,Line})
+	    end, Ss).
+
+literal_key({atom,_,A}) -> A;
+literal_key({integer,_,I}) -> I;
+literal_key(Term) ->
+    add_error(element(2, Term), bad_literal),
+    bad_literal.
+		   
+add_string(S) ->
+    put(?STRINGS, [S|get(?STRINGS)]).
+
+add_error(L, E0) ->
+    E = {get(?FILENAME),[{L,?MODULE,E0}]},
+    put(?ERRORS, [E|get(?ERRORS)]).

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.151 2004/10/17 06:37:43 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.152 2004/12/05 13:37:41 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -43,28 +43,35 @@ init() ->
 menu(_) ->
     ImpFormats = [{"Nendo (.ndo)...",ndo}],
     ExpFormats = [{"Nendo (.ndo)...",ndo}],
-    [{?STR(menu,3,"New"),new,?STR(menu,4,"Create a new, empty scene")},
-     {?STR(menu,5,"Open..."),open,?STR(menu,6,"Open a previously saved scene")},
-     {?STR(menu,7,"Merge..."),merge,?STR(menu,8,"Merge a previously saved scene into the current scene")},
+    [{?__(3,"New"),new,
+      ?__(4,"Create a new, empty scene")},
+     {?__(5,"Open..."),open,
+      ?__(6,"Open a previously saved scene")},
+     {?__(7,"Merge..."),merge,
+      ?__(8,"Merge a previously saved scene into the current scene")},
       separator,
-     {?STR(menu,9,"Save"),save,?STR(menu,10,"Save the current scene")},
-     {?STR(menu,11,"Save As..."),save_as,?STR(menu,12,"Save the current scene under a new name")},
-     {?STR(menu,13,"Save Selected..."),save_selected,?STR(menu,14,"Save only the selected objects or faces")},
-     {?STR(menu,15,"Save Incrementally"),save_incr},
+     {?__(9,"Save"),save,
+      ?__(10,"Save the current scene")},
+     {?__(11,"Save As..."),save_as,
+      ?__(12,"Save the current scene under a new name")},
+     {?__(13,"Save Selected..."),save_selected,
+      ?__(14,"Save only the selected objects or faces")},
+     {?__(15,"Save Incrementally"),save_incr,
+      ?__(26,"Generate new filename and save")},
+     separator,
+     {?__(16,"Revert"),revert,
+      ?__(17,"Revert current scene to the saved contents")},
       separator,
-     {?STR(menu,16,"Revert"),revert,?STR(menu,17,"Revert current scene to the saved contents")},
-      separator,
-     {?STR(menu,18,"Import"),{import,ImpFormats}},
-     {?STR(menu,19,"Export"),{export,ExpFormats}},
-     {?STR(menu,20,"Export Selected"),{export_selected,ExpFormats}},
-      separator,
-     {?STR(menu,21,"Import Image..."),import_image,?STR(menu,22,"Import an image file")},
-      separator,
-     {?STR(menu,23,"Render"),{render,[]}},
-      separator,
-     {?STR(menu,24,"Install Plug-In"),install_plugin},
-      separator|recent_files([{?STR(menu,25,"Exit"),quit}])].
-												
+     {?__(18,"Import"),{import,ImpFormats}},
+     {?__(19,"Export"),{export,ExpFormats}},
+     {?__(20,"Export Selected"),{export_selected,ExpFormats}},
+     separator,
+     {?__(21,"Import Image..."),import_image,?__(22,"Import an image file")},
+     separator,
+     {?__(23,"Render"),{render,[]}},
+     separator,
+     {?__(24,"Install Plug-In"),install_plugin},
+     separator|recent_files([{?__(25,"Exit"),quit}])].
     
 command(new, St) ->
     new(St);
@@ -99,7 +106,7 @@ command(save_incr, St) ->
 command(revert, St0) ->
     case revert(St0) of
 	{error,Reason} ->
-	 wings_util:error(?STR(command,1,"Revert failed: ") ++ Reason),
+	    wings_util:error(?__(1,"Revert failed: ") ++ Reason),
 	    St0;
 	#st{}=St -> {save_state,St}
     end;
@@ -112,9 +119,9 @@ command(import_image, _St) ->
 command({import_image,Name}, _) ->
     import_image(Name);
 command({export,ndo}, St) ->
-    export_ndo(export, ?STR(command,2,"Export"), St);
+    export_ndo(export, ?__(2,"Export"), St);
 command({export_selected,ndo}, St) ->
-    export_ndo(export_selected, ?STR(command,3,"Export Selected"), St);
+    export_ndo(export_selected, ?__(3,"Export Selected"), St);
 command({export,{ndo,Filename}}, St) ->
     do_export_ndo(Filename, St);
 command({export_selected,{ndo,Filename}}, St) ->
@@ -130,7 +137,7 @@ command({install_plugin,Filename}, _St) ->
 command(quit, #st{saved=true}) ->
     quit;
 command(quit, _) ->
-    wings_util:yes_no_cancel(?STR(command,4,"Do you want to save your changes before quitting?"),
+    wings_util:yes_no_cancel(?__(4,"Do you want to save your changes before quitting?"),
 			     fun() -> {file,{save,{file,quit}}} end,
 			     fun() -> {file,confirmed_quit} end);
 command(confirmed_quit, _) ->
@@ -144,7 +151,7 @@ command(Key, St) when is_integer(Key), 1 =< Key ->
 	false ->
 	    Recent = delete_nth(Recent0, Key),
 	    wings_pref:set_value(recent_files, Recent),
-	    wings_util:error(?STR(command,5,"This file has been moved or deleted."))
+	    wings_util:error(?__(5,"This file has been moved or deleted."))
     end.
 
 delete_nth([_|T], 1) -> T;
