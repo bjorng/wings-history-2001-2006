@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_matedit.erl,v 1.10 2001/11/29 10:14:56 bjorng Exp $
+%%     $Id: wings_matedit.erl,v 1.11 2001/11/29 13:04:16 bjorng Exp $
 %%
 
 -module(wings_matedit).
@@ -122,9 +122,6 @@ edit(PC) when record(PC, mat) ->
 
 restore_state(#s{orig_w=W,orig_h=H}) ->
     gl:viewport(0, 0, W, H),
-%    gl:enable(?GL_LIGHT0),
-%    gl:enable(?GL_LIGHT1),
-%    gl:disable(?GL_LIGHT6),
     gl:popAttrib(),
     ok.
 

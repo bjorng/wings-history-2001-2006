@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.13 2001/11/25 15:48:11 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.14 2001/11/29 13:04:16 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -203,7 +203,7 @@ edit(Name, #st{mat=Mtab0}=St) ->
     Mat0 = gb_trees:get(Name, Mtab0),
     Mat = setup_fun(wings_matedit:edit(Mat0)),
     Mtab = gb_trees:update(Name, Mat, Mtab0),
-    St#st{mat=Mtab}.
+    wings_draw:model_changed(St#st{mat=Mtab}).
 
 %%% Texture support.
 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.24 2001/11/29 10:14:56 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.25 2001/11/29 13:04:16 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -31,6 +31,7 @@ menu(X, Y, St) ->
     A = wings_pref:get_value(show_axes),
     S = wings_pref:get_value(smooth_preview),
     O = wings_pref:get_value(orthogonal_view),
+    L = wings_pref:get_value(number_of_lights),
     Menu = {{one_of(G, "Hide", "Show") ++ " ground plane",show_groundplane},
 	    {one_of(A, "Hide", "Show") ++ " axes",show_axes},
 	    separator,
@@ -42,6 +43,7 @@ menu(X, Y, St) ->
 	    {"Aim","a",aim},
 	    {one_of(O, "Perspective View", "Ortographic View"),
 	     "o",orthogonal_view},
+	    {one_of(L == 1, "Two lights", "One light"),toggle_lights},
 	    separator,
 	    {"View Along",{along,{{"+X","x",x},
 				  {"+Y","y",y},
@@ -80,6 +82,14 @@ command(rotate_left, St) ->
     St;
 command(align_to_selection, St) ->
     align_to_selection(St);
+command(toggle_lights, St) ->
+    Lights = case wings_pref:get_value(number_of_lights) of
+		 1 -> 2;
+		 2 -> 1
+	     end,
+    wings_pref:set_value(number_of_lights, Lights),
+    init_light(),
+    St;
 command(Key, St) ->
     toggle_option(Key),
     St.
@@ -112,6 +122,7 @@ set_current(View) ->
 init() ->
     wings_pref:set_default(show_groundplane, true),
     wings_pref:set_default(show_axes, true),
+    wings_pref:set_default(number_of_lights, 1),
 
     %% Always reset the following preferences + the view itself.
     wings_pref:set_value(wire_mode, false),
@@ -120,7 +131,15 @@ init() ->
     reset().
 
 init_light() ->
-    gl:enable(?GL_LIGHT0).
+    case wings_pref:get_value(number_of_lights) of
+	1 ->
+	    gl:enable(?GL_LIGHT0),
+	    gl:disable(?GL_LIGHT1);
+	2 ->
+	    gl:lightfv(?GL_LIGHT1, ?GL_DIFFUSE, {0.5,0.5,0.5,1}),
+	    gl:enable(?GL_LIGHT0),
+	    gl:enable(?GL_LIGHT1)
+    end.
 
 reset() ->
     set_current(#view{origo={0.0,0.0,0.0},
@@ -152,7 +171,14 @@ model_transformations() ->
     [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
     gl:matrixMode(?GL_MODELVIEW),
     gl:loadIdentity(),
-    gl:lightfv(?GL_LIGHT0, ?GL_POSITION, {0.0,0.71,0.71,0.0}),
+
+    case wings_pref:get_value(number_of_lights) of
+	1 ->
+	    gl:lightfv(?GL_LIGHT0, ?GL_POSITION, {0.0,0.71,0.71,0.0});
+	2 ->
+	    gl:lightfv(?GL_LIGHT0, ?GL_POSITION, {0.71,0.71,0.0,0.0}),
+	    gl:lightfv(?GL_LIGHT1, ?GL_POSITION, {-0.71,-0.71,0.0})
+    end,
     Dist = Dist0 * math:sqrt((W*H) / (640*480)),
     gl:translatef(PanX, PanY, -Dist),
     gl:rotatef(El, 1.0, 0.0, 0.0),

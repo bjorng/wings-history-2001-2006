@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.30 2001/11/29 10:14:56 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.31 2001/11/29 13:04:16 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -73,9 +73,6 @@ draw_smooth_shapes(#st{dl=DL}=St) ->
 draw_plain_shapes(#st{selmode=SelMode}=St) ->
     gl:enable(?GL_CULL_FACE),
     gl:cullFace(?GL_BACK),
-
-    gl:enable(?GL_LIGHT0),
-    gl:enable(?GL_LIGHT1),
 
     %% Draw faces for winged-edge-objects.
     Wire = wings_pref:get_value(wire_mode),
