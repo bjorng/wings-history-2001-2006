@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_face.erl,v 1.9 2002/05/18 07:07:52 bjorng Exp $
+%%     $Id: wings_extrude_face.erl,v 1.10 2002/05/19 05:40:03 bjorng Exp $
 %%
 
 -module(wings_extrude_face).
@@ -26,7 +26,8 @@ faces(Faces, We) when list(Faces) ->
 faces(Faces, We) ->
     faces(gb_sets:to_list(Faces), We).
     
-inner_extrude([Face|Faces], #we{next_id=AnEdge,fs=Ftab0}=We0, EdgeAcc0) ->
+inner_extrude([Face|Faces], #we{next_id=AnEdge,fs=Ftab0,es=OrigEtab}=We0,
+	      EdgeAcc0) ->
     #face{mat=Mat} = FaceRec = gb_trees:get(Face, Ftab0),
     Ftab = gb_trees:update(Face, FaceRec#face{edge=AnEdge}, Ftab0),
     We1 = We0#we{fs=Ftab},
@@ -35,7 +36,7 @@ inner_extrude([Face|Faces], #we{next_id=AnEdge,fs=Ftab0}=We0, EdgeAcc0) ->
     {Ids,We2} = wings_we:new_wrap_range(NumVs, 2, We1),
     PrevEdge = last(Edges),
     {We,EdgeAcc} = inner_extrude_1(Edges, PrevEdge, Face, Mat,
-				   Ids, We2, EdgeAcc0),
+				   Ids, OrigEtab, We2, EdgeAcc0),
     inner_extrude(Faces, We, EdgeAcc);
 inner_extrude([], #we{es=Etab0}=We, EdgeAcc) ->
     Etab1 = merge([sort(EdgeAcc),gb_trees:to_list(Etab0)]),
@@ -43,9 +44,10 @@ inner_extrude([], #we{es=Etab0}=We, EdgeAcc) ->
     We#we{es=Etab}.
 
 inner_extrude_edges(Face, We) ->
-    wings_face:fold(fun(_, E, _, A) -> [E|A] end, [], Face, We).
+    wings_face:fold(fun(_, E, Rec, A) -> [{E,Rec}|A] end, [], Face, We).
 
-inner_extrude_1([Edge|Es], PrevEdge, Face, Mat, Ids0, We0, EdgeAcc0) ->
+inner_extrude_1([{Edge,_}=CurEdge|Es], {PrevEdge,PrevRec}, Face,
+		Mat, Ids0, OrigEtab, We0, EdgeAcc0) ->
     PrevHor = wings_we:id(2-2, Ids0),
     PrevFace = PrevHor,
 
@@ -53,46 +55,54 @@ inner_extrude_1([Edge|Es], PrevEdge, Face, Mat, Ids0, We0, EdgeAcc0) ->
     VertEdge = HorEdge + 1,
     V = NewFace = HorEdge,
 
+
     NextHor = wings_we:id(2+2, Ids0),
     NextVert = NextHor + 1,
     NextV = NextHor,
 
     Ids = wings_we:bump_id(Ids0),
     #we{fs=Ftab0,es=Etab0,vs=Vtab0} = We0,
-
+    
     Erec0 = gb_trees:get(Edge, Etab0),
 
-    {Va,Erec} =
-	case Erec0 of
-	    #edge{a=InCol,lf=Face,vs=V0,rtpr=Next}=Erec0 ->
-		OutCol = get_vtx_color(Next, V0, Etab0),
-		{V0,Erec0#edge{lf=NewFace,a=OutCol,
-			       ltsu=VertEdge,ltpr=NextVert}};
-	    #edge{b=InCol,rf=Face,ve=V0,ltpr=Next}=Erec0 ->
-		OutCol = get_vtx_color(Next, V0, Etab0),
-		{V0,Erec0#edge{rf=NewFace,b=OutCol,
-			       rtsu=VertEdge,rtpr=NextVert}}
-	end,
-    Etab = gb_trees:update(Edge, Erec, Etab0),
+    Erec = case Erec0 of
+	       #edge{a=InCol,lf=Face,vs=Va,ve=Vb,rtpr=Next,ltpr=Prev}=Erec0 ->
+		   OutCol = get_vtx_color(Next, Va, OrigEtab),
+		   Erec0#edge{lf=NewFace,a=OutCol,
+			      ltsu=VertEdge,ltpr=NextVert};
+	       #edge{b=InCol,rf=Face,ve=Va,vs=Vb,ltpr=Next,rtpr=Prev}=Erec0 ->
+		   OutCol = get_vtx_color(Next, Va, OrigEtab),
+		   Erec0#edge{rf=NewFace,b=OutCol,
+				  rtsu=VertEdge,rtpr=NextVert}
+	   end,
+    Etab1 = gb_trees:update(Edge, Erec, Etab0),
+
+    case PrevRec of
+	#edge{lf=Face,b=ACol} -> ok;
+	#edge{rf=Face,a=ACol} -> ok
+    end,
+
+    VertEdgeRec = #edge{vs=Va,ve=V,a=ACol,b=InCol,
+			lf=PrevFace,rf=NewFace,
+			ltsu=PrevEdge,ltpr=PrevHor,
+			rtsu=HorEdge,rtpr=Edge},
+    Etab = gb_trees:insert(VertEdge, VertEdgeRec, Etab1),
 
     EdgeAcc = [{HorEdge,#edge{vs=NextV,ve=V,
+			      a=get_vtx_color(Prev, Vb, OrigEtab),
 			      b=InCol,
 			      lf=NewFace,rf=Face,
 			      ltsu=NextVert,ltpr=VertEdge,
-			      rtsu=PrevHor,rtpr=NextHor}},
-	       {VertEdge,#edge{vs=Va,ve=V,
-			       lf=PrevFace,rf=NewFace,
-			       ltsu=PrevEdge,ltpr=PrevHor,
-			       rtsu=HorEdge,rtpr=Edge}}|EdgeAcc0],
-
+			      rtsu=PrevHor,rtpr=NextHor}}|EdgeAcc0],
+    
     Vrec = gb_trees:get(Va, Vtab0),
     Vtab = gb_trees:insert(V, Vrec#vtx{edge=HorEdge}, Vtab0),
 
     Ftab = gb_trees:insert(NewFace, #face{mat=Mat,edge=HorEdge}, Ftab0),
 
     We = We0#we{fs=Ftab,es=Etab,vs=Vtab},
-    inner_extrude_1(Es, Edge, Face, Mat, Ids, We, EdgeAcc);
-inner_extrude_1([], _PrevEdge, _Face, _Mat, _Ids, We, EdgeAcc) ->
+    inner_extrude_1(Es, CurEdge, Face, Mat, Ids, OrigEtab, We, EdgeAcc);
+inner_extrude_1([], _PrevEdge, _Face, _Mat, _Ids, _, We, EdgeAcc) ->
     {We,EdgeAcc}.
 
 get_vtx_color(Edge, V, Etab) ->
