@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.246 2003/05/29 08:29:51 bjorng Exp $
+%%     $Id: wings.erl,v 1.247 2003/06/02 08:03:18 dgud Exp $
 %%
 
 -module(wings).
@@ -16,6 +16,9 @@
 -export([root_dir/0,caption/1,redraw/1,redraw/2,init_opengl/1,command/2]).
 -export([mode_restriction/1,clear_mode_restriction/0,get_mode_restriction/0]).
 -export([install_restorer/1]).
+
+-export([register_postdraw_hook/3,unregister_postdraw_hook/2]).
+
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -233,9 +236,31 @@ redraw(St) ->
 redraw(Info, St) ->
     wings_wm:clear_background(),
     wings_draw_util:render(St),
+    call_post_hook(St),
     case Info =/= [] andalso wings_wm:get_prop(show_info_text) of
 	true -> wings_io:info(Info);
 	false -> ok
+    end.
+
+call_post_hook(St) ->
+    This = wings_wm:this(),
+    case get({post_hook, This}) of
+	undefined -> 
+	    ok;
+	{_Id, Fun} ->
+	    Fun(St)
+    end.
+
+register_postdraw_hook(Window, Id, Fun) ->
+    put({post_hook, Window}, {Id, Fun}).
+
+unregister_postdraw_hook(Window,Id) ->
+    case get({post_hook, Window}) of
+	undefined -> %% Cancel was called from other win
+	    ok;
+	{Id, _} ->
+	    erase({post_hook,Window});
+	_ -> ok
     end.
 
 save_state(St0, St1) ->
