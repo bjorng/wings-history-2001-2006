@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.14 2002/10/18 22:25:39 raimo_niskanen Exp $
+%%     $Id: auv_mapping.erl,v 1.15 2002/10/19 22:38:35 raimo_niskanen Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -340,10 +340,10 @@ mk_solve_matrix(Af,B) ->
 %%               _   _    2
 %% Minimize || A x - b ||  
 %%
-%%              t   _       t _
-%% by solving A   A x  =  A   b
-%%                                          __
-%% using the Coujugate Gradient Method with x0 as 
+%%             -1  t    _      -1  t  _
+%% by solving M   A   A x  =  M   A   b
+%%                                                         __
+%% using the Preconditioned Coujugate Gradient method with x0 as 
 %% iteration start vector.
 %%
 minimize_cg(A, X0, B) ->
@@ -354,55 +354,80 @@ minimize_cg(A, X0, B) ->
     Epsilon = 1.0e-3,
     At = auv_matrix:trans(A),
     AtB = auv_matrix:mult(At, B),
-    D = R = auv_matrix:sub(AtB, 
-			   auv_matrix:mult(At, auv_matrix:mult(A, X0))),
-    Delta = auv_matrix:mult(auv_matrix:trans(R), R),
+%%% The following Jacobian preconditioning works, but is as expected
+%%% not worth the effort
+%%%     AtA = auv_matrix:mult_trans(At, At),
+%%%     Diag = auv_matrix:diag(AtA),
+%%%     Diag_inv = (catch [1/V || V <- Diag]),
+%%%     M_inv = 
+%%% 	case Diag_inv of
+%%% 	    {'EXIT', {badarith, _}} ->
+%%% 		1.0;
+%%% 	    {'EXIT', Reason} ->
+%%% 		exit(Reason);
+%%% 	    _ ->
+%%% 		auv_matrix:diag(Diag_inv)
+%%% 	end,
+%%%     ?DBG("Preconditioning with ~p~n", [M_inv]),
+    M_inv = 1,
+    R = auv_matrix:sub(AtB, 
+		       auv_matrix:mult(At, auv_matrix:mult(A, X0))),
+    D = auv_matrix:mult(M_inv, R),
+    Delta = auv_matrix:mult(auv_matrix:trans(R), D),
     Delta_max = Epsilon*Epsilon*Delta,
-    minimize_cg(At, A, AtB, Delta_max, 
+    minimize_cg(M_inv, At, A, AtB, Delta_max, 
 		Delta, I, D, R, X0).
 
-minimize_cg(At, A, _, _, 
+minimize_cg(_, At, A, _, _, 
 	    _, 0, D, _, X) ->
     ?DBG("minimize_cg() sizes were ~p ~p ~p~n", 
 	 [auv_matrix:dim(At), auv_matrix:dim(A), auv_matrix:dim(D)]),
     {stopped, X};
-minimize_cg(At, A, _, Delta_max, 
+minimize_cg(_, At, A, _, Delta_max, 
 	    Delta, _, D, _, X) when Delta < Delta_max ->
     ?DBG("minimize_cg() sizes were ~p ~p ~p~n", 
 	 [auv_matrix:dim(At), auv_matrix:dim(A), auv_matrix:dim(D)]),
     {ok, X};
-minimize_cg(At, A, AtB, Delta_max, 
+minimize_cg(M_inv, At, A, AtB, Delta_max, 
 	    Delta, I, D, R, X) ->
 %%    ?DBG("minimize_cg() step ~p Delta=~p~n", [I, Delta]),
-    AD = auv_matrix:mult(A, D),
-    Q = auv_matrix:mult(At, AD),
-    Alpha = Delta / auv_matrix:mult(auv_matrix:trans(AD), AD),
-    X_next = auv_matrix:add(X, auv_matrix:mult(Alpha, D)),
-    R_new = 
-	if (I + 5) rem 10 == 0 ->
-		?DBG("minimize_cg() recalculating residual ~p~n", [Delta]),
-		auv_matrix:sub
-		  (AtB, auv_matrix:mult(At, auv_matrix:mult(A, X_next)));
-	   true ->
-		auv_matrix:sub(R, auv_matrix:mult(Alpha, Q))
-	end,
-    Delta_new = auv_matrix:mult(auv_matrix:trans(R_new), R_new),
-    {R_next, Delta_next} = 
-	if Delta_new < Delta_max ->
-		?DBG("minimize_cg() verifying residual ~p~n", [Delta]),
-		R_n = 
-		    auv_matrix:sub
-		      (AtB, auv_matrix:mult(At, auv_matrix:mult(A, X_next))),
-		{R_n, auv_matrix:mult(auv_matrix:trans(R_new), R_new)};
-	   true ->
-		{R_new, Delta_new}
-	end,
-    Beta = Delta_next / Delta,
-    D_next = auv_matrix:add(R_next, auv_matrix:mult(Beta, D)),
-    minimize_cg(At, A, AtB, Delta_max, 
-		Delta_next, I-1, D_next, R_next, X_next).
+    P = auv_matrix:mult(A, D),
+    Alpha = Delta / auv_matrix:mult(auv_matrix:trans(P), P),
+    X_new = auv_matrix:add(X, auv_matrix:mult(Alpha, D)),
+    if (I + 5) rem 10 == 0 ->
+	    minimize_cg_3(M_inv, At, A, AtB, Delta_max,
+			  Delta, I, D, X_new);
+       true ->
+	    minimize_cg_2(M_inv, At, A, AtB, Delta_max,
+			  Delta, I, D, R, X_new, Alpha, P)
+    end.
 
-    
+minimize_cg_2(M_inv, At, A, AtB, Delta_max,
+	      Delta, I, D, R, X_new, Alpha, P) ->
+    R_new = auv_matrix:sub(R, auv_matrix:mult(Alpha, auv_matrix:mult(At, P))),
+    S = auv_matrix:mult(M_inv, R_new),
+    Delta_new = auv_matrix:mult(auv_matrix:trans(R_new), S),
+    if Delta_new < Delta_max ->
+	    minimize_cg_3(M_inv, At, A, AtB, Delta_max,
+			  Delta, I, D, X_new);
+       true ->
+	    D_new = auv_matrix:add(S, auv_matrix:mult(Delta_new/Delta, D)),
+	    minimize_cg(M_inv, At, A, AtB, Delta_max,
+			Delta_new, I+1, D_new, R_new, X_new)
+    end.
+
+minimize_cg_3(M_inv, At, A, AtB, Delta_max,
+	      Delta, I, D, X_new) ->
+    ?DBG("minimize_cg() recalculating residual ~p~n", [Delta]),
+    R_new = auv_matrix:sub
+	      (AtB, auv_matrix:mult(At, auv_matrix:mult(A, X_new))),
+    S = auv_matrix:mult(M_inv, R_new),
+    Delta_new = auv_matrix:mult(auv_matrix:trans(R_new), S),
+    D_new = auv_matrix:add(S, auv_matrix:mult(Delta_new/Delta, D)),
+    minimize_cg(M_inv, At, A, AtB, Delta_max,
+		Delta_new, I+1, D_new, R_new, X_new).
+
+
 
 %% Extract all point identities from indata, and create
 %% forwards and backwards dictionaries for translation

@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_matrix.erl,v 1.8 2002/10/19 19:06:11 raimo_niskanen Exp $
+%%     $Id: auv_matrix.erl,v 1.9 2002/10/19 22:38:36 raimo_niskanen Exp $
 
 -module(auv_matrix).
 
@@ -18,6 +18,7 @@
 -export([vector/1, vector/2]).
 -export([rows/1, rows/2, cols/1, cols/2]).
 -export([cat_cols/2, cat_rows/2]).
+-export([diag/1]).
 -export([trans/1, mult/2, mult_trans/2]).
 -export([add/2, sub/2]).
 -export([reduce/1, backsubst/1]).
@@ -203,6 +204,60 @@ cat_rows(A, B) ->
 
 %% Exported
 %%
+diag({?TAG,_,_,A}) ->
+    diag_rows(1, A, []);
+diag({?TAG,_,[Z | _]}) when integer(Z) ->
+    [0.0];
+diag({?TAG,_,[V | _]}) ->
+    [V];
+diag(V) when number(V) ->
+    [float(V)];
+diag([V]) when number(V) ->
+    float(V);
+diag(L) when list(L) ->
+    N = length(L),
+    case diag_list(1, N, L, []) of
+	A when list(A) ->
+	    fix({?TAG,N,N,A});
+	Fault ->
+	    erlang:fault(Fault, [L])
+    end;
+diag(A) ->
+    erlang:fault(badarg, [A]).
+
+diag_rows(_, [], C) ->
+    lists:reverse(C);
+diag_rows(I, [Row | A], C) ->
+    diag_cols(I, 1, A, Row, C).
+
+diag_cols(I, I, A, [V | Row], C) when float(V) ->
+    diag_rows(I+1,
+	      if Row == [] -> []; true -> A  end,
+	      [V | C]);
+diag_cols(I, J, A, [V | Row], C) when float(V) ->
+    diag_cols(I, J+1, A, Row, C);
+diag_cols(I, J, A, [Z | Row], C) when J+Z > I ->
+    diag_rows(I+1, 
+	      if Row == [] -> []; true -> A end, 
+	      [0.0 | C]);
+diag_cols(I, J, A, [Z | Row], C) ->
+    diag_cols(I, J+Z, A, Row, C).
+
+diag_list(N, N, [V], C) when number(V) ->
+    lists:reverse(C, [[N-1, float(V)]]);
+diag_list(I, N, [V | L], C) when number(V), V == 0 ->
+    diag_list(I+1, N, L, [[N] | C]);
+diag_list(1, N, [V | L], C) when number(V) ->
+    diag_list(2, N, L, [[float(V), N-1] | C]);
+diag_list(I, N, [V | L], C) when number(V) ->
+    diag_list(I+1, N, L, [[I-1, float(V), N-I] | C]);
+diag_list(_, _, _, _) ->
+    badarg.
+
+
+
+%% Exported
+%%
 trans({?TAG,1,M,[A]}) ->
     fix({?TAG,M,A});
 trans({?TAG,N,M,A}) ->
@@ -250,12 +305,16 @@ mult({?TAG,1,M,[A]}, {?TAG,M,B}) ->
     vec_mult(A, B);
 mult({?TAG,N,M,A}, {?TAG,M,B}) ->
     fix({?TAG,N,mult_vec(B, A)});
+mult(A, B) when number(A), A == 1 ->
+    fix(B);
 mult(A, {?TAG,N,1,[B]}) when number(A) ->
     fix({?TAG,N,1,[vec_mult(float(A), B)]});
 mult(A, {?TAG,N,M,B}) when number(A) ->
     fix({?TAG,N,M,mult_const(float(A), B, [])});
 mult(A, {?TAG,N,B}) when number(A) ->
     fix({?TAG,N,vec_mult(float(A), B)});
+mult(A, B) when number(B), B == 1 ->
+    fix(A);
 mult({?TAG,N,1,[A]}, B) when number(B) ->
     fix({?TAG,N,1,[vec_mult(float(B), A)]});
 mult({?TAG,N,M,A}, B) when number(B) ->
@@ -291,16 +350,12 @@ mult_trans(A, {?TAG,N,B}) ->
 mult_trans({?TAG,N,A}, B) ->
     mult_trans(trans({?TAG,1,N,[A]}), B);
 %%
-mult_trans({?TAG,_,_,_} = A, B) when number(B) ->
-    mult(A, B);
-mult_trans({?TAG,_,_} = A, B) when number(B) ->
-    mult(A, B);
-mult_trans(A, {?TAG,_,_,_} = B) when number(A) ->
-    trans(mult(A, B));
-mult_trans(A, {?TAG,_,_} = B) when number(A) ->
-    trans(mult(A, B));
 mult_trans(A, B) when number(A), number(B) ->
     float(A * B);
+mult_trans(A, B) when number(B) ->
+    mult(A, B);
+mult_trans(A, B) when number(A) ->
+    trans(mult(A, B));
 mult_trans(A, B) ->
     erlang:fault(badarg, [A, B]).
 
@@ -634,6 +689,8 @@ fix({?TAG,1,[1]}) ->
     0.0;
 fix({?TAG,1,[V]}) ->
     V;
+fix(V) when integer(V) ->
+    float(V);
 fix(M) ->
     M.
 
