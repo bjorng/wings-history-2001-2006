@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.65 2002/12/11 09:07:10 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.66 2002/12/11 10:47:31 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -626,10 +626,11 @@ add_material(Tx, St0, #areas{matname=MatName}=Charts) ->
 %%% Opengl drawing routines
 
 init_drawarea() ->
-    {X,Y,W0,H} = wings_wm:viewport(geom),
-    W = (W0 - 4) div 2,
-    Border = 10,
-    {_,TopH} = wings_wm:top_size(),
+    {X,Y,_,H} = wings_wm:viewport(geom),
+    {W0,TopH} = wings_wm:top_size(),
+    W = (W0 - 0) div 2,
+    Border = 15,
+    wings_wm:move(geom, {X,TopH-Y-H,1}, {W,H}),
     {{X+W,TopH-Y-H,W,H},
      if 
 	 W > H ->
@@ -995,11 +996,13 @@ handle_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,x=MX,y=MY}
 		none -> 
 		    get_event(Uvs0#uvstate{op = undefined});
 		Hits -> 
-		    {Sel1, Curr1} = update_selection(Hits, Sel0, Curr0),
-		    get_event(Uvs0#uvstate{sel = Sel1,
-					   st = wings_select_faces(Sel1, We0, Uvs0#uvstate.st),
-					   areas = As#areas{as=Curr1},
-					   dl = undefined, op = undefined})
+		    {Sel1,Curr1} = update_selection(Hits, Sel0, Curr0),
+		    WingsSt = wings_select_faces(Sel1, We0, Uvs0#uvstate.st),
+		    wings_wm:send(geom, {new_state,WingsSt}),
+		    get_event(Uvs0#uvstate{sel=Sel1,
+					   st=WingsSt,
+					   areas=As#areas{as=Curr1},
+					   dl=undefined,op=undefined})
 	    end;
 	rotate ->
 	    Sel = [finish_rotate(A)|| A <- Sel0],
@@ -1081,8 +1084,10 @@ handle_event({action, {auv, edge_options}}, Uvs) ->
 handle_event({action,{auv,quit}}, Uvs) ->
     quit_menu(Uvs);
 handle_event({action,{auv,quit,cancel}}, _) ->
+    restore_wings_window(),
     delete;
 handle_event({action, {auv,quit,QuitOp}}, Uvs) ->
+    restore_wings_window(),
     wings_wm:send(geom, {action,{body,{?MODULE,uvmap_done,QuitOp,Uvs}}}),
     delete;
 handle_event({action, {auv, set_options, {EMode,BEC,BEW,Color,TexBG,TexSz}}},
@@ -1131,9 +1136,10 @@ handle_event({callback, Fun}, _) when function(Fun) ->
     Fun();
 handle_event({resize,_,_},Uvs0) ->
     wings_draw_util:init(),
-    St1 = wings_material:init(Uvs0#uvstate.st),	    
-    {_,Geom} = init_drawarea(),
-    get_event(Uvs0#uvstate{geom=Geom, st=St1, dl=undefined});
+    St = wings_material:init(Uvs0#uvstate.st),	    
+    {{X,Y,W,H},Geom} = init_drawarea(),
+    wings_wm:move(autouv, {X,Y,2}, {W,H}),
+    get_event(Uvs0#uvstate{geom=Geom,st=St,dl=undefined});
 handle_event({action,_, {view,smoothed_preview}}, _Uvs0) ->
     keep; %% Bugbug didn't work crashes inside wings update_dlists
 handle_event({action,wings,{view, Cmd}}, Uvs0) ->
@@ -1493,6 +1499,7 @@ broken_event({current_state,St}, Uvs) ->
 	    pop
     end;
 broken_event({action,{autouv,cancel}}, _) ->
+    restore_wings_window(),
     delete;
 broken_event(Ev, _) ->
     case wings_menu:is_popup_event(Ev) of
@@ -1621,6 +1628,11 @@ tess_face_vtxcol(Tess, []) ->
 set_viewport({X,Y,W,H}=Viewport) ->
     put(wm_viewport, Viewport),
     gl:viewport(X, Y, W, H).
+
+restore_wings_window() ->
+    {_,Y,_,H} = wings_wm:viewport(geom),
+    {W,TopH} = wings_wm:top_size(),
+    wings_wm:move(geom, {0,TopH-Y-H,1}, {W,H}).
 
 %% Generate a checkerboard image.
 checkerboard(Sz) ->

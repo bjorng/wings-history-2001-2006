@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.32 2002/12/08 17:41:03 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.33 2002/12/11 10:47:32 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -16,7 +16,7 @@
 	 message/1,message/2,message_right/1,send/2,
 	 menubar/1,menubar/2,get_menubar/1,
 	 set_timer/2,cancel_timer/1,
-	 active_window/0,offset/3,pos/1,windows/0,is_window/1,exists/1,
+	 active_window/0,offset/3,move/3,pos/1,windows/0,is_window/1,exists/1,
 	 callback/1,current_state/1,
 	 grab_focus/1,release_focus/0,has_focus/1,
 	 top_size/0,viewport/0,viewport/1,
@@ -155,6 +155,10 @@ offset(Name, Xoffs, Yoffs) ->
     #win{x=X,y=Y} = Win = get_window_data(Name),
     put_window_data(Name, Win#win{x=X+Xoffs,y=Y+Yoffs}).
 
+move(Name, {X,Y,Z}, {W,H}) ->
+    Win = get_window_data(Name),
+    put_window_data(Name, Win#win{x=X,y=Y,z=Z,w=W,h=H}).
+    
 pos(Name) ->
     #win{x=X,y=Y} = get_window_data(Name),
     {X,Y}.
@@ -286,6 +290,14 @@ dispatch_event(#resize{w=W0,h=H0}=Event) ->
     put_window_data(geom, GeomData1),
     GeomData = send_event(GeomData1, Event#resize{h=MsgY}),
     put_window_data(geom, GeomData),
+
+    case is_window(autouv) of
+	false -> ok;
+	true ->
+	    AutoUVData0 = get_window_data(autouv),
+	    AutoUVData = send_event(AutoUVData0, Event),
+	    put_window_data(autouv, AutoUVData)
+    end,
 
     dirty(),
     event_loop();
