@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.97 2003/04/27 07:48:36 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.98 2003/04/27 08:01:50 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -528,18 +528,21 @@ build_cursors() ->
 
 build_cursor(Data0) ->
     case os:type() of
-	{unix,darwin} ->
-	    build_cursor(Data0, 0, 0);
+ 	{unix,darwin} ->
+ 	    build_cursor(Data0, 0, 0);
 	_ when length(Data0) =:= 256 ->
-	    Data = build_cursor_dup(Data0),
+	    Data = build_cursor_dup(Data0, 0, []),
 	    build_cursor(Data, 0, 0);
 	_ ->
 	    build_cursor(Data0, 0, 0)
     end.
 
-build_cursor_dup([C|Cs]) ->	    
-    [C,C|build_cursor_dup(Cs)];
-build_cursor_dup([]) -> [].
+build_cursor_dup(Cs, 16, Row0) ->
+    Row = reverse(Row0),
+    Row ++ Row ++ build_cursor_dup(Cs, 0, []);
+build_cursor_dup([C|Cs], N, Acc) ->
+    build_cursor_dup(Cs, N+1, [C,C|Acc]);
+build_cursor_dup([], _, _) -> [].
 
 build_cursor([$.|T], Mask, Bits) ->
     build_cursor(T, (Mask bsl 1) bor 1, Bits bsl 1);
@@ -595,7 +598,7 @@ hourglass_data() ->
        	"  ............................	 ".
 
 arrow_data() ->
-    "X                               "
+        "X                               "
 	"XX                              "
 	"X.X                             "
 	"X..X                            "
@@ -630,19 +633,18 @@ arrow_data() ->
 
 stop_data() ->
         "     xxxxxx     "
-       	"   xxxxxxxxxx   "
-       	"   xxx    xxx   "
+        "   xxxxxxxxxx   "
+        "   xxx    xxx   "
 	" xxxxx      xxx "
 	" xxxxx      xxx "
-       	"xxxxxxx       xx"
-       	"xx   xxx      xx"
+        "xxxxxxx       xx"
+        "xx   xxx      xx"
 	"xx    xxx     xx"
 	"xx     xxx    xx"
-	"xx    	 xxx   xx"
+	"xx      xxx   xx"
 	"xx       xxxxxxx"
 	" xxx      xxxxx "
 	" xxx      xxxxx "
-       	"   xxx    xxx   "
-       	"   xxxxxxxxxx   "
+        "   xxx    xxx   "
+        "   xxxxxxxxxx   "
         "     xxxxxx     ".
-
