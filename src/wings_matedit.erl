@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_matedit.erl,v 1.5 2001/11/21 11:25:55 bjorng Exp $
+%%     $Id: wings_matedit.erl,v 1.6 2001/11/21 12:39:07 dgud Exp $
 %%
 
 -module(wings_matedit).
@@ -176,34 +176,42 @@ color_picker_loop(S) ->
     Diff = S#s.diffuse,	   
     Spec = S#s.specular,
     
-    %% Test Result
-    {AR,AG,AB} = Amb#c.rgb,
-    {DR,DG,DB} = Diff#c.rgb,
-    {SR,SG,SB} = Spec#c.rgb,
-    gl:color3f(AR*Amb#c.lscale, AG*Amb#c.lscale, AB*Amb#c.lscale),
-    draw_filled_box(Amb#c.x - ?COLORCIRCLE_RADIE, Amb#c.x + ?COLORCIRCLE_RADIE,
-		    ?BORDER_W, ?BORDER_W + ?ButtonSzY),
-    gl:color3f(DR*Diff#c.lscale, DG*Diff#c.lscale, DB*Diff#c.lscale),
-    draw_filled_box(Diff#c.x - ?COLORCIRCLE_RADIE, Diff#c.x + ?COLORCIRCLE_RADIE,
-		    ?BORDER_W, ?BORDER_W + ?ButtonSzY),
-    gl:color3f(SR*Spec#c.lscale, SG*Spec#c.lscale, SB*Spec#c.lscale),
-    draw_filled_box(Spec#c.x - ?COLORCIRCLE_RADIE, Spec#c.x + ?COLORCIRCLE_RADIE,
-		    ?BORDER_W, ?BORDER_W + ?ButtonSzY),
-    
     %% Color Circles with darkness bars
     draw_color(Amb),
     draw_color(Diff),
     draw_color(Spec),	 
 
+    %% Test Result
+    {AR,AG,AB} = Amb#c.rgb,
+    {DR,DG,DB} = Diff#c.rgb,
+    {SR,SG,SB} = Spec#c.rgb,
+    CFXStop = ?COLORCIRCLE_RADIE + ?BORDER_W + ?LSCALEHALFW,    
+    CFXLen = ?COLORCIRCLE_RADIE + CFXStop,
+    CFY1 = Amb#c.y - ?COLORCIRCLE_RADIE - ?BORDER_W,
+    CFY2 = CFY1 - ?ButtonSzY,
+    CFCX = (CFXStop - ?COLORCIRCLE_RADIE) / 2,
+    CFCY = CFY2 + ?ButtonSzY / 2,
+
+    gl:color3f(AR*Amb#c.lscale, AG*Amb#c.lscale, AB*Amb#c.lscale),
+    draw_filled_box(Amb#c.x - ?COLORCIRCLE_RADIE, Amb#c.x + CFXStop, CFY1, CFY2),
+    draw_centered_box(Amb#c.x + CFCX, CFCY, CFXLen, ?ButtonSzY, box),    
+    gl:color3f(DR*Diff#c.lscale, DG*Diff#c.lscale, DB*Diff#c.lscale),
+    draw_filled_box(Diff#c.x - ?COLORCIRCLE_RADIE, Diff#c.x + CFXStop, CFY1, CFY2),
+    draw_centered_box(Diff#c.x + CFCX, CFCY, CFXLen, ?ButtonSzY, box),
+    gl:color3f(SR*Spec#c.lscale, SG*Spec#c.lscale, SB*Spec#c.lscale),
+    draw_filled_box(Spec#c.x - ?COLORCIRCLE_RADIE, Spec#c.x + CFXStop, CFY1, CFY2),
+    draw_centered_box(Spec#c.x + CFCX, CFCY, CFXLen, ?ButtonSzY, box),
+
     %% Transperancy and Shininess
     TandSXLen = (Spec#c.x + ?COLORCIRCLE_RADIE + ?LSCALEX - 2 * ?BORDER_W) div 2, 
-    TandSTextY = Amb#c.y - ?COLORCIRCLE_RADIE - ?BORDER_H,
-    TandSY    =	 TandSTextY - ?BORDER_H div 2,
+    TandSY    = ?BORDER_H div 2 + ?LSCALEX,
+    TandSTextY = TandSY + ?BORDER_H div 2 - 3,
+
     TTextX = ?BORDER_W,
     STextX = TandSXLen + ?BORDER_W * 3,
     MaxX = STextX + TandSXLen + ?BORDER_W,
-    MaxY = TandSY,
-
+    MaxY = CFY2,
+    gl:color3f(0,0,0),
     wings_io:text_at(TTextX, TandSTextY, "Transperancy:"),
     wings_io:text_at(STextX, TandSTextY, "Shininess: "),
 
@@ -309,11 +317,11 @@ color_picker_loop(S) ->
 		  Y0 =< Amb#c.y + ?COLORCIRCLE_RADIE -> 		
 		Selected = select_color(X0, Y0, S),
 		update_selected(X0, Y0, S#s{mouse = Selected, key = Selected});
-	    {select, {X0, Y0}} when  %% Shininess or Transparency
-		  Y0 =< TandSY, Y0 >= TandSY - ?LSCALEX ->
-		Selected = select_st(X0,Y0, ?BORDER_W, ?BORDER_W + TandSXLen),
+	    {select, {X0, Y0}} when  %% Shininess or Transparency 
+		  Y0 =< TandSY, Y0 >= TandSY - ?LSCALEX, X0 < MaxX ->
+		Selected = select_st(X0, ?BORDER_W, ?BORDER_W * 3 + TandSXLen, TandSXLen),
 		update_selected(X0, Y0, S#s{mouse = Selected, key = Selected});
-	    {select, {X0, Y0}} when  %% Ok or Cancel
+	    {select, {X0, Y0}} when  %% Buttons Ok or Cancel
 		  Y0 =< ?ButtonSzY + ?BORDER_H div 2, Y0 >= ?BORDER_H div 2 ->
 		Selected = select_butt(X0, OkX- ?ButtonSzX - ?BORDER_W, CancelX1, ?ButtonSzX, S),
 		update_selected(X0, Y0, S#s{mouse = Selected, key = Selected});
@@ -322,22 +330,7 @@ color_picker_loop(S) ->
 	    {release, {X0,Y0}} ->
 		Ns0 = update_selected(X0, Y0, S),
 		Ns0#s{mouse = undefined};
-
-%		if  %% OK
-%		    X0 >= OkX - ?ButtonSzX - ?BORDER_W, 
-%		    X0 =< OkX - ?BORDER_W ->
-%			AmbR  = {AR*Amb#c.lscale, AG*Amb#c.lscale, AB*Amb#c.lscale},
-%			DiffR = {DR*Diff#c.lscale, DG*Diff#c.lscale, DB*Diff#c.lscale},
-%			SpecR = {SR*Spec#c.lscale, SG*Spec#c.lscale, SB*Spec#c.lscale},
-%			exit({normal, (S#s.prev)#mat{ambient = AmbR, 
-%						     diffuse = DiffR, 
-%						     specular = SpecR,
-%						     shininess = S#s.shininess,
-%						     opacity = S#s.transp
-%						    }});
-%		    X0 >= CancelX1, X0 =< CancelX2 ->
-%			exit(normal);
-		_ ->
+	    _ ->
 		S	
 	end,
     timer:sleep(10),
@@ -549,7 +542,7 @@ draw_centered_box(X,Y, XSz, YSz, BorB) ->
     {X1,X2,Y1,Y2}.
     
 center_text(X,Y,Text) ->
-    W = length(Text) * 7,  H = 12, 
+    W = length(Text) * 7,  H = 13, 
     wings_io:text_at(round(X - W / 2), round(Y - H / 2), Text).
 
 draw_color(CType) ->
