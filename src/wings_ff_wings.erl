@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.61 2004/12/29 14:24:18 bjorng Exp $
+%%     $Id: wings_ff_wings.erl,v 1.62 2004/12/30 05:27:12 bjorng Exp $
 %%
 
 -module(wings_ff_wings).
@@ -88,7 +88,8 @@ import_objects([Sh0|Shs], Mode, NameMap, Oid, ShAcc) ->
     Mirror = proplists:get_value(mirror_face, Props, none),
     We = #we{es=Etab,vp=Vtab,he=Htab,perm=Perm,
 	     id=Oid,name=Name,mode=ObjMode,mirror=Mirror,mat=FaceMat},
-    import_objects(Shs, Mode, NameMap, Oid+1, [We|ShAcc]);
+    HiddenFaces = proplists:get_value(num_hidden_faces, Props, 0),
+    import_objects(Shs, Mode, NameMap, Oid+1, [{HiddenFaces,We}|ShAcc]);
 import_objects([], _Mode, _NameMap, Oid, Objs0) ->
     %%io:format("flat_size: ~p\n", [erts_debug:flat_size(Objs0)]),
     Objs = share_list(Objs0),
@@ -288,7 +289,7 @@ translate_map_images_2([], _, _) -> [].
 %%%
 
 share_list(Wes) ->
-    Tabs0 = [{Vtab,Etab} || #we{vp=Vtab,es=Etab} <- Wes],
+    Tabs0 = [{Vtab,Etab} || {_,#we{vp=Vtab,es=Etab}} <- Wes],
     Floats = share_floats(Tabs0, tuple_to_list(wings_color:white())),
     Tabs = share_list_1(Tabs0, Floats, gb_trees:empty(), []),
     share_list_2(Tabs, Wes, []).
@@ -299,11 +300,18 @@ share_list_1([{Vtab0,Etab0}|Ts], Floats, Tuples0, Acc) ->
     share_list_1(Ts, Floats, Tuples, [{Vtab,Etab}|Acc]);
 share_list_1([], _, _, Ts) -> reverse(Ts).
 
-share_list_2([{Vtab0,Etab0}|Ts], [#we{id=Id,mat=FaceMat}=We0|Wes], Acc) ->
+share_list_2([{Vtab0,Etab0}|Ts],
+	     [{NumHidden,#we{id=Id,mat=FaceMat}=We0}|Wes], Acc) ->
     Vtab = gb_trees:from_orddict(Vtab0),
     Etab = gb_trees:from_orddict(Etab0),
     We1 = wings_we:rebuild(We0#we{vp=Vtab,es=Etab,mat=default}),
-    We = wings_facemat:assign(FaceMat, We1),
+    We2 = wings_facemat:assign(FaceMat, We1),
+    We = if
+	     NumHidden =:= 0 -> We2;
+	     true ->
+		 Hidden = lists:seq(0, NumHidden-1),
+		 wings_we:hide_faces(Hidden, We2)
+	 end,
     share_list_2(Ts, Wes, [{Id,We}|Acc]);
 share_list_2([], [], Wes) -> sort(Wes).
 
@@ -471,11 +479,14 @@ collect_sel_groups([{{Mode,Name},Sel}|Gs], St, Acc0) ->
 collect_sel_groups([], _, Acc) -> Acc.
 
 renumber([{Id,We0}|Shs], [{Id,Root0}|Sel], NewId, WeAcc, RootAcc) ->
-    {We,Root} = wings_we:renumber(wings_we:show_faces(We0), 0, Root0),
-    renumber(Shs, Sel, NewId+1, [We|WeAcc], [{NewId,Root}|RootAcc]);
+    Hidden = wings_we:num_hidden(We0),
+    {We,Root} = wings_we:renumber(We0, 0, Root0),
+    renumber(Shs, Sel, NewId+1, [{Hidden,We}|WeAcc],
+	     [{NewId,Root}|RootAcc]);
 renumber([{_,We0}|Shs], Sel, NewId, WeAcc, RootAcc) ->
-    We = wings_we:renumber(wings_we:show_faces(We0), 0),
-    renumber(Shs, Sel, NewId+1, [We|WeAcc], RootAcc);
+    Hidden = wings_we:num_hidden(We0),
+    We = wings_we:renumber(We0, 0),
+    renumber(Shs, Sel, NewId+1, [{Hidden,We}|WeAcc], RootAcc);
 renumber([], [], _NewId, WeAcc, RootAcc) ->
     {WeAcc,RootAcc}.
 
@@ -500,7 +511,7 @@ write_file(Name, Bin) ->
 	{error,Reason} -> {error,file:format_error(Reason)}
     end.
 
-shape(#we{mode=ObjMode,name=Name,vp=Vs0,es=Es0,he=Htab}=We, Acc) ->
+shape({Hidden,#we{mode=ObjMode,name=Name,vp=Vs0,es=Es0,he=Htab}=We}, Acc) ->
     Vs1 = foldl(fun export_vertex/2, [], gb_trees:values(Vs0)),
     Vs = reverse(Vs1),
     UvFaces = gb_sets:from_ordset(wings_we:uv_mapped_faces(We)),
@@ -512,12 +523,16 @@ shape(#we{mode=ObjMode,name=Name,vp=Vs0,es=Es0,he=Htab}=We, Acc) ->
     Fs = reverse(Fs1),
     He = gb_sets:to_list(Htab),
     Props0 = [{mode,ObjMode}|export_perm(We)],
-    Props = mirror(We, Props0),
+    Props1 = hidden_faces(Hidden, Props0),
+    Props = mirror(We, Props1),
     [{object,Name,{winged,Es,Fs,Vs,He},Props}|Acc].
 
 mirror(#we{mirror=none}, Props) -> Props;
 mirror(#we{mirror=Face}, Props) -> [{mirror_face,Face}|Props].
-    
+
+hidden_faces(0, Props) -> Props;
+hidden_faces(N, Props) -> [{num_hidden_faces,N}|Props].
+
 export_perm(#we{perm=[]}) ->
     [{state,hidden_locked}];	     %Only for backward compatibility.
 export_perm(#we{perm=0}) -> [];
