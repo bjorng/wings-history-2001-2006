@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.162 2004/12/04 09:43:41 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.163 2004/12/06 07:56:35 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -29,71 +29,71 @@
 
 menu(#st{views={CurrentView,Views}}=St) ->
     L = wings_pref:get_value(number_of_lights),
-    [{?STR(menu,1,"Ground Plane"),show_groundplane,?STR(menu,2,"Show the ground plane"),
+    [{?__(1,"Ground Plane"),show_groundplane,?__(2,"Show the ground plane"),
       crossmark(show_groundplane)},
-     {?STR(menu,3,"Axes"),show_axes,?STR(menu,4,"Show the coordinate axes"),crossmark(show_axes)},
+     {?__(3,"Axes"),show_axes,?__(4,"Show the coordinate axes"),crossmark(show_axes)},
      separator,
-     {?STR(menu,5,"Workmode"),workmode,?STR(menu,6,"Toggle flat/smooth shading"),
+     {?__(5,"Workmode"),workmode,?__(6,"Toggle flat/smooth shading"),
       crossmark(workmode)},
      separator,
-     {?STR(menu,7,"Wireframe"),wireframe,?STR(menu,8,"Display selected objects as a wireframe (same for all objects if nothing is selected)")},
-     {?STR(menu,9,"Shade"),shade,?STR(menu,10,"Display selected objects as shaded (same for all objects if nothing is selected)")},
-     {?STR(menu,11,"Toggle Wireframe"),toggle_wireframe,
-      ?STR(menu,12,"Toggle display mode for selected objects (same for all objects if nothing is selected)"),wireframe_crossmark(St)},
+     {?__(7,"Wireframe"),wireframe,?__(8,"Display selected objects as a wireframe (same for all objects if nothing is selected)")},
+     {?__(9,"Shade"),shade,?__(10,"Display selected objects as shaded (same for all objects if nothing is selected)")},
+     {?__(11,"Toggle Wireframe"),toggle_wireframe,
+      ?__(12,"Toggle display mode for selected objects (same for all objects if nothing is selected)"),wireframe_crossmark(St)},
      separator,
-     {?STR(menu,13,"Toggle Proxy Mode"),smooth_proxy,
-      ?STR(menu,14,"Toggle the smooth proxy mode for selected objects")},
-     {?STR(menu,15,"Quick Smoothed Preview"),quick_preview,
-      ?STR(menu,16,"Toggle the smooth proxy mode for all objects")},
+     {?__(13,"Toggle Proxy Mode"),smooth_proxy,
+      ?__(14,"Toggle the smooth proxy mode for selected objects")},
+     {?__(15,"Quick Smoothed Preview"),quick_preview,
+      ?__(16,"Toggle the smooth proxy mode for all objects")},
      separator,
-     {?STR(menu,17,"Show Saved BB"),show_bb,?STR(menu,18,"Display any saved bounding box"),crossmark(show_bb)},
-     {?STR(menu,19,"Show Edges"),show_edges,?STR(menu,20,"Show edges in workmode"),crossmark(show_edges)},
-     {?STR(menu,21,"Show Wireframe Backfaces"),show_wire_backfaces,
-      ?STR(menu,22,"Show wireframe backfaces"),crossmark(show_wire_backfaces)},
-     {?STR(menu,23,"Show Normals"),show_normals,?STR(menu,24,"Show normals for selected elements"),
+     {?__(17,"Show Saved BB"),show_bb,?__(18,"Display any saved bounding box"),crossmark(show_bb)},
+     {?__(19,"Show Edges"),show_edges,?__(20,"Show edges in workmode"),crossmark(show_edges)},
+     {?__(21,"Show Wireframe Backfaces"),show_wire_backfaces,
+      ?__(22,"Show wireframe backfaces"),crossmark(show_wire_backfaces)},
+     {?__(23,"Show Normals"),show_normals,?__(24,"Show normals for selected elements"),
       crossmark(show_normals)},
      separator,
-     {?STR(menu,25,"Reset View"),reset,?STR(menu,26,"Reset view to the default position")},
-     {?STR(menu,27,"Aim"),aim,?STR(menu,28,"Aim the camera at the selected element")},
-     {?STR(menu,29,"Frame"),frame,?STR(menu,30,"Dolly to show all selected elements (or all objects if nothing is selected)")},
-     {?STR(menu,31,"Orthographic View"),orthogonal_view,
-      ?STR(menu,32,"Toggle between orthographic and perspective views"),
+     {?__(25,"Reset View"),reset,?__(26,"Reset view to the default position")},
+     {?__(27,"Aim"),aim,?__(28,"Aim the camera at the selected element")},
+     {?__(29,"Frame"),frame,?__(30,"Dolly to show all selected elements (or all objects if nothing is selected)")},
+     {?__(31,"Orthographic View"),orthogonal_view,
+      ?__(32,"Toggle between orthographic and perspective views"),
       crossmark(orthogonal_view)},
-     {?STR(menu,33,"Saved Views: ")++integer_to_list(size(Views)),
+     {?__(33,"Saved Views: ")++integer_to_list(size(Views)),
       {views,views_submenu(CurrentView, Views)}},
      separator,
-     {?STR(menu,34,"Camera Settings..."),camera_settings,?STR(menu,35,"Set field of view, and near and far clipping planes")},
+     {?__(34,"Camera Settings..."),camera_settings,?__(35,"Set field of view, and near and far clipping planes")},
      separator,
-     {?STR(menu,36,"Scene Lights"),scene_lights,
-      ?STR(menu,37,"Use the lights defined in the scene"),
+     {?__(36,"Scene Lights"),scene_lights,
+      ?__(37,"Use the lights defined in the scene"),
       crossmark(scene_lights)},
-     {one_of(L == 1, ?STR(menu,38,"Two Lights"),?STR(menu,39,"One Light")),toggle_lights,
-      one_of(L == 1, ?STR(menu,40,"Use two work lights"),
-	     ?STR(menu,41,"Use one work light"))},
+     {one_of(L == 1, ?__(38,"Two Lights"),?__(39,"One Light")),toggle_lights,
+      one_of(L == 1, ?__(40,"Use two work lights"),
+	     ?__(41,"Use one work light"))},
      separator,
-     {?STR(menu,42,"Show Colors"),show_colors,
-      ?STR(menu,43,"Show vertex colors on objects in \"vertex\" mode"),
+     {?__(42,"Show Colors"),show_colors,
+      ?__(43,"Show vertex colors on objects in \"vertex\" mode"),
       crossmark(show_colors)},
-     {?STR(menu,44,"Show Materials"),show_materials,
-      ?STR(menu,45,"Show materials on objects in \"material\" mode"),
+     {?__(44,"Show Materials"),show_materials,
+      ?__(45,"Show materials on objects in \"material\" mode"),
       crossmark(show_materials)},
-     {?STR(menu,46,"Show Textures"),show_textures,
-      ?STR(menu,47,"Show the texture on objects in \"material\" mode"),
+     {?__(46,"Show Textures"),show_textures,
+      ?__(47,"Show the texture on objects in \"material\" mode"),
       crossmark(show_textures)},
-     {?STR(menu,48,"Show Info Text"),show_info_text,
-      ?STR(menu,49,"Show an informational text at the top of this Geometry window"),
+     {?__(48,"Show Info Text"),show_info_text,
+      ?__(49,"Show an informational text at the top of this Geometry window"),
       crossmark(show_info_text)},
      separator,
-     {?STR(menu,50,"View Along"),{along,[{?STR(menu,51,"+X"),x},
-			   {?STR(menu,52,"+Y"),y},
-			   {?STR(menu,53,"+Z"),z},
-			   {?STR(menu,54,"-X"),neg_x},
-			   {?STR(menu,55,"-Y"),neg_y},
-			   {?STR(menu,56,"-Z"),neg_z}]}},
+     {?__(50,"View Along"),{along,[{?__(51,"+X"),x},
+			   {?__(52,"+Y"),y},
+			   {?__(53,"+Z"),z},
+			   {?__(54,"-X"),neg_x},
+			   {?__(55,"-Y"),neg_y},
+			   {?__(56,"-Z"),neg_z}]}},
      separator,
-     {?STR(menu,57,"Align to Selection"),align_to_selection,
-      ?STR(menu,58,"Align the view to the normal of the selection")},
-     {?STR(menu,59,"Auto Rotate"),auto_rotate,?STR(menu,60,"Spin the view")}].
+     {?__(57,"Align to Selection"),align_to_selection,
+      ?__(58,"Align the view to the normal of the selection")},
+     {?__(59,"Auto Rotate"),auto_rotate,?__(60,"Spin the view")}].
 
 crossmark(Key) ->
     Val = case wings_pref:get_value(Key) of
@@ -131,45 +131,45 @@ views_submenu(CurrentView, Views) ->
     Lines = wings_util:max((H div ?LINE_HEIGHT) - 3, 4),
     S = size(Views),
     C = if S > 0 -> view_index(CurrentView, S); true -> 0 end,
-    [{?STR(views_submenu,1,"Next"),next,views_submenu_help(CurrentView, Views, next)},
-     {?STR(views_submenu,2,"Current"),current,views_submenu_help(CurrentView, Views, current)},
-     {?STR(views_submenu,3,"Prev"),prev,views_submenu_help(CurrentView, Views, prev)},
+    [{?__(1,"Next"),next,views_submenu_help(CurrentView, Views, next)},
+     {?__(2,"Current"),current,views_submenu_help(CurrentView, Views, current)},
+     {?__(3,"Prev"),prev,views_submenu_help(CurrentView, Views, prev)},
      views_jumpmenu(CurrentView, Views, Lines),
-     {?STR(views_submenu,4,"Save"),save,
-      ?STR(views_submenu,5,"Save this view at ") ++"["++integer_to_list(C+1)++"]",[option]},
+     {?__(4,"Save"),save,
+      ?__(5,"Save this view at ") ++"["++integer_to_list(C+1)++"]",[option]},
      views_movemenu(CurrentView, Views, Lines),
-     {?STR(views_submenu,7,"Rename..."),rename,views_submenu_help(CurrentView, Views, rename)},
-     {?STR(views_submenu,8,"Delete"),delete,views_submenu_help(CurrentView, Views, delete)},
-     {?STR(views_submenu,9,"Delete All..."),delete_all,
+     {?__(7,"Rename..."),rename,views_submenu_help(CurrentView, Views, rename)},
+     {?__(8,"Delete"),delete,views_submenu_help(CurrentView, Views, delete)},
+     {?__(9,"Delete All..."),delete_all,
       views_submenu_help(CurrentView, Views, delete_all)}].
 
 views_submenu_help(_CurrentView, {}, _Action) ->
-    ?STR(views_submenu_help,1,"No saved views!");
+    ?__(1,"No saved views!");
 views_submenu_help(CurrentView, Views, Action) ->
     S = size(Views),
     case Action of
 	next -> 
 	    N = view_index(CurrentView+1, S),
 	    {_,Legend} = element(N, Views),
-	    ?STR(views_submenu_help,2,"Jump to \"")++Legend++"\"["++integer_to_list(N)++"]";
+	    ?__(2,"Jump to \"")++Legend++"\"["++integer_to_list(N)++"]";
 	current -> 
 	    C = view_index(CurrentView, S),
 	    {_,Legend} = element(C, Views),
-	    ?STR(views_submenu_help,2,"Jump to \"")++Legend++"\"["++integer_to_list(C)++"]";
+	    ?__(2,"Jump to \"")++Legend++"\"["++integer_to_list(C)++"]";
 	prev -> 
 	    P = view_index(CurrentView-1, S),
 	    {_,Legend} = element(P, Views),
-	    ?STR(views_submenu_help,2,"Jump to \"")++Legend++"\"["++integer_to_list(P)++"]";
+	    ?__(2,"Jump to \"")++Legend++"\"["++integer_to_list(P)++"]";
 	rename -> 
 	    C = view_index(CurrentView, S),
 	    {_,Legend} = element(C, Views),
-	    ?STR(views_submenu_help,5,"Rename \"")++Legend++"\"["++integer_to_list(C)++"]";
+	    ?__(5,"Rename \"")++Legend++"\"["++integer_to_list(C)++"]";
 	delete ->
 	    C = view_index(CurrentView, S),
 	    {_,Legend} = element(view_index(CurrentView, S), Views),
-	    ?STR(views_submenu_help,8,"Delete \"")++Legend++"\"["++integer_to_list(C)++"]";
+	    ?__(8,"Delete \"")++Legend++"\"["++integer_to_list(C)++"]";
 	delete_all ->
-	    ?STR(views_submenu_help,11,"Delete all saved views")
+	    ?__(11,"Delete all saved views")
     end.
 
 view_index(I, N) when integer(I), integer(N), N > 0 ->
@@ -179,7 +179,7 @@ view_index(I, N) when integer(I), integer(N), N > 0 ->
     end.
 
 views_jumpmenu(_CurrentView, {}, _Lines) ->
-    {?STR(views_jumpmenu,1,"Jump"),current,?STR(views_jumpmenu,2,"No saved views!")};
+    {?__(1,"Jump"),current,?__(2,"No saved views!")};
 views_jumpmenu(CurrentView, Views, Lines) ->
     S = size(Views),
     P = view_index(CurrentView-1, S),
@@ -189,17 +189,17 @@ views_jumpmenu(CurrentView, Views, Lines) ->
 		{_,Legend} = element(I, Views),
 		Help =
 		    case I of
-			P -> ?STR(views_jumpmenu,3,"Jump to prev[")++integer_to_list(I)++"]";
-			C -> ?STR(views_jumpmenu,5,"Jump to current[")++integer_to_list(I)++"]";
-			N -> ?STR(views_jumpmenu,7,"Jump to next[")++integer_to_list(I)++"]";
-			_ -> ?STR(views_jumpmenu,9,"Jump to [")++integer_to_list(I)++"]"
+			P -> ?__(3,"Jump to prev[")++integer_to_list(I)++"]";
+			C -> ?__(5,"Jump to current[")++integer_to_list(I)++"]";
+			N -> ?__(7,"Jump to next[")++integer_to_list(I)++"]";
+			_ -> ?__(9,"Jump to [")++integer_to_list(I)++"]"
 		    end,
 		{Legend,I,Help}
 	end,
-    {?STR(views_jumpmenu,11,"Jump"),{jump,viewmenu(F, S, C, Lines)}}.
+    {?__(11,"Jump"),{jump,viewmenu(F, S, C, Lines)}}.
 
 views_movemenu(_CurrentView, {}, _Lines) ->
-    {?STR(views_movemenu,1,"Move Current"),current,?STR(views_movemenu,2,"No saved views!")};
+    {?__(1,"Move Current"),current,?__(2,"No saved views!")};
 views_movemenu(CurrentView, Views, Lines) ->
     S = size(Views),
     P = view_index(CurrentView-1, S),
@@ -212,14 +212,14 @@ views_movemenu(CurrentView, Views, Lines) ->
 		Li = integer_to_list(I),
 		Help =
 		    case I of
-			P -> ?STR(views_movemenu, 3,"Move \"")++CL++"\"["++Lc++?STR(views_movemenu,5,"] to prev[")++Li++"]";
-			C -> ?STR(views_movemenu, 7,"Move \"")++CL++"\"["++Lc++?STR(views_movemenu,9,"] nowhere");
-			N -> ?STR(views_movemenu,10,"Move \"")++CL++"\"["++Lc++?STR(views_movemenu,12,"] to next[")++Li++"]";
-			_ -> ?STR(views_movemenu,14,"Move \"")++CL++"\"["++Lc++?STR(views_movemenu,16,"] to [")++Li++"]"
+			P -> ?__( 3,"Move \"")++CL++"\"["++Lc++?__(5,"] to prev[")++Li++"]";
+			C -> ?__( 7,"Move \"")++CL++"\"["++Lc++?__(9,"] nowhere");
+			N -> ?__(10,"Move \"")++CL++"\"["++Lc++?__(12,"] to next[")++Li++"]";
+			_ -> ?__(14,"Move \"")++CL++"\"["++Lc++?__(16,"] to [")++Li++"]"
 		    end,
 		{Legend,I,Help}
 	end,
-    {?STR(views_movemenu,18,"Move Current"),{move,viewmenu(F, S, C, Lines)}}.
+    {?__(18,"Move Current"),{move,viewmenu(F, S, C, Lines)}}.
 
 %% Build a list of F(I) values for all view_index(I, S) starting from C
 %% half of them after C and half before, no more than Lines If the
@@ -363,7 +363,7 @@ virtual_mirror(create, #st{selmode=face}=St0) ->
     St = wings_sel:map(fun virtual_mirror_fun/2, St0),
     {save_state,St#st{sel=[]}};
 virtual_mirror(create, _) ->
-    wings_util:error(?STR(virtual_mirror,1,"Virtual mirror requires a face selection."));
+    wings_util:error(?__(1,"Virtual mirror requires a face selection."));
 virtual_mirror(break, St0) ->
     case break_mirror(St0) of
 	St0 -> St0;
@@ -413,7 +413,7 @@ virtual_mirror_fun(Faces, We) ->
 	[Face] ->
 	    We#we{mirror=Face};
 	_ ->
-	    wings_util:error(?STR(virtual_mirror_fun,1,"Only a single face must be selected per object."))
+	    wings_util:error(?__(1,"Only a single face must be selected per object."))
     end.
 
 break_mirror(#st{shapes=Shs0}=St) ->
@@ -476,9 +476,9 @@ camera() ->
     LensFrame =
 	{vframe,
 	 [{hframe,
-	   [{label,?STR(camera,1,"Negative Format")},
+	   [{label,?__(1,"Negative Format")},
 	    {menu,
-	     [{"24x36",{24,36}},{"60x60",{60,60}},{?STR(camera,4,"Custom"),custom}],
+	     [{"24x36",{24,36}},{"60x60",{60,60}},{?__(4,"Custom"),custom}],
 	     NegativeFormat,
 	     [{key,negative_format},layout,
 	     {hook,
@@ -495,7 +495,7 @@ camera() ->
 			 {store,camera_update_1(Var, Val, Sto)};
 		     (_, _)  -> void
 		 end}]},
-	      {label,?STR(camera,5,"x")},
+	      {label,?__(5,"x")},
 	      {text,
 	       NegW,
 	       [{key,negative_width},{range,?RANGE_NEGATIVE_SIZE},
@@ -513,12 +513,12 @@ camera() ->
 	       end}]}]},
 	  {hframe,
 	   [{menu,
-	     [{?STR(camera,6,"Wide-Angle Lens"),wide_angle},
-	      {?STR(camera,7,"Moderate Wide-Angle Lens"),moderate_wide_angle},
-	      {?STR(camera,8,"Standard Lens"),standard},
-	      {?STR(camera,9,"Portrait Telephoto Lens"),short_tele},
-	      {?STR(camera,10,"Telephoto Lens"),tele},
-	      {?STR(camera,11,"Custom Lens"),custom}],
+	     [{?__(6,"Wide-Angle Lens"),wide_angle},
+	      {?__(7,"Moderate Wide-Angle Lens"),moderate_wide_angle},
+	      {?__(8,"Standard Lens"),standard},
+	      {?__(9,"Portrait Telephoto Lens"),short_tele},
+	      {?__(10,"Telephoto Lens"),tele},
+	      {?__(11,"Custom Lens"),custom}],
 	     LensType,
 	     [{key,lens_type},
 	      {hook,
@@ -529,7 +529,7 @@ camera() ->
 		   (_, _) -> void
 	       end}]},
 	    panel,
-	    {label,?STR(camera,12,"Length")},
+	    {label,?__(12,"Length")},
 	    {text,
 	     LensLength,
 	     [{key,lens_length},
@@ -555,21 +555,21 @@ camera() ->
 		       {store,camera_update_2(Var, Val, Sto)};
 		   (_, _) -> void
 	       end}]},
-	    {label,?STR(camera,13,"x Zoom")}]}],
-	 [{title,?STR(camera,14,"Lens")},{minimized,true}]},
+	    {label,?__(13,"x Zoom")}]}],
+	 [{title,?__(14,"Lens")},{minimized,true}]},
     Qs = 
 	[LensFrame,
 	 {hframe,
-	  [{vframe,[{label,?STR(camera,15,"Field of View")},
-		    {label,?STR(camera,16,"Near Clipping Plane")},
-		    {label,?STR(camera,17,"Far Clipping Plane")}]},
+	  [{vframe,[{label,?__(15,"Field of View")},
+		    {label,?__(16,"Near Clipping Plane")},
+		    {label,?__(17,"Far Clipping Plane")}]},
 	   {vframe,[{text,Fov0,[{range,?RANGE_FOV},{key,fov},{hook,FovHook}]},
 		    {text,Hither0,[{range,?RANGE_NEAR_CLIP}]},
 		    {text,Yon0,[{range,?RANGE_FAR_CLIP}]}]},
 	   {vframe,[help_button(camera_settings_fov),
 		    panel,
 		    panel]}]}],
-    wings_ask:dialog(?STR(camera,18,"Camera Settings"), Qs,
+    wings_ask:dialog(?__(18,"Camera Settings"), Qs,
 		     fun([_,
 			  {negative_format,_},
 			  {negative_height,_},{negative_width,_},
@@ -778,12 +778,12 @@ auto_rotate_redraw(#tim{st=#st{}=St}) ->
     wings_render:render(St).
 
 auto_rotate_help() ->
-    Msg1 = wings_util:button_format(?STR(auto_rotate_help,1,"Stop rotating")),
+    Msg1 = wings_util:button_format(?__(1,"Stop rotating")),
     Msg2 = wings_camera:help(),
     P = wings_util:key_format("[+]",
-			      ?STR(auto_rotate_help,2,"Increase speed")),
+			      ?__(2,"Increase speed")),
     M = wings_util:key_format("[-]",
-			      ?STR(auto_rotate_help,3,"Decrease speed")),
+			      ?__(3,"Decrease speed")),
     Message = wings_util:join_msg([Msg1,Msg2,P,M]),
     wings_wm:message(Message).
 
@@ -966,7 +966,7 @@ views({save,Ask}, #st{views={CurrentView,Views}}) when is_atom(Ask) ->
     if S > 0 ->
 	    case element(view_index(CurrentView, S), Views) of
 		{View,_} ->
-		    wings_util:message(?STR(views,1,"This view is already the current"));
+		    wings_util:message(?__(1,"This view is already the current"));
 		_ ->
 		    views_save_dialog(Ask, [view_legend(View)])
 	    end;
@@ -974,7 +974,7 @@ views({save,Ask}, #st{views={CurrentView,Views}}) when is_atom(Ask) ->
 	    views_save_dialog(Ask, [view_legend(View)])
     end;
 views(_, #st{views={_,{}}}) ->
-    wings_util:message(?STR(views,2,"No saved views"));
+    wings_util:message(?__(2,"No saved views"));
 views(next, #st{views={CurrentView,Views}}=St) ->
     J = view_index(CurrentView + 1, size(Views)),
     {View,_} = element(J, Views),
@@ -997,7 +997,7 @@ views(rename, #st{views={CurrentView,Views}}=St) ->
     J = view_index(CurrentView, size(Views)),
     {View,Legend} = element(J, Views),
     wings_ask:dialog(
-      ?STR(views,3,"Rename view"),
+      ?__(3,"Rename view"),
       views_rename_qs([Legend]),
       fun([NewLegend]) ->
 	      St#st{views={CurrentView,
@@ -1012,24 +1012,24 @@ views(delete, #st{views={CurrentView,Views}}=St) ->
 	    {L1,[_|L2]} = lists:split(I, tuple_to_list(Views)),
 	    St#st{views={I,list_to_tuple(L1++L2)}};
 	_ ->
-	    wings_util:message(?STR(views,4,"You have to be at the current view"))
+	    wings_util:message(?__(4,"You have to be at the current view"))
     end;
 views(delete_all, St) ->
     This = wings_wm:this(),
     wings_util:yes_no(
-      ?STR(views,5,"Are you sure you want to delete all saved views?"),
+      ?__(5,"Are you sure you want to delete all saved views?"),
       fun() -> 
 	      wings_wm:send(This, {new_state,delete_all(St)}),
 	      ignore
       end).
 
 views_save_dialog(Ask, Options) ->
-    wings_ask:dialog(Ask, ?STR(views_save_dialog,1,"Save view as"), 
+    wings_ask:dialog(Ask, ?__(1,"Save view as"), 
 		     views_rename_qs(Options),
 		     fun(Opts) -> {view,{views,{save,Opts}}} end).
 
 views_rename_qs([Legend]) ->
-    [{hframe,[{label,?STR(views_rename_qs,1,"Name")},{text,Legend}]}].
+    [{hframe,[{label,?__(1,"Name")},{text,Legend}]}].
 
 views_jump(J, St, CurrentView, Views) ->
     S = size(Views),
@@ -1043,7 +1043,7 @@ views_jump(J, St, CurrentView, Views) ->
 	    set_current(View),
 	    St#st{views={J,Views}};
 	_ ->
-	    wings_util:message(?STR(views_jump,1,"No such view slot"))
+	    wings_util:message(?__(1,"No such view slot"))
     end.
 
 views_move(J, St, CurrentView, Views) ->
@@ -1064,7 +1064,7 @@ views_move(J, St, CurrentView, Views) ->
 	    set_current(View),
 	    St#st{views={J,list_to_tuple(V1++(V3++[VL|V4]))}};
 	_ ->
-	    wings_util:message(?STR(views_move,1,"No such view [")++integer_to_list(J)++"]")
+	    wings_util:message(?__(1,"No such view [")++integer_to_list(J)++"]")
     end.
 
 toggle_lights() ->
@@ -1253,23 +1253,23 @@ view_legend(#view{distance=Dist,along_axis=Along}=View) ->
     [{Pos,Dir,_}] = camera_info([pos_dir_up], View),
     Legend = 
 	io_lib:format(
-	  ?STR(view_legend,1,"From ~s ~s distance ~.4g"),
+	  ?__(1,"From ~s ~s distance ~.4g"),
 	  [pos_legend(Pos),
 	   case Along of
-	       x -> ?STR(view_legend,2,"along +X");
-	       y -> ?STR(view_legend,3,"along +Y");
-	       z -> ?STR(view_legend,4,"along +Z");
-	       neg_x -> ?STR(view_legend,5,"along -X");
-	       neg_y -> ?STR(view_legend,6,"along -Y");
-	       neg_z -> ?STR(view_legend,7,"along -Z");
+	       x -> ?__(2,"along +X");
+	       y -> ?__(3,"along +Y");
+	       z -> ?__(4,"along +Z");
+	       neg_x -> ?__(5,"along -X");
+	       neg_y -> ?__(6,"along -Y");
+	       neg_z -> ?__(7,"along -Z");
 	       none ->
 		   Aim = e3d_vec:add(Pos, Dir),
 		   AimLen = e3d_vec:len(Aim),
 		   if AimLen < Dist*0.000001 ->
 			   %% Close enough to Origin
-			   ?STR(view_legend,8,"towards Origin");
+			   ?__(8,"towards Origin");
 		      true ->
-			   ?STR(view_legend,9,"towards ")++pos_legend(e3d_vec:neg(Dir))
+			   ?__(9,"towards ")++pos_legend(e3d_vec:neg(Dir))
 		   end
 	   end,
 	   Dist]),
@@ -1298,9 +1298,9 @@ help_button(Subject) ->
     {help,Title,TextFun}.
 
 help(title, camera_settings_fov) ->
-    ?STR(help,1,"Camera Settings: Field of View");
+    ?__(1,"Camera Settings: Field of View");
 help(text, camera_settings_fov) ->
-    [?STR(help,2,"Sets the vertical field of view, i.e. the angle from lower to upper border seen from the camera. "),
-     ?STR(help,3,"The Lens controls sets the field of view according to other perhaps more well-known entities, at least for a photographer. The negative size is stored among the user preferences."),
-     ?STR(help,4,"The Lens controls make the height of the picture right for the choosen lens, so if you do not have the same aspect ratio for the negative size in the Lens frame, as for the size of the Geometry window, the width will be in error."),
-     ?STR(help,5,"Note: the zoom factor is relative a standard lens length of the negative diagonal, while only the negative height affects the effective lens length.")].
+    [?__(2,"Sets the vertical field of view, i.e. the angle from lower to upper border seen from the camera. "),
+     ?__(3,"The Lens controls sets the field of view according to other perhaps more well-known entities, at least for a photographer. The negative size is stored among the user preferences."),
+     ?__(4,"The Lens controls make the height of the picture right for the choosen lens, so if you do not have the same aspect ratio for the negative size in the Lens frame, as for the size of the Geometry window, the width will be in error."),
+     ?__(5,"Note: the zoom factor is relative a standard lens length of the negative diagonal, while only the negative height affects the effective lens length.")].

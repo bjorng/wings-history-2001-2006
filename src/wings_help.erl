@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.79 2004/11/08 05:28:58 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.80 2004/12/06 07:52:34 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -44,27 +44,27 @@ menu(_) ->
      end || I <- L].
 
 header(getting_started) ->
-    ?STR(header,1,"Getting Started");
+    ?__(1,"Getting Started");
 header(one_or_two) ->
-    ?STR(header,2,"Using a Mouse With One or Two Buttons");
+    ?__(2,"Using a Mouse With One or Two Buttons");
 header(international) ->
-    ?STR(header,3,"French and German Keyboards");
+    ?__(3,"French and German Keyboards");
 header(hotkeys) ->
-    ?STR(header,4,"Defined Hotkeys");
+    ?__(4,"Defined Hotkeys");
 header(defining_hotkeys) ->
-    ?STR(header,5,"How To Define Hotkeys");
+    ?__(5,"How To Define Hotkeys");
 header(lights) ->
-    ?STR(header,6,"Light Basics");
+    ?__(6,"Light Basics");
 header(advanced_menus) ->
-    ?STR(header,7,"Advanced Menus");
+    ?__(7,"Advanced Menus");
 header(default_commands) ->
-    ?STR(header,8,"Default Commands");
+    ?__(8,"Default Commands");
 header(performance_tips) ->
-    ?STR(header,9,"Performance Tips");
+    ?__(9,"Performance Tips");
 header(opengl_info) ->
-    ?STR(header,10,"OpenGL Info");
+    ?__(10,"OpenGL Info");
 header(about) ->
-    ?STR(header,11,"About Wings 3D").
+    ?__(11,"About Wings 3D").
 
 command(Item, _St) ->
     command_1(Item, header(Item)).
@@ -95,27 +95,27 @@ command_1(about, Header) ->
 getting_started(Head) ->
     B = "(",
     E = ")",
-    H = [?STR(getting_started,1,
+    H = [?__(1,
 	      "When learning Wings, keep an eye at the information line at the bottom of the screen."
 	      " Generally it shows what the mouse buttons will do at any given moment."),
 
-	 ?STR(getting_started,2,
+	 ?__(2,
 	      "The actions for the mouse buttons are given first, labeled "),
 
-	 wings_util:button_format(B++?STR(getting_started,left_def,
+	 wings_util:button_format(B++?__(left_def,
 					  "left mouse button")++E),
 	 wings_util:button_format([],
-				  B++?STR(getting_started,middle_def,
+				  B++?__(middle_def,
 					  "middle button or scroll wheel")++E),
 	 wings_util:button_format([],
-				  B++?STR(getting_started,right_def,
+				  B++?__(right_def,
 					  "right button")++E),
 
-	 ?STR(getting_started,two_a,
+	 ?__(two_a,
 	      "followed by any hotkey actions."),
 
 	 use_one_or_two(),
-	 ?STR(getting_started,7,
+	 ?__(7,
 	      "Generally, L (left mouse button) is used for selecting and accepting, M (middle mouse button) for operating the camera, and R (right mouse button) to access the context-sensitive pop-up menus.")
 	],
     help_window(Head, H).
@@ -123,122 +123,122 @@ getting_started(Head) ->
 one_or_two(Head) ->
     Nendo = [{ul,wings_s:camera_mode(nendo)}],
     Help = [use_one_or_two(),
-	    ?STR(one_or_two,1,"Note that only the ")++
+	    ?__(1,"Note that only the ")++
 	    Nendo++
-	    ?STR(one_or_two,2," and ")++
+	    ?__(2," and ")++
 	    [{ul,wings_s:camera_mode(blender)}]++
-	    ?STR(one_or_two,3,
+	    ?__(3,
 		 " modes can be used with a two-button mouse."
 		 " Only the ")++
 	    Nendo++
-	    ?STR(one_or_two,4,
+	    ?__(4,
 		 " mode can be used with an one-button mouse.")
 	   ],
     help_window(Head, Help).
 
 use_one_or_two() ->
-    ?STR(use_one_or_two,1,
+    ?__(1,
 	 "To use mice with only one or two buttons, "
 	 "you must inform Wings how many buttons "
 	 "your mouse has in the ")++
 	edit_prefs()++
-	?STR(use_one_or_two,2," dialog.").
+	?__(2," dialog.").
 
 advanced_menus(Head) ->
-    Help = [?STR(advanced_menus,1,"In the ")++
+    Help = [?__(1,"In the ")++
 	    edit_prefs()++
-	    ?STR(advanced_menus,4,
+	    ?__(4,
 		 "dialog, there is a check box for \"Advanced Menus\"."),
-	    ?STR(advanced_menus,5,
+	    ?__(5,
 		 "Activating advanced menus provide the following additional features:"),
-	    ?STR(advanced_menus,6,"New commands: ")
-	    ++cmd([?STR(advanced_menus,7,"Face"),
-		   ?STR(advanced_menus,8,"Put On")
-		  ])++?STR(advanced_menus,9," and ")++
-	    cmd([?STR(advanced_menus,10,"Face"),
-		 ?STR(advanced_menus,11,"Lift")
+	    ?__(6,"New commands: ")
+	    ++cmd([?__(7,"Face"),
+		   ?__(8,"Put On")
+		  ])++?__(9," and ")++
+	    cmd([?__(10,"Face"),
+		 ?__(11,"Lift")
 		]),
-	    ?STR(advanced_menus,12,"Vector based operations: The means to specify an axis (or vector) and to be able to re-locate it so it passes though a new point."),
-	    ?STR(advanced_menus,13,"Magnet operations: A facility that provides a way of attaining smooth modifications / transitions to surrounding geometry during the operation of any valid tool. Magnet type and influence radius settings provide further control options."),
+	    ?__(12,"Vector based operations: The means to specify an axis (or vector) and to be able to re-locate it so it passes though a new point."),
+	    ?__(13,"Magnet operations: A facility that provides a way of attaining smooth modifications / transitions to surrounding geometry during the operation of any valid tool. Magnet type and influence radius settings provide further control options."),
 
-	    ?STR(advanced_menus,14,"Vector and magnet operations can be combined."),
+	    ?__(14,"Vector and magnet operations can be combined."),
 
-	    ?STR(advanced_menus,15,"With advanced menus turned on, many menu commands do different things depending on which mouse button you invoke them with."),
+	    ?__(15,"With advanced menus turned on, many menu commands do different things depending on which mouse button you invoke them with."),
 
-	    ?STR(advanced_menus,16,"For instance, R clicking on the Rotate command allows you to specify an axis (or vector) to rotate your selection around, while M clicking lets you define an axis - and a new point through which that axis will pass. (A vector does not have to be parallel to an x, y or z axis.)"),
+	    ?__(16,"For instance, R clicking on the Rotate command allows you to specify an axis (or vector) to rotate your selection around, while M clicking lets you define an axis - and a new point through which that axis will pass. (A vector does not have to be parallel to an x, y or z axis.)"),
 
-	    ?STR(advanced_menus,17,"Reading the contents of the info line at the bottom of the Wings window is highly recommended when using advanced menus.")],
+	    ?__(17,"Reading the contents of the info line at the bottom of the Wings window is highly recommended when using advanced menus.")],
     help_window(Head, Help).
 
 international(Head) ->
-    Help = [?STR(international,1,"Unfortunately, on French and German keyboards (and possibly others), the Undo/Redo commands will not be bound to the [Z] key. (That might be changed in a future release of Wings.)"),
-	    ?STR(international,2,"On French keyboards, the Undo/Redo commands are found on the [W] key ([Ctrl]+[W], [Ctrl]+[Alt]+[W] and so on)."),
-	    ?STR(international,3,"On German keyboards, the Undo/Redo commands are found on the [Y] key ([Ctrl]+[Y], [Ctrl]+[Alt]+[Y] and so on).")],
+    Help = [?__(1,"Unfortunately, on French and German keyboards (and possibly others), the Undo/Redo commands will not be bound to the [Z] key. (That might be changed in a future release of Wings.)"),
+	    ?__(2,"On French keyboards, the Undo/Redo commands are found on the [W] key ([Ctrl]+[W], [Ctrl]+[Alt]+[W] and so on)."),
+	    ?__(3,"On German keyboards, the Undo/Redo commands are found on the [Y] key ([Ctrl]+[Y], [Ctrl]+[Alt]+[Y] and so on).")],
     help_window(Head, Help).
 
 def_commands(Head) ->
     Ctrl = wings_s:key(ctrl)++ "+",
     ShiftCtrl = wings_s:key(shift)++ "+" ++ Ctrl,
-    Help = [?STR(def_commands,1,"In the ")++
+    Help = [?__(1,"In the ")++
 	    edit_prefs()++
-	    ?STR(def_commands,4,
+	    ?__(4,
 		 " dialog, you can turn on \"Default Commands\"."),
-	    ?STR(def_commands,5,"Two default commands can be defined."
+	    ?__(5,"Two default commands can be defined."
 		 " To save the previous command that was executed, use one of:"),
 	    "  " ++ ShiftCtrl ++ wings_s:lmb(),
 	    "  " ++ ShiftCtrl ++ wings_s:mmb(),
-	    ?STR(def_commands,8,"To use a command that has been defined this way, use one of:"),
+	    ?__(8,"To use a command that has been defined this way, use one of:"),
 	    "  " ++ Ctrl ++ wings_s:lmb(),
 	    "  " ++ Ctrl ++ wings_s:mmb(),
-	    ?STR(def_commands,11,"Note: When using the ") ++
+	    ?__(11,"Note: When using the ") ++
 	    [{ul,wings_s:camera_mode(tds)}] ++
-	    ?STR(def_commands,13," or ") ++
+	    ?__(13," or ") ++
 	    [{ul,wings_s:camera_mode(blender)}] ++
-	    ?STR(def_commands,15,
+	    ?__(15,
 		 " camera modes, the second default command cannot be used.")],
     help_window(Head, Help).
 
 performance_tips(Head) ->
     B = [bullet]++" ",
-    H = [?STR(performance_tips,1,"The performance of Wings is dependent on many different things, such as"),
-	 B++?STR(performance_tips,2,"the speed of the CPU"),
-	 B++?STR(performance_tips,3,"type and size of the CPU cache"),
-	 B++?STR(performance_tips,4,"amount and speed of memory"),
-	 B++?STR(performance_tips,5,"type of graphics card"),
-	 B++?STR(performance_tips,6,"amount of video memory"),
-	 B++?STR(performance_tips,7,"the phase of the moon"),
-	 ?STR(performance_tips,8,"Therefore, it is difficult to give any firm advice on how to improve Wings performance. The following tips MAY improve performance:"),
-	 B++?STR(performance_tips,9,"Try different number of colors and different screen resolutions. Especially if the graphics card doesn't have much memory, many colors and/or high resolution may drastically reduce performance. Using a smaller Wings window (not maximized) may also help."),
+    H = [?__(1,"The performance of Wings is dependent on many different things, such as"),
+	 B++?__(2,"the speed of the CPU"),
+	 B++?__(3,"type and size of the CPU cache"),
+	 B++?__(4,"amount and speed of memory"),
+	 B++?__(5,"type of graphics card"),
+	 B++?__(6,"amount of video memory"),
+	 B++?__(7,"the phase of the moon"),
+	 ?__(8,"Therefore, it is difficult to give any firm advice on how to improve Wings performance. The following tips MAY improve performance:"),
+	 B++?__(9,"Try different number of colors and different screen resolutions. Especially if the graphics card doesn't have much memory, many colors and/or high resolution may drastically reduce performance. Using a smaller Wings window (not maximized) may also help."),
 
-	 B++?STR(performance_tips,10,"Close unnecessary windows inside Wings."),
+	 B++?__(10,"Close unnecessary windows inside Wings."),
 
-	 B++?STR(performance_tips,11,"Make sure that Geometry windows don't overlap."),
+	 B++?__(11,"Make sure that Geometry windows don't overlap."),
 
-	 B++?STR(performance_tips,12,"Use as few (active) lights as possible. More lights means less speed on most grahics cards."),
+	 B++?__(12,"Use as few (active) lights as possible. More lights means less speed on most grahics cards."),
 
-	 B++?STR(performance_tips,13,"If possible, use the ")
-	  ++cmd([?STR(performance_tips,14,"Tools"),
-		 ?STR(performance_tips,15,"Virtual Mirror")])
-	  ++?STR(performance_tips,16," command."),
+	 B++?__(13,"If possible, use the ")
+	  ++cmd([?__(14,"Tools"),
+		 ?__(15,"Virtual Mirror")])
+	  ++?__(16," command."),
 
-	 B++?STR(performance_tips,17,"Hide models that you don't work on for the moment."),
+	 B++?__(17,"Hide models that you don't work on for the moment."),
 
-	 B++?STR(performance_tips,18,"Use the ")
-	  ++cmd([?STR(performance_tips,19,"View"),
-	         ?STR(performance_tips,20,"Show Colors")])
-	  ++?STR(performance_tips,21," command to turn off vertex color display if your model has vertex colors."),
+	 B++?__(18,"Use the ")
+	  ++cmd([?__(19,"View"),
+	         ?__(20,"Show Colors")])
+	  ++?__(21," command to turn off vertex color display if your model has vertex colors."),
 
-	 B++?STR(performance_tips,22,"Use the ")
-	  ++cmd([?STR(performance_tips,23,"View"),
-	         ?STR(performance_tips,24,"Show Textures")])
-	  ++?STR(performance_tips,25," command to turn off textures while modeling."),
+	 B++?__(22,"Use the ")
+	  ++cmd([?__(23,"View"),
+	         ?__(24,"Show Textures")])
+	  ++?__(25," command to turn off textures while modeling."),
 
-	 B++?STR(performance_tips,26,"Work in wireframe mode."),
+	 B++?__(26,"Work in wireframe mode."),
 
-	 B++?STR(performance_tips,27,"Some graphics cards display edges slowly. Turn off edge display using the ")
-	  ++cmd([?STR(performance_tips,28,"View"),
-	         ?STR(performance_tips,29,"Show Edges")])
-	  ++?STR(performance_tips,30," command.")
+	 B++?__(27,"Some graphics cards display edges slowly. Turn off edge display using the ")
+	  ++cmd([?__(28,"View"),
+	         ?__(29,"Show Edges")])
+	  ++?__(30," command.")
 	],
     help_window(Head, H).
 
@@ -247,73 +247,73 @@ hotkeys(Head) ->
     help_window(Head, Help).
 
 def_hotkeys(Head) ->
-    Help = [?STR(def_hotkeys,1,"Any command that appears in a menu, can be assigned a keyboard short-cut (hotkey)."),
-    	    ?STR(def_hotkeys,2,"To assign a hotkey to a command, open the menu containing the command. With the command high-lighted, press the [Insert] or [/] key, and then press the key you want to assign the command to."),
-	    ?STR(def_hotkeys,3,"To delete a hotkey, similarly high-light the command in a menu, and press the [Del] or [\\] key.")],
+    Help = [?__(1,"Any command that appears in a menu, can be assigned a keyboard short-cut (hotkey)."),
+    	    ?__(2,"To assign a hotkey to a command, open the menu containing the command. With the command high-lighted, press the [Insert] or [/] key, and then press the key you want to assign the command to."),
+	    ?__(3,"To delete a hotkey, similarly high-light the command in a menu, and press the [Del] or [\\] key.")],
     help_window(Head, Help).
 
 lights(Head) ->
-    Help = [?STR(lights,1,"1. Create lights using the Light command in the primitives menu (R-click when there is no selection)."),
-    	    ?STR(lights,2,"2. Select a light by L-clicking on it. When any light is selected, a special Light menu will pop up when you R-click."),
-	    ?STR(lights,3,"3. To tell Wings to actually use the lights you have created, use the ")
-	    ++cmd([?STR(lights,4,"View"),
-	 	   ?STR(lights,5,"Scene Lights")
+    Help = [?__(1,"1. Create lights using the Light command in the primitives menu (R-click when there is no selection)."),
+    	    ?__(2,"2. Select a light by L-clicking on it. When any light is selected, a special Light menu will pop up when you R-click."),
+	    ?__(3,"3. To tell Wings to actually use the lights you have created, use the ")
+	    ++cmd([?__(4,"View"),
+	 	   ?__(5,"Scene Lights")
 		  ])
-	    ++?STR(lights,6," command.")],
+	    ++?__(6," command.")],
     help_window(Head, Help).
 
 opengl_info(Head) ->
     gl:getError(),			%Clear any previous error.
     [{_,VerTuple}] = ets:lookup(wings_gl_ext, version),
     Help = [
-	    ?STR(opengl_info,1,"Vendor: ") ++ gl:getString(?GL_VENDOR) ++ "\n" ++
-	    ?STR(opengl_info,2,"Renderer: ") ++ gl:getString(?GL_RENDERER) ++ "\n" ++
-	    ?STR(opengl_info,3,"Version: ") ++ gl:getString(?GL_VERSION),
-	    ?STR(opengl_info,4,"Version tuple: ") ++ lists:flatten(io_lib:format("~p\n", [VerTuple])),
-	    get_info([{?STR(opengl_info,5,"Red bits"),?GL_RED_BITS},
-		      {?STR(opengl_info,6,"Green bits"),?GL_GREEN_BITS},
-		      {?STR(opengl_info,7,"Blue bits"),?GL_BLUE_BITS},
-		      {?STR(opengl_info,8,"Alpha bits"),?GL_ALPHA_BITS},
-		      {?STR(opengl_info,9,"Depth bits"),?GL_DEPTH_BITS},
-		      {?STR(opengl_info,10,"Stencil bits"),?GL_STENCIL_BITS},
-		      {?STR(opengl_info,11,"Accum. red bits"),?GL_ACCUM_RED_BITS},
-		      {?STR(opengl_info,12,"Accum. green bits"),?GL_ACCUM_GREEN_BITS},
-		      {?STR(opengl_info,13,"Accum. blue bits"),?GL_ACCUM_BLUE_BITS},
-		      {?STR(opengl_info,14,"Accum. alpha bits"),?GL_ACCUM_ALPHA_BITS},
-		      {?STR(opengl_info,15,"Max number of lights"),?GL_MAX_LIGHTS},
-		      {?STR(opengl_info,16,"Max clip planes"),?GL_MAX_CLIP_PLANES},
-		      {?STR(opengl_info,17,"Max modelview stack depth"),?GL_MAX_MODELVIEW_STACK_DEPTH},
-		      {?STR(opengl_info,18,"Max projection stack depth"),?GL_MAX_PROJECTION_STACK_DEPTH},
-		      {?STR(opengl_info,19,"Max texture stack depth"),?GL_MAX_TEXTURE_STACK_DEPTH},
-		      {?STR(opengl_info,20,"Subpixel bits"),?GL_SUBPIXEL_BITS},
-		      {?STR(opengl_info,21,"Max 3D texture size"),?GL_MAX_3D_TEXTURE_SIZE},
-		      {?STR(opengl_info,22,"Max texture size"),?GL_MAX_TEXTURE_SIZE},
-		      {?STR(opengl_info,23,"Max pixel map table"),?GL_MAX_PIXEL_MAP_TABLE},
-		      {?STR(opengl_info,24,"Max name stack depth"),?GL_MAX_NAME_STACK_DEPTH},
-		      {?STR(opengl_info,25,"Max display-list call nesting"),?GL_MAX_LIST_NESTING},
-		      {?STR(opengl_info,26,"Max evaluator polynomial order"),?GL_MAX_EVAL_ORDER},
-		      {?STR(opengl_info,27,"Max viewport dimensions"),?GL_MAX_VIEWPORT_DIMS},
-		      {?STR(opengl_info,28,"Max depth of attribute stack"),?GL_MAX_ATTRIB_STACK_DEPTH},
-		      {?STR(opengl_info,29,"Max depth of client attribute stack"),
+	    ?__(1,"Vendor: ") ++ gl:getString(?GL_VENDOR) ++ "\n" ++
+	    ?__(2,"Renderer: ") ++ gl:getString(?GL_RENDERER) ++ "\n" ++
+	    ?__(3,"Version: ") ++ gl:getString(?GL_VERSION),
+	    ?__(4,"Version tuple: ") ++ lists:flatten(io_lib:format("~p\n", [VerTuple])),
+	    get_info([{?__(5,"Red bits"),?GL_RED_BITS},
+		      {?__(6,"Green bits"),?GL_GREEN_BITS},
+		      {?__(7,"Blue bits"),?GL_BLUE_BITS},
+		      {?__(8,"Alpha bits"),?GL_ALPHA_BITS},
+		      {?__(9,"Depth bits"),?GL_DEPTH_BITS},
+		      {?__(10,"Stencil bits"),?GL_STENCIL_BITS},
+		      {?__(11,"Accum. red bits"),?GL_ACCUM_RED_BITS},
+		      {?__(12,"Accum. green bits"),?GL_ACCUM_GREEN_BITS},
+		      {?__(13,"Accum. blue bits"),?GL_ACCUM_BLUE_BITS},
+		      {?__(14,"Accum. alpha bits"),?GL_ACCUM_ALPHA_BITS},
+		      {?__(15,"Max number of lights"),?GL_MAX_LIGHTS},
+		      {?__(16,"Max clip planes"),?GL_MAX_CLIP_PLANES},
+		      {?__(17,"Max modelview stack depth"),?GL_MAX_MODELVIEW_STACK_DEPTH},
+		      {?__(18,"Max projection stack depth"),?GL_MAX_PROJECTION_STACK_DEPTH},
+		      {?__(19,"Max texture stack depth"),?GL_MAX_TEXTURE_STACK_DEPTH},
+		      {?__(20,"Subpixel bits"),?GL_SUBPIXEL_BITS},
+		      {?__(21,"Max 3D texture size"),?GL_MAX_3D_TEXTURE_SIZE},
+		      {?__(22,"Max texture size"),?GL_MAX_TEXTURE_SIZE},
+		      {?__(23,"Max pixel map table"),?GL_MAX_PIXEL_MAP_TABLE},
+		      {?__(24,"Max name stack depth"),?GL_MAX_NAME_STACK_DEPTH},
+		      {?__(25,"Max display-list call nesting"),?GL_MAX_LIST_NESTING},
+		      {?__(26,"Max evaluator polynomial order"),?GL_MAX_EVAL_ORDER},
+		      {?__(27,"Max viewport dimensions"),?GL_MAX_VIEWPORT_DIMS},
+		      {?__(28,"Max depth of attribute stack"),?GL_MAX_ATTRIB_STACK_DEPTH},
+		      {?__(29,"Max depth of client attribute stack"),
 		       ?GL_MAX_CLIENT_ATTRIB_STACK_DEPTH},
-		      {?STR(opengl_info,30,"Number of auxiliary buffers"),?GL_AUX_BUFFERS},
-		      {?STR(opengl_info,31,"Color buffers store RGBA"),?GL_RGBA_MODE},
-		      {?STR(opengl_info,32,"Color buffers store indices"),?GL_INDEX_MODE},
-		      {?STR(opengl_info,33,"Double buffering"),?GL_DOUBLEBUFFER},
-		      {?STR(opengl_info,34,"Stereo buffers"),?GL_STEREO},
-		      {?STR(opengl_info,35,"Range of aliased point sizes"),?GL_ALIASED_POINT_SIZE_RANGE},
-		      {?STR(opengl_info,36,"Range of antialised point sizes"),?GL_SMOOTH_POINT_SIZE_RANGE},
-		      {?STR(opengl_info,37,"Range of aliased line widths"),?GL_ALIASED_LINE_WIDTH_RANGE},
-		      {?STR(opengl_info,38,"Range of antialised line widths"),?GL_SMOOTH_LINE_WIDTH_RANGE},
-		      {?STR(opengl_info,39,"Recommended max number of indices for drawRangeElement()"),
+		      {?__(30,"Number of auxiliary buffers"),?GL_AUX_BUFFERS},
+		      {?__(31,"Color buffers store RGBA"),?GL_RGBA_MODE},
+		      {?__(32,"Color buffers store indices"),?GL_INDEX_MODE},
+		      {?__(33,"Double buffering"),?GL_DOUBLEBUFFER},
+		      {?__(34,"Stereo buffers"),?GL_STEREO},
+		      {?__(35,"Range of aliased point sizes"),?GL_ALIASED_POINT_SIZE_RANGE},
+		      {?__(36,"Range of antialised point sizes"),?GL_SMOOTH_POINT_SIZE_RANGE},
+		      {?__(37,"Range of aliased line widths"),?GL_ALIASED_LINE_WIDTH_RANGE},
+		      {?__(38,"Range of antialised line widths"),?GL_SMOOTH_LINE_WIDTH_RANGE},
+		      {?__(39,"Recommended max number of indices for drawRangeElement()"),
 		       ?GL_MAX_ELEMENTS_INDICES},
-		      {?STR(opengl_info,40,"Recommended max number of vertices for drawRangeElement()"),
+		      {?__(40,"Recommended max number of vertices for drawRangeElement()"),
 		       ?GL_MAX_ELEMENTS_VERTICES}]),
-	    get_info([{?STR(opengl_info,41,"Max number of texturing units"),?GL_MAX_TEXTURE_UNITS},
-		      {?STR(opengl_info,42,"Number of compression formats"),
+	    get_info([{?__(41,"Max number of texturing units"),?GL_MAX_TEXTURE_UNITS},
+		      {?__(42,"Number of compression formats"),
 		       ?GL_NUM_COMPRESSED_TEXTURE_FORMATS},
-		      {?STR(opengl_info,43,"Max number of vertex units"),?GL_MAX_VERTEX_UNITS_ARB}]),
-		?STR(opengl_info,44,"OpenGL Extensions"),extensions()],
+		      {?__(43,"Max number of vertex units"),?GL_MAX_VERTEX_UNITS_ARB}]),
+		?__(44,"OpenGL Extensions"),extensions()],
     help_window(Head, Help).
 
 get_info([{Label,Attr}|T]) ->
@@ -359,7 +359,7 @@ extensions([]) -> [].
 	 }).
 
 help_window(Title, []) ->
-    help_window(Title, [?STR(help_window,1,"No help text")]);
+    help_window(Title, [?__(1,"No help text")]);
 help_window(Title, Text) ->
     help_window(help, Title, Text).
 
@@ -484,7 +484,7 @@ handle_splash_event(lost_focus) -> keep;
 handle_splash_event(_) -> delete.
 
 message() ->
-    wings_util:button_message(?STR(message,1,"Close help window")),
+    wings_util:button_message(?__(1,"Close help window")),
     keep.
 
 splash_size() ->
@@ -530,21 +530,21 @@ splash_contents() ->
      {icon,wings,256,128},
      {text,[{bold,?WINGS_VERSION}]},
      {spacer,0,10},
-     {text,?STR(splash_contents,1,"Wings 3D is a subdivision modeler inspired")},
-     {text,?STR(splash_contents,2,"by Nendo and Mirai from IZware.")},
+     {text,?__(1,"Wings 3D is a subdivision modeler inspired")},
+     {text,?__(2,"by Nendo and Mirai from IZware.")},
      {spacer,0,10},
-     {text,?STR(splash_contents,3,"Wings 3D comes with absolutely no warranty,")},
-     {text,?STR(splash_contents,4,"but is completely free for any kind of use")},
-     {text,?STR(splash_contents,5,"(including commercial).")},
+     {text,?__(3,"Wings 3D comes with absolutely no warranty,")},
+     {text,?__(4,"but is completely free for any kind of use")},
+     {text,?__(5,"(including commercial).")},
      {spacer,0,10},
-     {text,?STR(splash_contents,6,"Copyright") 
+     {text,?__(6,"Copyright") 
       ++ [$\s,169] ++ " 2001-2004 "++"Bj" ++ [246] ++ "rn Gustavsson " ++
-      ?STR(splash_contents,7,"& Others")},
-     {text,?STR(splash_contents,8,"JPEG library: Copyright") ++ [$\s,169] ++
+      ?__(7,"& Others")},
+     {text,?__(8,"JPEG library: Copyright") ++ [$\s,169] ++
       " 1991-1998 Thomas G. Lane"}
     ].
 
 edit_prefs() ->
-    cmd([?STR(edit_prefs,1,"Edit"),
-	 ?STR(edit_prefs,2,"Preferences")]).
+    cmd([?__(1,"Edit"),
+	 ?__(2,"Preferences")]).
     

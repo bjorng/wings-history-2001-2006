@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.82 2004/10/09 05:44:36 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.83 2004/12/06 07:49:45 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -741,7 +741,7 @@ transform_vs_1(Transform, #we{vp=Vtab0}=We) ->
 %%%
 
 normals(FaceNormals, #we{he=He}=We) ->
-    wings_pb:start(?STR(normals,1,"calculating soft normals")),
+    wings_pb:start(?__(1,"calculating soft normals")),
     Res = case FaceNormals of
 	      [_,_] ->
 		  two_faced(FaceNormals, We);
@@ -754,13 +754,13 @@ normals(FaceNormals, #we{he=He}=We) ->
     wings_pb:done(Res).
 
 all_soft(FaceNormals, #we{vp=Vtab}=We) ->
-    wings_pb:update(0.10, ?STR(all_soft,1,"preparing")),
+    wings_pb:update(0.10, ?__(1,"preparing")),
     VtxNormals = soft_vertex_normals(gb_trees:to_list(Vtab), FaceNormals, We),
     FoldFun = fun(V, VInfo, A) ->
 		      Normal = gb_trees:get(V, VtxNormals),
 		      [[VInfo|Normal]|A]
 	      end,
-    wings_pb:update(0.6, ?STR(all_soft,2,"collecting")),
+    wings_pb:update(0.6, ?__(2,"collecting")),
     all_soft_1(FoldFun, FaceNormals, We, []).
 
 all_soft_1(FoldFun, [{Face,_}|FNs], We, Acc) ->
@@ -783,12 +783,12 @@ soft_vertex_normals(Vtab, FaceNormals, We) ->
     gb_trees:from_orddict(reverse(Soft)).
 
 mixed_edges(FaceNormals0, We) ->
-    wings_pb:update(0.20, ?STR(mixed_edges,1,"preparing")),
+    wings_pb:update(0.20, ?__(1,"preparing")),
     G = digraph:new(),
     FaceNormals = gb_trees:from_orddict(FaceNormals0),
-    wings_pb:update(0.50,  ?STR(mixed_edges,2,"vertex normals")),
+    wings_pb:update(0.50,  ?__(2,"vertex normals")),
     VtxNormals = vertex_normals(We, G, FaceNormals),
-    wings_pb:update(0.99,  ?STR(mixed_edges,3,"vertex normals per face")),
+    wings_pb:update(0.99,  ?__(3,"vertex normals per face")),
     Ns = foldl(fun({Face,_}, Acc) ->
 		       Vs = n_face(Face, G, FaceNormals, VtxNormals, We),
 		       [{Face,Vs}|Acc]

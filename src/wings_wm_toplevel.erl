@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.52 2004/11/14 13:47:27 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.53 2004/12/06 07:48:10 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -203,13 +203,13 @@ ctrl_event({title,Title}, Cs) ->
 ctrl_event(_, _) -> keep.
 
 ctrl_message() ->
-    M0 = wings_util:button_format( ?STR(ctrl_message,1,"Drag to Move")),
+    M0 = wings_util:button_format(?__(1,"Drag to Move")),
     M1 = case is_resizeable() of
 	     false -> [];
-	     true -> wings_util:button_format([],  
-				?STR(ctrl_message,2,"Fit"), 
-				?STR(ctrl_message,3,"Show menu") 
-				)
+	     true ->
+		 wings_util:button_format([],  
+					  ?__(2,"Fit"), 
+					  ?__(3,"Show menu"))
 	 end,
     M = wings_util:join_msg(M0, M1),
     wings_wm:message(M),
@@ -260,16 +260,16 @@ ctrl_constrain_move(Client, Dx0, Dy0) ->
     {Dx,Dy}.
 
 ctrl_menu(X, Y) ->
-    Menu = [{ ?STR(ctrl_menu,1,"Fit"),
+    Menu = [{ ?__(1,"Fit"),
 	     {fit,
-	      [{?STR(ctrl_menu,2,"Both"),both,
-		?STR(ctrl_menu,3,"Let window use all available space by expanding in all directions")},
-	       {?STR(ctrl_menu,4,"Horizontal"),horizontal,
-	 	?STR(ctrl_menu,5,"Let window use all available space by expanding it horizontally")},
-	       {?STR(ctrl_menu,6,"Vertical"),vertical,
-		?STR(ctrl_menu,7,"Let window use all available space by expanding it vertically")}
+	      [{?__(2,"Both"),both,
+		?__(3,"Let window use all available space by expanding in all directions")},
+	       {?__(4,"Horizontal"),horizontal,
+	 	?__(5,"Let window use all available space by expanding it horizontally")},
+	       {?__(6,"Vertical"),vertical,
+		?__(7,"Let window use all available space by expanding it vertically")}
 	      ]}},
-	    {?STR(ctrl_menu,8,"Size"),size,?STR(ctrl_menu,9,"Set window size numerically")}|ctrl_menu_toolbar()],
+	    {?__(8,"Size"),size,?__(9,"Set window size numerically")}|ctrl_menu_toolbar()],
     wings_menu:popup_menu(X, Y, titlebar, Menu).
 
 ctrl_menu_toolbar() ->
@@ -280,9 +280,9 @@ ctrl_menu_toolbar() ->
 	true ->
 	    case wings_wm:is_hidden(Toolbar) of
 		false ->
-		    [{?STR(ctrl_menu_toolbar,1,"Hide Toolbar"),hide_toolbar,?STR(ctrl_menu_toolbar,2,"Hide the toolbar")}];
+		    [{?__(1,"Hide Toolbar"),hide_toolbar,?__(2,"Hide the toolbar")}];
 		true ->
-		    [{?STR(ctrl_menu_toolbar,3,"Show Toolbar"),show_toolbar,?STR(ctrl_menu_toolbar,4,"Show the toolbar")}]
+		    [{?__(3,"Show Toolbar"),show_toolbar,?__(4,"Show the toolbar")}]
 	    end
     end.
 
@@ -306,9 +306,9 @@ ctrl_command({fit,Fit}, _) ->
 ctrl_command(size, _) ->
     {_,Client} = wings_wm:this(),
     {W0,H0} = wings_wm:win_size(Client),
-    Qs = [{?STR(ctrl_command,1,"Width"),W0},
-	  {?STR(ctrl_command,2,"Height"),H0}],
-	   wings_ask:ask(?STR(ctrl_command,3,"Set Window Size"), Qs,
+    Qs = [{?__(1,"Width"),W0},
+	  {?__(2,"Height"),H0}],
+	   wings_ask:ask(?__(3,"Set Window Size"), Qs,
 		  fun([W,H]) ->
 			  ctrl_resize(Client, W, H),
 			  ignore
@@ -318,7 +318,7 @@ ctrl_resize(Client, W, H) ->
     {TopW,TopH} = wings_wm:top_size(),
     if
 	W > TopW; H > TopH ->
-	    wings_util:error(?STR(ctrl_resize,1,"Too large size specified"));
+	    wings_util:error(?__(1,"Too large size specified"));
 	true ->
 	    wings_wm:resize(Client, {W,H})
     end.
@@ -502,8 +502,8 @@ resize_event(redraw, #rsz{color=Color}) ->
 			end),
     keep;
 resize_event(got_focus, _) ->
-    wings_util:button_message(?STR(resize_event,1,"Resize"), 
-		    		?STR(resize_event,2,"Resize, keeping current aspect ratio")),
+    wings_util:button_message(?__(1,"Resize"), 
+		    		?__(2,"Resize, keeping current aspect ratio")),
     wings_wm:dirty();
 resize_event(#mousebutton{button=1,state=?SDL_PRESSED},
 	     #rsz{state=moving,prev_focus=Focus}=Rst) ->
@@ -724,7 +724,7 @@ close_event(redraw) ->
 	    keep
     end;
 close_event(got_focus) ->
-    wings_wm:message(?STR(close_event,1,"Close this window")),
+    wings_wm:message(?__(1,"Close this window")),
     wings_wm:dirty();
 close_event(#mousebutton{button=1,state=?SDL_RELEASED}) ->
     {_,Client} = wings_wm:this(),
