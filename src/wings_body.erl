@@ -3,12 +3,12 @@
 %%
 %%     This module contains most of the command for entire Wings objects.
 %%
-%%  Copyright (c) 2001-2003 Bjorn Gustavsson
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.66 2004/05/14 08:23:46 raimo_niskanen Exp $
+%%     $Id: wings_body.erl,v 1.67 2004/06/27 06:05:46 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -180,8 +180,15 @@ cleanup_1([_|Opts], We) ->
 cleanup_1([], We) -> We.
 
 clean_isolated_vertices(We) ->
-    Isolated = wings_vertex:isolated(We),
-    wings_vertex:dissolve_isolated(Isolated, We).
+    case wings_vertex:isolated(We) of
+	[] -> We;
+	[_]=Isolated ->
+	    io:put_chars("Removed 1 isolated vertex\n"),
+	    wings_vertex:dissolve_isolated(Isolated, We);
+	Isolated ->
+	    io:format("Removed ~p isolated vertices\n", [length(Isolated)]),
+	    wings_vertex:dissolve_isolated(Isolated, We)
+    end.
 		  
 clean_short_edges(Tolerance, #we{es=Etab,vp=Vtab}=We) ->
     Short = foldl(
