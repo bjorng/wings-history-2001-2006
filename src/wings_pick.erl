@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.98 2003/06/14 07:14:04 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.99 2003/06/14 07:53:07 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -135,13 +135,11 @@ insert_hilite_dl_1(#dlo{src_we=#we{id=Id}}=D, {_,_,{Id,_}}, DL) ->
     {D#dlo{hilite=DL},[]};
 insert_hilite_dl_1(D, _, _) -> {D#dlo{hilite=none},[]}.
 
-hilite_draw_sel_dl({_,_,{_}}, _) ->
-    none;
-hilite_draw_sel_dl({Mode,_,{Id,Item}=Hit}, St) ->
+hilite_draw_sel_dl({_,_,{_}}, _) -> none;
+hilite_draw_sel_dl({Mode,_,{Id,Item}=Hit}, #st{shapes=Shs}=St) ->
     List = gl:genLists(1),
     gl:newList(List, ?GL_COMPILE),
     hilite_color(Hit, St),
-    #st{shapes=Shs} = St,
     We = gb_trees:get(Id, Shs),
     hilit_draw_sel(Mode, Item, We),
     gl:endList(),
@@ -443,21 +441,9 @@ raw_pick(X0, Y0, St) ->
 	Hits -> filter_hits(Hits, X, Y, St)
     end.
 
-update_selection({Mode,MM,{Id}}, #st{sel=Sel0}=St) ->
-    {Type,Sel} = update_light_selection(Id, St, Sel0, []),
-    {Type,MM,St#st{selmode=Mode,sel=Sel,sh=false}};
 update_selection({Mode,MM,{Id,Item}}, #st{sel=Sel0}=St) ->
     {Type,Sel} = update_selection(Id, Item, Sel0, []),
     {Type,MM,St#st{selmode=Mode,sel=Sel,sh=false}}.
-
-update_light_selection(Id, St, [{I,_}=H|T], Acc) when Id > I ->
-    update_light_selection(Id, St, T, [H|Acc]);
-update_light_selection(Id, #st{selmode=Mode}=St, [{I,_}|_]=T, Acc) when Id < I ->
-    {add,reverse(Acc, [{Id,wings_sel:get_all_items(Mode, Id, St)}|T])};
-update_light_selection(_, _, [{_,_}|T], Acc) -> %Id == I
-    {delete,reverse(Acc, T)};
-update_light_selection(Id, #st{selmode=Mode}=St, [], Acc) ->
-    {add,reverse(Acc, [{Id,wings_sel:get_all_items(Mode, Id, St)}])}.
 
 update_selection(Id, Item, [{I,_}=H|T], Acc) when Id > I ->
     update_selection(Id, Item, T, [H|Acc]);
@@ -493,8 +479,6 @@ get_hits(HitBuf) ->
     end.
 
 get_hits_1(0, _, Acc) -> Acc;
-get_hits_1(N, [1,_,_,A|T], Acc) ->
-    get_hits_1(N-1, T, [{A}|Acc]);
 get_hits_1(N, [2,_,_,A,B|T], Acc) ->
     get_hits_1(N-1, T, [{A,B}|Acc]).
 
@@ -511,20 +495,6 @@ filter_hits(Hits, X, Y, #st{selmode=Mode0,shapes=Shs,sel=Sel,sh=Sh}) ->
     EyePoint = wings_view:eye_point(),
     filter_hits_1(Hits, Shs, Mode, X, Y, EyePoint, none).
 
-filter_hits_1([{Id}|Hits], Shs, Mode, X, Y, EyePoint, Hit0) ->
-    %% This is a light.
-    We = gb_trees:get(Id, Shs),
-    Center = wings_vertex:pos(1, We),
-    D = e3d_vec:sub(Center, EyePoint),
-    DistSqr = e3d_vec:dot(D, D),
-    Hit = case Hit0 of
-	      none ->
-		  {DistSqr,{Id,We}};
-	      {DistSqr0,_} when DistSqr < DistSqr0 ->
-		  {DistSqr,{Id,We}};
-	      _Other -> Hit0
-	  end,
-    filter_hits_1(Hits, Shs, Mode, X, Y, EyePoint, Hit);
 filter_hits_1([{Id,Face}|Hits], Shs, Mode, X, Y, EyePoint, Hit0) ->
     Mtx = if 
 	      Id < 0 -> wings_util:mirror_matrix(-Id);
@@ -535,12 +505,6 @@ filter_hits_1([{Id,Face}|Hits], Shs, Mode, X, Y, EyePoint, Hit0) ->
     Hit = best_hit(Id, Face, Vs, We, EyePoint, Mtx, Hit0),
     filter_hits_1(Hits, Shs, Mode, X, Y, EyePoint, Hit);
 filter_hits_1([], _Shs, _Mode, _X, _Y, _EyePoint, none) -> none;
-filter_hits_1([], _Shs, Mode0, _X, _Y, _EyePoint, {_,{Id,_}}) ->
-    %% This is a light.
-    case Mode0 of
-	{auto,Mode} -> {Mode,original,{Id}};
-	Mode -> {Mode,original,{Id}}
-    end;
 filter_hits_1([], _Shs, Mode, X, Y, _EyePoint, {_,{Id,Face,We}}) ->
     if
 	Id < 0 -> convert_hit(Mode, X, Y, -Id, Face, mirror, We);
@@ -754,9 +718,14 @@ marquee_draw_fun(#dlo{mirror=Mirror,src_we=#we{id=Id}=We}, Draw) ->
 select_draw(_) ->
     wings_draw_util:map(fun select_draw_fun/2, []).
 
-select_draw_fun(#dlo{pick=none,work=Work,src_we=#we{perm=Perm}=We}=D, _)
+select_draw_fun(#dlo{work=Work,src_we=#we{id=Id,perm=Perm}=We}=D, _)
   when ?IS_LIGHT(We), ?IS_SELECTABLE(Perm) ->
-    draw_dlist(D#dlo{pick=Work});
+    gl:pushName(Id),
+    gl:pushName(1),
+    wings_draw_util:call(Work),
+    gl:popName(),
+    gl:popName(),
+    D;
 select_draw_fun(#dlo{pick=none,src_we=We}=D, _) ->
     List = gl:genLists(1),
     gl:newList(List, ?GL_COMPILE),
