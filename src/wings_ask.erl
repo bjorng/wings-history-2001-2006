@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.87 2003/07/03 19:38:41 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.88 2003/08/02 05:27:13 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -1023,27 +1023,14 @@ color(Def) ->
     {Fun,false,Col,3*?CHAR_WIDTH,?LINE_HEIGHT+2}.
 
 color_fun() ->
-    fun({redraw,Active}, Fi, Col, Common) ->
-	    col_draw(Active, Fi, Col, Common);
-       (init, #fi{key=Key}, #col{val=Val}=Col, Common) ->
+    fun col_event/4.
+
+col_event({redraw,Active}, Fi, Col, Common) ->
+    col_draw(Active, Fi, Col, Common);
+col_event(init, #fi{key=Key}, #col{val=Val}=Col, Common) ->
 	    {Col,gb_trees:insert(Key, Val, Common)};
-       (value, #fi{key=Key}, _Col, Common) ->
-	    gb_trees:get(Key, Common);
-       (Ev, Fi, Col, Common) ->
-	    col_event(Ev, Fi, Col, Common)
-    end.
-
-col_draw(Active, #fi{key=Key,x=X,y=Y0}, _, Common) ->
-    Color = gb_trees:get(Key, Common),
-    wings_io:border(X, Y0+3,
-			 3*?CHAR_WIDTH, ?CHAR_HEIGHT, Color),
-    Y = Y0+?CHAR_HEIGHT,
-    if
-	Active == true ->
-	    wings_io:text_at(X, Y, "___");
-	true -> ok
-    end.
-
+col_event(value, #fi{key=Key}, _Col, Common) ->
+    gb_trees:get(Key, Common);
 col_event({key,_,_,$\s}, Fi, Col, Common) ->
     pick_color(Fi, Col, Common);
 col_event(#mousemotion{x=Xm,y=Ym}, Fi, #col{val=RGB}=Col, Common) ->
@@ -1056,9 +1043,30 @@ col_event(#mousebutton{x=Xm,y=Ym,state=?SDL_RELEASED}, Fi, Col, Common) ->
 	true -> pick_color(Fi, Col, Common);
 	false -> {Col,Common}
     end;
-col_event({drop,{color,RGB}}, #fi{key=Key}, Col, Common) ->
+col_event({drop,{color,RGB1}}, #fi{key=Key}, Col, Common) ->
+    RGB0 = gb_trees:get(Key, Common),
+    RGB = replace_rgb(RGB0, RGB1),
     {Col#col{val=RGB},gb_trees:update(Key, RGB, Common)};
 col_event(_Ev, _Fi, Col, Common) -> {Col,Common}.
+
+%% replace_rgb(OldRGBA, NewRGBA) -> RGBA
+%%  Replace a color (RGB + possibly A) with a new color, 
+%%  making sure that the new color has the same number of components.
+replace_rgb({_,_,_}, {_,_,_}=RGB) -> RGB;
+replace_rgb({_,_,_}, {R,G,B,_}) -> {R,G,B};
+replace_rgb({_,_,_,_}, {_,_,_,_}=RGB) -> RGB;
+replace_rgb({_,_,_,A}, {R,G,B,_}) -> wings_color:share({R,G,B,A}).
+
+col_draw(Active, #fi{key=Key,x=X,y=Y0}, _, Common) ->
+    Color = gb_trees:get(Key, Common),
+    wings_io:border(X, Y0+3,
+			 3*?CHAR_WIDTH, ?CHAR_HEIGHT, Color),
+    Y = Y0+?CHAR_HEIGHT,
+    if
+	Active == true ->
+	    wings_io:text_at(X, Y, "___");
+	true -> ok
+    end.
 
 col_inside(Xm, Ym, #fi{x=X,y=Y}) ->
     X =< Xm andalso Xm < X+3*?CHAR_WIDTH andalso
