@@ -8,13 +8,15 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: user_default.erl,v 1.9 2002/10/15 14:19:25 bjorng Exp $
+%%     $Id: user_default.erl,v 1.10 2002/12/01 10:12:37 bjorng Exp $
 %% 
 
 -module(user_default).
 
 -export([help/0,wh/0,
-	 wx/0,wxu/1,wxu/3,wxunref/0,wxundef/0]).
+	 wx/0,wxp/0,wxu/1,wxu/3,wxunref/0,wxundef/0]).
+
+-import(lists, [foldl/3]).
 
 help() ->
     shell_default:help(),
@@ -25,6 +27,7 @@ help() ->
 wh() ->
     p("** Xref for Wings modules **\n"),
     p("wx()       -- collect xref information\n"),
+    p("wxp()      -- add xref information for plug-ins\n"),
     p("wxunref()  -- print unused functions\n"),
     p("wxundef()  -- print calls to undefined functions\n"),
     p("wxu(M)     -- print uses of module M\n"),
@@ -44,6 +47,14 @@ wx() ->
     xref:set_library_path(s, code:get_path() -- [WingsEbin]),
     {ok,Ms} = xref:add_directory(s, WingsEbin),
     length(Ms).
+
+wxp() ->
+    Dirs = get_plugin_dirs(),
+    foldl(fun(D, N) -> 
+		  {ok,Ms} = xref:add_directory(s, D),
+		  io:format("~p\n", [Ms]),
+		  N+length(Ms)
+	  end, 0, Dirs).
 
 wxu(Mod) when is_atom(Mod) ->
     result(xref:q(s, make_query("domain(E || ~p) - ~p", [Mod,Mod])));
@@ -73,3 +84,15 @@ make_query(Format, Args) ->
 
 p(String) ->
     io:put_chars(String).
+
+get_plugin_dirs() ->
+    Prefix = filename:join(code:lib_dir(wings), "plugins"),
+    Path = code:get_path(),
+    get_plugin_dirs(Path, Prefix, []).
+
+get_plugin_dirs([D|Ds], Prefix, Acc) ->
+    case lists:prefix(Prefix, D) of
+	false -> get_plugin_dirs(Ds, Prefix, Acc);
+	true -> get_plugin_dirs(Ds, Prefix, [D|Acc])
+    end;
+get_plugin_dirs([], _, Acc) -> Acc.
