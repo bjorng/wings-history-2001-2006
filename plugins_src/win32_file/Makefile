@@ -1,4 +1,3 @@
-
 # wp8_file - Makefile for Windows NT
 #
 # It is assumed that the following environment variables have been set:
@@ -11,7 +10,7 @@
 # Well, I hold for the later, so I'll try it as long as it works.
 # I.E /MD as compiler option and link with msvcrt.lib.
 #
-ERL_TOP = C:\progra~1\erl5.2
+ERL_TOP = C:\progra~1\erl5.2.3.3
 LINK = link
 MLFLAGS= /nologo /subsystem:console /machine:I386 /nodefaultlib 
 MLIBS = kernel32.lib ws2_32.lib msvcrt.lib user32.lib comdlg32.lib
