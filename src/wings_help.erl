@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.69 2004/04/20 07:52:37 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.70 2004/04/23 05:05:53 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -33,6 +33,8 @@ menu(_) ->
      {"Advanced Menus",advanced_menus},
      {"Default Commands",default_commands},
      separator,
+     {"Performance Tips",performance_tips},
+     separator,
      {"OpenGL Info",opengl_info},
      separator,
      {"About Wings 3D",about}].
@@ -53,6 +55,8 @@ command(lights, _St) ->
     lights();
 command(advanced_menus, _St) ->
     advanced_menus();
+command(performance_tips, _St) ->
+    performance_tips();
 command(opengl_info, _St) ->
     opengl_info();
 command(about, _St) ->
@@ -155,6 +159,49 @@ def_commands() ->
 	    [{ul,"Blender"}]++" camera modes, the second "
 	    "default command cannot be used."],
     help_window("Assigning Default Commands", Help).
+
+performance_tips() ->
+    H = ["The performance of Wings is dependent on many different things, "
+	 "such as",
+	 "[*] the speed of the CPU",
+	 "[*] type and size of CPU cache",
+	 "[*] amount and speed of memory",
+	 "[*] type of graphics card",
+	 "[*] amount of video memory",
+	 "[*] the phase of the moon",
+
+	 "Therefore, it is difficult to give any firm advice on how to "
+	 "improve Wings performance. The following tips MAY "
+	 "improve performance.",
+
+	 "Try different number of colors and different screen resolutions. "
+	 "Especially if the graphics card doesn't have much memory, many "
+	 "colors and/or high resolution may drastically reduce performance. "
+	 "Using a smaller Wings window (not maximized) may also help.",
+
+	 "Close unnecessary windows inside Wings.",
+
+	 "Make sure that Geometry windows don't overlap.",
+
+	 "Use as few (active) lights as possible. More lights "
+	 "means less speed on most grahics cards.",
+
+	 "If possible, use the "++cmd(["Tools","Virtual Mirror"])++" command.",
+
+	 "Hide models that you don't work on for the moment.",
+
+	 "Use the "++cmd(["View","Show Colors"])++" command to turn off vertex "
+	 "color display if your model has vertex colors.",
+
+	 "Use the "++cmd(["View","Show Textures"])++" command to turn off textures "
+	 "while modeling.",
+
+	 "Work in wireframe mode.",
+
+	 "Some graphics cards display edges slowly. Turn off edge display "
+	 "using the "++cmd(["View","Show Edges"])++" command."
+	],
+    help_window("Performance Tips", H).
 
 hotkeys() ->
     Help = wings_hotkey:listing(),
