@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.71 2003/05/04 08:20:10 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.72 2003/05/04 08:21:15 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -500,9 +500,9 @@ mb_event(#mousemotion{x=X,y=Y}, Camera0, Redraw) ->
 mb_event(Event, Camera, Redraw) ->
     generic_event(Event, Camera, Redraw).
 
-get_mb_event(Camera, Redraw, View) ->
+get_mb_event(Camera, Redraw) ->
     wings_wm:dirty(),
-    {replace,fun(Ev) -> mb_event(Ev, Camera, Redraw, View) end}.
+    {replace,fun(Ev) -> mb_event(Ev, Camera, Redraw) end}.
     
 %%%
 %%% Common utilities.
