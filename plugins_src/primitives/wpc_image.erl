@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_image.erl,v 1.5 2002/10/20 12:22:14 bjorng Exp $
+%%     $Id: wpc_image.erl,v 1.6 2002/10/20 12:23:28 bjorng Exp $
 %%
 
 -module(wpc_image).
@@ -59,7 +59,7 @@ make_image(Format) ->
     end.
 
 make_image_1({W0,H0,_}=Image0) ->
-    {W,H,Pixels} = Image = pad_image(Image0),
+    {W,H,_Pixels} = Image = pad_image(Image0),
     io:format("~p\n", [{W,H}]),
     case can_texture_be_loaded(Image) of
 	false ->
@@ -116,7 +116,7 @@ pad_image_1({W,H0,Pixels0}=Image) ->
 	    pad_image_2({W,H,Pixels})
     end.
 
-pad_image_2({W,H,Pixels}=Image) when is_list(Pixels) ->
+pad_image_2({W,H,Pixels}) when is_list(Pixels) ->
     {W,H,list_to_binary(Pixels)};
 pad_image_2(Image) -> Image.
 
