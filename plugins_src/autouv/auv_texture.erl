@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_texture.erl,v 1.5 2004/03/13 14:41:52 dgud Exp $
+%%     $Id: auv_texture.erl,v 1.6 2004/04/12 07:23:40 bjorng Exp $
 
 -module(auv_texture).
 -export([get_texture/1, get_texture/2, draw_options/0]).
@@ -297,7 +297,9 @@ draw_face_edges_1([], _, VsPos) ->
 
 draw_faces(Fs, We) ->
     Draw = fun(Face) -> face(Face, We) end,
-    wings_draw_util:begin_end(fun() -> foreach(Draw, Fs) end).
+    gl:'begin'(?GL_TRIANGLES),
+    foreach(Draw, Fs),
+    gl:'end'().
 
 %% XXX Wrong.
 face(Face, #we{mode=material}=We) ->

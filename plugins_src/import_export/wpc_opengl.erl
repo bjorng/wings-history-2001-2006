@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.66 2004/03/19 13:46:40 raimo_niskanen Exp $
+%%     $Id: wpc_opengl.erl,v 1.67 2004/04/12 07:21:04 bjorng Exp $
 
 -module(wpc_opengl).
 
@@ -70,7 +70,7 @@ init() ->
     true.
 
 menu({file,render}, Menu0) ->
-    [{"Opengl",opengl,[option]}] ++ Menu0;
+    [{"OpenGL",opengl,[option]}] ++ Menu0;
 menu(_, Menu) -> Menu.
 
 command({file,{render,{opengl,Ask}}}, St) ->
@@ -404,10 +404,9 @@ dlist_mask(false, _) -> none;
 dlist_mask(true, #we{fs=Ftab}=We) ->
     List = gl:genLists(1),
     gl:newList(List, ?GL_COMPILE),
-    wings_draw_util:begin_end(
-      fun() ->
-	      dlist_mask_2(gb_trees:to_list(Ftab), We)
-      end),
+    gl:'begin'(?GL_TRIANGLES),
+    dlist_mask_2(gb_trees:to_list(Ftab), We),
+    gl:'end'(),
     gl:endList(),
     List.
 
@@ -662,12 +661,12 @@ create_shadow_volume(#light{type=infinite,aim=Aim,pos=LPos},
     foreach(fun(Vs) -> build_shadow_edge_ext_infinite(Vs,LightDir,We) end, Loops),    
     %% Draw Top Cap
     #we{fs=FTab} = We,
-    wings_draw_util:begin_end(
-      fun() -> foreach(fun(Face) -> 
-			       Edge = gb_trees:get(Face, FTab),
-			       wings_draw_util:unlit_face(Face, Edge, We)
-		       end, FF) 
-      end);
+    gl:'begin'(?GL_TRIANGLES),
+    foreach(fun(Face) -> 
+		    Edge = gb_trees:get(Face, FTab),
+		    wings_draw_util:unlit_face(Face, Edge, We)
+	    end, FF),
+    gl:'end'();
 create_shadow_volume(#light{pos=LPos},#d{we=We,matfs=Matfs}) ->
 
     {FF,BF,Loops} = partition_model(We, Matfs, LPos, pos),
@@ -675,14 +674,12 @@ create_shadow_volume(#light{pos=LPos},#d{we=We,matfs=Matfs}) ->
     foreach(fun(Vs) -> build_shadow_edge_ext(Vs,LPos,We) end, Loops),
     %% Draw Top Cap
     #we{fs=FTab} = We,
-    wings_draw_util:begin_end(
-      fun() -> foreach(fun(Face) -> 
-			       Edge = gb_trees:get(Face, FTab),
-			       wings_draw_util:unlit_face(Face, Edge, We)
-		       end, FF) 
-      end),
-    %% Draw bottom cap
     gl:'begin'(?GL_TRIANGLES),
+    foreach(fun(Face) -> 
+		    Edge = gb_trees:get(Face, FTab),
+		    wings_draw_util:unlit_face(Face, Edge, We)
+	    end, FF),
+    %% Draw bottom cap
     foreach(fun(Face) -> 
 		    Vs = wings_face:vertices_ccw(Face, We),
 		    draw_bottom_face(Vs,LPos,We#we.vp) 
