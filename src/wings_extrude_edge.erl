@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.44 2003/06/13 17:26:24 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.45 2003/07/18 06:45:34 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -206,7 +206,28 @@ extrude(Type, St0) ->
 			     end, [], St0),
 		wings_move:plus_minus(Type, Tvs, St)
 	end,
-    default_extrude_dist(B).
+    Dist = calc_extrude_dist(St0),
+    set_extrude_dist(Dist, B).
+
+calc_extrude_dist(St) ->
+    wings_sel:fold(fun(Edges, We, D) ->
+			   calc_extrude_dist_1(Edges, We, D)
+		   end, ?DEFAULT_EXTRUDE_DIST, St).
+
+calc_extrude_dist_1(Edges0, We, D) ->
+    Edges1 = gb_sets:to_list(Edges0),
+    Vs = wings_vertex:from_edges(Edges1, We),
+    Edges2 = wings_edge:from_vs(Vs, We),
+    Edges = ordsets:subtract(Edges2, Edges1),
+    calc_extrude_dist_2(Edges, We, D).
+
+calc_extrude_dist_2([E|Es], #we{es=Etab,vp=Vtab}=We, D0) ->
+    #edge{vs=Va,ve=Vb} = gb_trees:get(E, Etab),
+    case e3d_vec:dist(gb_trees:get(Va, Vtab), gb_trees:get(Vb, Vtab)) / 3 of
+	D when D < D0 -> calc_extrude_dist_2(Es, We, D);
+	_ -> calc_extrude_dist_2(Es, We, D0)
+    end;
+calc_extrude_dist_2([], _, D) -> D.
 
 extrude_1(Edges, We0, Acc) ->
     {We1,_,New,Forbidden} = extrude_edges(Edges, We0),
@@ -277,7 +298,10 @@ straighten_1(Vec, N, {Cx,Cy,Cz}, OtherV, OPos0, Vt) ->
 	    OPos = e3d_mat:mul_point(M, OPos0),
 	    gb_trees:update(OtherV, OPos, Vt)
     end.
-    
+
+%% 
+%% Common help function for actually extruding edges.
+%%    
 extrude_edges(Edges, We) ->
     extrude_edges(Edges, gb_sets:empty(), We).
 
@@ -287,8 +311,7 @@ extrude_edges(Edges, ForbiddenFaces, #we{next_id=Wid,es=Etab}=We0) ->
 		    digraph_edge(G, ForbiddenFaces, gb_trees:get(Edge, Etab))
 	    end, gb_sets:to_list(Edges)),
     Vs0 = digraph:vertices(G),
-    Vs1 = sofs:relation(Vs0),
-    Vs = sofs:to_external(sofs:domain(Vs1)),
+    Vs = sofs:to_external(sofs:domain(sofs:relation(Vs0))),
     {We1,Forbidden} =
 	foldl(fun(V, A) ->
 		      new_vertex(V, G, Edges, ForbiddenFaces, Wid, A)
