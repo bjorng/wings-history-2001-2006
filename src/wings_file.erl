@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.131 2003/10/24 03:25:25 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.132 2003/11/12 18:58:53 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -665,27 +665,24 @@ make_face(Face, Mat, _ColTab, UvTab, #we{mode=material}=We) ->
 	  end,
     #e3d_face{vs=Vs,tx=UVs,mat=make_face_mat(Mat)};
 make_face(Face, Mat, ColTab, _UvTab, #we{mode=vertex}=We) ->
-    {Vs,Cols0} = wings_face:fold_vinfo(
+    {Vs,Cols} = wings_face:fold_vinfo(
 		  fun(V, {_,_,_}=Col, {VAcc,ColAcc}) ->
 			  {[V|VAcc],[gb_trees:get(Col, ColTab)|ColAcc]};
 		     (V, _Info, {VAcc,ColAcc}) ->
-			  {[V|VAcc],ColAcc}
+			  Col = wings_color:white(),
+			  {[V|VAcc],[gb_trees:get(Col, ColTab)|ColAcc]}
 		  end, {[],[]}, Face, We),
-    Cols = if
-	       length(Vs) =:= length(Cols0) -> Cols0;
-	       true -> []
-	   end,
     #e3d_face{vs=Vs,vc=Cols,mat=make_face_mat(Mat)}.
 
 make_tables(#we{mode=vertex}=We) ->
-    {make_table(3, We),[]};
+    {make_table(3, [wings_color:white()], We),[]};
 make_tables(#we{mode=material}=We) ->
-    {[],make_table(2, We)}.
+    {[],make_table(2, [], We)}.
 
-make_table(Sz, #we{es=Etab}) ->
+make_table(Sz, Def, #we{es=Etab}) ->
     Cuvs0 = foldl(fun(#edge{a=A,b=B}, Acc) ->
 			  [A,B|Acc]
-		  end, [], gb_trees:values(Etab)),
+		  end, Def, gb_trees:values(Etab)),
     Cuvs = [E || E <- Cuvs0, size(E) =:= Sz],
     number(ordsets:from_list(Cuvs)).
 
