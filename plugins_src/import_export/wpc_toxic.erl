@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_toxic.erl,v 1.2 2004/06/10 06:55:13 dgud Exp $
+%%     $Id: wpc_toxic.erl,v 1.3 2004/06/10 21:16:59 dgud Exp $
 %%
 
 -module(wpc_toxic).
@@ -229,12 +229,11 @@ props(export) ->
 props(export_selected) ->
     [{title,"Export Selected"},{ext,".xml"},{ext_desc,"Toxic File"}].
 
--record(camera_info, {mat,fov}).
+-record(camera_info, {pos,dir,up,fov}).
 
 attr(St, Attr) ->
-    [Fov] = wpa:camera_info([fov]),
-    Mat   = wings_view:view_matrix(),
-    CameraInfo = #camera_info{mat=Mat,fov=Fov},
+    [{Pos,Dir,Up},Fov] = wpa:camera_info([pos_dir_up,fov]),
+    CameraInfo = #camera_info{pos=Pos,dir=Dir,up=Up,fov=Fov},
     [CameraInfo,{lights,wpa:lights(St)}|Attr].
 
 do_export(Op, Props0, Attr, St0) ->    
@@ -718,8 +717,7 @@ export(Attr, Filename, E3DExport0) ->
 
 export_objs(#files{}, []) -> ok;
 export_objs(F=#files{dir=Dir}, [E3F|R]) ->
-    #e3d_file{objs=[#e3d_object{name=File, mat=Mat}], mat=Mtab} = E3F,
-    io:format("File ~p Mat ~p Mtab ~w ~n",[File,Mat,Mtab]),
+    #e3d_file{objs=[#e3d_object{name=File}]} = E3F,
     e3d_obj:export(filename:join(Dir,File++".obj"), E3F),
     export_objs(F,R);
 export_objs(#files{objects=File}, E3DExport) ->
@@ -991,8 +989,8 @@ export_light(F, _, Scale, OpenGL, Toxic) ->
     println(F,"  </Object>").
 
 export_camera(F, Scale, Attr) ->
-    #camera_info{mat=Mat0,fov=Fov} = proplists:lookup(camera_info, Attr),
-    Mat = tuple_to_list(e3d_mat:expand(Mat0)),
+    #camera_info{pos=Pos,dir=Dir,up=Up,fov=Fov} = 
+	proplists:lookup(camera_info, Attr),
     case pget(camera, Attr) of
 	pinhole ->
 	    println(F,"  <Object type=\"pinholecamera\">");
@@ -1013,17 +1011,36 @@ export_camera(F, Scale, Attr) ->
     end,
     println(F,"  <Parameter name=\"hfov\" value=\"~s\"/>", [format(Fov)]),
     println(F,"    <Transform>"),
-    print(F,"      <Matrix4>~n        ", []),
-    foldl(fun(E,I) when I < 3 -> 
-		  print(F, "~s ", [format(E)]), I+1;
-	     (E,I) when I == 3 -> 
-		  print(F, "~s~n        ", [format(E)]), 0 
-	  end, 0, Mat),
-    println(F,"      </Matrix4>"),
-    println(F,"      <Scale value=\"~s\"/>", [format(Scale)]),  %% BUGBUG??
+    println(F,"      <Translation value=\"~s ~s ~s\"/>", vector_to_list(Pos,Scale)),
+    {DirDeg, DirAxis} = rotate_vec(e3d_vec:norm(Dir), {0.0,0.0,-1.0}),
+    println(F,"      <Rotation angle=\"~s\" axis=\"~s ~s ~s\"/>", 
+	    [format(DirDeg)|vector_to_list(DirAxis)]),
+    Rot = e3d_mat:rotate(DirDeg,DirAxis),
+    UpRot = e3d_mat:mul_vector(Rot,{0.0,1.0,0.0}),
+    {UpDeg, UpAxis} = rotate_vec(Up, UpRot),
+    println(F,"      <Rotation angle=\"~s\" axis=\"~s ~s ~s\"/>", 
+	    [format(UpDeg)|vector_to_list(UpAxis)]),
+    io:format("Dir ~p DirDeg ~p DirAxis ~p~n", [Dir,DirDeg,DirAxis]),
+    io:format("Up ~p UpRot ~p UpDeg ~p UpAxis ~p~n", [Up,UpRot,UpDeg,UpAxis]),
     println(F,"    </Transform>"),
     println(F,"  </Object>"),
     ok.
+
+rotate_vec(V1,V2) ->
+    ACos = e3d_vec:dot(V1,V2),
+    Dir = math:acos(ACos)*180/math:pi(),
+    case e3d_vec:norm(e3d_vec:cross(V1,V2)) of
+	{0.0,0.0,0.0} ->
+	    {Dir, {0.0,1.0,0.0}};
+	Cross ->
+	    {Dir, Cross}
+    end.
+
+vector_to_list({X,Y,Z}) ->
+    [format(X),format(Y),format(Z)].
+vector_to_list({X,Y,Z},Scale) ->
+    [format(X*Scale),format(Y*Scale),format(Z*Scale)].
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Render
@@ -1133,11 +1150,11 @@ println(F, DeepString) ->
 	Error -> erlang:fault(Error, [F,DeepString])
     end.
 
-print(F, Format, Args) ->
-    case file:write(F, io_lib:format(Format, Args)) of
- 	ok ->    ok;
- 	Error -> erlang:fault(Error, [F,Format,Args])
-    end.
+%% print(F, Format, Args) ->
+%%     case file:write(F, io_lib:format(Format, Args)) of
+%%  	ok ->    ok;
+%%  	Error -> erlang:fault(Error, [F,Format,Args])
+%%     end.
 
 println(F, Format, Args) ->
     case file:write(F, [io_lib:format(Format, Args),io_lib:nl()]) of
