@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.45 2002/11/30 08:58:17 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.46 2002/12/14 07:07:22 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -514,9 +514,10 @@ get_pref(Key) ->
     wings_pref:get_value(Key).
 
 axis(I, Pos, Neg) ->
+    Yon = wings_pref:get_value(camera_yon),
     A0 = {0.0,0.0,0.0},
-    A = setelement(I, A0, 1000.0),
-    B = setelement(I, A0, -1000.0),
+    A = setelement(I, A0, Yon),
+    B = setelement(I, A0, -Yon),
     gl:'begin'(?GL_LINES),
     gl:color3fv(Pos),
     gl:vertex3fv(A0),
@@ -542,8 +543,19 @@ dummy_axis_letter() ->
 	    dummy_axis_letter(MM, PM, Viewport)
     end.
 
-dummy_axis_letter(_, _, _) ->
-    axis_text(10, 90, axisx, wings_pref:get_value(background_color)).
+dummy_axis_letter(_, _, {_,_,W,H}) ->
+    gl:matrixMode(?GL_PROJECTION),
+    gl:pushMatrix(),
+    gl:loadIdentity(),
+    glu:ortho2D(0, W, 0, H),
+    gl:matrixMode(?GL_MODELVIEW),
+    gl:pushMatrix(),
+    gl:loadIdentity(),
+    axis_text(10, 90, axisx, wings_pref:get_value(background_color)),
+    gl:popMatrix(),
+    gl:matrixMode(?GL_PROJECTION),
+    gl:popMatrix(),
+    gl:matrixMode(?GL_MODELVIEW).
 
 axis_letters() ->
     case wings_pref:get_value(show_axis_letters) andalso
@@ -553,18 +565,34 @@ axis_letters() ->
 	    MM = list_to_tuple(gl:getDoublev(?GL_MODELVIEW_MATRIX)),
 	    PM = list_to_tuple(gl:getDoublev(?GL_PROJECTION_MATRIX)),
 	    ViewPort = wings_wm:viewport(),
-	    Info = {MM,PM,ViewPort},
-	    axis_letter(1, axisx, wings_pref:get_value(x_color), Info),
-	    axis_letter(2, axisy, wings_pref:get_value(y_color), Info),
- 	    axis_letter(3, axisz, wings_pref:get_value(z_color), Info)
+	    Start = {0.0,0.0,0.0},
+	    Origin = proj(Start, MM, PM),
+	    Info = {Start,Origin,MM,PM,ViewPort},
+
+	    gl:matrixMode(?GL_PROJECTION),
+	    gl:pushMatrix(),
+	    gl:loadIdentity(),
+	    {_,_,W,H} = ViewPort,
+	    glu:ortho2D(0, W, 0, H),
+	    gl:matrixMode(?GL_MODELVIEW),
+	    gl:pushMatrix(),
+	    gl:loadIdentity(),
+
+	    axis_letter(1, axisx, x_color, Info),
+	    axis_letter(2, axisy, y_color, Info),
+ 	    axis_letter(3, axisz, z_color, Info),
+
+	    gl:popMatrix(),
+	    gl:matrixMode(?GL_PROJECTION),
+	    gl:popMatrix(),
+	    gl:matrixMode(?GL_MODELVIEW)
     end.
 
-axis_letter(I, Char, Color, {MM,PM,Viewport}) ->
-    Start = {0.0,0.0,0.0},
-    End = setelement(I, Start, 1000.0),
-    {Ox,Oy,_,Ow} = proj(Start, MM, PM),
+axis_letter(I, Char, Color0, {Start,{Ox,Oy,_,Ow},MM,PM,Viewport}) ->
+    Color = wings_pref:get_value(Color0),
+    End = setelement(I, Start, wings_pref:get_value(camera_yon)),
     {Px,Py,_,Pw0} = proj(End, MM, PM),
-    Pw = abs(Pw0),
+    Pw = Pw0,
     if
 	-Pw < Px, Px < Pw, -Pw < Py, Py < Pw ->
 	    show_letter(Px, Py, Pw, Char, Color, Viewport);
@@ -599,36 +627,18 @@ clip_1({O1,D1}=Axis, [{O2,D2}|Lines], {Ow,_}=W) ->
     end;
 clip_1(_, [], _W) -> none.
 
-show_letter(X0, Y0, W, Char, Color, {Vx,Vy,Vw,Vh}) ->
-    X = (0.5*X0/W + 0.5)*Vw + Vx,
-    Y = (0.5*Y0/W + 0.5)*Vh + Vy,
+show_letter(X0, Y0, W, Char, Color, {_,_,Vw,Vh}) ->
+    X = trunc((0.5*X0/W+0.5)*(Vw-16) + 5),
+    Y = trunc((0.5*Y0/W+0.5)*(Vh-16) + 7),
     axis_text(X, Y, Char, Color).
 
 axis_text(X, Y, C, Color) ->
-    {_,_,W,H} = wings_wm:viewport(),
-    gl:matrixMode(?GL_PROJECTION),
-    gl:pushMatrix(),
-    gl:loadIdentity(),
-    glu:ortho2D(0, W, 0, H),
-    gl:matrixMode(?GL_MODELVIEW),
-    gl:pushMatrix(),
-    gl:loadIdentity(),
-    ClipX = min(trunc(X), W-9),
-    ClipY = min(trunc(Y-10), H-10),
     wings_io:set_color(Color),
-    gl:rasterPos2i(ClipX, ClipY),
-    wings_text:char(C),
-    gl:popMatrix(),
-    gl:matrixMode(?GL_PROJECTION),
-    gl:popMatrix(),
-    gl:matrixMode(?GL_MODELVIEW).
-
-min(A, B) when A < B -> A;
-min(_, B) -> B.
+    gl:rasterPos2i(X, Y),
+    wings_text:char(C).
 
 proj({X0,Y0,Z0}, MM, PM) ->
-    Vec = e3d_mat:mul(MM, {X0,Y0,Z0,1.0}),
-    e3d_mat:mul(PM, Vec).
+    e3d_mat:mul(PM, e3d_mat:mul(MM, {X0,Y0,Z0,1.0})).
 
 line(Ox, Oy, Px, Py) -> {{Ox,Oy},{Px-Ox,Py-Oy}}.
 
