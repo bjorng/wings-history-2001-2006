@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.14 2001/10/19 19:35:14 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.15 2001/12/12 13:02:43 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -144,7 +144,8 @@ tighten(#shape{id=Id,sh=#we{vs=Vtab}=We0}=Sh, A) ->
 
 smooth(St) ->
     wings_sel:map(
-      fun(#shape{sh=#we{fs=Ftab,he=Htab}=We0}=Sh0) ->
+      fun(#shape{sh=#we{fs=Ftab,he=Htab}=We0,name=Name}=Sh0) ->
+	      wings_io:progress("Smoothing \"" ++ Name ++ "\""),
 	      We = wings_subdiv:smooth(We0),
 	      Sh = Sh0#shape{sh=We};
 	 (Sh) -> Sh

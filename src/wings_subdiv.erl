@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.11 2001/11/27 20:58:02 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.12 2001/12/12 13:02:43 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -27,14 +27,19 @@ smooth(#we{vs=Vtab,es=Etab,fs=Ftab,he=Htab}=We) ->
 
 smooth(AllFs, Fs, Vs, Es, Htab,
        #we{es=Etab,fs=Ftab0,vs=Vtab0,next_id=Id}=We0) ->
+    wings_io:progress_tick(),
     FacePos0 = face_centers(AllFs, We0),
     FacePos = gb_trees:from_orddict(reverse(FacePos0)),
+    wings_io:progress_tick(),
     We1 = cut_edges(Es, FacePos, Htab, We0),
+    wings_io:progress_tick(),
     We = foldl(fun(Face, Acc) ->
 		       smooth_face(Face, Id, FacePos, Acc)
 	       end, We1, Fs),
+    wings_io:progress_tick(),
     #we{vs=Vtab2} = We,
     Vtab = smooth_move_orig(Vs, FacePos, Htab, We0, Vtab2),
+    wings_io:progress_tick(),
     We#we{vs=Vtab}.
 
 face_centers(Faces, #we{fs=Ftab}=We) ->
