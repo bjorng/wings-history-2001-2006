@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.137 2003/12/18 11:03:50 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.138 2003/12/28 15:25:29 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -76,12 +76,18 @@ command({confirmed_new,Next}, St) ->
     confirmed_new(Next, St);
 command(open, St) ->
     open(St);
+command(confirmed_open_dialog, _) ->
+    confirmed_open_dialog();
+command({confirmed_open,Filename}, St) ->
+    confirmed_open(Filename, St);
 command({confirmed_open,Next,Filename}, _) ->
     Next(Filename);
 command(merge, St) ->
     merge(St);
 command(save, St) ->
     save(St);
+command({save,Next}, St) ->
+    save(Next, St);
 command(save_as, St0) ->
     case save_as(St0) of
 	aborted -> St0;
@@ -162,27 +168,45 @@ confirmed_new(Next, #st{file=File}=St) ->
     catch file:delete(autosave_filename(File)),
     new(Next, St#st{saved=true}).
 
-open(OldSt) ->
-    new(fun(St) -> do_open(St, OldSt) end, OldSt).
+open(#st{saved=true}) ->
+    confirmed_open_dialog();
+open(St) ->
+    wings:caption(St#st{saved=false}),		%Clear any autosave flag.
+    Confirmed = {file,confirmed_open_dialog},
+    wings_util:yes_no_cancel("Do you want to save your changes?",
+			     fun() -> {file,{save,Confirmed}} end,
+			     fun() -> Confirmed end).
 
-do_open(St0, OldSt) ->
-    case wings_plugin:call_ui({file,open_dialog,wings_prop()}) of
-	aborted -> OldSt;
-	Name ->
-	    set_cwd(dirname(Name)),
-	    Fun = fun(File) ->
-			  case ?SLOW(wings_ff_wings:import(File, St0)) of
-			      #st{}=St1 ->
-				  St = clean_images(St1),
-				  add_recent(Name),
-				  wings:caption(St#st{saved=true,file=Name});
-			      {error,Reason} ->
-				  clean_new_images(St0),
-				  wings_util:error("Read failed: " ++ Reason)
-			  end
-		     end,
-	    use_autosave(Name, Fun)
-    end.
+confirmed_open_dialog() ->
+    %% All confirmation questions asked. The former contents has either
+    %% been saved, or the user has accepted that it will be discarded.
+    This = wings_wm:this(),
+    Fun = fun(Filename) ->
+		  wings_wm:send(This, {action,{file,{confirmed_open,Filename}}})
+	  end,
+    Dir = wings_pref:get_value(current_directory),
+    Ps = [{directory,Dir}|wings_prop()],
+    wings_plugin:call_ui({file,open_dialog,Ps,Fun}).
+
+confirmed_open(Name, St0) ->
+    Fun = fun(File) ->
+		  %% We now have:
+		  %%   Name: Original name of file to be opened.
+		  %%   File: Either original file or the autosave file
+		  St1 = clean_st(St0#st{file=undefined}),
+		  St2 = wings_undo:init(St1),
+		  case ?SLOW(wings_ff_wings:import(File, St2)) of
+		      #st{}=St3 ->
+			  St = clean_images(St3),
+			  add_recent(Name),
+			  wings:caption(St#st{saved=true,file=Name});
+		      {error,Reason} ->
+			  set_cwd(dirname(File)),
+			  clean_new_images(St2),
+			  wings_util:error("Read failed: " ++ Reason)
+		  end
+	  end,
+    use_autosave(Name, Fun).
 
 named_open(Name, St) ->
     new(fun(S) -> do_named_open(Name, S) end, St).
@@ -203,7 +227,8 @@ do_named_open(Name, St0) ->
     use_autosave(Name, Fun).
 
 merge(St0) ->
-    case wings_plugin:call_ui({file,open_dialog,[{title,"Merge"}|wings_prop()]}) of
+    Ps = [{title,"Merge"}|wings_prop()],
+    case wings_plugin:call_ui({file,open_dialog,Ps}) of
 	aborted -> St0;
 	Name ->
 	    Fun = fun(File) ->
@@ -224,6 +249,15 @@ save(St0) ->
 	aborted -> St0;
 	St0 -> St0;
 	St  -> {saved,St}
+    end.
+
+save(Next, St0) ->
+    case save_1(St0) of
+	aborted -> keep;
+	St0 -> keep;
+	St  ->
+	    wings_wm:later({action,Next}),
+	    {saved,St}
     end.
 
 save_1(#st{saved=true}=St) -> St;

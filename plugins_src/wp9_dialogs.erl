@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp9_dialogs.erl,v 1.28 2003/12/27 16:34:02 bjorng Exp $
+%%     $Id: wp9_dialogs.erl,v 1.29 2003/12/28 15:25:28 bjorng Exp $
 %%
 
 -module(wp9_dialogs).
@@ -147,7 +147,7 @@ do_dialog(Types, Title, Cont, Ps) ->
 			       NewName = filename:join(Dir, Name),
 			       Cont(NewName)
 		       end,[ok,{hook,fun ok_hook/2}]},
-		      {button,"Cancel",fun(_) -> Cont(aborted) end,[cancel]}]}]}]},
+		      {button,"Cancel",cancel,[cancel]}]}]}]},
     Ask = fun(Res) ->
 		  do_dialog(Types, Title, Cont, Res)
 	  end,
