@@ -8,10 +8,10 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.2 2001/12/29 20:33:56 bjorng Exp $
+%%     $Id: wpa.erl,v 1.3 2002/01/17 09:25:12 bjorng Exp $
 %%
 -module(wpa).
--export([ask/3,
+-export([ask/3,error/1,
 	 sel_map/2,sel_fold/3,sel_convert/3,
 	 sel_edge_regions/2,sel_face_regions/2,
 	 vertices/1,vertex_pos/2,vertex_flatten/3,vertex_center/2,
@@ -25,6 +25,10 @@
 
 ask(Ask, Qs, Fun) ->
     wings_util:ask(Ask, Qs, Fun).
+
+%% Show String in a dialog box.
+error(String) ->
+    throw({command_error,String}).
 
 %%% Selection utilities.
 
