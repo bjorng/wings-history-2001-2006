@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel.erl,v 1.30 2002/02/24 22:36:52 bjorng Exp $
+%%     $Id: wings_sel.erl,v 1.31 2002/03/11 14:39:04 bjorng Exp $
 %%
 
 -module(wings_sel).
@@ -119,8 +119,11 @@ map_1(F, [{Id,Items}|Sel], [{Id,#we{mode=uv}=We0}|Shs], St, Acc) ->
     map_1(F, Sel, Shs, St, [{Id,We}|Acc]);
 map_1(F, [{Id,Items}|Sel], [{Id,We0}|Shs], St, Acc) ->
     ?ASSERT(We0#we.id =:= Id),
-    We = F(Items, wings_we:uv_to_color(We0, St)),
-    map_1(F, Sel, Shs, St, [{Id,We}|Acc]);
+    #we{es=Etab} = We = F(Items, wings_we:uv_to_color(We0, St)),
+    case gb_sets:is_empty(Etab) of
+	true -> map_1(F, Sel, Shs, St, Acc);
+	false -> map_1(F, Sel, Shs, St, [{Id,We}|Acc])
+    end;
 map_1(F, [_|_]=Sel, [Pair|Shs], St, Acc) ->
     map_1(F, Sel, Shs, St, [Pair|Acc]);
 map_1(_F, [], Shs, _St, Acc) ->
@@ -158,8 +161,11 @@ mapfold_1(F, Acc0, [{Id,Items}|Sel], [{Id,#we{mode=uv}=We0}|Shs],
     mapfold_1(F, Acc, Sel, Shs, St, [{Id,We}|ShsAcc]);
 mapfold_1(F, Acc0, [{Id,Items}|Sel], [{Id,We0}|Shs], St, ShsAcc) ->
     ?ASSERT(We0#we.id =:= Id),
-    {We,Acc} = F(Items, wings_we:uv_to_color(We0, St), Acc0),
-    mapfold_1(F, Acc, Sel, Shs, St, [{Id,We}|ShsAcc]);
+    {#we{es=Etab}=We,Acc} = F(Items, wings_we:uv_to_color(We0, St), Acc0),
+    case gb_trees:is_empty(Etab) of
+	true -> mapfold_1(F, Acc0, Sel, Shs, St, ShsAcc);
+	false -> mapfold_1(F, Acc, Sel, Shs, St, [{Id,We}|ShsAcc])
+    end;
 mapfold_1(F, Acc, [_|_]=Sel, [Pair|Shs], St, ShsAcc) ->
     mapfold_1(F, Acc, Sel, Shs, St, [Pair|ShsAcc]);
 mapfold_1(_F, Acc, [], Shs, _St, ShsAcc) ->

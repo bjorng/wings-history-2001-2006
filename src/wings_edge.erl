@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.36 2002/02/23 22:41:58 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.37 2002/03/11 14:39:04 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -316,7 +316,7 @@ dissolve_edge(Edge, #we{es=Etab}=We0) ->
 	none -> We0;
 	{value,#edge{ltpr=Same,ltsu=Same,rtpr=Same,rtsu=Same}} ->
 	    Empty = gb_trees:empty(),
-	    #we{vs=Empty,es=Empty,fs=Empty,he=gb_sets:empty()};
+	    We0#we{vs=Empty,es=Empty,fs=Empty,he=gb_sets:empty()};
 	{value,#edge{rtpr=Back,ltsu=Back}=Rec} ->
 	    merge_edges(backward, Edge, Rec, We0);
 	{value,#edge{rtsu=Forward,ltpr=Forward}=Rec} ->
