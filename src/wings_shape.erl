@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.32 2003/01/02 14:49:38 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.33 2003/01/02 17:40:29 bjorng Exp $
 %%
 
 -module(wings_shape).
@@ -74,12 +74,15 @@ window(St) ->
 	    wings_wm:delete(object);
 	false ->
 	    {_,GeomY,GeomW,GeomH} = wings_wm:viewport(),
-	    W = 24*?CHAR_WIDTH,
+	    {_,TopH} = wings_wm:top_size(),
+	    W = 25*?CHAR_WIDTH,
 	    Ost = #ost{first=0,eye=eye_bitmap(),lock=lock_bitmap(),lh=18,active=-1},
 	    Current = {current_state,St},
 	    Op = {seq,push,event(Current, Ost)},
-	    wings_wm:new(object, {GeomW-W,GeomY,20}, {W,GeomH-50}, Op),
-	    wings_wm:new_controller(object, "Objects", [vscroller]),
+	    Pos = {GeomW,TopH-(GeomY+GeomH),20},
+	    Size = {W,GeomH-30},
+	    wings_wm:toplevel(object, "Objects", Pos, Size,
+			      [vscroller,{anchor,ne}], Op),
 	    wings_wm:send(object, Current),
 	    keep
     end.
@@ -131,11 +134,12 @@ event(scroll_page_down, Ost) ->
 event({set_knob_pos,Pos}, #ost{first=First0,n=N}=Ost0) ->
     case round(N*Pos) of
 	First0 -> keep;
-	First ->
+	First when First < N ->
 	    wings_wm:dirty(),
 	    Ost = Ost0#ost{first=First,active=-1},
 	    update_scroller(Ost),
-	    get_event(Ost)
+	    get_event(Ost);
+	_ -> keep
     end;
 event(_, _) -> keep.
 
@@ -152,30 +156,39 @@ help(_, selection) ->
     wings_wm:message("[L] Toggle selection for active object  "
 		     "[Alt]+[L] Toggle selection for all other objects").
 
-update_state(#st{sel=Sel,shapes=Shs}=St, #ost{st=#st{sel=Sel,shapes=Shs}}=Ost) ->
+update_state(St, #ost{first=OldFirst}=Ost0) ->
+    #ost{first=First0} = Ost = update_state_1(St, Ost0),
+    case clamp(First0, Ost) of
+	OldFirst -> Ost;
+	First ->
+	    wings_wm:dirty(),
+	    Ost#ost{first=First}
+    end.
+
+update_state_1(#st{sel=Sel,shapes=Shs}=St, #ost{st=#st{sel=Sel,shapes=Shs}}=Ost) ->
     Ost#ost{st=St};
-update_state(#st{sel=Sel,shapes=Shs0}=St, #ost{st=#st{sel=Sel},os=Objs}=Ost) ->
+update_state_1(#st{sel=Sel,shapes=Shs0}=St, #ost{st=#st{sel=Sel},os=Objs}=Ost) ->
     Shs = gb_trees:values(Shs0),
     case have_objects_really_changed(Shs, Objs) of
 	false -> ok;
 	true -> wings_wm:dirty()
     end,
     Ost#ost{st=St,sel=Sel,os=Shs,n=gb_trees:size(Shs0)};
-update_state(#st{sel=Sel,shapes=Shs}=St, #ost{st=#st{sel=Sel0}}=Ost) ->
+update_state_1(#st{sel=Sel,shapes=Shs}=St, #ost{st=#st{sel=Sel0}}=Ost) ->
     case has_sel_really_changed(Sel, Sel0) of
 	false -> ok;
 	true -> wings_wm:dirty()
     end,
     Ost#ost{st=St,sel=Sel,os=gb_trees:values(Shs),n=gb_trees:size(Shs)};
-update_state(#st{sel=Sel,shapes=Shs}=St, Ost) ->
+update_state_1(#st{sel=Sel,shapes=Shs}=St, Ost) ->
     Ost#ost{st=St,sel=Sel,os=gb_trees:values(Shs),n=gb_trees:size(Shs)}.
 
 update_scroller(#ost{n=0}) ->
     Name = wings_wm:active_window(),
     wings_win_scroller:set_knob(Name, 0.0, 1.0);
 update_scroller(#ost{first=First,n=N}=Ost) ->
-    Lines = lines(Ost),
     Name = wings_wm:active_window(),
+    Lines = lines(Ost),
     wings_win_scroller:set_knob(Name, First/N, Lines/N).
     
 has_sel_really_changed([{Id,_}|SelA], [{Id,_}|SelB]) ->
@@ -189,14 +202,8 @@ have_objects_really_changed([#we{id=Id,name=Name,perm=P}|WesA],
 have_objects_really_changed([], []) -> false;
 have_objects_really_changed(_, _) -> true.
 
-zoom_step(Step, #ost{first=First0,os=Objs}=Ost0) ->
-    L = length(Objs),
-    First1 = case First0+Step of
-		 F when F < 0 -> 0;
-		 F when F > L -> L;
-		 F -> F
-	     end,
-    case First1 of
+zoom_step(Step, #ost{first=First0}=Ost0) ->
+    case clamp(First0+Step, Ost0) of
 	First0 -> keep;
 	First ->
 	    wings_wm:dirty(),
@@ -205,6 +212,17 @@ zoom_step(Step, #ost{first=First0,os=Objs}=Ost0) ->
 	    get_event(Ost)
     end.
 
+clamp(F, #ost{n=N}=Ost) ->
+    Max = case N-lines(Ost) of
+	      Neg when Neg < 0 -> 0;
+	      Other -> Other
+	  end,
+    if
+	F < 0 -> 0;
+	F > Max -> Max;
+	true -> F
+    end.
+    
 active_object(Y0, #ost{lh=Lh,first=First,os=Objs}) ->
     case Y0 - top_of_first_object() of
 	Y when Y < 0 -> -1;
@@ -315,7 +333,8 @@ rename_object(#we{id=Id,name=Name}) ->
     wings_ask:ask("Rename Object",
 		  [{"New Name",Name}],
 		  fun([NewName]) when NewName =/= Name ->
-			  wings_wm:send(object, {new_name,Id,NewName});
+			  wings_wm:send(object, {new_name,Id,NewName}),
+			  ignore;
 		     (_) -> ignore
 		  end).
 
@@ -374,6 +393,10 @@ repeat_latest_1(lock, #we{id=Id,perm=P}, #ost{op=Op,st=St}) ->
 repeat_latest_1(_, _, _) -> ok.
 
 draw_objects(#ost{os=Objs0,first=First,lh=Lh,active=Active,n=N0}=Ost) ->
+    if
+	First < 0 -> erlang:fault({neg_first,First});
+	true -> ok
+    end,
     Objs = lists:nthtail(First, Objs0),
     R = right_pos(),
     Lines = lines(Ost),

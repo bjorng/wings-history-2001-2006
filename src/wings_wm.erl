@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.45 2003/01/02 14:49:38 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.46 2003/01/02 17:40:29 bjorng Exp $
 %%
 
 -module(wings_wm).
 -export([init/0,enter_event_loop/0,dirty/0,clean/0,new/4,delete/1,
-	 new_controller/2,new_controller/3,
+	 toplevel/5,toplevel/6,
 	 message/1,message/2,message_right/1,send/2,
 	 menubar/1,menubar/2,get_menubar/1,
 	 set_timer/2,cancel_timer/1,
@@ -28,7 +28,8 @@
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
 -include("wings.hrl").
--import(lists, [map/2,last/1,sort/1,keysort/2,reverse/1,foreach/2,member/2]).
+-import(lists, [map/2,last/1,sort/1,keysort/2,keysearch/3,
+		reverse/1,foreach/2,member/2]).
 
 -define(BUTTON_WIDTH, 44).
 -define(BUTTON_HEIGHT, 32).
@@ -959,35 +960,63 @@ menubar_hit_1([{Desc,Name,Fun}|T], Mb, RelX, X) ->
 menubar_hit_1([], _, _, _) -> none.
 
 %%%
-%%% Window controller: a window that allows another window to be moved interactively.
+%%% Toplevel: create a window and a controller window at the same time.
+%%% The controller adds a title bar (allowing the window to be moved) and
+%%% can optionally add other things such as a scroller.
 %%%
+
+toplevel(Name, Title, Pos, Size, Op) ->
+    toplevel(Name, Title, Pos, Size, [], Op).
+    
+toplevel(Name, Title, Pos, Size, Flags, Op) ->
+    new(Name, Pos, Size, Op),
+    new_controller(Name, Title, Flags).
 
 -record(ctrl,
 	{title,					%Title of window.
-	 client,		     %Name of window being controlled.
+	 children,		                %Windows being controlled.
 	 state=idle,				%idle|moving
 	 local,
 	 prev,
 	 prev_focus				%Previous focus holder.
 	}).
 
-new_controller(Client, Title) ->
-    new_controller(Client, Title, []).
-
 new_controller(Client, Title, Flags) ->
     TitleBarH = ?LINE_HEIGHT+2,
-    #win{x=X,y=Y,z=Z,w=W,h=H} = get_window_data(Client),
-    Cs = #ctrl{title=Title,client=Client},
-    new({controller,Client}, {X,Y-TitleBarH,Z-0.5}, {W,H+TitleBarH},
+    #win{x=X,y=Y,z=Z,w=W0,h=H0} = Win = get_window_data(Client),
+    Controller = {controller,Client},
+    Controlled0 = ctrl_create_windows(Flags, Client, Win),
+    Controlled = [Controller,Client|Controlled0],
+    W = case is_window({vscroller,Client}) of
+	    false -> W0;
+	    true -> W0 + wings_win_scroller:width()
+	end,
+    H = H0+TitleBarH,
+    Size = {W,H},
+    Cs = #ctrl{title=Title,children=Controlled},
+    new(Controller, {X,Y-TitleBarH,Z-0.5}, Size,
 	{seq,push,get_ctrl_event(Cs)}),
-    case Flags of
-	[vscroller] ->
-	    wings_win_scroller:vscroller(Client,
-					 {X+W,Y,Z-0.5},
-					 {0,H});
-	_ -> ok
-    end,
+    ctrl_anchor(Controlled, Flags, Size, TitleBarH),
     keep.
+
+ctrl_create_windows([vscroller|Flags], Client, #win{x=X,y=Y,z=Z,w=W,h=H}=Win) ->
+    Name = wings_win_scroller:vscroller(Client, {X+W,Y,Z-0.5}, {0,H}),
+    [Name|ctrl_create_windows(Flags, Client, Win)];
+ctrl_create_windows([_|Flags], Client, Win) ->
+    ctrl_create_windows(Flags, Client, Win);
+ctrl_create_windows([], _, _) -> [].
+
+ctrl_anchor(Controlled, Flags, Size, TitleBarH) ->
+    case keysearch(anchor, 1, Flags) of
+	false -> ok;
+	{value,{anchor,Anchor}} ->
+	    ctrl_anchor_1(Anchor, Controlled, Size, TitleBarH)
+    end.
+
+ctrl_anchor_1(nw, Controlled, _, Th) ->
+    ctrl_move_win(Controlled, 0, Th);
+ctrl_anchor_1(ne, Controlled, {W,_}, Th) ->
+    ctrl_move_win(Controlled, -W, Th).
 
 get_ctrl_event(Cs) ->
     {replace,fun(Ev) -> ctrl_event(Ev, Cs) end}.
@@ -1006,22 +1035,26 @@ ctrl_event(#mousebutton{button=1,state=?SDL_RELEASED}, #ctrl{prev_focus=Focus}=C
     grab_focus(Focus),
     get_ctrl_event(Cs#ctrl{state=idle});
 ctrl_event(#mousemotion{x=X0,y=Y0,state=?SDL_PRESSED},
-	   #ctrl{state=moving,client=Client,local={LocX,LocY}}=Cs) ->
+	   #ctrl{state=moving,children=Children,local={LocX,LocY}}=Cs) ->
     {X1,Y1} = local2global(X0, Y0),
     X = X1 - LocX,
     Y = Y1 - LocY,
-    Self = {controller,Client},
-    SelfData = get_window_data(Self),
-    put_window_data(Self, SelfData#win{x=X,y=Y}),
-    ClientData = get_window_data(Client),
-    put_window_data(Client, ClientData#win{x=X,y=Y+?LINE_HEIGHT+2}),
-    wings_wm:dirty(),
+    Self = get(wm_active),
+    #win{x=OldX,y=OldY} = get_window_data(Self),
+    ctrl_move_win(Children, X-OldX, Y-OldY),
+    dirty(),
     get_ctrl_event(Cs#ctrl{prev={X,Y}});
 ctrl_event(#mousemotion{state=?SDL_RELEASED},
 	   #ctrl{state=moving,prev_focus=Focus}=Cs) ->
     grab_focus(Focus),
     get_ctrl_event(Cs#ctrl{state=idle});
 ctrl_event(_, _) -> keep.
+
+ctrl_move_win([Name|Names], Dx, Dy) ->
+    #win{x=X,y=Y}= Data = get_window_data(Name),
+    put_window_data(Name, Data#win{x=X+Dx,y=Y+Dy}),
+    ctrl_move_win(Names, Dx, Dy);
+ctrl_move_win([], _, _) -> ok.
 
 ctrl_redraw(#ctrl{title=Title}) ->
     TitleBarH = ?LINE_HEIGHT+2,

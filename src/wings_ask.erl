@@ -3,12 +3,12 @@
 %%
 %%     Dialog boxes.
 %%
-%%  Copyright (c) 2002 Bjorn Gustavsson
+%%  Copyright (c) 2002-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.53 2002/12/29 11:17:40 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.54 2003/01/02 17:40:29 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -92,8 +92,7 @@ do_dialog(Title, Qs, Level, Fun) ->
     S = S2#s{ox=?HMARGIN,oy=?VMARGIN,level=Level},
     Op = {seq,push,get_event(S)},
     Name = {dialog,Level},
-    wings_wm:new(Name, {trunc(X),trunc(Y),Level}, {W,H}, Op),
-    wings_wm:new_controller(Name, Title),
+    wings_wm:toplevel(Name, Title, {trunc(X),trunc(Y),Level}, {W,H}, Op),
     wings_wm:grab_focus(Name),
     wings_wm:dirty(),
     keep.
