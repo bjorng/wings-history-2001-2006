@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.68 2003/01/24 11:09:52 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.69 2003/01/25 14:05:56 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -22,7 +22,8 @@
 	 active_window/0,offset/3,move/2,move/3,pos/1,windows/0,is_window/1,
 	 update_window/2,
 	 callback/1,current_state/1,
-	 grab_focus/0,grab_focus/1,release_focus/0,has_focus/1,focus_window/0,
+	 grab_focus/0,grab_focus/1,release_focus/0,
+	 grabbed_focus_window/0,actual_focus_window/0,
 	 top_size/0,viewport/0,viewport/1,
 	 win_size/0,win_ul/0,win_rect/0,
 	 win_size/1,win_ul/1,win_ur/1,win_ll/1,win_z/1,win_rect/1,
@@ -59,7 +60,6 @@
 %%% wm_active		Currently active window (handling current event).
 %%% wm_main		Last active window that has a menu.
 %%% wm_focus		Actual focus window (implicitly or grabbed).
-%%% wm_prev_focus	Actual focus window (implicitly or grabbed).
 %%% wm_focus_grab	Window name of forced focus window or 'undefined'.
 %%% wm_windows		All windows.
 %%% wm_dirty		Exists if redraw is needed.
@@ -280,11 +280,11 @@ grab_focus(Name) ->
 release_focus() -> 
     erase(wm_focus_grab).
 
-has_focus(Name) ->
-    get(wm_focus_grab) =:= Name.
-
-focus_window() ->
+grabbed_focus_window() ->
     get(wm_focus_grab).
+
+actual_focus_window() ->
+    get(wm_focus).
 
 top_size() ->
     get(wm_top_size).

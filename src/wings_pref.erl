@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.68 2003/01/22 13:24:03 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.69 2003/01/25 14:05:56 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -55,15 +55,22 @@ prune_defaults(List) ->
     List -- defaults().
 
 menu(_St) ->
-    [{"Preferences...",fun(_, _) ->
-			    {edit,{preferences,prefs}}
-		    end,[],[]},
-     {"Compatibility...",fun(_, _) ->
-			      {edit,{preferences,compatibility}}
-		      end,[],[]},
-     {"Advanced Preferences...",fun(_, _) ->
-					{edit,{preferences,advanced}}
-				end,[],[]}
+    [{"Preferences...",
+      fun(_, _) ->
+	      {edit,{preferences,prefs}}
+      end,"Edit the general preferences",[]},
+     {"Compatibility...",
+      fun(_, _) ->
+	      {edit,{preferences,compatibility}}
+      end,"Edit some compatibility preferences",[]},
+     {"Advanced Preferences...",
+      fun(_, _) ->
+	      {edit,{preferences,advanced}}
+      end,"Edit preferences for advanced users",[]},
+     {"UI Preferences...",
+      fun(_, _) ->
+	      {edit,{preferences,ui}}
+      end,"Edit colors of some user-interface elements",[]}
     ].
 
 command(prefs, _St) ->
@@ -90,28 +97,17 @@ command(prefs, _St) ->
 	   [{label,"Color"},{color,grid_color},
 	    {"Force Axis-Aligned Grid",force_show_along_grid}],
 	   [{title,"Grid"}]},
-	  {hframe,[{vframe,
-		    [{hframe,
-		      [{"Vertices",vertex_hilite},
-		       {"Edges",edge_hilite},
-		       {"Faces",face_hilite},
-		       {"Objects",body_hilite}]},
-		     {hframe,
-		      [{label,"Unselected"},{color,unselected_hlite},
-		       {label,"Selected"},{color,selected_hlite}]},
-		     {"Smart Highlighting",smart_highlighting}],
-		    [{title,"Highlighting"}]},
-		   {hframe,[{vframe,[{label,"Menu Color"},{label,"Dialog Color"}]},
-			    {vframe,[{color,menu_color},{color,dialog_color}]}],
-
-
-
-% 		   {vframe,[{hframe,[{label,"Menu Color"},{color,menu_color}]},
-% 			    {hframe,[{label,"Dialog Color"},{color,dialog_color}]}],
-
-
-
-		    [{title,"UI Colors"}]}]},
+	  {vframe,
+	   [{hframe,
+	     [{"Vertices",vertex_hilite},
+	      {"Edges",edge_hilite},
+	      {"Faces",face_hilite},
+	      {"Objects",body_hilite}]},
+	    {hframe,
+	     [{label,"Unselected"},{color,unselected_hlite},
+	      {label,"Selected"},{color,selected_hlite}]},
+	    {"Smart Highlighting",smart_highlighting}],
+	   [{title,"Highlighting"}]},
 	  {hframe,
 	   [{vframe,
 	     [{label_column,
@@ -160,6 +156,21 @@ command(advanced, _St) ->
 	     right_click_sel_in_ss}
 	   ]}],
     dialog("Advanced Preferences", Qs);
+command(ui, _St) ->
+    Qs = [{vframe,
+	   [{hframe,[{vframe,
+		      [{label,"Menu Background"},
+		       {label,"Dialog Background"},
+		       {label,"Title Text"},
+		       {label,"Title (Passive) Background"},
+		       {label,"Title (Active) Background"}]},
+		     {vframe,
+		      [{color,menu_color},
+		       {color,dialog_color},
+		       {color,title_text_color},
+		       {color,title_passive_color},
+		       {color,title_active_color}]}]}]}],
+	   dialog("UI Preferences", Qs);
 command({set,List}, _St) ->
     foreach(fun({Key,Val}) ->
 		    smart_set_value(Key, Val)
@@ -319,9 +330,6 @@ defaults() ->
      {active_vector_color,{0.0,0.0,0.65}},
      {smart_highlighting,false},
 
-     {menu_color,{0.75,0.75,0.75,1.0}},
-     {dialog_color,{0.75,0.75,0.75,1.0}},
-
      %% Compatibility preferences.
      {display_list_opt,true},
      {text_display_lists,true},
@@ -332,7 +340,14 @@ defaults() ->
      {advanced_menus,false},
      {default_commands,false},
      {right_click_sel_in_ss,false},
-     {right_click_sel_in_geom,false}
+     {right_click_sel_in_geom,false},
+
+     %% User interface preferences.
+     {menu_color,{0.75,0.75,0.75,1.0}},
+     {dialog_color,{0.75,0.75,0.75,1.0}},
+     {title_active_color,{0.41,0.55,0.41,1.0}},
+     {title_passive_color,{0.325,0.4,0.325,1.0}},
+     {title_text_color,{1.0,1.0,1.0}}
     ].
 
 clean(List) ->

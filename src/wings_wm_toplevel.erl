@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.9 2003/01/25 08:59:41 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.10 2003/01/25 14:05:56 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -109,7 +109,7 @@ ctrl_event(#mousebutton{button=1,state=?SDL_PRESSED},
     wings_wm:grab_focus(Focus),
     get_ctrl_event(Cs#ctrl{state=idle});
 ctrl_event(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED}, Cs) ->
-    Focus = wings_wm:focus_window(),
+    Focus = wings_wm:grabbed_focus_window(),
     wings_wm:grab_focus(wings_wm:active_window()),
     get_ctrl_event(Cs#ctrl{local={X,Y},state=moving,prev_focus=Focus});
 ctrl_event(#mousebutton{button=1,state=?SDL_RELEASED}, #ctrl{prev_focus=Focus}=Cs) ->
@@ -184,10 +184,17 @@ ctrl_message() ->
 ctrl_redraw(#ctrl{title=Title}) ->
     wings_io:ortho_setup(),
     {W,_} = wings_wm:win_size(),
-    Color = {0.3,0.4,0.3},
     TitleBarH = title_height(),
-    wings_io:border(0, 0, W-0.5, TitleBarH, Color),
-    gl:color3f(1, 1, 1),
+    Pref = case {wings_wm:active_window(),wings_wm:actual_focus_window()} of
+		{{_,Client},Client} -> title_active_color;
+		{{_,Client},{_,Client}} -> title_active_color;
+		{_,_} -> title_passive_color
+	   end,
+    wings_io:blend(wings_pref:get_value(Pref),
+		   fun(C) ->
+			   wings_io:border(0, 0, W-0.5, TitleBarH, C)
+		   end),
+    wings_io:set_color(wings_pref:get_value(title_text_color)),
     wings_io:text_at(10, TitleBarH-5, Title),
     keep.
 
@@ -386,7 +393,7 @@ resize_event(#mousebutton{button=1,state=?SDL_PRESSED},
     wings_wm:grab_focus(Focus),
     get_resize_event(Rst#rsz{state=idle});
 resize_event(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED}, Rst) ->
-    Focus = wings_wm:focus_window(),
+    Focus = wings_wm:grabbed_focus_window(),
     wings_wm:grab_focus(get(wm_active)),
     get_resize_event(Rst#rsz{local={X,Y},state=moving,aspect=none,prev_focus=Focus});
 resize_event(#mousebutton{button=2,x=X,y=Y,state=?SDL_PRESSED}, Rst) ->
