@@ -8,13 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_wrl.erl,v 1.2 2002/02/04 15:48:47 bjorng Exp $
+%%     $Id: wpc_wrl.erl,v 1.3 2002/04/20 22:38:15 seanhinde Exp $
 %%
 
 -module(wpc_wrl).
 -author('Sean Hinde').
 
-%%-compile(export_all).
+%-compile(export_all).
 -export([init/0, menu/2, command/2]).
 -import(lists, [foreach/2, foldl/3, map/2]).
 -include("e3d.hrl").
@@ -55,7 +55,7 @@ export(File_name, #e3d_file{objs=Objs,mat=Mat,creator=Creator}=St) ->
 		    def_material(F, Mt)
 	    end, Mat),
     foreach(fun(#e3d_object{name = Name, obj=Obj}) ->
-		    io:format(F, "DEF ~s Transform {\n",[Name]),
+		    io:format(F, "DEF ~s Transform {\n",[clean_id(Name)]),
 		    io:format(F, "  children [\n",[]),
 		    export_object(F, Obj),
 		    io:put_chars(F, "  ]\n"),
@@ -96,7 +96,7 @@ export_object(F, #e3d_mesh{fs=Fs,vs=Vs}) ->
 % Note: vrml represents ambient colour as a proportion of 
 % diffuse colour, not in its own right.
 def_material(F, {Name, Mat}) ->
-    io:format(F, "DEF ~p Material {\n",[Name]),
+    io:format(F, "DEF ~s Material {\n",[clean_id(Name)]),
     {Ar, Ag, Ab} = lookup(ambient, Mat),
     {Dr, Dg, Db} = lookup(diffuse, Mat),
     io:format(F, "  diffuseColor ~p ~p ~p\n",[Dr, Dg, Db]),
@@ -113,7 +113,7 @@ def_material(F, {Name, Mat}) ->
     
 material(F, Mat) ->
     io:format(F, "      appearance Appearance {\n",[]),
-    io:format(F, "        material USE ~p\n",[Mat]),
+    io:format(F, "        material USE ~s\n",[clean_id(Mat)]),
     io:format(F, "      }\n", []).
 
 coords(F, Vtxs, Vs) ->
@@ -180,3 +180,42 @@ zip([], [], Acc) ->
 lookup(K, L) ->
     {value, {K, V}} =  lists:keysearch(K, 1, L),
     V.
+
+% Fix to SF bug report 539951 - invalid ids
+% If the first char is not allowed
+% then prefix whole id with W. For rest of not allowed chars
+% turn them into a safe 2 char representation.
+clean_id(Id) when atom(Id) ->
+    clean_id(atom_to_list(Id));
+clean_id([First|T]) ->
+    case is_not_allowed_first_char(First) of
+	true ->
+	    clean_id_rest([$W,First|T]);
+	false ->
+	    [First|clean_id_rest(T)]
+    end.
+
+clean_id_rest([]) ->
+    [];
+clean_id_rest([H|T]) ->
+    case is_not_allowed_char(H) of
+	true ->
+	    fix_char(H)++clean_id_rest(T);
+	false ->
+	    [H|clean_id_rest(T)]
+    end.
+
+is_not_allowed_first_char(C) ->
+    (is_not_allowed_char(C) or ((C >= 16#30) and (C =< 16#39))).
+
+is_not_allowed_char(C) ->
+    (C =< 16#20) or lists:member(C, [16#22,16#23,16#27,16#2b,16#2c,
+				     16#2d,16#2e,16#5b,16#5c,16#5d,
+				     16#7b,16#7d,16#7f]).
+fix_char($ ) ->
+    "_";
+fix_char(C) ->
+    fix1(<<C>>).
+
+fix1(<<C1:4,C2:4>>) ->
+    [C1+65,C2+65].
