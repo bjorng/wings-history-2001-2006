@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_hotkey.erl,v 1.25 2002/05/16 07:10:51 bjorng Exp $
+%%     $Id: wings_hotkey.erl,v 1.26 2002/06/09 18:38:18 bjorng Exp $
 %%
 
 -module(wings_hotkey).
@@ -80,7 +80,9 @@ bind_from_event(_, _) -> error.
 
 delete_by_command(Cmd) ->
     case sort(ets:match_object(?KL, {'_',Cmd,'_'})) of
-	[{Key,_,_}] -> ets:delete(?KL, Key);
+	[{Key,_,_}] ->
+	    ets:delete(?KL, Key),
+	    [];
 	[{Key,_,_},{Next,_,_}|_] ->
 	    ets:delete(?KL, Key),
 	    keyname(Next);

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.45 2002/06/02 20:49:02 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.46 2002/06/09 18:38:18 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -17,7 +17,7 @@
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
 -include("wings.hrl").
--import(lists, [foldl/3,reverse/1,keysearch/3,duplicate/2]).
+-import(lists, [foldl/3,reverse/1,keysearch/3]).
 
 -define(SUB_MENU_TIME, 150).
 -define(SEPARATOR_HEIGHT, 10).
@@ -537,19 +537,23 @@ menu_draw(X, Y, Shortcut, Mw, I, [H|Hs], #mi{menu=Menu,adv=Adv}=Mi) ->
 	    item_colors(Y, Ps, I, Mi),
 	    wings_io:menu_text(X, Y, Text);
 	{Text,{_,_}=Item,Hotkey,_Help,Ps} ->
-	    Str = [Text,duplicate(Shortcut-length(Text), $\s)|Hotkey],
 	    item_colors(Y, Ps, I, Mi),
-	    wings_io:menu_text(X, Y, Str),
+	    wings_io:menu_text(X, Y, Text),
+	    draw_hotkey(X, Y, Shortcut, Hotkey),
 	    draw_submenu(Adv, Item, X+Mw-5*?CHAR_WIDTH, Y-?CHAR_HEIGHT div 3);
 	{Text,Item,Hotkey,_Help,Ps} ->
 	    item_colors(Y, Ps, I, Mi),
-	    Str = [Text,duplicate(Shortcut-length(Text), $\s)|Hotkey],
-	    draw_menu_text(X, Y, Str, Ps),
+	    draw_menu_text(X, Y, Text, Ps),
+	    draw_hotkey(X, Y, Shortcut, Hotkey),
 	    draw_right(X+Mw-5*?CHAR_WIDTH, Y-?CHAR_HEIGHT div 3, Ps)
     end,
     ?CHECK_ERROR(),
     menu_draw(X, Y+H, Shortcut, Mw, I+1, Hs, Mi).
 
+draw_hotkey(_, _, _, []) -> ok;
+draw_hotkey(X, Y, Pos, Hotkey) ->
+    wings_io:text_at(X+Pos*?CHAR_WIDTH, Y, Hotkey).
+    
 draw_menu_text(X, Y, Text, Props) ->
     case property_lists:is_defined(crossmark, Props) of
 	false ->
