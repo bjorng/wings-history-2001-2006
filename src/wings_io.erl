@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.33 2002/01/27 11:50:28 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.34 2002/01/30 14:55:06 dgud Exp $
 %%
 
 -module(wings_io).
@@ -596,12 +596,22 @@ cancel_timer(Ref) ->
 %%%
 
 grab() ->
+    %%io:format("Grab mouse~n", []),
     #io{grab_count=Cnt} = Io = get_state(),
-    sdl_mouse:showCursor(false),
-    sdl_video:wm_grabInput(?SDL_GRAB_ON),
+    sdl_mouse:showCursor(false),    
+    case os:type() of
+	{unix, darwin} -> 
+	    ignore;  %% GRAB doesn't work good enough on Darwin
+	_ ->
+	    sdl_video:wm_grabInput(?SDL_GRAB_ON)
+    end,
+%    Don't do this it doesn't work!
+%    [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
+%    warp(W div 2, H div 2),
     put_state(Io#io{grab_count=Cnt+1}).
 
 ungrab() ->
+    %%io:format("UNGRAB mouse~n", []),
     #io{grab_count=Cnt} = Io = get_state(),
     put_state(Io#io{grab_count=Cnt-1}),
     case Cnt-1 of

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.98 2002/01/28 21:53:47 bjorng Exp $
+%%     $Id: wings.erl,v 1.99 2002/01/30 14:55:06 dgud Exp $
 %%
 
 -module(wings).
@@ -113,6 +113,7 @@ init_1(File) ->
     %% get the requested size. Should be harmless on other platforms.
     caption(St1),
     St2 = resize(780, 570, St1),
+    resize(780, 570, St1),
     St = open_file(File, St2),
     wings_io:enter_event_loop(main_loop(St)),
     wings_file:finish(),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.12 2002/01/27 11:50:28 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.13 2002/01/30 14:55:06 dgud Exp $
 %%
 
 -module(wings_camera).
@@ -23,7 +23,7 @@
 -record(camera,
 	{x,y,					%Current mouse position.
 	 ox,oy,					%Original mouse position.
-	 xs=0,ys=0				%Current virtual position.
+	 xt=0,yt=0				%Last warp length.
 	}).
 
 sub_menu(St) ->
@@ -266,29 +266,60 @@ stop_camera(#camera{ox=OX,oy=OY}) ->
 	no_grab -> pop
     end.
 
-camera_mouse_range(X0, Y0, #camera{x=OX,y=OY,xs=Xs,ys=Ys}=Camera) ->
-    [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
-    if
-	X0 =:= W-1 ->
-	    NewX = W div 2,
-	    camera_warp(NewX, Y0, NewX, 0, Camera);
-	X0 =:= 0 ->
-	    NewX = W div 2,
-	    camera_warp(NewX, Y0, -NewX, 0, Camera);
-	Y0 =:= H-1 ->
-	    NewY = H div 2,
-	    camera_warp(X0, NewY, 0, NewY, Camera);
-	Y0 =:= 0 ->
-	    NewY = H div 2,
-	    camera_warp(X0, NewY, 0, -NewY, Camera);
-	true ->
-	    X = X0 + Xs,
-	    Y = Y0 + Ys,
-	    Dx = (X-OX) / 4,
-	    Dy = (Y-OY) / 4,
-	    {Dx,Dy,Camera#camera{x=X,y=Y}}
+-define(CAMDIV, 4).
+
+camera_mouse_range(X0, Y0, #camera{x=OX,y=OY, xt=Xt0, yt=Yt0}=Camera) ->
+    %%io:format("Camera Mouse Range ~p ~p~n", [{X0,Y0}, {OX,OY,Xt0,Yt0}]),
+    XD0 = (X0 - OX),
+    YD0 = (Y0 - OY),
+    case {XD0,YD0} of
+	{0,0} ->
+	    {float(0), float(0), Camera#camera{xt=0,yt=0}};
+	_ ->
+	    XD = XD0 + Xt0,
+	    YD = YD0 + Yt0,
+	    wings_io:warp(OX, OY),
+	    {XD/?CAMDIV, YD/?CAMDIV, Camera#camera{xt=XD0, yt=YD0}}
     end.
 
-camera_warp(X, Y, XsInc, YsInc, #camera{xs=Xs,ys=Ys}=Camera) ->
-    wings_io:warp(X, Y),
-    camera_mouse_range(X, Y, Camera#camera{xs=Xs+XsInc,ys=Ys+YsInc}).
+%camera_mouse_range(OX, OY, #camera{x=OX,y=OY,xs=Xs,ys=Ys}=Camera) ->
+%    io:format("zero: ~p\n", [{OX,OY}]),
+%    {0/?CAMDIV, 0/?CAMDIV, Camera};
+%camera_mouse_range(X0, Y0, #camera{x=OX,y=OY,xs=Xs,ys=Ys}=Camera) ->
+%    io:format("~p\n", [{X0,Y0}]),
+%    XD = (X0 - OX),
+%    YD = (Y0 - OY),
+%    case {XD, YD} of
+%	{0,0} ->
+%	    ignore;
+%	_ ->
+%	    wings_io:warp(OX, OY)
+%    end,
+%    {XD/?CAMDIV, YD/?CAMDIV, Camera#camera{xs = XD + Xs, ys = YD + Ys}}.
+
+%camera_mouse_range(X0, Y0, #camera{x=OX,y=OY,xs=Xs,ys=Ys}=Camera) ->
+%    [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
+%    if
+%	X0 =:= W-1 ->+ Xs
+%	    NewX = W div 2,
+%	    camera_warp(NewX, Y0, NewX, 0, Camera);
+%	X0 =:= 0 ->
+%	    NewX = W div 2,
+%	    camera_warp(NewX, Y0, -NewX, 0, Camera);
+%	Y0 =:= H-1 ->
+%	    NewY = H div 2,
+%	    camera_warp(X0, NewY, 0, NewY, Camera);
+%	Y0 =:= 0 ->
+%	    NewY = H div 2,
+%	    camera_warp(X0, NewY, 0, -NewY, Camera);
+%	true ->
+%	    X = X0 + Xs,
+%	    Y = Y0 + Ys,
+%	    Dx = (X-OX) / 4,
+%	    Dy = (Y-OY) / 4,
+%	    {Dx,Dy,Camera#camera{x=X,y=Y}}
+%    end.
+
+%camera_warp(X, Y, XsInc, YsInc, #camera{xs=Xs,ys=Ys}=Camera) ->
+%    wings_io:warp(X, Y),
+%    camera_mouse_range(X, Y, Camera#camera{xs=Xs+XsInc,ys=Ys+YsInc}).
