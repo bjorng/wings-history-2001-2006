@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.34 2001/12/31 23:53:55 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.35 2002/01/04 19:48:16 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -83,7 +83,7 @@ command(aim, St) ->
     aim(St),
     St;
 command({along,Axis}, St) ->
-    along(Axis, St),
+    along(Axis),
     St;
 command(auto_rotate, St) ->
     {seq,{push,dummy},set_auto_rotate_timer(St)};
@@ -235,23 +235,16 @@ aim(St) ->
  	   end,
     set_current(View#view{origo=Origo,distance=Dist,pan_x=0.0,pan_y=0.0}).
 
-along(x, St) ->
-    along(-90.0, 0.0, St);
-along(y, St) ->
-    along(0.0, 90.0, St);
-along(z, St) ->
-    along(0.0, 0.0, St);
-along(neg_x, St) ->
-    along(90.0, 0.0, St);
-along(neg_y, St) ->
-    along(0.0, -90.0, St);
-along(neg_z, St) ->
-    along(180.0, 0.0, St).
+along(x) -> along(x, -90.0, 0.0);
+along(y) -> along(y, 0.0, 90.0);
+along(z) -> along(z, 0.0, 0.0);
+along(neg_x) -> along(x, 90.0, 0.0);
+along(neg_y) -> along(y, 0.0, -90.0);
+along(neg_z) -> along(z, 180.0, 0.0).
 
-along(Az, El, St) ->
+along(Along, Az, El) ->
     View = current(),
-    set_current(View#view{azimuth=Az,elevation=El}),
-    St.
+    set_current(View#view{azimuth=Az,elevation=El,along_axis=Along}).
 
 align_to_selection(#st{sel=[]}=St) -> St;
 align_to_selection(#st{selmode=vertex}=St) ->

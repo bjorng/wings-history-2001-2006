@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.44 2002/01/04 09:28:04 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.45 2002/01/04 19:48:16 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -446,8 +446,21 @@ groundplane(X, Last, Sz, Axes) when X > Last -> ok;
 groundplane(0.0, Last, Sz, true) ->
     groundplane(?GROUND_GRID_SIZE, Last, Sz, true);
 groundplane(X, Last, Sz, Axes) ->
-    gl:vertex3f(float(X), 0.0, -Sz),
-    gl:vertex3f(float(X), 0.0, Sz),
-    gl:vertex3f(-Sz, 0.0, float(X)),
-    gl:vertex3f(Sz, 0.0, float(X)),
+    case (wings_view:current())#view.along_axis of
+        x ->
+            gl:vertex3f(0, X, -Sz),
+            gl:vertex3f(0, X, Sz),
+            gl:vertex3f(0, -Sz, X),
+            gl:vertex3f(0, Sz, X);
+        y ->
+            gl:vertex3f(X, 0, -Sz),
+            gl:vertex3f(X, 0, Sz),
+            gl:vertex3f(-Sz, 0, X),
+            gl:vertex3f(Sz, 0, X);
+        z ->
+            gl:vertex3f(X, -Sz, 0),
+            gl:vertex3f(X, Sz, 0),
+            gl:vertex3f(-Sz, X, 0),
+            gl:vertex3f(Sz, X, 0)
+    end,
     groundplane(X+?GROUND_GRID_SIZE, Last, Sz, Axes).

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.37 2002/01/04 09:28:04 bjorng Exp $
+%%     $Id: wings.hrl,v 1.38 2002/01/04 19:48:16 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -85,7 +85,6 @@
 	 file,					%Current filename.
 	 saved,					%True if model has been saved.
 	 onext,					%Next object id to use.
-	 hit_buf,				%Hit buffer for hit testing.
 	 inf_r,					%Radius of influence (for magnet).
 	 bb=none,				%Saved bounding box.
 	 edge_loop=none,			%Previous edge loop.
@@ -158,4 +157,7 @@
 	 azimuth,
 	 elevation,
 	 pan_x,					%Panning in X direction.
-	 pan_y}).				%Panning in Y direction
+	 pan_y,					%Panning in Y direction.
+	 along_axis=y				%Which axis viewed along.
+	 }).
+

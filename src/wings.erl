@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.82 2002/01/04 09:28:03 bjorng Exp $
+%%     $Id: wings.erl,v 1.83 2002/01/04 19:48:16 bjorng Exp $
 %%
 
 -module(wings).
@@ -75,6 +75,7 @@ init_1() ->
 		      {"Objects",objects},
 		      {"Help",help}]),
     Empty = gb_trees:empty(),
+
     St0 = #st{shapes=Empty,
 	      selmode=face,
 	      sel=[],
@@ -82,12 +83,12 @@ init_1() ->
 	      mat=wings_material:default(),
 	      saved=true,
 	      onext=0,
-	      repeatable=ignore,
-	      hit_buf=sdl_util:malloc(?HIT_BUF_SIZE, ?GL_UNSIGNED_INT)
+	      repeatable=ignore
 	    },
     St1 = wings_undo:init(St0),
     wings_view:init(),
     wings_file:init(),
+    put(wings_hitbuf, sdl_util:malloc(?HIT_BUF_SIZE, ?GL_UNSIGNED_INT)),
 
     %% On Solaris/Sparc, we must initialize twice the first time to
     %% get the requested size. Should be harmless on other platforms.
@@ -224,7 +225,7 @@ do_command(Cmd, St0) ->
 	{init,_,_}=Init -> Init;
 	{seq,_,_}=Seq -> Seq;
 	quit ->
-	    sdl_util:free(St0#st.hit_buf),
+	    sdl_util:free(get(wings_hitbuf)),
 	    pop
     end.
 
@@ -768,6 +769,8 @@ translate_key_2(_, _) -> ignore.
 
 command_name(#st{repeatable=ignore}) ->
     "(Can't repeat)";
+command_name(#st{repeatable={_,[_|_]}}=St) ->
+    "Repeat last command";
 command_name(#st{repeatable={_,Cmd}}=St) ->
     CmdStr = stringify(Cmd),
     command_name(CmdStr, St).
