@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.51 2003/04/21 10:16:59 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.52 2003/04/25 20:23:10 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -440,7 +440,12 @@ do_renumber(#we{mode=Mode,vp=Vtab0,es=Etab0,fs=Ftab0,
     RootSet = map_rootset(RootSet0, Emap, Vmap, Fmap),
     We = We0#we{mode=Mode,vc=undefined,fs=undefined,
 		vp=Vtab,es=Etab,mat=MatTab,he=Htab,perm=Perm},
-    {We,RootSet}.
+
+    %% In case this function will be used for merging #we records,
+    %% it is essential to update the next_id field. Its value can
+    %% safely be based the largest key in the edge table only.
+    LastId = wings_util:gb_trees_largest_key(Etab),
+    {We#we{next_id=LastId+1},RootSet}.
 
 map_rootset([{vertex,Vs,Data}|T], Emap, Vmap, Fmap) when is_list(Vs) ->
     [map_all(vertex, Vs, Data, Vmap)|map_rootset(T, Emap, Vmap, Fmap)];
