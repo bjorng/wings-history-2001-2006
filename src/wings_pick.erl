@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.147 2005/01/08 21:01:15 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.148 2005/03/16 20:18:12 dgud Exp $
 %%
 
 -module(wings_pick).
@@ -162,7 +162,14 @@ insert_hilite_dl_1(#dlo{src_we=#we{id=Id}}=D, {Mode,_,{Id,Item}=Hit}, St) ->
     List = gl:genLists(1),
     gl:newList(List, ?GL_COMPILE),
     hilite_color(Hit, St),
-    hilit_draw_sel(Mode, Item, D),
+    case wings_wm:lookup_prop(select_backface) of
+	{value,true} ->
+	    gl:disable(?GL_CULL_FACE),
+	    hilit_draw_sel(Mode, Item, D),
+	    gl:enable(?GL_CULL_FACE);
+	_ ->	    
+	    hilit_draw_sel(Mode, Item, D)
+    end,
     gl:endList(),
     D#dlo{hilite=List};
 insert_hilite_dl_1(#dlo{hilite=none}=D, _, _) -> D;
@@ -453,9 +460,14 @@ raw_pick(X0, Y0, #st{selmode=Mode}=St) ->
     glu:pickMatrix(X, Y, S, S, {0,0,W,H}),
     wings_view:projection(),
     wings_view:modelview(),
-    gl:enable(?GL_CULL_FACE),
-    draw(),
-    gl:disable(?GL_CULL_FACE),
+    case wings_wm:lookup_prop(select_backface) of
+	{value,true} ->
+	    draw();
+	_ ->
+	    gl:enable(?GL_CULL_FACE),
+	    draw(),
+	    gl:disable(?GL_CULL_FACE)
+    end,
     Hits = get_hits(HitBuf),
     case best_face_hit(Hits, Mode) of
 	none -> none;
