@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.32 2002/04/26 13:09:35 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.33 2002/05/04 06:02:23 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -96,8 +96,7 @@ command({pick_special,{Modes,Init,Check,Exit}}, St0) ->
     {seq,{push,dummy},get_event(Ss, St)}.
 
 command_message(Prefix, Ns) ->
-    wings_io:message_right(Prefix ++ command_name(Ns)),
-    wings_io:message("").
+    wings_io:message_right(Prefix ++ command_name(Ns)).
 
 mode_restriction(Modes, #st{selmode=Mode}=St) ->
     wings_io:icon_restriction(Modes),
@@ -139,22 +138,18 @@ handle_event_1(Event, Ss, St) ->
 	Other -> Other
     end.
 
-handle_event_2(Event, Ss, #st{sel=[]}=St0) ->
+handle_event_2(Event, Ss, St0) ->
     case wings_menu:is_popup_event(Event) of
 	no -> handle_event_3(Event, Ss, St0);
-	{yes,X,Y} ->
+	{yes,X,Y,Mod} ->
 	    case wings_pick:do_pick(X, Y, St0) of
 		{add,St} ->
 		    wings_io:putback_event(Event),
 		    wings_io:putback_event({new_state,St}),
 		    keep;
-		_Other -> exit_menu(X, Y, Ss, St0)
+		_Other ->
+		    exit_menu(X, Y, Mod, Ss, St0)
 	    end
-    end;
-handle_event_2(Event, Ss, St) ->
-    case wings_menu:is_popup_event(Event) of
-	no -> handle_event_3(Event, Ss, St);
-	{yes,X,Y} -> exit_menu(X, Y, Ss, St)
     end.
 
 handle_event_3(Event, Ss, St) ->
@@ -185,7 +180,13 @@ handle_event_5({new_state,St}, #ss{check=Check}=Ss, _St0) ->
 handle_event_5(#keyboard{}, Ss, St) ->
     get_event(Ss, St);
 handle_event_5(redraw, _Ss, St) ->
-    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
+    RmbMod = case wings_camera:free_rmb_modifier() of
+		 ?ALT_BITS -> "Alt";
+		 ?CTRL_BITS -> "Ctrl"
+	     end,
+    Message = [lmb|" Select  "] ++
+	[rmb|" Execute  ["] ++ RmbMod ++ "]+" ++ [rmb|" Menu  "],
+    wings_io:message(Message),
     wings:redraw(St),
     keep;
 handle_event_5({action,{select,Cmd}}, Ss, St0) ->
@@ -201,7 +202,6 @@ handle_event_5({action,{secondary_selection,Cmd}}, Ss, St) ->
     secondary_selection(Cmd, Ss, St);
 handle_event_5({action,Cmd}, Ss, St) ->
     set_last_axis(Ss, St),
-    wings_io:message(""),
     wings_io:putback_event({action,Cmd}),
     pop;
 handle_event_5(quit, _Ss, _St) ->
@@ -238,13 +238,27 @@ translate_key_1(#keysym{sym=27}) ->		%Escape
     pop;
 translate_key_1(_Other) -> next.
 
-exit_menu(X, Y, #ss{exit=Exit}, St) ->
+exit_menu(X, Y, Mod, #ss{exit=Exit}, St) ->
+    RmbMod = wings_camera:free_rmb_modifier(),
     case Exit(X, Y, St) of
 	invalid_selection ->
 	    exit_menu_invalid(X, Y, St);
+	MenuEntry when Mod band RmbMod =:= 0 ->
+	    execute(MenuEntry);
 	MenuEntry ->
 	    exit_menu_done(X, Y, MenuEntry, St)
     end.
+
+execute(MenuEntry) ->
+    Action = case element(2, MenuEntry) of
+		 Fun when is_function(Fun) ->
+		     Fun(1, dummy)
+	     end,
+    wings_io:putback_event({action,Action}),
+    wings_draw:clear_orig_sel(),
+    wings_io:clear_message(),
+    wings_wm:dirty(),
+    pop.
 
 exit_menu_invalid(X, Y, St) ->
     Menu = [{"Invalid Selection",ignore},{"Abort Command",abort}],

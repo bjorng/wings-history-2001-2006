@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.48 2002/05/03 12:03:04 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.49 2002/05/04 06:02:23 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -778,7 +778,7 @@ lift_selection(Dir, OrigSt) ->
 		     {"Lift",Lift};
 		 {_,Message} ->
 		     wings_io:message(Message),
-		     {"Invalid Selection",ignore}
+		     invalid_selection
 	     end
      end}.
 

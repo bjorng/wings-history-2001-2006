@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.29 2002/05/03 12:03:04 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.30 2002/05/04 06:02:23 bjorng Exp $
 %%
 
 -module(wings_camera).
--export([sub_menu/1,command/2,help/0,event/2]).
+-export([sub_menu/1,command/2,help/0,event/2,free_rmb_modifier/0]).
 
 -define(NEED_ESDL, 1).
 -define(NEED_OPENGL, 1).
@@ -69,6 +69,12 @@ help() ->
 	    "[Alt]+" ++ [lmb] ++ " Tumble [Alt]+" ++
 		[mmb] ++ " Track [Alt]+" ++
 		[rmb] ++ " Dolly"
+    end.
+
+free_rmb_modifier() ->
+    case wings_pref:get_value(camera_mode, blender) of
+	maya -> ?CTRL_BITS;
+	_ -> ?ALT_BITS
     end.
 						   
 %% Event handler.

@@ -8,14 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.34 2002/03/20 20:35:04 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.35 2002/05/04 06:02:23 bjorng Exp $
 %%
 
 -module(wings_util).
 -export([error/1,share/1,share/3,make_vector/1,
 	 message/1,yes_no/1,serious_yes_no/1,
 	 cap/1,upper/1,stringify/1,add_vpos/2,update_vpos/2,
-	 delete_any/2,
+	 delete_any/2,nice_float/1,
 	 tc/1,export_we/2,crash_log/1,validate/1]).
 -export([check_error/2,dump_we/2]).
 
@@ -104,6 +104,16 @@ delete_any(K, S) ->
 	true -> gb_sets:delete(K, S);
 	false -> S
     end.
+
+nice_float(F) when is_float(F) ->
+    simplify_float(lists:flatten(io_lib:format("~f", [F]))).
+
+simplify_float(F) ->
+    reverse(simplify_float_1(reverse(F))).
+
+simplify_float_1("0."++_=F) -> F;
+simplify_float_1("0"++F) -> simplify_float_1(F);
+simplify_float_1(F) -> F.
 
 %%
 %% Timing.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.18 2002/04/14 18:46:57 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.19 2002/05/04 06:02:22 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -940,7 +940,7 @@ init_text(Val, String, Max, IsInteger, Charset, Validator) ->
     {Fun,false,Ts,(1+Max)*?CHAR_WIDTH,?LINE_HEIGHT+2}.
 
 text_val_to_str(Val) when is_float(Val) ->
-    simplify_float(lists:flatten(io_lib:format("~f", [Val])));
+    wings_util:nice_float(Val);
 text_val_to_str(Val) when is_integer(Val) ->
     integer_to_list(Val);
 text_val_to_str(Val) when is_list(Val) ->
@@ -1211,13 +1211,6 @@ increment(Ts, Incr) ->
 	    Str = integer_to_list(N+Incr),
 	    Ts#text{bef=reverse(Str),aft=[]}
     end.
-
-simplify_float(F) ->
-    reverse(simplify_float_1(reverse(F))).
-
-simplify_float_1("0."++_=F) -> F;
-simplify_float_1("0"++F) -> simplify_float_1(F);
-simplify_float_1(F) -> F.
 
 max(A, B) when A > B -> A;
 max(_A, B) -> B.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.136 2002/04/28 07:44:41 bjorng Exp $
+%%     $Id: wings.erl,v 1.137 2002/05/04 06:02:21 bjorng Exp $
 %%
 
 -module(wings).
@@ -196,7 +196,7 @@ handle_event_1(Event, St) ->
 handle_event_2(Event, St) ->
     case wings_menu:is_popup_event(Event) of
 	no -> handle_event_3(Event, St);
-	{yes,X,Y} -> popup_menu(X, Y, St)
+	{yes,X,Y,_} -> popup_menu(X, Y, St)
     end.
 	    
 handle_event_3(#keyboard{}=Event, St) ->
@@ -215,6 +215,8 @@ handle_event_3(#expose{}, St) ->
     handle_event_3(redraw, St);
 handle_event_3(redraw, St) ->
     wings_draw:render(St),
+    Message = [lmb|" Select "] ++ [rmb|" Show menu "] ++ wings_camera:help(),
+    wings_io:message(Message),
     wings_io:info(info(St)),
     wings_io:update(St),
     main_loop(St#st{vec=none});
@@ -482,8 +484,7 @@ patches() ->
 	    [separator,{"Use "++Desc,enable_patches}]
     end.
 
-info(#st{sel=[]}) ->
-    [lmb|" Select "] ++ [rmb|" Show menu "] ++ wings_camera:help();
+info(#st{sel=[]}) -> ok;
 info(#st{shapes=Shapes,selmode=body,sel=[{Id,_}]}) ->
     Sh = gb_trees:get(Id, Shapes),
     shape_info(Sh);
@@ -494,7 +495,7 @@ info(#st{selmode=vertex,sel=[{_Id,Sel}]}=St) ->
 	0 -> "";
 	1 ->
 	    [V] = gb_sets:to_list(Sel),
-	    flat_format("Vertex: ~p", [V]);
+	    measure(flat_format("Vertex ~p selected", [V]), St);
 	N when N < 5 ->
 	    Vs = gb_sets:to_list(Sel),
 	    measure(item_list(Vs, "Vertices"), St);
@@ -506,19 +507,19 @@ info(#st{selmode=edge,sel=[{_,Sel}]}=St) ->
 	0 -> "";
 	1 ->
 	    [Edge] = gb_sets:to_list(Sel),
-	    measure(flat_format("Edge: ~p", [Edge]), St);
+	    measure(flat_format("Edge ~p selected", [Edge]), St);
 	N when N < 5 ->
 	    Edges = gb_sets:to_list(Sel),
 	    item_list(Edges, "Edges");
 	N ->
 	    flat_format("~p edges selected", [N])
     end;
-info(#st{selmode=face,sel=[{_,Sel}]}) ->
+info(#st{selmode=face,sel=[{_,Sel}]}=St) ->
     case gb_sets:size(Sel) of
 	0 -> "";
 	1 ->
 	    [Face] = gb_sets:to_list(Sel),
-	    flat_format("Face: ~p", [Face]);
+	    measure(flat_format("Face ~p selected", [Face]), St);
 	N when N < 5 ->
 	    Faces = gb_sets:to_list(Sel),
 	    item_list(Faces, "Faces");
@@ -540,12 +541,20 @@ info(#st{selmode=Mode,sel=Sel}=St) ->
 
 measure(Base, #st{selmode=vertex,sel=[{Id,Vs}],shapes=Shs}) ->
     case gb_sets:size(Vs) of
+	1 ->
+	    We = gb_trees:get(Id, Shs),
+ 	    [Va] = gb_sets:to_list(Vs),
+	    {X,Y,Z} = wings_vertex:pos(Va, We),
+	    Base ++ flat_format(". Position ~s ~s ~s",
+				[wings_util:nice_float(X),
+				 wings_util:nice_float(Y),
+				 wings_util:nice_float(Z)]);
 	2 ->
 	    We = gb_trees:get(Id, Shs),
  	    [Va,Vb] = gb_sets:to_list(Vs),
  	    Dist = e3d_vec:dist(wings_vertex:pos(Va, We),
 				wings_vertex:pos(Vb, We)),
-	    Base ++ flat_format("  D=~p", [Dist]);
+	    Base ++ flat_format(". Distance ~p", [Dist]);
 	_ -> Base
     end;
 measure(Base, #st{selmode=vertex,sel=[{IdA,VsA},{IdB,VsB}],shapes=Shs}) ->
@@ -558,7 +567,7 @@ measure(Base, #st{selmode=vertex,sel=[{IdA,VsA},{IdB,VsB}],shapes=Shs}) ->
  	    [Vb] = gb_sets:to_list(VsB),
  	    Dist = e3d_vec:dist(wings_vertex:pos(Va, WeA),
 				wings_vertex:pos(Vb, WeB)),
-	    Base ++ flat_format("  D=~p", [Dist]);
+	    Base ++ flat_format(". Distance ~p", [Dist]);
 	_ -> Base
     end;
 measure(Base, #st{selmode=edge,sel=[{Id,Es}],shapes=Shs}) ->
@@ -569,23 +578,36 @@ measure(Base, #st{selmode=edge,sel=[{Id,Es}],shapes=Shs}) ->
 	    #edge{vs=Va,ve=Vb} = gb_trees:get(Edge, We#we.es),
  	    Dist = e3d_vec:dist(wings_vertex:pos(Va, We),
 				wings_vertex:pos(Vb, We)),
-	    Base ++ flat_format("  L=~p", [Dist]);
+	    Base ++ flat_format(". Length ~p", [Dist]);
+	_ -> Base
+    end;
+measure(Base, #st{selmode=face,sel=[{Id,Fs}],shapes=Shs}) ->
+    case gb_sets:size(Fs) of
+	1 ->
+	    We = gb_trees:get(Id, Shs),
+ 	    [Face] = gb_sets:to_list(Fs),
+	    Vs = wings_face:surrounding_vertices(Face, We),
+	    {X,Y,Z} = wings_vertex:center(Vs, We),
+	    Base ++ flat_format(". Midpt ~s ~s ~s",
+				[wings_util:nice_float(X),
+				 wings_util:nice_float(Y),
+				 wings_util:nice_float(Z)]);
 	_ -> Base
     end;
 measure(Base, _) -> Base.
 
 item_list(Items, Desc) ->
-    item_list(Items, ": ", Desc).
+    item_list(Items, " ", Desc).
 
 item_list([Item|Items], Sep, Desc) ->
     item_list(Items, ", ", Desc++Sep++integer_to_list(Item));
-item_list([], _Sep, Desc) -> Desc.
+item_list([], _Sep, Desc) -> Desc ++ " selected".
 
 shape_info(#we{name=Name,fs=Ftab,es=Etab,vs=Vtab}) ->
     Faces = gb_trees:size(Ftab),
     Edges = gb_trees:size(Etab),
     Vertices = gb_trees:size(Vtab),
-    flat_format("~s: ~p polygons, ~p edges, ~p vertices",
+    flat_format("Object ~s has ~p polygons, ~p edges, ~p vertices",
 		[Name,Faces,Edges,Vertices]).
 
 shape_info(Objs, Shs) ->
