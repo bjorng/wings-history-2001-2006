@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_mapping.erl,v 1.62 2004/12/28 11:24:31 bjorng Exp $
+%%     $Id: auv_mapping.erl,v 1.63 2005/01/08 19:35:37 bjorng Exp $
 %%
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
@@ -145,7 +145,6 @@ sum_crossp([_Last], Acc) ->
     Acc.
 
 project_and_triangulate([Face|Fs], We, I, Tris,Area) ->
-    ?VALIDATE_MODEL(We),
     Normal = wings_face:normal(Face, We),
     Vs0 = wpa:face_vertices(Face, We),
     Vs2 = project2d(Vs0, Normal, We),
