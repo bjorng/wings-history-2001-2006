@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_scale.erl,v 1.39 2002/08/30 16:03:13 bjorng Exp $
+%%     $Id: wings_scale.erl,v 1.40 2002/11/02 13:16:29 bjorng Exp $
 %%
 
 -module(wings_scale).
@@ -124,10 +124,17 @@ scale_vertices(Vec, center, Magnet, St) ->
     Tvs = wings_sel:fold(fun(Vs, We, Acc) ->
 				 [{gb_sets:to_list(Vs),We}|Acc]
 			 end, [], St),
-    BB = foldl(fun({Vs,We}, BB) ->
-		       wings_vertex:bounding_box(Vs, We, BB)
-	       end, none, Tvs),
-    Center = e3d_vec:average(BB),
+    VsPs = foldl(fun({Vs,#we{vs=Vtab0}}, Acc) ->
+			 Vtab1 = sofs:from_external(gb_trees:to_list(Vtab0),
+						    [{vertex,info}]),
+			 Restr = sofs:set(Vs, [vertex]),
+			 Vtab2 = sofs:restriction(Vtab1, Restr),
+			 Vtab = sofs:to_external(Vtab2),
+			 foldl(fun({_,#vtx{pos=Pos}}, A) ->
+				       [Pos|A]
+			       end, Acc, Vtab)
+		 end, [], Tvs),
+    Center = e3d_vec:average(VsPs),
     foldl(fun({Vs,We}, Acc) ->
 		  scale(Vec, Center, Magnet, Vs, We, Acc)
 	  end, [], Tvs);
@@ -189,7 +196,7 @@ faces_to_vertices_1(Vec, Point, Magnet, Faces, We, Acc) ->
 %%
 
 body_to_vertices(Vec, center, We) ->
-    Center = e3d_vec:average(wings_vertex:bounding_box(We)),
+    Center = wings_vertex:center(We),
     body_to_vertices_1(Vec, Center);
 body_to_vertices(Vec, Point, _We) ->
     body_to_vertices_1(Vec, Point).
@@ -205,7 +212,7 @@ body_to_vertices_1(Vec0, Center) ->
 %%%
 
 scale(Vec, center, Magnet, Vs, We, A) ->
-    Center = e3d_vec:average(wings_vertex:bounding_box(Vs, We)),
+    Center = wings_vertex:center(Vs, We),
     scale(Vec, Center, Magnet, Vs, We, A);
 scale(Vec0, Center, Magnet, Vs, #we{id=Id}=We, Acc) ->
     Vec = make_vector(Vec0),
