@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex.erl,v 1.31 2002/11/10 13:23:36 bjorng Exp $
+%%     $Id: wings_vertex.erl,v 1.32 2002/11/14 20:09:54 bjorng Exp $
 %%
 
 -module(wings_vertex).
@@ -438,16 +438,7 @@ try_connect({Va,Vb}, Face, We) ->
 		end, false, Va, We),
     case Bad of
 	true -> no;
-	false -> try_connect(Va, Vb, Face, We)
-    end.
-
-try_connect(Va, Vb, Face, We0) ->
-    {We,NewFace} = force_connect(Va, Vb, Face, We0),
-
-    %% Reject the connection if any of the face normals are undefined.
-    case wings_face:good_normal(Face, We) andalso wings_face:good_normal(NewFace, We) of
-	true -> {We,NewFace};
-	false -> no
+	false -> force_connect(Va, Vb, Face, We)
     end.
 
 force_connect(Vstart, Vend, Face, #we{es=Etab0,fs=Ftab0}=We0) ->
