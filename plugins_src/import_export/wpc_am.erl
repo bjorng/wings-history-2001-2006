@@ -2,7 +2,11 @@
 %
 % Howard Trickey
 %
-% $Id: wpc_am.erl,v 1.6 2003/12/31 20:45:58 bjorng Exp $
+% Does not work well with recent versions of A:M (e.g. 11).
+% No longer included in Wings. The source code is kept
+% here just in case.
+%
+% $Id: wpc_am.erl,v 1.7 2004/12/14 07:51:26 bjorng Exp $
 %
 -module(wpc_am).
 -export([init/0,menu/2,command/2]).
@@ -73,7 +77,9 @@
 	 cppos		% gb_tree: CP Id -> pos {X,Y,Z} (if root) or RootCPId
 	}).
 
-init() -> true.
+init() ->
+    %% Intentinally disabled.
+    false.
 
 menu({file,export}, Menu0) ->
 	Menu0 ++ [{"Hash A:M (.mdl)...", mdl, [option]}];
