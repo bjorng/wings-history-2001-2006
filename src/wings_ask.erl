@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.164 2004/01/17 18:01:44 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.165 2004/01/20 00:48:26 raimo_niskanen Exp $
 %%
 
 -module(wings_ask).
@@ -2294,6 +2294,13 @@ browse_hook_fun(Ps0, TextKey, TextHook) ->
 	    if
 		TextHook == none -> false;
 		true -> TextHook(is_disabled, {TextKey,I-1,Sto})
+	    end;
+       (is_minimized, {_,I,Sto}) ->
+	    %% This button always has the same minimized state
+	    %% as the associated text field.
+	    if
+		TextHook == none -> false;
+		true -> TextHook(is_minimized, {TextKey,I-1,Sto})
 	    end;
        (_, _) -> void
     end.

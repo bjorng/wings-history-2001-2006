@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.55 2004/01/17 01:50:04 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.56 2004/01/20 00:48:26 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -1608,7 +1608,7 @@ export_background(F, Name, Ps) ->
 
 
 export_filter(F, Name, dof, Attr) ->
-    [Dist] = wpa:camera_info([distance_to_aim]),
+    #camera_info{distance_to_aim=Dist} = proplists:lookup(camera_info, Attr),
     Focus = limit_dist(Dist),
     NearBlur = proplists:get_value(near_blur, Attr),
     FarBlur = proplists:get_value(far_blur, Attr),
