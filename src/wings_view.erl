@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.56 2002/05/13 06:58:40 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.57 2002/05/13 07:59:34 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -373,7 +373,8 @@ smooth_redraw(#dlo{smoothed=Dlist}=D, #sm{st=St}=Sm) ->
     gl:callList(Dlist),
     wireframe(D, Sm),
     gl:popAttrib(),
-    wings_io:update(St).
+    wings_io:update(St),
+    Sm.
 
 wireframe(_, #sm{wire=false}) -> ok;
 wireframe(#dlo{work=Work}, #sm{wire=true}) ->
