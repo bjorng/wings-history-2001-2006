@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp9_dialogs.erl,v 1.35 2004/01/02 10:02:23 bjorng Exp $
+%%     $Id: wp9_dialogs.erl,v 1.36 2004/01/03 09:28:30 bjorng Exp $
 %%
 
 -module(wp9_dialogs).
@@ -63,7 +63,8 @@ save_dialog(Title, Props, Cont) ->
 dialog(Type, Title, Props, Cont) ->
     [{_,Def}|_] = Types = file_filters(Props),
     Dir = proplists:get_value(directory, Props, "/"),
-    Ps = [{directory,Dir},{filetype,Def},{filename,""}],
+    Filename = proplists:get_value(default_filename, Props, ""),
+    Ps = [{directory,Dir},{filetype,Def},{filename,Filename}],
     {dialog,Qs,Ask} = dialog_1(Type, Types, Title, Cont, Ps),
     wings_ask:dialog(Title, Qs, Ask).
 
