@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.103 2004/05/08 13:50:31 bjorng Exp $
+%%     $Id: wings.hrl,v 1.104 2004/05/19 13:53:53 dgud Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -114,6 +114,7 @@
 	 temp_sel=none,			        %Selection only temporary?
 
 	 mat,					%Defined materials (GbTree).
+	 pal=[],                                %Palette
 	 file,					%Current filename.
 	 saved,					%True if model has been saved.
 	 onext,					%Next object id to use.
