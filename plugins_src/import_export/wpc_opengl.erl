@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.48 2003/10/24 11:12:38 dgud Exp $
+%%     $Id: wpc_opengl.erl,v 1.49 2003/10/27 21:04:28 dgud Exp $
 
 -module(wpc_opengl).
 
@@ -163,7 +163,7 @@ do_render(Attr0, St) ->
 	    RenderShadow = proplists:get_value(render_shadow, Attr, false),
 	    RenderBumps  = proplists:get_value(render_bumps, Attr, false),
 
-	    {Data,{NOL, Amb,Lights}} = ?TC(create_dls(St, Attr, RenderShadow, RenderBumps)),
+	    {Data,{NOL, Amb,Lights}} = create_dls(St, Attr, RenderShadow, RenderBumps),
 	    
 	    Rr = #r{acc_size=AccSize,attr=Attr,
 		    data=Data,mat=St#st.mat,
@@ -483,7 +483,7 @@ draw_with_shadows(false, L=#light{sv=Shadow,dl=DLs}, _Mats) ->
     gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
     gl:lightModeli(?GL_LIGHT_MODEL_TWO_SIDE, ?GL_TRUE),
     foreach(fun(DL) -> case is_transp(DL) of 
-			   true -> gl:callList(DL); 
+			   true -> gl:callList(get_transp(DL)); 
 			   false -> ok 
 		       end
 	    end, DLs),
@@ -821,7 +821,7 @@ build_shadow_edge_ext([], V, L, Vtab) ->
     gl:vertex4f(X,Y,Z,0.0),
     gl:'end'().
 
-draw_bottom_face([V1,V2,V3],LPos,Vtab) ->
+draw_bottom_face([V1,V2,V3|_BUG],LPos,Vtab) ->
     draw_bottom_face(gb_trees:get(V1,Vtab),LPos),
     draw_bottom_face(gb_trees:get(V2,Vtab),LPos),
     draw_bottom_face(gb_trees:get(V3,Vtab),LPos).
@@ -952,6 +952,16 @@ draw_smooth_tr([{M,Faces}|T], Mtab, We, L) ->
     draw_smooth_tr(T, Mtab, We, L);
 draw_smooth_tr([], _, _, _) -> ok.
 
+do_draw_smooth(_, Faces, #we{mode = vertex}=We,_,Mtab) ->
+    wings_material:apply_material(default, Mtab),
+    gl:enable(?GL_COLOR_MATERIAL),
+    gl:colorMaterial(?GL_FRONT_AND_BACK, ?GL_AMBIENT_AND_DIFFUSE),
+    gl:'begin'(?GL_TRIANGLES),
+    draw_vtx_color(Faces, We),
+    gl:'end'(),
+    gl:disable(?GL_COLOR_MATERIAL),
+    [];
+
 do_draw_smooth(MatN, Faces, We, L, Mtab) ->
     gl:pushAttrib(?GL_TEXTURE_BIT),
     Mat = gb_trees:get(MatN, Mtab),
@@ -974,21 +984,25 @@ do_draw_smooth(MatN, Faces, We, L, Mtab) ->
 	    true
     end.
 
-texCoord(UV = {_,_}, true) ->
-    gl:texCoord2fv(UV);
-texCoord(_, true) ->
-    gl:texCoord2fv({0.0,0.0});
-texCoord(_, false) -> ok.
-texCoord(UV = {_,_}, true, Unit) ->
-    gl:multiTexCoord2fv(Unit, UV);
-texCoord(_, true, Unit) ->
-    gl:multiTexCoord2fv(Unit, {0.0,0.0});
-texCoord(_, false, _) ->
-    ok.
+draw_vtx_color([], _) -> ok;
+draw_vtx_color([{Face,[[Col1|N1],[Col2|N2],[Col3|N3]|_BUG]}|Faces], We) ->
+    [V1,V2,V3|_] = wings_face:vertex_positions(Face, We),
+    gl:normal3fv(N1),
+    glcolor3fv(Col1),
+    gl:vertex3fv(V1),
+    
+    gl:normal3fv(N2),
+    glcolor3fv(Col2),
+    gl:vertex3fv(V2),
+    
+    gl:normal3fv(N3),
+    glcolor3fv(Col3),
+    gl:vertex3fv(V3),
+    draw_vtx_color(Faces,We).
 
 do_draw_faces([],_,_) -> ok;
-do_draw_faces([{Face, [[UV1|N1],[UV2|N2],[UV3|N3]]}|Fs],Tex, We) ->
-    [V1,V2,V3] = wings_face:vertex_positions(Face, We),
+do_draw_faces([{Face, [[UV1|N1],[UV2|N2],[UV3|N3]|_BUG]}|Fs],Tex, We) ->
+    [V1,V2,V3|_] = wings_face:vertex_positions(Face, We),
     gl:normal3fv(N1),
     texCoord(UV1, Tex),
     gl:vertex3fv(V1),
@@ -1003,8 +1017,8 @@ do_draw_faces([{Face, [[UV1|N1],[UV2|N2],[UV3|N3]]}|Fs],Tex, We) ->
     do_draw_faces(Fs, Tex, We).
     
 do_draw_bumped([], _,_,_) -> ok;
-do_draw_bumped([{Face, [[UV1|N1],[UV2|N2],[UV3|N3]]}|Fs], Txt, We, L) ->
-    [V1,V2,V3] = wings_face:vertex_positions(Face, We),
+do_draw_bumped([{Face, [[UV1|N1],[UV2|N2],[UV3|N3]|_BUG]}|Fs], Txt, We, L) ->
+    [V1,V2,V3|_] = wings_face:vertex_positions(Face, We),
     TBN1 = calcTS(V3,V1,V2,UV3,UV1,UV2,N1),
     gl:normal3fv(N1),
     texCoord(UV1, true, ?GL_TEXTURE1),
@@ -1029,6 +1043,23 @@ do_draw_bumped([{Face, [[UV1|N1],[UV2|N2],[UV3|N3]]}|Fs], Txt, We, L) ->
     texCoord(UV3, Txt,  ?GL_TEXTURE3),
     gl:vertex3fv(V3),
     do_draw_bumped(Fs, Txt, We, L).
+
+glcolor3fv(Col) when size(Col) == 3 ->
+    gl:color3fv(Col);
+glcolor3fv(_) ->
+    gl:color3f(1.0,1.0,1.0).
+
+texCoord(UV = {_,_}, true) ->
+    gl:texCoord2fv(UV);
+texCoord(_, true) ->
+    gl:texCoord2fv({0.0,0.0});
+texCoord(_, false) -> ok.
+texCoord(UV = {_,_}, true, Unit) ->
+    gl:multiTexCoord2fv(Unit, UV);
+texCoord(_, true, Unit) ->
+    gl:multiTexCoord2fv(Unit, {0.0,0.0});
+texCoord(_, false, _) ->
+    ok.
 
 calcTS(V1,V2,V3,{_S1,T1},{_S2,T2},{_S3,T3},N) ->
     Side1 = e3d_vec:sub(V1,V2),
@@ -1067,8 +1098,6 @@ bumpCoord({Vx,Vy,Vn}, Vpos, {Type,InvLight0}) ->
 	   end,
     InvLight = e3d_vec:norm(LDir),
     %% Calc orthonormal space per vertex.
-    %% Vy = e3d_vec:norm(e3d_vec:cross(Vx,Vn)),
-    %% {Vx,Vy,Vn}
     
     %% Norm RGB could (should) be done with a normal-cube map
     X = e3d_vec:dot(Vx,InvLight),
