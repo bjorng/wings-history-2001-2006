@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.75 2003/06/19 16:15:11 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.76 2003/06/20 16:14:53 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -526,14 +526,14 @@ zoom_step(Dir) ->
 
 zoom(Delta0) ->
     #view{distance=Dist} = View = wings_view:current(),
-    Delta = Delta0/10,
+    Delta = Dist*Delta0/80,
     wings_view:set_current(View#view{distance=Dist+Delta}).
 
 pan(Dx0, Dy0) ->
-    S = 1/(51-wings_pref:get_value(pan_speed)),
+    #view{pan_x=PanX0,pan_y=PanY0,distance=D} = View = wings_view:current(),
+    S = D*(1/8)/(51-wings_pref:get_value(pan_speed)),
     Dx = Dx0*S,
     Dy = Dy0*S,
-    #view{pan_x=PanX0,pan_y=PanY0} = View = wings_view:current(),
     PanX = PanX0 + Dx,
     PanY = PanY0 - Dy,
     wings_view:set_current(View#view{pan_x=PanX,pan_y=PanY}).
