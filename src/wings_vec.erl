@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.93 2003/10/30 07:27:45 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.94 2003/10/30 09:32:22 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -54,13 +54,14 @@ do_ask({PickList,Done}, St, Cb) ->
 do_ask({PickList,Done,Flags}, St, Cb) ->
     do_ask_1(PickList, Done, Flags, St, Cb).
 
-do_ask_1(PickList0, Done, Flags, St, Cb) ->
-    PickList = add_help_text(PickList0),
-    wings_wm:later({pick_init,{pick,PickList,Done}}),
-    Mag = member(magnet, Flags),
+do_ask_1(Do0, Done, Flags, St0, Cb) ->
+    pick_init(St0),
     Modes = [vertex,edge,face],
-    Ss = #ss{cb=Cb,mag=Mag,selmodes=Modes,f=fun(_, _) -> keep end},
-    {seq,push,get_event(Ss, St)}.
+    St = mode_restriction(Modes, St0),
+    Do = add_help_text(Do0),
+    Mag = member(magnet, Flags),
+    Ss = #ss{cb=Cb,mag=Mag,selmodes=Modes},
+    {seq,push,pick_next(Do, Done, Ss, St)}.
 
 add_help_text([{Atom,_Desc}=Pair|T]) when is_atom(Atom) ->
     [Pair|add_help_text(T)];
@@ -216,24 +217,32 @@ handle_event_4(pick_init_special, #ss{selmodes=Modes}=Ss, St0) ->
     pick_init(St0),
     St = wings_sel:reset(mode_restriction(Modes, St0)),
     get_event(Ss, St);
-handle_event_4({pick_init,Pick}, #ss{selmodes=Modes}=Ss0, St0) ->
-    pick_init(St0),
-    St = mode_restriction(Modes, St0),
-    wings_wm:later({action,Pick}),
-    Ss = Ss0#ss{selmodes=Modes, f=fun(_, _) -> keep end},
-    get_event(Ss, St);
-handle_event_4({action,{pick,[],[Res]}}, #ss{cb=Cb}, _) ->
+handle_event_4({action,{pick,Do,Done}}, Ss, St) ->
+    pick_next(Do, Done, Ss, St);
+handle_event_4({action,Cmd}, _, _) ->
+    erlang:fault({bad_action,Cmd});
+handle_event_4(quit, _Ss, _St) ->
+    erase_vector(),
+    wings_io:putback_event(quit),
+    pop;
+handle_event_4(init_opengl, _, St) ->
+    erase_vector(),
+    wings:init_opengl(St);
+handle_event_4(_Event, Ss, St) ->
+    get_event(Ss, St).
+
+pick_next([], [Res], #ss{cb=Cb}, _) ->
     pick_finish(),
     wings_io:putback_event({command,fun(St) -> Cb(Res, St) end}),
     wings:clear_mode_restriction(),
     pop;
-handle_event_4({action,{pick,[],Res0}}, #ss{cb=Cb}, _) ->
+pick_next([], Res0, #ss{cb=Cb}, _) ->
     pick_finish(),
     Res = list_to_tuple(reverse(Res0)),
     wings_io:putback_event({command,fun(St) -> Cb(Res, St) end}),
     wings:clear_mode_restriction(),
     pop;
-handle_event_4({action,{pick,[{Type,Desc}|More],Acc}}, Ss, St0) ->
+pick_next([{Type,Desc}|More], Done, Ss, St0) ->
     MagnetPossible = magnet_possible_now(More, Ss),
     Check = case Type of
 		magnet -> fun check_point/1;
@@ -246,7 +255,7 @@ handle_event_4({action,{pick,[{Type,Desc}|More],Acc}}, Ss, St0) ->
 		  fun(check, S) ->
 			  check_point(S);
 		     (exit, {Mod,Vec,_}) ->
-			  exit_magnet(Vec, Mod, Acc);
+			  exit_magnet(Vec, Mod, Done);
 		     (message, _) ->
 			  magnet_message(Desc)
 		  end;
@@ -254,7 +263,7 @@ handle_event_4({action,{pick,[{Type,Desc}|More],Acc}}, Ss, St0) ->
 		  fun(check, S) ->
 			  Check(S);
 		     (exit, {Mod,Vec,S}) ->
-			  common_exit(Type, Vec, Mod, More, Acc,
+			  common_exit(Type, Vec, Mod, More, Done,
 				      MagnetPossible, S);
 		     (message, _) ->
 			  common_message(Desc, More, MagnetPossible)
@@ -267,22 +276,8 @@ handle_event_4({action,{pick,[{Type,Desc}|More],Acc}}, Ss, St0) ->
 	 end,
     clear_sel(),
     set_last_axis(Ss),
-    get_event(Ss#ss{f=Fun,is_axis=IsAxis,vec=none,info=""}, wings_sel:reset(St));
-handle_event_4({action,Cmd}, Ss, _) ->
-    erase_vector(),
-    set_last_axis(Ss),
-    wings_io:putback_event({action,Cmd}),
-    pick_finish(),
-    pop;
-handle_event_4(quit, _Ss, _St) ->
-    erase_vector(),
-    wings_io:putback_event(quit),
-    pop;
-handle_event_4(init_opengl, _, St) ->
-    erase_vector(),
-    wings:init_opengl(St);
-handle_event_4(_Event, Ss, St) ->
-    get_event(Ss, St).
+    get_event(Ss#ss{f=Fun,is_axis=IsAxis,vec=none,info=""}, wings_sel:reset(St)).
+
 
 redraw(#ss{info=Info,f=Message,vec=Vec}, St) ->
     Message(message, St),
