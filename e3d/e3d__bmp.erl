@@ -8,11 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__bmp.erl,v 1.4 2002/01/09 13:08:04 dgud Exp $
+%%     $Id: e3d__bmp.erl,v 1.5 2002/08/05 06:23:46 bjorng Exp $
 %%
 
 -module(e3d__bmp).
 -export([load/2,save/3]).
+-export([format_error/1]).
 
 -include("e3d_image.hrl").
 
@@ -37,6 +38,9 @@
 			     BiSizeImage, BiXPelsPerMeter, BiYPelsPerMeter,
 			     BiClrUsed, BiClrImportant])).	    
 
+format_error(unsupported_format) ->
+    "Unsupported format or bad BMP file".
+
 load(FileName, Opts) ->
     %% Currently only supported format 
     BitCount = 24,
@@ -57,7 +61,7 @@ load(FileName, Opts) ->
 		       alignment = 4,
 		       image = Image};
 	{ok, Bin} ->
-	    {error, {unsupported_format, bmp, FileName}};
+	    {error, {none,?MODULE,unsupported_format}};
 	Error ->
 	    Error
     end.
