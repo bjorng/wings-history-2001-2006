@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_deform.erl,v 1.28 2002/04/01 16:29:18 bjorng Exp $
+%%     $Id: wings_deform.erl,v 1.29 2002/04/13 07:22:31 bjorng Exp $
 %%
 
 -module(wings_deform).
@@ -23,19 +23,39 @@ sub_menu(_St) ->
     InflateHelp = {"Inflate elements",[],"Pick center and radius"},
     {deform,fun(help, _Ns) -> "";
 	       (1, _Ns) ->
-		    XYZ = [{"X",x},
-			   {"Y",y},
-			   {"Z",z}],
-		    [{"Crumple",crumple},
+		    [{"Crumple",{crumple,crumple_dirs()},
+		      "Randomly move vertices"},
 		     {"Inflate",inflate_fun(),InflateHelp,[]},
 		     {"Taper",{taper,
 			       [taper_item(x),
 				taper_item(y),
 				taper_item(z)]}},
-		     {"Twist",{twist,XYZ}},
-		     {"Twisty Twist",{twisty_twist,XYZ}}];
+		     {"Twist",{twist,dirs(twist)}},
+		     {"Torque",{torque,dirs(torque)}}];
 	       (_, _Ns) -> ignore
 	    end}.
+
+crumple_dirs() ->
+    [{"Random",random,"Move each vertex a random amount "
+      "in a random direction"},
+     {"Normal",normal,"Move each vertex a random amount along its normal"},
+     {"X",x,"Move each vertex a random amount along the X axis"},
+     {"Y",y,"Move each vertex a random amount along the Y axis"},
+     {"Z",z,"Move each vertex a random amount along the Z axis"}].
+
+dirs(Cmd) ->
+    [dir(x, Cmd),
+     dir(y, Cmd),
+     dir(z, Cmd)].
+
+dir(Axis, Cmd) ->
+    AxisStr = wings_util:upper(atom_to_list(Axis)),
+    Help = "Twist selected vertices around the " ++ AxisStr ++
+	case Cmd of
+	    twist -> " passing through the center of the selection";
+	    torque -> " passing through the origin"
+	end,
+    {AxisStr,Axis,Help,[]}.
 
 taper_item(Axis) ->
     Effects = effect_menu(Axis),
@@ -92,7 +112,7 @@ inflate_fun() ->
        (3, Ns) -> {vector,{pick,[point,point],[],[inflate|Ns]}}
     end.
 
-command(crumple, St) -> crumple(St);
+command({crumple,Dir}, St) -> crumple(Dir, St);
 command(inflate, St) -> inflate(St);
 command({inflate,What}, St) -> inflate(What, St);
 command({taper,{Primary,{Effect,Center}}}, St) ->
@@ -100,17 +120,35 @@ command({taper,{Primary,{Effect,Center}}}, St) ->
 command({taper,{Primary,Effect}}, St) ->
     taper(Primary, Effect, center, St);
 command({twist,Axis}, St) -> twist(Axis, St);
-command({twisty_twist,Axis}, St) -> twisty_twist(Axis, St).
+command({torque,Axis}, St) -> torque(Axis, St).
 
 %%
 %% The Crumple deformer.
 %%
 
-crumple(St) ->
-    Tvs = wings_sel:fold(fun crumple/3, [], St),
-    wings_drag:setup(Tvs, [{distance,{0.0,10.0}}], St).
+crumple(Dir, St) ->
+    Tvs = wings_sel:fold(fun(Vs, We, Acc) ->
+				 crumple(Dir, Vs, We, Acc) end,
+			 [], St),
+    wings_drag:setup(Tvs, [{percent,{-20.0,20.0}}], St).
 
-crumple(Vs0, #we{id=Id}=We, Acc) ->
+crumple(normal, Vs0, #we{id=Id}=We, Acc) ->
+    {Sa,Sb,Sc} = now(),
+    Vs = gb_sets:to_list(Vs0),
+    VsPos0 = wings_util:add_vpos(Vs, We),
+    VsPos = [{V,Vtx,wings_vertex:normal(V, We)} || {V,Vtx} <- VsPos0],
+    Fun = fun([Dx], A) ->
+		  random:seed(Sa, Sb, Sc),
+		  foldl(fun({V,#vtx{pos=Pos0}=Rec,N}, VsAcc) ->
+				{R1,_,_} = rnd(Dx/10),
+				Dis = e3d_vec:mul(N, R1),
+				Pos = e3d_vec:add(Pos0, Dis),
+				[{V,Rec#vtx{pos=Pos}}|VsAcc]
+			end, A, VsPos)
+	  end,
+    [{Id,{Vs,Fun}}|Acc];
+crumple(Dir, Vs0, #we{id=Id}=We, Acc) ->
+    {Xmask,Ymask,Zmask} = crumple_mask(Dir),
     {Sa,Sb,Sc} = now(),
     Vs = gb_sets:to_list(Vs0),
     VsPos = wings_util:add_vpos(Vs, We),
@@ -118,14 +156,19 @@ crumple(Vs0, #we{id=Id}=We, Acc) ->
 		  random:seed(Sa, Sb, Sc),
 		  foldl(fun({V,#vtx{pos={X0,Y0,Z0}}=Rec}, VsAcc) ->
 				{R1,R2,R3} = rnd(Dx/4),
-				X = X0 + R1,
-				Y = Y0 + R2,
-				Z = Z0 + R3,
+				X = X0 + R1*Xmask,
+				Y = Y0 + R2*Ymask,
+				Z = Z0 + R3*Zmask,
 				Pos = {X,Y,Z},
 				[{V,Rec#vtx{pos=Pos}}|VsAcc]
 			end, A, VsPos)
 	  end,
     [{Id,{Vs,Fun}}|Acc].
+
+crumple_mask(x) -> {1,0,0};
+crumple_mask(y) -> {0,1,0};
+crumple_mask(z) -> {0,0,1};
+crumple_mask(random) -> {1,1,1}.
 
 rnd(Sc) when float(Sc) ->
     %% Use Box-Muller's method for generation of normally-distributed
@@ -307,14 +350,14 @@ twist_fun(z, {Cx,Cy,_}) ->
 %%% The Twisty Twist deformer.
 %%%
 
-twisty_twist(Axis, St) ->
+torque(Axis, St) ->
     Tvs = wings_sel:fold(fun(Vs, We, Acc) ->
-				 twisty_twist(Vs, We, Axis, Acc)
+				 torque(Vs, We, Axis, Acc)
 			 end, [], St),
     wings_drag:setup(Tvs, [angle], St).
 
-twisty_twist(Vs0, #we{id=Id}=We, Axis, Acc) ->
-    Tf = twisty_twist_fun(Axis),
+torque(Vs0, #we{id=Id}=We, Axis, Acc) ->
+    Tf = torque_fun(Axis),
     Key = key(Axis),
     [MinR,MaxR] = wings_vertex:bounding_box(Vs0, We),
     Min = element(Key, MinR),
@@ -325,7 +368,7 @@ twisty_twist(Vs0, #we{id=Id}=We, Axis, Acc) ->
     Fun = twister_fun(Vs, Tf, Min, Range, We),
     [{Id,{Vs,Fun}}|Acc].
 
-twisty_twist_fun(x) ->
+torque_fun(x) ->
     fun(U, Min, {X,Y,Z})
        when float(U), float(Min), float(X), float(Y), float(Z) ->
 	    Angle = U*(X-Min),
@@ -333,7 +376,7 @@ twisty_twist_fun(x) ->
 	    Sin = math:sin(Angle),
 	    {X,Y*Cos-Z*Sin,Y*Sin+Z*Cos}
     end;
-twisty_twist_fun(y) ->
+torque_fun(y) ->
     fun(U, Min, {X,Y,Z})
        when float(U), float(Min), float(X), float(Y), float(Z) ->
 	    Angle = U*(Y-Min),
@@ -341,7 +384,7 @@ twisty_twist_fun(y) ->
 	    Sin = math:sin(Angle),
 	    {X*Cos+Z*Sin,Y,Z*Cos-X*Sin}
     end;
-twisty_twist_fun(z) ->
+torque_fun(z) ->
     fun(U, Min, {X,Y,Z})
        when float(U), float(Min), float(X), float(Y), float(Z) ->
 	    Angle = U*(Z-Min),
