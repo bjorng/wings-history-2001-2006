@@ -3,12 +3,12 @@
 %%
 %%     This module implements the commands in the selection menu.
 %%
-%%  Copyright (c) 2001-2003 Bjorn Gustavsson
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.49 2003/08/16 17:50:35 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.50 2004/05/04 18:51:17 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -77,6 +77,8 @@ menu(St) ->
 		{"Short Edges",short_edges,"Select (too) short edges",[option]},
 		{"Material Edges",material_edges,
 		 "Select all edges between different edges"},
+		{"UV-Mapped Faces",uv_mapped_faces,
+		 "Select all edges that have UV coordinates"},
 		{"Id...",id,"Select by numeric id"}]}},
      {"Lights",lights,"Select all lights"},
      separator,
@@ -284,14 +286,14 @@ by_command({faces_with,N}, St) ->
 		  N =:= wings_face:vertices(Face, We)
 	  end,
     {save_state,wings_sel:make(Sel, face, St)};
-by_command({material,_}=Cmd, St) ->
-    wings_material:command({select,Cmd}, St);
 by_command(material_edges, St) ->
     material_edges(St);
 by_command({random,Percent}, St) ->
     {save_state,random(Percent, St)};
 by_command({short_edges,Ask}, St) ->
     short_edges(Ask, St);
+by_command(uv_mapped_faces, St) ->
+    uv_mapped_faces(St);
 by_command(id, St) ->
     by_id(St);
 by_command({id,Sel}, St) ->
@@ -671,6 +673,21 @@ material_edges(St) ->
 material_edges_fun(E, #we{es=Etab}=We) ->
     #edge{lf=Lf,rf=Rf} = gb_trees:get(E, Etab),
     wings_material:get(Lf, We) =/= wings_material:get(Rf, We).
+
+%%
+%% Select all faces that have UV coordinates.
+%%
+
+uv_mapped_faces(St) ->
+    wings_sel:make(fun is_uv_mapped_face/2, face, St).
+
+is_uv_mapped_face(Face, We) ->
+    is_uv_mapped_face_1(wings_face:vertex_info(Face, We)).
+
+is_uv_mapped_face_1([{_,_}|T]) ->
+    is_uv_mapped_face_1(T);
+is_uv_mapped_face_1([_|_]) -> false;
+is_uv_mapped_face_1([]) -> true.
 
 %%
 %% Select by numerical item id.
