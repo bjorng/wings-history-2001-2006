@@ -9,14 +9,15 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_facemat.erl,v 1.5 2005/01/21 07:03:14 bjorng Exp $
+%%     $Id: wings_facemat.erl,v 1.6 2005/03/20 18:49:54 dgud Exp $
 %%
 %%
 %%
 
 -module(wings_facemat).
 -export([all/1,face/2,used_materials/1,mat_faces/2,
-	 assign/2,assign/3,delete_face/2,delete_faces/2,
+	 assign/2,assign/3,
+	 delete_face/2,delete_faces/2,keep_faces/2,
 	 hide_faces/1,show_faces/1,
 	 renumber/2,gc/1,merge/1]).
 
@@ -93,6 +94,21 @@ delete_faces(Faces0, #we{mat=MatTab0}=We) when is_list(Faces0) ->
     We#we{mat=MatTab};
 delete_faces(Faces, We) ->
     delete_faces(gb_sets:to_list(Faces), We).
+
+%% keep_faces(Faces, We) -> We'
+%%  Delete all the other material names mapping for all faces other Faces.
+keep_faces(_, #we{mat=AtomMat}=We) when is_atom(AtomMat) -> We;
+keep_faces([Face], We) ->
+    Mat = face(Face,We),
+    We#we{mat=[{Face,Mat}]};
+keep_faces(Faces0, #we{mat=MatTab0}=We) when is_list(Faces0) ->
+    Faces = sofs:from_external(Faces0, [face]),
+    MatTab1 = sofs:from_external(MatTab0, [{face,mat}]),
+    MatTab2 = sofs:restriction(MatTab1, Faces),
+    MatTab = sofs:to_external(MatTab2),
+    We#we{mat=MatTab};
+keep_faces(Faces, We) ->
+    keep_faces(gb_sets:to_list(Faces), We).
 
 %% hide_faces(We) -> We'
 %%  Update the material name mapping in the We to reflect

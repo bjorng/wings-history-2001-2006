@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_dissolve.erl,v 1.9 2005/01/29 18:25:14 bjorng Exp $
+%%     $Id: wings_dissolve.erl,v 1.10 2005/03/20 18:49:54 dgud Exp $
 %%
 
 -module(wings_dissolve).
@@ -20,18 +20,30 @@
 %% faces([Face], We) -> We'
 %%  Dissolve the given faces.
 faces([], We) -> We;
-faces(Faces, We) ->
+faces(Faces, #we{fs=Ftab0}=We) ->
     case gb_sets:is_empty(Faces) of
 	true -> We;
-	false -> dissolve_1(Faces, We)
+	false -> 
+	    Complement = ordsets:subtract(gb_trees:keys(Ftab0), 
+					  ordsets:from_list(Faces)),    
+	    dissolve_1(Faces, Complement, We)
     end.
+
+faces([], _, We) -> We;
+faces(Faces,Complement,We) ->
+    case gb_sets:is_empty(Faces) of
+	true -> We;
+	false -> dissolve_1(Faces, Complement,We)
+    end.
+
+    
 
 %% complement([Face], We) -> We'
 %%  Dissolve all faces BUT the given faces. Also invalidate the
 %%  mirror face if it existed and was dissolved.
 complement(Fs0, #we{fs=Ftab0}=We0) when is_list(Fs0) ->
     Fs = ordsets:subtract(gb_trees:keys(Ftab0), ordsets:from_list(Fs0)),
-    case faces(Fs, We0) of
+    case faces(Fs, Fs0, We0) of
 	#we{mirror=none}=We -> We;
 	#we{mirror=Face,fs=Ftab}=We ->
 	    case gb_trees:is_defined(Face, Ftab) of
@@ -41,8 +53,8 @@ complement(Fs0, #we{fs=Ftab0}=We0) when is_list(Fs0) ->
     end;
 complement(Fs, We) -> complement(gb_sets:to_list(Fs), We).
 
-dissolve_1(Faces, We0) ->
-    We1 = optimistic_dissolve(Faces, We0#we{vc=undefined}),
+dissolve_1(Faces, Complement, We0) ->
+    We1 = optimistic_dissolve(Faces,Complement,We0#we{vc=undefined}),
     NewFaces = wings_we:new_items_as_ordset(face, We0, We1),
     We2 = wings_face:delete_bad_faces(NewFaces, We1),
     We = wings_we:rebuild(We2),
@@ -53,7 +65,7 @@ dissolve_1(Faces, We0) ->
 	    wings_u:error(?__(1,"Dissolving would cause an inconsistent object structure."))
     end.
 
-optimistic_dissolve(Faces0, We0) ->
+optimistic_dissolve(Faces0, Compl, We0) ->
     %% Optimistically assume that we have a simple region without
     %% any holes.
     case outer_edge_loop(Faces0, We0) of
@@ -64,27 +76,34 @@ optimistic_dissolve(Faces0, We0) ->
 	    complex_dissolve(Parts, We0);
 	[_|_]=Loop ->
 	    %% Assumption was correct.
-	    simple_dissolve(Faces0, Loop, We0)
+	    simple_dissolve(Faces0, Compl, Loop, We0)
     end.
 
 %% simple_dissolve(Faces, Loop, We0) -> We
 %%  Dissolve a region of faces with no holes and no
 %%  repeated vertices in the outer edge loop.
 
-simple_dissolve(Faces0, Loop, We0) ->
+simple_dissolve(Faces0, Compl, Loop, We0) ->
     Faces = to_gb_set(Faces0),
     OldFace = gb_sets:smallest(Faces),
     Mat = wings_facemat:face(OldFace, We0),
-    We1 = wings_facemat:delete_faces(Faces, We0),
+    We1 = fix_materials(Faces, Compl, We0),
     #we{es=Etab0,fs=Ftab0,he=Htab0} = We1,
-    {Ftab1,Etab1,Htab} =
-	simple_del(Faces, Ftab0, Etab0, Htab0, We1),
+    {Ftab1,Etab1,Htab} = simple_del(Faces, Ftab0, Etab0, Htab0, We1),
     {NewFace,We2} = wings_we:new_id(We1),
     Ftab = gb_trees:insert(NewFace, hd(Loop), Ftab1),
     Last = last(Loop),
     Etab = update_outer([Last|Loop], Loop, NewFace, Ftab, Etab1),
     We = We2#we{es=Etab,fs=Ftab,he=Htab},
     wings_facemat:assign(Mat, [NewFace], We).
+
+fix_materials(Del,Keep,We) ->
+    case gb_sets:size(Del) < length(Keep) of
+	true ->
+	    wings_facemat:delete_faces(Del,We);
+	false ->
+	    wings_facemat:keep_faces(Keep,We)
+    end.
 
 to_gb_set(List) when is_list(List) ->
     gb_sets:from_list(List);
@@ -199,13 +218,13 @@ update_outer([_], _More, _Face, _Ftab, Etab) -> Etab.
 succ([Succ|_], _More) -> Succ;
 succ([], [Succ|_]) -> Succ.
 
-%% outer_edge_loop(FaceSet, WingedEdge) -> [Edge] | error.
+%% outer_edge_loop(FaceSet,WingedEdge) -> [Edge] | error.
 %%  Partition the outer edges of the FaceSet into a single closed loop.
 %%  Return 'error' if the faces in FaceSet does not form a
 %%  simple region without holes.
 %%
 %%  Equvivalent to
-%%      case outer_edge_partition(FaceSet, WingedEdge) of
+%%      case outer_edge_partition(FaceSet,WingedEdge) of
 %%         [Loop] -> Loop;
 %%         [_|_] -> error
 %%      end.

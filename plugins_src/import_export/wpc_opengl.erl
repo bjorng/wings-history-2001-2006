@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.70 2004/12/29 14:24:17 bjorng Exp $
+%%     $Id: wpc_opengl.erl,v 1.71 2005/03/20 18:49:54 dgud Exp $
 
 -module(wpc_opengl).
 
@@ -433,12 +433,12 @@ patch_tangent_space([], _, Acc) ->
 
 
 %% Make the hole material a true hole (entirely invisible).
-invisible_holes(#st{mat=Mat}=St) ->
+invisible_holes(St = #st{mat=Mat}) ->
     Hole0 = gb_trees:get('_hole_', Mat),
     OpenGl0 = proplists:get_value(opengl, Hole0),
     OpenGl = map(fun({Key,{R,G,B,_}}) -> {Key,{R,G,B,0.0}};
 		    (Other) -> Other end, OpenGl0),
-    Hole = [{opengl,OpenGl}|lists:keydelete(opengl, 1, Hole0)],
+    Hole = [{opengl,OpenGl}|lists:keydelete(opengl, 1,  Hole0)],
     St#st{mat=gb_trees:update('_hole_', Hole, Mat)}.
 
 sub_divide(0, We) -> We;
