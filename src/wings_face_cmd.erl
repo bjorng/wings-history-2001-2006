@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.99 2003/11/15 21:18:19 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.100 2003/11/19 21:00:47 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -261,15 +261,21 @@ dissolve_1(Faces, We) ->
 	false -> wings_we:vertex_gc(dissolve_2(Faces, We#we{vc=undefined}))
     end.
 
-dissolve_2(Faces, We0) ->
+dissolve_2(Faces, We) ->
+    Parts = wings_sel:face_regions(Faces, We),
+    dissolve_3(Parts, We).
+
+dissolve_3([Faces|T], We0) ->
     {Face,_} = gb_sets:take_smallest(Faces),
     Mat = wings_material:get(Face, We0),
     We1 = wings_material:delete_faces(Faces, We0),
     Parts = outer_edge_partition(Faces, We1),
-    We = do_dissolve(Faces, Parts, Mat, We0, We1),
-    foldl(fun(_, bad_edge) -> bad_edge;
-	     (F, W) -> wings_face:delete_if_bad(F, W)
-	  end, We, gb_sets:to_list(wings_we:new_items(face, We0, We))).
+    We2 = do_dissolve(Faces, Parts, Mat, We0, We1),
+    We = foldl(fun(_, bad_edge) -> bad_edge;
+		  (F, W) -> wings_face:delete_if_bad(F, W)
+	       end, We2, gb_sets:to_list(wings_we:new_items(face, We0, We2))),
+    dissolve_3(T, We);
+dissolve_3([], We) -> We.
 
 do_dissolve(Faces, Ess, Mat, WeOrig, We0) ->
     We1 = do_dissolve_faces(Faces, We0),
@@ -1288,26 +1294,27 @@ partition_edges(Va, Edges, Faces, Es, We, Acc) ->
 %% Here we have multiple choices of edges. Use the shortest path
 %% that don't return us to the Va vertex.
 %% (We want edge loops without repeated vertices.)
-part_try_all_edges(Va, [Val|More], Faces, Es0, We, Acc, Alt0, Path0) ->
+part_try_all_edges(Va, [Val|More], Faces, Es0, We, Acc, Done0, Path0) ->
     Es1 = gb_trees:insert(Va, [{repeated,Va,fake}], Es0),
+    Done = [Val|Done0],
     case partition_edges(Va, [Val], Faces, Es1, We, Acc) of
 	none ->
-	    Alt = [Val|Alt0],
-	    part_try_all_edges(Va, More, Faces, Es0, We, Acc, Alt, Path0);
+	    part_try_all_edges(Va, More, Faces, Es0, We, Acc, Done, Path0);
 	{[repeated|_],_} ->
-	    Alt = [Val|Alt0],
-	    part_try_all_edges(Va, More, Faces, Es0, We, Acc, Alt, Path0);
+	    part_try_all_edges(Va, More, Faces, Es0, We, Acc, Done, Path0);
 	{_,_}=Found ->
-	    Path = part_shortest_path(Path0, Found),
-	    part_try_all_edges(Va, More, Faces, Es0, We, Acc, Alt0, Path)
+	    Path1 = part_shortest_path(Path0, Found),
+	    Path = {Path1,Done0,More},
+	    part_try_all_edges(Va, More, Faces, Es0, We, Acc, Done, Path)
     end;
-part_try_all_edges(Va, [], _, _, _, _, [], {Path,Es}) ->
-    {Path,gb_trees:delete(Va, Es)};
-part_try_all_edges(Va, [], _, _, _, _, Alt, {Path,Es}) ->
-    {Path,gb_trees:enter(Va, Alt, Es)};
-part_try_all_edges(_Va, [], _, _, _, _, _Alt, none) ->
-    none.
+part_try_all_edges(Va, [], _, _, _, _, _, {{Path,Es},Alt0,Alt1}) ->
+    case Alt0++Alt1 of
+	[] -> {Path,gb_trees:delete(Va, Es)};
+	Alt -> {Path,gb_trees:enter(Va, Alt, Es)}
+    end;
+part_try_all_edges(_Va, [], _, _, _, _, _Alt, none) -> none.
 
 part_shortest_path(none, Path) -> Path;
-part_shortest_path({AccA,_}=A, {AccB,_}) when length(AccA) < length(AccB) -> A;
-part_shortest_path({_,_}, {_,_}=B) -> B.
+part_shortest_path({{AccA,_},_,_}=A, {{AccB,_},_,_})
+  when length(AccA) < length(AccB) -> A;
+part_shortest_path(_, B) -> B.
