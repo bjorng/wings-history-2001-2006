@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.25 2002/07/21 15:47:57 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.26 2002/07/26 07:14:05 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -360,9 +360,9 @@ return_result(_, _, _, #s{call=EndFun}=S, Res) ->
 redraw(#s{w=W,h=H,ox=Ox,oy=Oy,focus=Focus,fi=Fi,priv=Priv,common=Common}) ->
     wings_io:ortho_setup(),
     gl:translated(Ox, Oy, 0),
-    wings_io:raised_rect(-?HMARGIN, -?VMARGIN,
-			 W+2*?HMARGIN, H+2*?VMARGIN,
-			 ?MENU_COLOR),
+    wings_io:border(-?HMARGIN, -?VMARGIN,
+		    W+2*?HMARGIN-1, H+2*?VMARGIN-1,
+		    ?MENU_COLOR),
     draw_fields(1, Fi, Priv, Focus, Common).
 
 draw_fields(I, Fis, Priv, Focus, Common) when I =< size(Fis) ->

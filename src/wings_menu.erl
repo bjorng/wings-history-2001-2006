@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.49 2002/06/26 14:59:57 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.50 2002/07/26 07:14:05 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -20,7 +20,7 @@
 -import(lists, [foldl/3,reverse/1,keysearch/3]).
 
 -define(SUB_MENU_TIME, 150).
--define(SEPARATOR_HEIGHT, 10).
+-define(SEPARATOR_HEIGHT, 9).
 
 %% Menu information kept for a popup menu.
 -record(mi,
@@ -109,7 +109,7 @@ menu_setup(Type, X0, Y0, Name, Menu0, #mi{ns=Names0,adv=Adv}=Mi) ->
 	  sel=none,ns=Names,menu=Menu,adv=Adv,type=Type}.
 
 menu_show(#mi{xleft=X,ytop=Y,ymarg=Margin,shortcut=Shortcut,w=Mw,h=Mh}=Mi) ->
-    wings_io:raised_rect(X, Y, Mw, Mh + 2*Margin+3, ?MENU_COLOR),
+    wings_io:border(X, Y, Mw, Mh + 2*Margin+3, ?MENU_COLOR),
     gl:color3f(0, 0, 0),
     menu_draw(X+3*?CHAR_WIDTH, Y+Margin+?CHAR_HEIGHT,
 	      Shortcut, Mw, 1, Mi#mi.hs, Mi).
@@ -617,21 +617,20 @@ help_text_1([_|_]=S, false) -> S;
 help_text_1({[_|_]=S,_}, false) -> S;
 help_text_1({[_|_]=S,_,_}, false) -> S;
 help_text_1([_|_]=S, true) ->
-    [lmb,$\s|S];
+    ["[L] "|S];
 help_text_1({S1,S2}, true) ->
-    [lmb,$\s,S1,$\s,mmb,$\s|S2];
+    ["[L] ",S1,"  [M] "|S2];
 help_text_1({S1,[],S2}, true) ->
-    [lmb,$\s,S1,$\s,rmb,$\s|S2];
+    ["[L] ",S1,"  [R] "|S2];
 help_text_1({S1,S2,S3}, true) ->
-    [lmb,$\s,S1,$\s,mmb,$\s,S2,$\s,rmb,$\s|S3];
+    ["[L] ",S1,"  [M] ",S2,"  [R] "|S3];
 help_text_1([]=S, _) -> S.
 
 help_message(Msg) ->
     %% Replacement for wings_io:message/1 as it overwrites the icon area.
     [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
-    wings_io:sunken_rect(6, H-2*?LINE_HEIGHT+5, W-10,
-			 2*?LINE_HEIGHT-8, ?PANE_COLOR),
-    wings_io:menu_text(8, H-?LINE_HEIGHT+5, Msg).
+    wings_io:border(6, H-2*?LINE_HEIGHT+6, W-10, 2*?LINE_HEIGHT-10, ?PANE_COLOR),
+    wings_io:menu_text(8, H-10, Msg).
 
 draw_right(X, Y, Ps) ->
     case have_option_box(Ps) of
@@ -669,16 +668,12 @@ draw_separator(X, Y, Mw) ->
     ?CHECK_ERROR(),
     LeftX = X-2*?CHAR_WIDTH,
     RightX = X+Mw-4*?CHAR_WIDTH,
-    UpperY = Y - ?SEPARATOR_HEIGHT + 1,
-    LowerY = UpperY + 1,
+    UpperY = Y - ?SEPARATOR_HEIGHT,
     gl:lineWidth(1.0),
     gl:'begin'(?GL_LINES),
     gl:color3f(0.10, 0.10, 0.10),
     gl:vertex2f(LeftX+0.5, UpperY+0.5),
     gl:vertex2f(RightX+0.5, UpperY+0.5),
-    gl:color3f(0.90, 0.90, 0.90),
-    gl:vertex2f(LeftX+1.5, LowerY+0.5),
-    gl:vertex2f(RightX+0.5, LowerY+0.5),
     gl:'end'(),
     gl:color3f(0, 0, 0),
     ?CHECK_ERROR().

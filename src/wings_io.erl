@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.54 2002/07/13 06:36:29 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.55 2002/07/26 07:14:05 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -21,6 +21,7 @@
 	 info/1,message/1,message_right/1,clear_message/0,
 	 disable_progress/0,progress/1,progress_tick/0,
 	 clear_menu_sel/0,
+	 border/5,
 	 sunken_rect/5,raised_rect/4,raised_rect/5,
 	 text_at/2,text_at/3,text/1,menu_text/3,axis_text/4,space_at/2,
 	 draw_icon/5,
@@ -38,8 +39,8 @@
 -import(lists, [flatmap/2,foldl/3,keysearch/3,member/2,
 		reverse/1,foreach/2,last/1]).
 
--define(ICON_WIDTH, 45).
--define(ICON_HEIGHT, 34).
+-define(ICON_WIDTH, 44).
+-define(ICON_HEIGHT, 32).
 
 -record(io,
 	{w,					%Width of screen (pixels).
@@ -208,7 +209,7 @@ draw_message(F) ->
     #io{h=H} = get_state(),
     gl:pushMatrix(),
     gl:loadIdentity(),
-    gl:translatef(10.0, H-12.0, 0.0),
+    gl:translatef(10, H-10, 0),
     Res = F(),
     gl:popMatrix(),
     Res.
@@ -280,8 +281,8 @@ maybe_show_mem_used(H) ->
     end.
 
 draw_panes(#io{w=W,h=H,menubar=Bar,sel=Sel}) ->
-    raised_rect(-2, 0, W+2, ?LINE_HEIGHT+6),
-    sunken_rect(6, H-2*?LINE_HEIGHT+5, W-10, 2*?LINE_HEIGHT-8),
+    border(-2, 0, W+2, ?LINE_HEIGHT+6),
+    border(6, H-2*?LINE_HEIGHT+6, W-10, 2*?LINE_HEIGHT-10, ?PANE_COLOR),
     draw_bar(0, Bar, Sel).
 
 -define(MENU_MARGIN, 8).
@@ -291,7 +292,7 @@ draw_bar(X, [{Name,Item}|T], Sel) ->
     W = ?CHAR_WIDTH*(?MENU_ITEM_SPACING+length(Name)),
     if
 	Item =:= Sel ->
-	    sunken_rect(X+1, 3, W, ?LINE_HEIGHT);
+	    border(X+1, 3, W, ?LINE_HEIGHT);
 	true -> ok
     end,
     text_at(?MENU_MARGIN+X, ?LINE_HEIGHT-1, Name),
@@ -299,7 +300,7 @@ draw_bar(X, [{Name,Item}|T], Sel) ->
 draw_bar(_X, [], _Sel) -> ok.
 
 draw_icons(#io{w=W,h=H,icons=Icons0,selmodes=Modes}, St) ->
-    raised_rect(-2, H-4*?LINE_HEIGHT-3, W+2, 4*?LINE_HEIGHT+3),
+    border(-2, H-4*?LINE_HEIGHT-3, W+2, 4*?LINE_HEIGHT+3),
     gl:enable(?GL_TEXTURE_2D),
     gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
     Y = H-4*?LINE_HEIGHT+2,
@@ -383,6 +384,25 @@ icon_row_hit(X, [{Pos,Name}|_]) when Pos =< X, X < Pos+?ICON_WIDTH ->
 icon_row_hit(X, [_|Is]) ->
     icon_row_hit(X, Is);
 icon_row_hit(_X, []) -> none.
+
+border(X, Y, Mw, Mh) ->
+    border(X, Y, Mw, Mh, ?PANE_COLOR).
+
+border(X0, Y0, Mw0, Mh0, FillColor) ->
+    X = X0 + 0.5,
+    Y = Y0 + 0.5,
+    Mw = Mw0 - 0.5,
+    Mh = Mh0 + 0.5,
+    gl:color3fv(FillColor),
+    gl:rectf(X0, Y0, X0+Mw0, Y0+Mh0),
+    gl:color3f(0.20, 0.20, 0.20),
+    gl:'begin'(?GL_LINE_LOOP),
+    gl:vertex2f(X, Y+Mh),
+    gl:vertex2f(X, Y),
+    gl:vertex2f(X+Mw, Y),
+    gl:vertex2f(X+Mw, Y+Mh),
+    gl:'end'(),
+    gl:color3f(0, 0, 0).
     
 raised_rect(X, Y, Mw, Mh) ->
     raised_rect(X, Y, Mw, Mh, ?PANE_COLOR).
@@ -412,7 +432,7 @@ sunken_rect(X0, Y0, Mw0, Mh0, FillColor) ->
     gl:vertex2f(X+Mw, Y+Mh),
     gl:vertex2f(X, Y+Mh),
     gl:'end'(),
-    gl:color3f(0.0, 0.0, 0.0).
+    gl:color3f(0, 0, 0).
 
 space_at(X, Y) ->
     gl:color3fv(?PANE_COLOR),
@@ -537,26 +557,30 @@ put_state(Io) ->
     put(wings_io, Io).
 
 draw_icon(X, Y, Icon) ->
-    draw_icon(X, Y, ?ICON_WIDTH, ?ICON_HEIGHT, 64, 64, Icon).
+    draw_icon(X, Y, ?ICON_WIDTH, ?ICON_HEIGHT, 64, 32, Icon).
 
 draw_icon(X, Y, W, H, Icon) ->
     draw_icon(X, Y, W, H, W, H, Icon).
 
 draw_icon(X, Y, W, H, Wtot, Htot, Icon) ->
     #io{tex=Tex} = get_state(),
-    {value,{Icon,Id}} = keysearch(Icon, 1, Tex),
-    gl:bindTexture(?GL_TEXTURE_2D, Id),
-    gl:'begin'(?GL_QUADS),
-    gl:texCoord2f(0, H/Htot),
-    gl:vertex2i(X, Y),
-    gl:texCoord2f(0, 0),
-    gl:vertex2i(X, Y+H),
-    gl:texCoord2f(W/Wtot, 0),
-    gl:vertex2i(X+W, Y+H),
-    gl:texCoord2f(W/Wtot, H/Htot),
-    gl:vertex2i(X+W, Y),
-    gl:'end'(),
-    gl:color3f(0.0, 0.0, 0.0).
+    case keysearch(Icon, 1, Tex) of
+	false -> ok;
+	{value,{Icon,Id}} ->
+	    gl:bindTexture(?GL_TEXTURE_2D, Id),
+	    gl:'begin'(?GL_QUADS),
+	    gl:texCoord2f(0, H/Htot),
+	    gl:vertex2i(X, Y),
+	    gl:texCoord2f(0, 0),
+	    gl:vertex2i(X, Y+H),
+	    gl:texCoord2f(W/Wtot, 0),
+	    gl:vertex2i(X+W, Y+H),
+	    gl:texCoord2f(W/Wtot, H/Htot),
+	    gl:vertex2i(X+W, Y),
+	    gl:'end'()
+    end,
+    gl:color3f(0, 0, 0).
+
 
 load_textures(Bin) ->
     case catch binary_to_term(Bin) of
@@ -583,7 +607,7 @@ create_textures([{Name,{W,H,Icon}}|T], [Id|Ids]) ->
 create_textures([], _Id) -> [].
 
 create_buttons(Icons0) ->
-    flatmap(fun({Name,{64,64,Icon}}) ->
+    flatmap(fun({Name,{64,32,Icon}}) ->
 		    [{{Name,down},create_button(fun active/5, Icon)},
 		     {{Name,up},create_button(fun inactive/5, Icon)}];
 	       ({_Name,_Icon}=T) -> [T]
@@ -595,13 +619,13 @@ create_button(Tr, Icon) ->
 create_button(Tr, T, 64, Y, Acc) ->
     create_button(Tr, T, 0, Y+1, Acc);
 create_button(_Tr, <<>>, _X, _Y, Acc) ->
-    {64,64,list_to_binary(reverse(Acc))};
+    {64,32,list_to_binary(reverse(Acc))};
 create_button(Tr, <<R:8,G:8,B:8,T/binary>>, X, Y, Acc) ->
     create_button(Tr, T, X+1, Y, [Tr(X, Y, R, G, B)|Acc]).
 
 active(X, Y, R, G, B) ->
     if
-	X < 2; X > 42; Y < 2; Y > 31 -> [255,255,255];
+	X < 1; X > 42; Y < 1; Y > 30 -> [255,255,255];
 	true -> [R,G,B]
     end.
 

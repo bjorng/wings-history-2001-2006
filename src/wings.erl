@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.148 2002/07/20 10:32:58 bjorng Exp $
+%%     $Id: wings.erl,v 1.149 2002/07/26 07:14:05 bjorng Exp $
 %%
 
 -module(wings).
@@ -246,7 +246,7 @@ handle_event_3(#expose{}, St) ->
     handle_event_3(redraw, St);
 handle_event_3(redraw, St) ->
     wings_draw:render(St),
-    Message = [lmb," Select ",rmb," Show menu "|wings_camera:help()],
+    Message = ["[L] Select  [R] Show menu  "|wings_camera:help()],
     wings_io:message(Message),
     wings_io:info(info(St)),
     wings_io:update(St),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.37 2002/07/13 10:10:39 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.38 2002/07/26 07:14:05 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -191,8 +191,7 @@ handle_event_5(redraw, _Ss, St) ->
 		 ?ALT_BITS -> "Alt";
 		 ?CTRL_BITS -> "Ctrl"
 	     end,
-    Message = [lmb|" Select  "] ++
-	[rmb|" Execute  ["] ++ RmbMod ++ "]+" ++ [rmb|" Menu  "],
+    Message = ["[L] Select  [R] Execute  ["] ++ RmbMod ++ "]+[R] Menu  ",
     wings_io:message(Message),
     wings:redraw(St),
     keep;

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_magnet.erl,v 1.37 2002/07/13 10:10:39 bjorng Exp $
+%%     $Id: wings_magnet.erl,v 1.38 2002/07/26 07:14:05 bjorng Exp $
 %%
 
 -module(wings_magnet).
@@ -84,10 +84,9 @@ common_dialog() ->
       [{title,"Falloff"}]}].
 			  
 menu_help() ->
-    "Magnet: " ++
-	[lmb] ++ " Pick influence radius  " ++
-	[mmb] ++ " Specify radius numerically  " ++
-	[rmb] ++ " Use last radius".
+    "Magnet: [L] Pick influence radius  "
+	"[M] Specify radius numerically  "
+	"[R] Use last radius".
     
 drag_help(Type) ->
     "[+] or [-] Tweak R  " ++

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.18 2002/07/13 15:07:29 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.19 2002/07/26 07:14:05 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -40,19 +40,19 @@ command(about, _St) ->
 two_button() ->
     Help = ["Using A Two-Button Mouse",
 	    "If you are using Wings in the default Wings/Blender "
-	    "camera mode, you can use [Alt]+" ++ [lmb] ++
-	    " instead of " ++ [mmb] ++ ".",
+	    "camera mode, you can use [Alt]+[L] "
+	    "instead of [M].",
 
 	    "If you are using Wings in Nendo "
-	    "camera mode, you can use [Ctrl]+" ++ [rmb] ++
-	    "instead of the " ++ [mmb] ++ ".",
+	    "camera mode, you can use [Ctrl]+[R] "
+	    "instead of [M].",
 
 	    "The 3ds max and Maya camera modes require a three-button "
 	    "mouse.",
 
 	    "In the Advanced Menus (if enabled), "
-	    "you can use either [Alt]+" ++ [lmb] ++
-	    " or [Ctrl]+" ++ [rmb] ++ " instead of " ++ [lmb] ++ "."],
+	    "you can use either [Alt]+[L] "
+	    "or [Ctrl]+[R] instead of [L]."],
     help_window(Help).
 
 def_hotkeys() ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.66 2002/07/15 20:59:34 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.67 2002/07/26 07:14:06 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -268,7 +268,7 @@ auto_rotate_redraw(#tim{st=St}) ->
     wings_io:update(St).
 
 auto_rotate_help() ->
-    Help = [lmb|" Stop rotating "] ++ wings_camera:help(),
+    Help = ["[L] Stop rotating ",wings_camera:help()],
     wings_io:message_right("[+] Increase speed [-] Decrease speed"),
     wings_io:message(Help).
 
@@ -298,7 +298,7 @@ smoothed_preview(St) ->
     {seq,{push,dummy},get_smooth_event(Sm)}.
 
 smooth_help() ->
-    Help = [lmb|" Normal Mode "] ++ wings_camera:help(),
+    Help = ["[L] Normal Mode ",wings_camera:help()],
     wings_io:message(Help).
     
 get_smooth_event(Sm) ->
