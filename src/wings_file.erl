@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.111 2003/04/22 03:37:25 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.112 2003/04/22 03:43:50 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -129,16 +129,6 @@ command({export_selected,ndo}, St) ->
     Shs = gb_trees:from_orddict(reverse(Shs0)),
     export_ndo(St#st{shapes=Shs}),
     St;
-% command({export,xndo}, St) ->
-%     export_xndo(St),
-%     St;
-% command({export_selected,xndo}, St) ->
-%     Shs0 = wings_sel:fold(fun(_, #we{id=Id}=We, A) ->
-% 				  [{Id,We}|A]
-% 			  end, [], St),
-%     Shs = gb_trees:from_orddict(reverse(Shs0)),
-%     export_xndo(St#st{shapes=Shs}),
-%     St;
 command(quit, St) ->
     quit(St);
 command(confirmed_quit, _) ->
