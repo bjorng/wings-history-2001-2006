@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.58 2003/01/23 05:56:41 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.59 2003/01/24 10:01:20 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -62,8 +62,12 @@ menu(X, Y, St) ->
 cut_line(#st{sel=[{_,Es}]}) ->
     case gb_sets:size(Es) of
 	1 -> cut_fun();
-	_ -> {"Cut",{cut,cut_entries()},"Cut into edges of equal length"}
-    end.
+	_ -> plain_cut_menu()
+    end;
+cut_line(_) -> plain_cut_menu().
+
+plain_cut_menu() ->
+    {"Cut",{cut,cut_entries()},"Cut into edges of equal length"}.
 
 cut_fun() ->
     F = fun(help, _Ns) ->
