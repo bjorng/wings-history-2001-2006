@@ -19,14 +19,14 @@
 
 -define(SCALEFAC, 0.01).		% amount to scale AI coords by
 
-% polyarea and cedge records must match definitions in wpc_tt.erl
+						% polyarea and cedge records must match definitions in wpc_tt.erl
 
 -record(polyarea,
 	{boundary,			%list of cedges (CCW oriented, closed)
 	 islands=[]}).			%list of lists of cedges (CW, closed)
 
-% a "possibly curved" edge, with explicit coords
-% and optional cubic bezier control points
+						% a "possibly curved" edge, with explicit coords
+						% and optional cubic bezier control points
 -record(cedge,
 	{vs,cp1=nil,cp2=nil,ve}).	%all are {x,y} pairs
 
@@ -50,33 +50,34 @@
 init() -> true.
 
 menu({file,import}, Menu) ->
-	Menu ++ [{"Adobe Illustrator (.ai)...",ai}];
+    Menu ++ [{"Adobe Illustrator (.ai)...",ai,[option]}];
 menu(_, Menu) -> Menu.
 
-command({file,{import,ai}}, St) ->
-	DefBisect = wpa:pref_get(wpc_ai, bisections, 0),
-	wpa:ask(true, [{"Number of edge bisections", DefBisect}],
-		St, fun(Res) -> {file,{import,ai,Res}} end);
+command({file,{import,{ai,Ask}}}, _St) when is_atom(Ask) ->
+    DefBisect = wpa:pref_get(wpc_ai, bisections, 0),
+    wpa:ask(Ask, "AI Import Options",
+	    [{"Number of edge bisections", DefBisect}],
+	    fun(Res) -> {file,{import,ai,Res}} end);
 command({file,{import,ai,[Nsub]}}, St) ->
-	Props = [{ext,".ai"},{ext_desc,"Adobe Illustrator File"}],
-	wpa:import(Props, fun(F) -> make_ai(F, Nsub) end, St);
+    Props = [{ext,".ai"},{ext_desc,"Adobe Illustrator File"}],
+    wpa:import(Props, fun(F) -> make_ai(F, Nsub) end, St);
 command(_, _) ->
-	next.
+    next.
 
 make_ai(Name, Nsubsteps) ->
-	case catch tryimport(Name, Nsubsteps) of
+    case catch tryimport(Name, Nsubsteps) of
 	{ok, E3dFile} ->
-		wpa:pref_set(wp0_ai, bisections, Nsubsteps),
-		{ok, E3dFile};
+	    wpa:pref_set(wp0_ai, bisections, Nsubsteps),
+	    {ok, E3dFile};
 	{error,Reason} ->
-		{error, "AI import failed: " ++ Reason};
+	    {error, "AI import failed: " ++ Reason};
 	_ ->
-		{error, "AI import internal error"}
-	end.
+	    {error, "AI import internal error"}
+    end.
 
 tryimport(Name, Nsubsteps) ->
-	case file:read_file(Name) of
-	    {ok,<<"%!PS-Adobe",Rest/binary>>} ->
+    case file:read_file(Name) of
+	{ok,<<"%!PS-Adobe",Rest/binary>>} ->
 		Objs = tokenize_bin(Rest),
 		Closedpaths = [ P || P <- Objs, P#path.close == true ],
 		Cntrs = getcontours(Closedpaths),
