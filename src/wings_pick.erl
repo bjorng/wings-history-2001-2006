@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.118 2003/08/29 10:40:28 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.119 2003/08/31 12:30:12 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -110,13 +110,12 @@ handle_hilite_event(#mousemotion{x=X,y=Y}, #hl{prev=PrevHit,st=St}=HL) ->
 	    get_hilite_event(HL);
 	none ->
 	    wings_wm:dirty(),
-	    insert_hilite_dl(none, none),
+	    insert_hilite_dl(none, St),
 	    wings_draw:update_dlists(St),
 	    get_hilite_event(HL#hl{prev=none});
 	Hit ->
 	    wings_wm:dirty(),
-	    DL = hilite_draw_sel_dl(Hit, St),
-	    insert_hilite_dl(Hit, DL),
+	    insert_hilite_dl(Hit, St),
 	    wings_draw:update_dlists(St),
 	    get_hilite_event(HL#hl{prev=Hit})
     end;
@@ -126,23 +125,20 @@ handle_hilite_event(_, _) ->
     insert_hilite_dl(none, none),
     next.
 
-insert_hilite_dl(Hit, DL) ->
+insert_hilite_dl(Hit, St) ->
     wings_draw_util:map(fun(D, _) ->
-				insert_hilite_dl_1(D, Hit, DL)
+				insert_hilite_dl_1(D, Hit, St)
 			end, []).
 
-insert_hilite_dl_1(#dlo{src_we=#we{id=Id}}=D, {_,_,{Id,_}}, DL) ->
-    {D#dlo{hilite=DL},[]};
-insert_hilite_dl_1(D, _, _) -> {D#dlo{hilite=none},[]}.
-
-hilite_draw_sel_dl({Mode,_,{Id,Item}=Hit}, #st{shapes=Shs}=St) ->
+insert_hilite_dl_1(#dlo{src_we=#we{id=Id}}=D, {Mode,_,{Id,Item}=Hit}, St) ->
     List = gl:genLists(1),
     gl:newList(List, ?GL_COMPILE),
     hilite_color(Hit, St),
-    We = gb_trees:get(Id, Shs),
-    hilit_draw_sel(Mode, Item, We),
+    hilit_draw_sel(Mode, Item, D),
     gl:endList(),
-    List.
+    D#dlo{hilite=List};
+insert_hilite_dl_1(#dlo{hilite=none}=D, _, _) -> D;
+insert_hilite_dl_1(D, _, _) -> D#dlo{hilite=none}.
 
 hilite_color({Id,Item}, #st{sel=Sel}) ->
     Key = case keysearch(Id, 1, Sel) of
@@ -155,35 +151,35 @@ hilite_color({Id,Item}, #st{sel=Sel}) ->
 	  end,
     gl:color3fv(wings_pref:get_value(Key)).
 
-hilit_draw_sel(vertex, V, #we{vp=Vtab}) ->
+hilit_draw_sel(vertex, V, #dlo{src_we=#we{vp=Vtab}}) ->
     gl:pointSize(wings_pref:get_value(selected_vertex_size)),
     gl:'begin'(?GL_POINTS),
     gl:vertex3fv(gb_trees:get(V, Vtab)),
     gl:'end'();
-hilit_draw_sel(edge, Edge, #we{es=Etab,vp=Vtab}) ->
+hilit_draw_sel(edge, Edge, #dlo{src_we=#we{es=Etab,vp=Vtab}}) ->
     #edge{vs=Va,ve=Vb} = gb_trees:get(Edge, Etab),
     gl:lineWidth(wings_pref:get_value(selected_edge_width)),
     gl:'begin'(?GL_LINES),
     gl:vertex3fv(gb_trees:get(Va, Vtab)),
     gl:vertex3fv(gb_trees:get(Vb, Vtab)),
     gl:'end'();
-hilit_draw_sel(face, Face, We) ->
+hilit_draw_sel(face, Face, D) ->
     case wings_pref:get_value(selection_style) of
 	stippled -> gl:enable(?GL_POLYGON_STIPPLE);
 	solid -> ok
     end,
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
     wings_draw_util:begin_end(fun() ->
-				      wings_draw_util:unlit_face(Face, We)
+				      wings_draw_util:unlit_face(Face, D)
 			      end),
     gl:disable(?GL_POLYGON_STIPPLE);
-hilit_draw_sel(body, _, #we{fs=Ftab}=We) ->
+hilit_draw_sel(body, _, #dlo{src_we=#we{fs=Ftab}}=D) ->
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
     wings_draw_util:begin_end(
       fun() ->
-	      foreach(fun({Face,Edge}) ->
-			      wings_draw_util:unlit_face(Face, Edge, We)
-		      end, gb_trees:to_list(Ftab))
+	      foreach(fun(Face) ->
+			      wings_draw_util:unlit_face(Face, D)
+		      end, gb_trees:keys(Ftab))
       end).
 
 %%
