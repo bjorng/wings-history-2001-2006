@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.13 2002/01/30 14:55:06 dgud Exp $
+%%     $Id: wings_camera.erl,v 1.14 2002/02/01 05:19:10 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -87,7 +87,7 @@ blender_event(#mousemotion{x=X,y=Y}, Camera0, Redraw) ->
 	Other ->
 	    rotate(Dx, Dy)
     end,
-    Redraw(),
+    redraw(Redraw),
     get_blender_event(Camera, Redraw);
 blender_event(Other, Camera, Redraw) -> keep.
 
@@ -129,7 +129,7 @@ nendo_event(#mousemotion{x=X,y=Y,state=Buttons}, Camera0, Redraw) ->
 	Other ->				%MMB and/or RMB pressed.
 	    zoom(Dy/10)
     end,
-    Redraw(),
+    redraw(Redraw),
     get_nendo_event(Camera, Redraw);
 nendo_event(#keyboard{keysym=#keysym{sym=Sym}}=Event, Camera, Redraw) ->
     case nendo_pan(Sym, Redraw) of
@@ -138,8 +138,8 @@ nendo_event(#keyboard{keysym=#keysym{sym=Sym}}=Event, Camera, Redraw) ->
 	    case wings_hotkey:event(Event) of
 		{view,smooth_preview} -> ok;
 		{view,Cmd} ->
-		    wings_view:command(Cmd, #st{}),
-		    Redraw();
+		    wings_view:command(Cmd, get_st(Redraw)),
+		    redraw(Redraw);
 		Other -> ok
 	    end
     end,
@@ -158,7 +158,7 @@ nendo_pan(_, _) -> next.
 
 nendo_pan(Dx, Dy, Redraw) ->
     pan(Dx, Dy),
-    Redraw(),
+    redraw(Redraw),
     keep.
     
 get_nendo_event(Camera, Redraw) ->
@@ -188,7 +188,7 @@ tds_event(#mousemotion{x=X,y=Y}, Camera0, Redraw) ->
 	Other ->
 	    pan(Dx/10, Dy/10)
     end,
-    Redraw(),
+    redraw(Redraw),
     get_tds_event(Camera, Redraw);
 tds_event(Other, Camera, Redraw) -> keep.
 
@@ -225,7 +225,7 @@ maya_event(#mousemotion{x=X,y=Y,state=Buttons}, Camera0, Redraw) ->
 	    pan(Dx/10, Dy/10);
 	true -> ok
     end,
-    Redraw(),
+    redraw(Redraw),
     get_maya_event(Camera, Redraw);
 maya_event(Other, Camera, Redraw) -> keep.
 
@@ -239,6 +239,15 @@ maya_stop_camera(Camera) ->
 %%%
 %%% Common utilities.
 %%%		     
+
+redraw(#st{}=St) ->
+    wings:redraw(St);
+redraw(Redraw) when is_function(Redraw) ->
+    Redraw().
+
+get_st(#st{}=St) -> St;
+get_st(Redraw) when is_function(Redraw) ->
+    #st{}.
 
 rotate(Dx, Dy) ->
     #view{azimuth=Az0,elevation=El0} = View = wings_view:current(),
@@ -281,45 +290,3 @@ camera_mouse_range(X0, Y0, #camera{x=OX,y=OY, xt=Xt0, yt=Yt0}=Camera) ->
 	    wings_io:warp(OX, OY),
 	    {XD/?CAMDIV, YD/?CAMDIV, Camera#camera{xt=XD0, yt=YD0}}
     end.
-
-%camera_mouse_range(OX, OY, #camera{x=OX,y=OY,xs=Xs,ys=Ys}=Camera) ->
-%    io:format("zero: ~p\n", [{OX,OY}]),
-%    {0/?CAMDIV, 0/?CAMDIV, Camera};
-%camera_mouse_range(X0, Y0, #camera{x=OX,y=OY,xs=Xs,ys=Ys}=Camera) ->
-%    io:format("~p\n", [{X0,Y0}]),
-%    XD = (X0 - OX),
-%    YD = (Y0 - OY),
-%    case {XD, YD} of
-%	{0,0} ->
-%	    ignore;
-%	_ ->
-%	    wings_io:warp(OX, OY)
-%    end,
-%    {XD/?CAMDIV, YD/?CAMDIV, Camera#camera{xs = XD + Xs, ys = YD + Ys}}.
-
-%camera_mouse_range(X0, Y0, #camera{x=OX,y=OY,xs=Xs,ys=Ys}=Camera) ->
-%    [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
-%    if
-%	X0 =:= W-1 ->+ Xs
-%	    NewX = W div 2,
-%	    camera_warp(NewX, Y0, NewX, 0, Camera);
-%	X0 =:= 0 ->
-%	    NewX = W div 2,
-%	    camera_warp(NewX, Y0, -NewX, 0, Camera);
-%	Y0 =:= H-1 ->
-%	    NewY = H div 2,
-%	    camera_warp(X0, NewY, 0, NewY, Camera);
-%	Y0 =:= 0 ->
-%	    NewY = H div 2,
-%	    camera_warp(X0, NewY, 0, -NewY, Camera);
-%	true ->
-%	    X = X0 + Xs,
-%	    Y = Y0 + Ys,
-%	    Dx = (X-OX) / 4,
-%	    Dy = (Y-OY) / 4,
-%	    {Dx,Dy,Camera#camera{x=X,y=Y}}
-%    end.
-
-%camera_warp(X, Y, XsInc, YsInc, #camera{xs=Xs,ys=Ys}=Camera) ->
-%    wings_io:warp(X, Y),
-%    camera_mouse_range(X, Y, Camera#camera{xs=Xs+XsInc,ys=Ys+YsInc}).
