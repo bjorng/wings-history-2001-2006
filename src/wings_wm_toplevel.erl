@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.41 2003/11/12 16:19:37 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.42 2003/11/12 17:16:39 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -677,16 +677,47 @@ max(_, B) -> B.
 
 new_closer(Client) ->
     {X,Y} = closer_pos(Client),
+    W0 = title_height() - 5,
+    W = W0 + W0 rem 2,
+    H = W - 1,
     Z = wings_wm:win_z(Client),
     Name = {closer,Client},
-    wings_wm:new(Name, {X,Y,Z}, {14,11},
-		 {push,fun close_event/1}),
+    wings_wm:new(Name, {X,Y,Z}, {W,H}, {push,fun close_event/1}),
     Name.
 
 close_event(redraw) ->
     wings_io:ortho_setup(),
-    wings_io:draw_icons(fun() -> wings_io:draw_icon(0, 0, small_close) end),
-    keep;
+    {W,H} = wings_wm:win_size(),
+    wings_io:gradient_border(0, 0, W-1, H-1, ?PANE_COLOR, {0,0,0}, false),
+    gl:color3b(0, 0, 0),
+    if
+	H < 12 ->
+	    Close = <<
+		     2#11001100,
+		     2#01111000,
+		     2#00110000,
+		     2#01111000,
+		     2#11001100
+		     >>,
+	    Half = (W-6) div 2,
+	    gl:rasterPos2i(Half+1, H - Half),
+	    gl:bitmap(6, 5, 0, 0, 0, 0, Close),
+	    keep;
+	true ->
+	    Close = <<
+		     2#11000011,
+		     2#01100110,
+		     2#00111100,
+		     2#00011000,
+		     2#00111100,
+		     2#01100110,
+		     2#11000011
+		     >>,
+	    Half = (W-8) div 2,
+	    gl:rasterPos2i(Half+1, H - Half),
+	    gl:bitmap(8, 7, 0, 0, 0, 0, Close),
+	    keep
+    end;
 close_event(got_focus) ->
     wings_wm:message("Close this window"),
     wings_wm:dirty();
@@ -854,11 +885,11 @@ toolbar_pos(Client) ->
 
 closer_pos(Client) ->
     {X,_} = wings_wm:win_ul(Client),
-    TitleH = title_height(),
+    CloserH = title_height() - 6,
     {_,Y0} = menubar_pos(Client),
-    Y = Y0 - TitleH + (TitleH-14) div 2 + 1,
+    Y = Y0 - CloserH - 3,
     W = controller_width(Client),
-    {X+W-16,Y}.
+    {X+W-CloserH-4,Y}.
 
 resizer_pos(Client) ->
     {{X,Y},{W,H}} = wings_wm:win_rect(Client),
