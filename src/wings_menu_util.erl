@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu_util.erl,v 1.12 2002/03/25 09:54:15 bjorng Exp $
+%%     $Id: wings_menu_util.erl,v 1.13 2002/03/31 10:54:14 bjorng Exp $
 %%
 
 -module(wings_menu_util).
@@ -155,7 +155,7 @@ magnet_scale_rot_fun(Vec, Point) ->
        (2, _Ns) -> ignore;
        (3, Ns) -> {vector,{pick,[point],[Vec],Ns}};
        ({magnet,1}, Ns) -> {vector,{pick,[magnet],[Point,Vec],Ns}};
-       ({magnet,2}, _Ns) -> ignore;
+       ({magnet,2}, Ns) -> {vector,{pick,[magnet_options],[Point,Vec],Ns}};
        ({magnet,3}, Ns) ->
 	    Magnet = magnet_data(),
 	    wings_menu:build_command({Vec,Point,Magnet}, Ns)
@@ -241,7 +241,7 @@ move_magnet_fun(Vec, Ns) ->
        (2, _) -> ignore;
        (3, _) -> ignore;
        ({magnet,1}, _) -> {vector,{pick,[magnet],[Vec],Ns}};
-       ({magnet,2}, _) -> ignore;
+       ({magnet,2}, _) -> {vector,{pick,[magnet_options],[Vec],Ns}};
        ({magnet,3}, _) ->
 	    Magnet = magnet_data(),
 	    wings_menu:build_command({Vec,Magnet}, Ns)
