@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.268 2003/10/12 06:10:22 bjorng Exp $
+%%     $Id: wings.erl,v 1.269 2003/10/21 19:47:29 bjorng Exp $
 %%
 
 -module(wings).
@@ -518,6 +518,7 @@ command({edit,repeat}, #st{selmode=Mode,repeatable=Cmd0}=St) ->
     case repeatable(Mode, Cmd0) of
 	no -> keep;
 	Cmd when is_tuple(Cmd) ->
+	    io:format("~p\n", [Cmd]),
 	    wings_wm:later({action,Cmd}),
 	    {keep_temp_sel,St}
     end;
@@ -919,14 +920,21 @@ use_command(#mousebutton{state=?SDL_RELEASED,button=N}=Ev,
     end;
 use_command(_, _) -> keep.
 
-do_use_command(#mousebutton{x=X,y=Y}, Cmd, #st{sel=[]}=St0) ->
+do_use_command(#mousebutton{x=X,y=Y}, Cmd0, #st{sel=[]}=St0) ->
     case wings_pref:get_value(use_temp_sel) of
 	false ->
 	    keep;
 	true ->
-	    wings_wm:later({action,Cmd}),
 	    case wings_pick:do_pick(X, Y, St0) of
-		{add,_,St} -> main_loop_noredraw(set_temp_sel(St0, St));
+		{add,_,#st{selmode=Mode}=St} ->
+		    %% The selection mode may have changed.
+		    %% Must check (and possibly convert) the command again.
+		    case repeatable(Mode, Cmd0) of
+			no -> keep;
+			Cmd ->
+			    wings_wm:later({action,Cmd}),
+			    main_loop_noredraw(set_temp_sel(St0, St))
+		    end;
 		_Other -> keep
 	    end
     end;
