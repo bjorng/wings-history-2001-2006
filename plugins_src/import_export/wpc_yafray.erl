@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.12 2003/02/28 09:08:50 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.13 2003/02/28 12:58:30 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -39,20 +39,20 @@
 -define(DEF_CONE_ANGLE, 45.0).
 -define(DEF_SPOT_EXPONENT, 2.0).
 
--record(modulator, {mode=off,
-		    size_x=1.0,
-		    size_y=1.0,
-		    size_z=1.0,
-		    opacity=1.0,
-		    diffuse=0.0,
-		    specular=0.0,
-		    ambient=0.0,
-		    shininess=0.0,
-		    type=jpeg,
-		    filename=".jpg",
-		    color1={0.0,0.0,0.0,1.0},
-		    color2={1.0,1.0,1.0,1.0},
-		    depth=2}).
+-define(DEF_MOD_MODE, off).
+-define(DEF_MOD_SIZE_X, 1.0).
+-define(DEF_MOD_SIZE_Y, 1.0).
+-define(DEF_MOD_SIZE_Z, 1.0).
+-define(DEF_MOD_OPACITY, 1.0).
+-define(DEF_MOD_DIFFUSE, 0.0).
+-define(DEF_MOD_SPECULAR, 0.0).
+-define(DEF_MOD_AMBIENT, 0.0).
+-define(DEF_MOD_SHININESS, 0.0).
+-define(DEF_MOD_TYPE, jpeg).
+-define(DEF_MOD_FILENAME, ".jpg").
+-define(DEF_MOD_COLOR1, {0.0,0.0,0.0,1.0}).
+-define(DEF_MOD_COLOR2, {1.0,1.0,1.0,1.0}).
+-define(DEF_MOD_DEPTH, 2).
 
 
 
@@ -146,13 +146,22 @@ modulator_dialogs([Modulator|Modulators], M) ->
     modulator_dialog(Modulator, M)++
 	modulator_dialogs(Modulators, M+1).
 
-modulator_dialog(#modulator{mode=Mode,size_x=SizeX,size_y=SizeY,size_z=SizeZ,
-			    opacity=Opacity,diffuse=Diffuse,specular=Specular,
-			    ambient=Ambient,shininess=Shininess,
-			    type=Type,
-			    filename=Filename,
-			    color1=Color1,color2=Color2,depth=Depth},
-		 M) ->
+modulator_dialog({modulator,Ps}, M) when list(Ps) ->
+%    erlang:display({?MODULE,?LINE,[Ps]}),
+    Mode = proplists:get_value(mode, Ps, ?DEF_MOD_MODE),
+    SizeX = proplists:get_value(size_x, Ps, ?DEF_MOD_SIZE_X),
+    SizeY = proplists:get_value(size_y, Ps, ?DEF_MOD_SIZE_Y),
+    SizeZ = proplists:get_value(size_z, Ps, ?DEF_MOD_SIZE_Z),
+    Opacity = proplists:get_value(opacity, Ps, ?DEF_MOD_OPACITY),
+    Diffuse = proplists:get_value(diffuse, Ps, ?DEF_MOD_DIFFUSE),
+    Specular = proplists:get_value(specular, Ps, ?DEF_MOD_SPECULAR),
+    Ambient = proplists:get_value(ambient, Ps, ?DEF_MOD_AMBIENT),
+    Shininess = proplists:get_value(shininess, Ps, ?DEF_MOD_SHININESS),
+    Type = proplists:get_value(type, Ps, ?DEF_MOD_TYPE),
+    Filename = proplists:get_value(filename, Ps, ?DEF_MOD_FILENAME),
+    Color1 = proplists:get_value(color1, Ps, ?DEF_MOD_COLOR1),
+    Color2 = proplists:get_value(color2, Ps, ?DEF_MOD_COLOR2),
+    Depth = proplists:get_value(depth, Ps, ?DEF_MOD_DEPTH),
     TypeTag = list_to_atom("type"++integer_to_list(M)),
     [{vframe,
       [{menu,[{"Delete",delete},
@@ -184,7 +193,9 @@ modulator_dialog(#modulator{mode=Mode,size_x=SizeX,size_y=SizeY,size_z=SizeZ,
 				  {label,"Depth"},
 				  {text,Depth,[{range,{1,1000}}]}]}]}]}
       ],
-      [{title,"Modulator"}]}].
+      [{title,"Modulator"}]}];
+modulator_dialog(_Modulator, _M) ->
+    []. % Discard old modulators that anyone may have
 
 modulator_result(Res) ->
     modulator_result(Res, []).
@@ -195,7 +206,7 @@ modulator_result([], Ms) ->
 modulator_result([{create_modulator,false}|Res], Ms) ->
     {reverse(Ms),Res};
 modulator_result([{create_modulator,true}|Res], Ms) ->
-    {reverse(Ms, [#modulator{}]),Res};
+    {reverse(Ms, [{modulator,[]}]),Res};
 modulator_result([delete|Res0], Ms) ->
     {_,Res} = modulator(delete, Res0),
     modulator_result(Res, Ms);
@@ -205,12 +216,13 @@ modulator_result([Mode|Res0], Ms) ->
 
 modulator(Mode, [SizeX,SizeY,SizeZ,Opacity,Diffuse,Specular,Ambient,Shininess,
 		 Type,Filename,Color1,Color2,Depth|Res]) ->
-    {#modulator{mode=Mode,size_x=SizeX,size_y=SizeY,size_z=SizeZ,
-		opacity=Opacity,diffuse=Diffuse,specular=Specular,
-		ambient=Ambient,shininess=Shininess,
-		type=Type,
-		filename=Filename,
-		color1=Color1,color2=Color2,depth=Depth},Res}.
+    Ps = [{mode,Mode},{size_x,SizeX},{size_y,SizeY},{size_z,SizeZ},
+		 {opacity,Opacity},{diffuse,Diffuse},{specular,Specular},
+		 {ambient,Ambient},{shininess,Shininess},
+		 {type,Type},{filename,Filename},
+		 {color1,Color1},{color2,Color2},{depth,Depth}],
+    {{modulator,Ps},Res}.
+
 
 
 export_dialog() ->
@@ -318,16 +330,35 @@ export_shader(F, Name, Mat) ->
     OpenGL = proplists:get_value(opengl, Mat),
     YafRay = proplists:get_value(?TAG, Mat, []),
     Modulators = proplists:get_value(modulators, YafRay, []),
-    foldl(fun (#modulator{mode=off}, N) ->
-		  N+1;
-	      (#modulator{type=jpeg,filename=FN}, N) ->
-		  export_texture_jpeg(F, [Name,$_|format(N)], FN),
-		  println(F),
-		  N+1;
-	      (#modulator{type=clouds,color1=C1,color2=C2,depth=D}, N) ->
-		  export_texture_clouds(F, [Name,$_|format(N)], C1, C2, D),
-		  println(F),
-		  N+1
+    foldl(fun ({modulator,Ps}, N) when list(Ps) ->
+		  case proplists:get_value(mode, Ps) of
+		      off ->
+			  N+1;
+		      _ ->
+			  case proplists:get_value(type, Ps) of
+			      jpeg ->
+				  Filename = 
+				      proplists:get_value(filename, Ps, 
+							  ?DEF_MOD_FILENAME),
+				  export_texture_jpeg(F, [Name,$_|format(N)], 
+						      Filename),
+				  println(F),
+				  N+1;
+			      clouds ->
+				  Color1 = proplists:get_value(color1, Ps, 
+							       ?DEF_MOD_COLOR1),
+				  Color2 = proplists:get_value(color2, Ps, 
+							       ?DEF_MOD_COLOR2),
+				  Depth = proplists:get_value(depth, Ps, 
+							      ?DEF_MOD_DEPTH),
+				  export_texture_clouds(F, [Name,$_|format(N)], 
+							Color1, Color2, Depth),
+				  println(F),
+				  N+1
+			  end
+		  end;
+	      (_, N) ->
+		  N % Ignore old modulators
 	  end, 1, Modulators),
     println(F, "<shader type=\"generic\" name=\"~s\">~n"++ 
 	    "    <attributes>", [Name]),
@@ -349,12 +380,17 @@ export_shader(F, Name, Mat) ->
     println(F, "        <IOR value=\"~.10f\"/>~n"++
 	    "        <min_refle value=\"~.10f\"/>~n"++
 	    "    </attributes>", [IOR, MinRefle]),
-    foldl(fun (#modulator{mode=off}, N) ->
-		  N+1;
-	      (M, N) ->
-		  export_modulator(F, [Name,$_,format(N)], M),
-		  println(F),
-		  N+1
+    foldl(fun ({modulator,Ps}=M, N) when list(Ps) ->
+		  case proplists:get_value(mode, Ps) of
+		      off ->
+			  N+1;
+		      _ ->
+			  export_modulator(F, [Name,$_,format(N)], M),
+			  println(F),
+			  N+1
+		  end;
+	      (_, N) ->
+		  N % Ignore old modulators
 	  end, 1, Modulators),
     println(F, "</shader>").
 
@@ -370,10 +406,16 @@ export_texture_clouds(F, Name, Color1, Color2, Depth) ->
     export_rgb(F, color2, Color2),
     println(F, "</texture>").
 
-export_modulator(F, Texname,
-		 #modulator{mode=Mode,size_x=SizeX,size_y=SizeY,size_z=SizeZ,
-			    opacity=Opacity,diffuse=Diffuse,specular=Specular,
-			    ambient=Ambient,shininess=Shininess}) ->
+export_modulator(F, Texname, {modulator,Ps}) when list(Ps) ->
+    Mode = proplists:get_value(mode, Ps, ?DEF_MOD_MODE),
+    SizeX = proplists:get_value(size_x, Ps, ?DEF_MOD_SIZE_X),
+    SizeY = proplists:get_value(size_y, Ps, ?DEF_MOD_SIZE_Y),
+    SizeZ = proplists:get_value(size_z, Ps, ?DEF_MOD_SIZE_Z),
+    Opacity = proplists:get_value(opacity, Ps, ?DEF_MOD_OPACITY),
+    Diffuse = proplists:get_value(diffuse, Ps, ?DEF_MOD_DIFFUSE),
+    Specular = proplists:get_value(specular, Ps, ?DEF_MOD_SPECULAR),
+    Ambient = proplists:get_value(ambient, Ps, ?DEF_MOD_AMBIENT),
+    Shininess = proplists:get_value(shininess, Ps, ?DEF_MOD_SHININESS),
     Color = Diffuse * Opacity,
     HardValue = Shininess,
     Transmission = Diffuse * (1.0 - Opacity),
