@@ -45,6 +45,7 @@ Howard Trickey:
 	in e3d_mesh.
 	Wrote the AI import, Triangulate & Quadrangulate, and Text
 	plug-ins.
+	Wrote the Hash A:M exporter.
 
 Anders Conradi: Wrote the Select|Edge Ring command (originally as a plug-in).
 
