@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.151 2003/08/16 17:50:34 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.152 2003/08/17 07:06:06 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -21,8 +21,8 @@
  
 -export([init/0,menu/2,command/2,redraw/1]).
 
--import(lists, [sort/1, map/2, foldl/3, reverse/1, 
-		append/1,delete/2, usort/1, max/1, min/1,
+-import(lists, [sort/1,map/2,foldl/3,reverse/1,
+		append/1,delete/2,usort/1,max/1,min/1,
 		member/2,foreach/2,keysearch/3]).
 
 init() ->
@@ -392,32 +392,28 @@ wingeom(W,H) ->
 
 draw_texture(#uvstate{dl=undefined,option=Options,areas=As}=Uvs) ->
     Materials = (Uvs#uvstate.origst)#st.mat,
-    DrawArea = fun({_,A}) ->
-		       draw_area(A, Options, Materials)
-	       end,
     Dl = gl:genLists(1),
     gl:newList(Dl, ?GL_COMPILE),
-    ?SLOW(foreach(DrawArea, gb_trees:to_list(As))),
+    foreach(fun(#we{}=We) ->
+		    draw_area(We, Options, Materials)
+	    end, gb_trees:values(As)),
     gl:endList(),
     draw_texture(Uvs#uvstate{dl=Dl});
-draw_texture(#uvstate{dl=DL,kludge_sel=Sel}=Uvs) ->
+draw_texture(#uvstate{dl=DL}=Uvs) ->
     gl:enable(?GL_DEPTH_TEST),
     gl:callList(DL),
-    case Sel of 
-	[] -> ignore;
-	_ -> %% Draw selections slightly blended
-	    {R,G,B} = wings_pref:get_value(selected_color),
-	    gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
-	    gl:enable(?GL_BLEND),
-	    gl:translatef(0.0,0.0,0.1),
-	    DrawArea = fun({_,A}) -> 
-			       draw_area(A, #setng{color = {R,G,B,0.7}, 
-						   edges = all_edges}, []) 
-		       end,
-	    lists:foreach(DrawArea, Sel),
-	    gl:disable(?GL_BLEND)
-    end,
+    draw_selection(Uvs),
     Uvs.
+
+draw_selection(#uvstate{kludge_sel=[]}) -> ok;
+draw_selection(Uvs) ->
+    {R,G,B} = wings_pref:get_value(selected_color),
+    gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
+    gl:enable(?GL_BLEND),
+    gl:translatef(0.0, 0.0, 0.1),
+    Settings = #setng{color={R,G,B,0.7},edges=all_edges},
+    sel_foreach(fun(We) -> draw_area(We, Settings, []) end, Uvs),
+    gl:disable(?GL_BLEND).
 
 setup_view({Left,Right,Bottom,Top}, Uvs) ->
     #uvstate{st=#st{mat=Mats},option=#setng{texbg=TexBg},
@@ -1092,6 +1088,7 @@ restore_wings_window(Uvs) ->
 %%% Most of this code will be rewritten as we slowly change the
 %%% internal structures.
 %%%
+
 update_dlists(#uvstate{areas=Shs,kludge_sel=[],origst=#st{mat=Mat}}) ->
     wings_draw:invalidate_dlists(#st{selmode=body,shapes=Shs,mat=Mat});
 update_dlists(#uvstate{areas=Shs0,kludge_sel=Sel,origst=#st{mat=Mat}}) ->
@@ -1114,3 +1111,7 @@ merge_chart_lists(NewAreas, AreaTree) ->
 sel_map(F, #uvstate{kludge_sel=Sel0}=Uvs) ->
     Sel = [{Id,F(0, We)} || {Id,We} <- Sel0],
     Uvs#uvstate{kludge_sel=Sel}.
+
+sel_foreach(F, #uvstate{kludge_sel=Sel}) ->
+    foreach(fun({_,#we{}=We}) -> F(We) end, Sel).
+		    
