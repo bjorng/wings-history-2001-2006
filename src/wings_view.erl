@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.40 2002/01/27 11:50:28 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.41 2002/02/03 07:22:41 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -35,6 +35,8 @@ menu(X, Y, St) ->
 	    {"Show Saved BB",show_bb,crossmark(show_bb)},
 	    {"Show Edges",show_edges,crossmark(show_edges)},
 	    {"Show Normals",show_normals,crossmark(show_normals)},
+	    {"Show Wireframe Backfaces",show_wire_backfaces,
+	     crossmark(show_wire_backfaces)},
 	    separator,
 	    {"Reset View",reset},
 	    {"Aim",aim},
@@ -151,6 +153,7 @@ init() ->
     wings_pref:set_default(number_of_lights, 1),
     wings_pref:set_default(show_normals, false),
     wings_pref:set_default(show_bb, true),
+    wings_pref:set_default(show_wire_backfaces, false),
 
     %% Always reset the following preferences + the view itself.
     wings_pref:set_value(wire_mode, false),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.50 2002/02/02 12:26:01 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.51 2002/02/03 07:22:41 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -327,46 +327,9 @@ mouse_range(X0, Y0, #drag{x=OX,y=OY,xs=Xs0,ys=Ys0, xt=Xt0, yt=Yt0}=Drag) ->
 	    Xs = Xs0 + XD,
 	    Ys = Ys0 + YD,
 	    wings_io:warp(OX, OY),
-	    {Xs/?MOUSE_DIVIDER, -Ys/?MOUSE_DIVIDER, Drag#drag{xs=Xs,ys=Ys, xt=XD0, yt=YD0}}
+	    {Xs/?MOUSE_DIVIDER,-Ys/?MOUSE_DIVIDER,
+	     Drag#drag{xs=Xs,ys=Ys,xt=XD0, yt=YD0}}
     end.
-
-%mouse_range(X, Y, #drag{x=X,y=Y,xs=Xs,ys=Ys}=Drag) ->
-%    {Xs/?MOUSE_DIVIDER,Ys/?MOUSE_DIVIDER,Drag};
-%mouse_range(X0, Y0, #drag{x=OX,y=OY,xs=Xs0,ys=Ys0}=Drag) ->
-%    wings_io:warp(OX, OY),
-%    io:format("Mouse Range ~p ~p", [{X0,Y0}, {OX,OY,Xs0,Ys0}]),
-%    XD = (X0 - OX),
-%    YD = (Y0 - OY),
-%    Xs = Xs0 + XD,
-%    Ys = Ys0 + YD,
-%    {Xs/?MOUSE_DIVIDER, -Ys/?MOUSE_DIVIDER, Drag#drag{xs=Xs,ys=Ys}}.
-
-%mouse_range(X0, Y0, #drag{x=OX,y=OY,xs=Xs,ys=Ys}=Drag) ->
-%    [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
-%    if
-%	X0 >= W-1 ->
-%	    NewX = W div 2,
-%	    warp(NewX, Y0, NewX, 0, Drag);
-%	X0 =:= 0 ->
-%	    NewX = W div 2,
-%	    warp(NewX, Y0, -NewX, 0, Drag);
-%	Y0 =:= H-1 ->
-%	    NewY = H div 2,
-%	    warp(X0, NewY, 0, NewY, Drag);
-%	Y0 =:= 0 ->
-%	    NewY = H div 2,
-%	    warp(X0, NewY, 0, -NewY, Drag);
-%	true ->
-%	    X = X0 + Xs,
-%	    Y = Y0 + Ys,
-%	    Dx = (X-OX) / ?MOUSE_DIVIDER,
-%	    Dy = (OY-Y) / ?MOUSE_DIVIDER,
-%	    {Dx,Dy,Drag}
-%    end.
-
-%warp(X, Y, XsInc, YsInc, #drag{xs=Xs,ys=Ys}=Drag) ->
-%    wings_io:warp(X, Y),
-%    mouse_range(X, Y, Drag#drag{xs=Xs+XsInc,ys=Ys+YsInc}).
 
 constrain(Dx0, Dy0, #drag{unit=Unit,constraint=Constraint}=Drag) ->
     {Dx,Dy} = case sdl_keyboard:getModState() of
@@ -554,7 +517,14 @@ draw_shapes(#drag{sel={SelMode,_}}) ->
 	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
 	    gl:enable(?GL_POLYGON_OFFSET_LINE),
 	    gl:polygonOffset(1.0, 1.0),
-	    draw_we()
+	    case wings_pref:get_value(show_wire_backfaces) of
+		true ->
+		    gl:disable(?GL_CULL_FACE),
+		    draw_we(),
+		    gl:enable(?GL_CULL_FACE);
+		false ->
+		    draw_we()
+	    end
     end,
 
     %% Don't draw unselected vertices.

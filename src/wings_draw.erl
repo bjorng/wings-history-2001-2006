@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.55 2002/02/02 12:26:01 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.56 2002/02/03 07:22:41 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -126,7 +126,14 @@ draw_plain_shapes(#st{selmode=SelMode}=St) ->
 	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
 	    gl:enable(?GL_POLYGON_OFFSET_LINE),
 	    gl:polygonOffset(1.0, 1.0),
-	    draw_faces()
+	    case wings_pref:get_value(show_wire_backfaces) of
+		true ->
+		    gl:disable(?GL_CULL_FACE),
+		    draw_faces(),
+		    gl:enable(?GL_CULL_FACE);
+		false ->
+		    draw_faces()
+	    end
     end,
 
     gl:disable(?GL_POLYGON_OFFSET_LINE),
