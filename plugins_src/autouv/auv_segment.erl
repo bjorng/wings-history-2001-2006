@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.25 2002/10/26 18:03:37 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.26 2002/10/26 19:08:35 bjorng Exp $
 
 -module(auv_segment).
 
@@ -658,15 +658,12 @@ cut_edges(Faces, Cuts0, We, Map) ->
     end.
 
 cut_edges_1(Faces, Cuts, We0, Map0) ->
-    ?DBG("Cuts: ~w\n", [gb_sets:to_list(Cuts)]),
     Vs = wings_edge:to_vertices(Cuts, We0),
     {We1,Map1} = bevel_cut_vs(Vs, We0, Map0),
     NewEdges = wings_we:new_items(edge, We0, We1),
     {We2,Map,MaybeRem} = cut_new_edges(gb_sets:to_list(NewEdges), We1, Map1, []),
     We3 = connect_edges(gb_sets:to_list(Cuts), We2),
     We = cut_cleanup(Faces, MaybeRem, We3),
-    ?DBG("Validate\n", []),
-    wings_util:validate(We),
     {We,Map}.
 
 bevel_cut_vs([V|Vs], We0, Map0) ->
