@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.73 2004/12/27 12:15:33 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.74 2004/12/27 16:40:21 bjorng Exp $
 
 -module(auv_segment).
 
@@ -631,10 +631,11 @@ find_delete(Face,Level,Dist0,Next0,Fs0,Fg) ->
 
 segment_by_direction(We) ->
     Rel = foldl(fun({_,'_hole_'}, A) -> A;
+		   ({_,?HOLE}, A) -> A;
 		   ({Face,_}, A) ->
 			N = wings_face:normal(Face, We),
 			[{seg_dir(N),Face}|A]
-		end, [], wings_material:get_all(We)),
+		end, [], wings_facemat:all(We)),
     segment_by_cluster(Rel, We).
 
 seg_dir({X,Y,Z}) ->
@@ -652,9 +653,8 @@ seg_dir({X,Y,Z}) ->
 segment_by_material(We) ->
     Rel = foldl(fun({_,'_hole_'}, A) -> A;
 		   ({_,?HOLE}, A) -> A;
-		   ({Face,Name}, A) when Face >= 0 -> [{Name,Face}|A];
-		   ({_,_}, A) -> A
-		end, [], wings_material:get_all(We)),
+		   ({Face,Name}, A) -> [{Name,Face}|A]
+		end, [], wings_facemat:all(We)),
     segment_by_cluster(Rel, We).
 
 %% segment_by_cluster([{Key,Face}], We)

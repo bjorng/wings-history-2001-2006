@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_import.erl,v 1.21 2004/10/12 18:05:30 bjorng Exp $
+%%     $Id: wings_import.erl,v 1.22 2004/12/27 16:40:27 bjorng Exp $
 %%
 
 -module(wings_import).
@@ -155,7 +155,7 @@ rename_materials([_|_]=NameMap0, We) ->
     NameMap = gb_trees:from_orddict(sort(NameMap0)),
     rename_materials(NameMap, We);
 rename_materials(NameMap, We) ->
-    MatTab0 = wings_material:get_all(We),
+    MatTab0 = wings_facemat:all(We),
     MatTab = foldl(fun({Face,Mat0}=Pair, A) ->
 			   case gb_trees:lookup(Mat0, NameMap) of
 			       none -> [Pair|A];

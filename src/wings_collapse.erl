@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_collapse.erl,v 1.42 2004/12/26 09:40:47 bjorng Exp $
+%%     $Id: wings_collapse.erl,v 1.43 2004/12/27 16:40:27 bjorng Exp $
 %%
 
 -module(wings_collapse).
@@ -35,7 +35,7 @@ collapse(#st{selmode=vertex}=St0) ->
 
 collapse_faces(Faces, #we{id=Id}=We0, SelAcc)->
     We1 = foldl(fun collapse_face/2, We0, gb_sets:to_list(Faces)),
-    We = wings_material:cleanup(We1),
+    We = wings_facemat:gc(We1),
     check_consistency(We),
     Sel = wings_we:new_items_as_gbset(vertex, We0, We),
     {We,[{Id,Sel}|SelAcc]}.

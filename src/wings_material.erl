@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.124 2004/12/18 19:36:20 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.125 2004/12/27 16:40:27 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -16,11 +16,11 @@
 	 mat_faces/2,add_materials/2,add_materials/3,
 	 update_materials/2,
 	 update_image/4,used_images/1,
-	 get/2,get_all/1,delete_face/2,delete_faces/2,cleanup/1,
+	 get/2,get_all/1,delete_face/2,delete_faces/2,
 	 assign/3,replace_materials/2,assign_materials/2,
-	 used_materials/1,used_materials_we/1,
+	 used_materials/1,
 	 apply_material/2,is_transparent/2,
-	 renumber/2,merge/1]).
+	 merge/1]).
 
 %% For debugging.
 -export([validate/1]).
@@ -419,20 +419,13 @@ no_texture() ->
 
 used_materials(#st{shapes=Shs,mat=Mat0}) ->
     Used0 = foldl(fun(We, A) ->
-			  [used_materials_we(We)|A]
+			  [wings_facemat:used_materials(We)|A]
 		  end, [], gb_trees:values(Shs)),
-    Used1 = gb_sets:union(Used0),
-    Used2 = sofs:from_external(gb_sets:to_list(Used1), [name]),
+    Used1 = ordsets:union(Used0),
+    Used2 = sofs:from_external(Used1, [name]),
     Mat = sofs:relation(gb_trees:to_list(Mat0), [{name,data}]),
     Used = sofs:restriction(Mat, Used2),
     sofs:to_external(Used).
-
-used_materials_we(#we{mat=Mat}) when is_atom(Mat) ->
-    gb_sets:singleton(Mat);
-used_materials_we(#we{mat=MatTab}) ->
-    Used0 = sofs:from_external(MatTab, [{face,material}]),
-    Used = sofs:range(Used0),
-    gb_sets:from_list(sofs:to_external(Used)).
 
 %% Return all image ids used by materials.
 
@@ -727,27 +720,6 @@ delete_faces(Faces0, #we{mat=MatTab0}=We) when is_list(Faces0) ->
 delete_faces(Faces, We) ->
     delete_faces(gb_sets:to_list(Faces), We).
 
-cleanup(#we{mat=Mat}=We) when is_atom(Mat) -> We;
-cleanup(#we{mat=Mat0,fs=Ftab}=We) ->
-    Fs = sofs:from_external(gb_trees:keys(Ftab), [face]),
-    Mat1 = sofs:from_external(Mat0, [{face,material}]),
-    Mat2 = sofs:restriction(Mat1, Fs),
-    Mat = sofs:to_external(Mat2),
-    case mat_all_same(Mat) of
-	true ->
-	    [{_,M}|_] = Mat,
-	    We#we{mat=M};
-	false ->
-	    We#we{mat=Mat}
-    end.
-
-mat_all_same([]) -> false;
-mat_all_same([{_,M}|T]) -> mat_all_same_1(T, M).
-
-mat_all_same_1([{_,M}|T], M) -> mat_all_same_1(T, M);
-mat_all_same_1([], _) -> true;
-mat_all_same_1(_, _) -> false.
-
 replace_materials(FaceMat, We) ->
     We#we{mat=sort(FaceMat)}.
     
@@ -793,13 +765,6 @@ mat_merge([], Fos, Acc) ->
     reverse(Acc, Fos);
 mat_merge(Fns, [], Acc) ->
     reverse(Acc, Fns).
-
-renumber(Mat, _) when is_atom(Mat) -> Mat;
-renumber(L, Fmap) -> renumber_1(L, Fmap, []).
-
-renumber_1([{F,M}|T], Fmap, Acc) ->
-    renumber_1(T, Fmap, [{gb_trees:get(F, Fmap),M}|Acc]);
-renumber_1([], _, Acc) -> reverse(Acc).
 
 merge([{M,_}|T]=L) ->
     case all_same(T, M) of

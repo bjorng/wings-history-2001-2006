@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.284 2004/12/27 12:15:32 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.285 2004/12/27 16:40:21 bjorng Exp $
 %%
 
 -module(wpc_autouv).
@@ -121,7 +121,7 @@ auv_event(_Ev, _) -> keep.
 %%%
 
 start_edit(We, St) ->
-    MatNames0 = wings_material:get_all(We),
+    MatNames0 = wings_facemat:all(We),
     MatNames1 = sofs:from_external(MatNames0, [{face,material}]),
     MatNames2 = sofs:converse(MatNames1),
     MatNames3 = sofs:relation_to_family(MatNames2),

@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.89 2004/12/26 09:40:47 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.90 2004/12/27 16:40:27 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -104,18 +104,17 @@ hide_faces(Fs, We) ->
     hide_faces_1(Fs, We).
 
 hide_faces_1(Fs, #we{es=Etab0}=We0) ->
-    Etab1 = gb_trees:to_list(Etab0),
-    Etab2 = foldl(fun({E,#edge{lf=Lf0,rf=Rf0}=R0}, A) ->
-			  Lf = hide_map_face(Lf0, Fs),
-			  Rf = hide_map_face(Rf0, Fs),
-			  case R0#edge{lf=Lf,rf=Rf} of
-			      R0 -> [{E,R0}|A];
-			      R -> [{E,R}|A]
-			  end
-		  end, [], Etab1),
-    Etab = gb_trees:from_orddict(reverse(Etab2)),
+    Map = fun(_, #edge{lf=Lf0,rf=Rf0}=R0) ->
+		  Lf = hide_map_face(Lf0, Fs),
+		  Rf = hide_map_face(Rf0, Fs),
+		  case R0#edge{lf=Lf,rf=Rf} of
+		      R0 -> R0;
+		      R -> R
+		  end
+	  end,
+    Etab = wings_util:gb_trees_map(Map, Etab0),
     We = We0#we{es=Etab,fs=undefined},
-    rebuild(We).
+    wings_facemat:hide_faces(rebuild(We)).
 
 hide_map_face(F, Fs) ->
     case gb_sets:is_member(F, Fs) of
@@ -146,18 +145,15 @@ show_faces(We) ->
     end.
 
 show_faces_1(#we{es=Etab0}=We0) ->
-    Etab1 = gb_trees:to_list(Etab0),
-    Etab2 = foldl(fun({E,#edge{lf=Lf0,rf=Rf0}=R0}, A) ->
-			  Lf = show_face(Lf0),
-			  Rf = show_face(Rf0),
-			  case R0#edge{lf=Lf,rf=Rf} of
-			      R0 -> [{E,R0}|A];
-			      R -> [{E,R}|A]
-			  end
-		  end, [], Etab1),
-    Etab = gb_trees:from_orddict(reverse(Etab2)),
+    Map = fun(_, #edge{lf=Lf0,rf=Rf0}=R) when Lf0 < 0; Rf0 < 0 ->
+		  Lf = show_face(Lf0),
+		  Rf = show_face(Rf0),
+		  R#edge{lf=Lf,rf=Rf};
+	     (_, R) -> R
+	  end,
+    Etab = wings_util:gb_trees_map(Map, Etab0),
     We = We0#we{es=Etab,fs=undefined},
-    rebuild(We).
+    wings_facemat:show_faces(rebuild(We)).
 
 show_face(F) when F < 0 -> -F-1;
 show_face(F) -> F.
@@ -541,7 +537,7 @@ do_renumber(#we{mode=Mode,vp=Vtab0,es=Etab0,fs=Ftab0,
     Vtab = renumber_vertices(Vtab1, Vmap),
 
     Fmap = make_map(gb_trees:to_list(Ftab0), Id),
-    MatTab = wings_material:renumber(MatTab0, Fmap),
+    MatTab = wings_facemat:renumber(MatTab0, Fmap),
 
     Etab1 = gb_trees:to_list(Etab0),
     Emap = make_map(Etab1, Id),
@@ -696,7 +692,7 @@ copy_dependents(We0) ->
     Vtab1 = sofs:relation(gb_trees:to_list(Vtab0), [{vertex,edge}]),
     Vtab2 = sofs:restriction(Vtab1, Vs),
     Vtab = gb_trees:from_orddict(sofs:to_external(Vtab2)),
-    wings_material:cleanup(We#we{he=Htab,vp=Vtab}).
+    wings_facemat:gc(We#we{he=Htab,vp=Vtab}).
 
 %% build_incident_tab([{Elem,Edge}]) -> GbTree([{Elem,Edge1}])
 %%      Elem = Face or Vertex

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_seg_ui.erl,v 1.29 2004/12/25 11:03:25 bjorng Exp $
+%%     $Id: auv_seg_ui.erl,v 1.30 2004/12/27 16:40:21 bjorng Exp $
 %%
 
 -module(auv_seg_ui).
@@ -276,22 +276,20 @@ seg_create_materials(St0) ->
     {St,[]} = wings_material:add_materials(M, St0),
     St.
 
-seg_hide_other(Id, #st{selmode=face,sel=[{Id,Faces}],shapes=Shs}=St0) ->
+seg_hide_other(Id, #st{selmode=face,sel=[{Id,Faces}],shapes=Shs}=St) ->
     We0 = gb_trees:get(Id, Shs),
     Other = wings_sel:inverse_items(face, Faces, We0),
     We = wings_we:hide_faces(Other, We0),
-    St = St0#st{sel=[{Id,Other}],shapes=gb_trees:update(Id, We, Shs)},
-    wings_material:command({assign,atom_to_list(?HOLE)}, St);
+    wings_sel:clear(St#st{shapes=gb_trees:update(Id, We, Shs)});
 seg_hide_other(_, St) -> St.    
 
 seg_map_charts(Method, #seg{st=#st{shapes=Shs},we=OrigWe}=Ss) ->
     wings_pb:start("preparing mapping"),
-    [We0] = gb_trees:values(Shs),
-    #we{he=Cuts0} = We1 = wings_we:show_faces(We0),
+    [#we{he=Cuts0}=We] = gb_trees:values(Shs),
     wings_pb:update(0.12, "segmenting"),
-    Charts0 = (catch auv_segment:segment_by_material(We1)),
+    Charts0 = auv_segment:segment_by_material(We),
     wings_pb:update(0.35, "normalizing"),
-    {Charts1,Cuts} = auv_segment:normalize_charts(Charts0, Cuts0, We1),
+    {Charts1,Cuts} = auv_segment:normalize_charts(Charts0, Cuts0, We),
     wings_pb:update(1.0, "cutting"),
     Charts = auv_segment:cut_model(Charts1, Cuts, OrigWe),
     wings_pb:done(),

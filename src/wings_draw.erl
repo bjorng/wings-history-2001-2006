@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.210 2004/12/21 06:48:12 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.211 2004/12/27 16:40:27 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -108,17 +108,18 @@ only_permissions_changed(#we{perm=P}, #we{perm=P}) -> false;
 only_permissions_changed(We0, We1) -> We0#we{perm=0} =:= We1#we{perm=0}.
     
 invalidate_by_mat(Changed0) ->
-    Changed = gb_sets:from_list(Changed0),
+    Changed = ordsets:from_list(Changed0),
     wings_dl:map(fun(D, _) -> invalidate_by_mat(D, Changed) end, []).
 
 invalidate_by_mat(#dlo{work=none,vs=none,smooth=none,proxy_faces=none}=D, _) ->
     %% Nothing to do.
     D;
 invalidate_by_mat(#dlo{src_we=We}=D, Changed) ->
-    Used = wings_material:used_materials_we(We),
-    case gb_sets:is_empty(gb_sets:intersection(Used, Changed)) of
-	true -> D;
-	false -> D#dlo{work=none,edges=none,vs=none,smooth=none,proxy_faces=none}
+    Used = wings_facemat:used_materials(We),
+    case ordsets:intersection(Used, Changed) of
+	[] -> D;
+	[_|_] ->
+	    D#dlo{work=none,edges=none,vs=none,smooth=none,proxy_faces=none}
     end.
 
 invalidate_sel(#dlo{src_we=#we{id=Id},src_sel=SrcSel}=D,
@@ -525,7 +526,7 @@ split_2(#dlo{mirror=M,src_sel=Sel,src_we=#we{fs=Ftab}=We,
     StaticEdgeDl = make_static_edges(Faces, D),
     {DynVs,VsDlist} = split_vs_dlist(Vs, StaticVs, Sel, We),
 
-    WeDyn = wings_material:cleanup(We#we{fs=gb_trees:from_orddict(FtabDyn)}),
+    WeDyn = wings_facemat:gc(We#we{fs=gb_trees:from_orddict(FtabDyn)}),
     DynPlan = wings_draw_util:prepare(FtabDyn, We, St),
     StaticVtab = insert_vtx_data(StaticVs, We#we.vp, []),
 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_export.erl,v 1.9 2004/12/18 19:36:20 bjorng Exp $
+%%     $Id: wings_export.erl,v 1.10 2004/12/27 16:40:27 bjorng Exp $
 %%
 
 -module(wings_export).
@@ -82,7 +82,7 @@ make_mesh_1(We0, SubDivs) ->
 			    #e3d_face{vs=[_,_]} -> A;
 			    E3DFace -> [E3DFace|A]
 			end
-		end, [], wings_material:get_all(We)),
+		end, [], wings_facemat:all(We)),
     Fs = reverse(Fs0),
     He = hard_edges(gb_sets:to_list(He0), Etab, []),
     Matrix = e3d_mat:identity(),
