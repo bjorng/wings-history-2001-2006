@@ -4,12 +4,12 @@
 %%     This module contains the Collapse commands (for vertices,
 %%     edges, and faces).
 %%
-%%  Copyright (c) 2001 Jakob Cederlund, Bjorn Gustavsson
+%%  Copyright (c) 2001-2002 Jakob Cederlund, Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_collapse.erl,v 1.15 2002/01/06 22:29:35 bjorng Exp $
+%%     $Id: wings_collapse.erl,v 1.16 2002/01/18 18:51:24 bjorng Exp $
 %%
 
 -module(wings_collapse).
@@ -194,9 +194,15 @@ do_collapse_vertex(V, We0, Sel0) ->
 	    
 collapse_vertex_1(Vremove, #we{es=Es0,vs=Vs0,fs=Fs0,he=He0}=We0, Sel0)->
     %% start removing faces and edges
-    Edges = get_vertex_edges(Vremove, We0),
-    Vlist = [wings_vertex:other(Vremove, gb_trees:get(E, Es0)) || E <- Edges],
-
+    VsEs = wings_vertex:fold(
+	     fun(E, _, Rec, Acc0) ->
+		     OtherV = wings_vertex:other(Vremove, Rec),
+		     [{OtherV,E}|Acc0]
+	     end, [], Vremove, We0),
+    Edges = [E || {_,E} <- VsEs],
+    Vlist = reverse([V || {V,_} <- VsEs]),
+    check_vertices(Vlist),
+    
     %% simple test to see if we need to connect vertices
     %% (we're just looking at closest from removed vertex,
     %% which probably isn't good enough)
@@ -211,13 +217,20 @@ collapse_vertex_1(Vremove, #we{es=Es0,vs=Vs0,fs=Fs0,he=He0}=We0, Sel0)->
 	    end, Sel0, Vremove, We),
     {wings_edge:dissolve_edges(Edges, We),Sel}.
 
-make_pairs(L) when list(L) ->
-    make_pairs(L, hd(L), []).
+make_pairs([H|_]=L) ->
+    make_pairs(L, H, []).
 
-make_pairs([A], F, Acc) ->
-    [[A,F] | Acc];
-make_pairs([A,B | Rest], F, Acc) ->
-    make_pairs([B | Rest], F, [[A,B] | Acc]).
+make_pairs([A], F, Acc) -> [[A,F]|Acc];
+make_pairs([A|[B|_]=T], F, Acc) -> make_pairs(T, F, [[A,B]|Acc]).
+
+check_vertices(Vs0) ->
+    check_vertices_1(sort(Vs0)).
+
+check_vertices_1([V,V|_]) ->
+    throw({command_error,"Non-collapsible vertex - would leave waist."});
+check_vertices_1([V|Vs]) ->
+    check_vertices(Vs);
+check_vertices_1([]) -> ok.
 
 %% Delete a degenerate face (a face consisting of only two edges).
 delete_degenerated(Face, #we{fs=Ftab,es=Etab}=We) ->
@@ -258,9 +271,3 @@ patch_vtx_refs(OldV, NewV, We, {_,_}=Acc) ->
 		  none -> A		%An deleted edge.
 	      end
       end, Acc, OldV, We).
-
-get_vertex_edges(V, We) ->
-    wings_vertex:fold(
-      fun(E, _, _, Acc0) ->
-	      [E|Acc0]
-      end, [], V, We).
