@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.198 2004/03/11 07:03:07 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.199 2004/03/12 05:42:53 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -401,7 +401,10 @@ command_menu(body, X, Y) ->
 	    separator,
 	    {"Move", move, "Move selected charts"},
 	    {"Scale", {scale, Scale}, "Scale selected charts"},
-	    {"Rotate", {rotate, Rotate}, "Rotate selected charts"}
+	    {"Rotate", {rotate, Rotate}, "Rotate selected charts"},
+	    separator,
+	    {"Tighten",tighten,
+	     "Move UV coordinates towards average midpoint"}
 % 	    separator,
 % 	    {"Rescale All", rescale_all, "Pack the space in lower-left before rescaling"}
 	   ] ++ option_menu(),
@@ -449,10 +452,6 @@ handle_event({new_state,#st{selmode=Mode,sel=Sel,shapes=Shs}}, #st{bb=Uvs}=St0) 
     GeomSt = wings_select_faces(Sel, St1),
     St2 = St1#st{bb=Uvs#uvstate{st=GeomSt}},
     St = update_selected_uvcoords(St2),
-    get_event(St);
-handle_event({new_uv_state,St0}, _) ->
-    St = update_selected_uvcoords(St0),
-    wings_wm:dirty(),
     get_event(St);
 handle_event(Ev, St) ->
     case wings_camera:event(Ev, fun() -> redraw(St) end) of
@@ -533,11 +532,27 @@ handle_command({rotate,Deg}, St0) ->
     St1 = wpa:sel_map(fun(_, We) -> rotate_chart(Deg, We) end, St0),
     St = update_selected_uvcoords(St1),
     get_event(St);
+handle_command(tighten, St) ->
+    tighten(St);
 handle_command(_, #st{sel=[]}) ->
     keep.
 
 drag({drag,Drag}) ->
     wings_drag:do_drag(Drag, none).
+
+tighten(St) ->
+    Tvs = wings_sel:fold(fun tighten/3, [], St),
+    {drag,Drag} = wings_drag:setup(Tvs, [percent], St),
+    wings_drag:do_drag(Drag, none).
+
+tighten(_, #we{vp=Vtab}=We, A) ->
+    Vs = [V || V <- gb_trees:keys(Vtab), not_bordering(V, We)],
+    wings_vertex_cmd:tighten(Vs, We, A).
+
+not_bordering(V, #we{fs=Ftab}=We) ->
+    wings_vertex:fold(fun(_, _, _, false) -> false;
+			 (_, F, _, true) -> gb_trees:is_defined(F, Ftab)
+		      end, true, V, We).
 
 % handle_command_1(rescale_all, Uvs0) ->
 %     Uvs = clear_selection(Uvs0),
