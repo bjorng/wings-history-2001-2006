@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.33 2003/01/02 17:40:29 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.34 2003/01/02 20:56:15 bjorng Exp $
 %%
 
 -module(wings_shape).
@@ -93,7 +93,7 @@ get_event(Ost) ->
 event(redraw, Ost) ->
     wings_io:ortho_setup(),
     {_,_,W,H} = wings_wm:viewport(),
-    wings_io:border(0, 0, W-1, H-1, ?PANE_COLOR),
+    wings_io:border(0.5, 0.5, W-0.5, H-1.5, ?PANE_COLOR),
     draw_objects(Ost),
     keep;
 event({current_state,St}, Ost0) ->
@@ -410,12 +410,12 @@ draw_objects_1(0, _, _, _, _, _) -> ok;
 draw_objects_1(N, [#we{id=Id,name=Name,perm=Perm}|Wes],
 	       #ost{sel=Sel,lh=Lh,eye=Eye,lock=Lock}=Ost, R, Active, Y) ->
     LockPos = lock_pos(),
-    wings_io:sunken_rect(3, Y-11, 12, 13, ?PANE_COLOR),
+    wings_io:sunken_rect(3.5, Y-11, 12, 13, ?PANE_COLOR),
     wings_io:sunken_rect(LockPos-2, Y-11, 12, 13, ?PANE_COLOR),
     wings_io:sunken_rect(R, Y-9, 9, 11, ?PANE_COLOR),
     if
 	?IS_VISIBLE(Perm) ->
-	    gl:rasterPos2i(5, Y),
+	    gl:rasterPos2f(4.5, Y),
 	    draw_char(Eye);
 	true -> ok
     end,
@@ -423,7 +423,7 @@ draw_objects_1(N, [#we{id=Id,name=Name,perm=Perm}|Wes],
 	?IS_SELECTABLE(Perm); ?IS_NOT_VISIBLE(Perm) ->
 	    ok;
 	true ->
-    	    gl:rasterPos2i(LockPos, Y),
+    	    gl:rasterPos2f(LockPos, Y),
 	    draw_char(Lock)
     end,
     case keymember(Id, 1, Sel) of
@@ -477,7 +477,7 @@ right_pos() ->
     W-13.
 
 lock_pos() ->
-    20.
+    19.5.
 
 name_pos() ->
     37.
