@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mesh.erl,v 1.39 2004/06/27 11:58:56 bjorng Exp $
+%%     $Id: e3d_mesh.erl,v 1.40 2004/06/29 09:05:52 bjorng Exp $
 %%
 
 -module(e3d_mesh).
@@ -523,11 +523,21 @@ rn_remove_unused([V|Vs], Map, I, Acc) ->
     end;
 rn_remove_unused([], _, _, Acc) -> reverse(Acc).
 
-rn_used_vs(#e3d_mesh{fs=Ftab}) ->
+rn_used_vs(#e3d_mesh{fs=Ftab,tx=TxTab,ns=Ntab}) ->
     Vs = foldl(fun(#e3d_face{vs=Vs}, A) -> Vs++A end, [], Ftab),
-    UV = foldl(fun(#e3d_face{tx=Tx}, A) -> Tx++A end, [], Ftab),
-    Ns = foldl(fun(#e3d_face{ns=Ns}, A) -> Ns++A end, [], Ftab),
-    {ordsets:from_list(Vs),ordsets:from_list(UV),ordsets:from_list(Ns)}.
+    UV = case TxTab of
+	     [] -> [];
+	     _ ->
+		 UV0 = foldl(fun(#e3d_face{tx=Tx}, A) -> Tx++A end, [], Ftab),
+		 ordsets:from_list(UV0)
+	     end,
+    Ns = case Ntab of
+	     [] -> [];
+	     _ ->
+		 Ns0 = foldl(fun(#e3d_face{ns=Ns}, A) -> Ns++A end, [], Ftab),
+		 ordsets:from_list(Ns0)
+	 end,
+    {ordsets:from_list(Vs),UV,Ns}.
 
 rn_make_map([V], I, Acc0) ->
     [{Low,_}|_] = Acc = reverse(Acc0, [{V,I}]),
