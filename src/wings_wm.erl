@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.147 2004/11/14 13:47:27 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.148 2004/11/15 04:10:32 bjorng Exp $
 %%
 
 -module(wings_wm).
--export([toplevel/6,toplevel_title/2,set_knob/3]).
+-export([toplevel/6,toplevel_title/1,toplevel_title/2,set_knob/3]).
 -export([init/0,enter_event_loop/0,dirty/0,dirty_mode/1,pdirty/0,
 	 reinit_opengl/0,
 	 new/4,delete/1,raise/1,
@@ -1110,6 +1110,11 @@ message_setup() ->
 
 toplevel(Name, Title, Pos, Size, Flags, Op) ->
     wings_wm_toplevel:toplevel(Name, Title, Pos, Size, Flags, Op).
+
+toplevel_title(Title) ->
+    Win = this(),
+    send({controller,Win}, {title,Title}),
+    ok.
 
 toplevel_title(Win, Title) ->
     send({controller,Win}, {title,Title}),

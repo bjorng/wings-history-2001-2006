@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_it.lang,v 1.25 2004/11/14 13:47:26 bjorng Exp $
+%%     $Id: wings_it.lang,v 1.26 2004/11/15 04:10:32 bjorng Exp $
 %%
 
 {wings,
@@ -1112,10 +1112,11 @@
     {13,"Importa"},
     {14,"Importa la tavolozza da un documento"}]},
   {event,
-   [{1,"Assegna il colore alla selezione  [Ctrl]+L: Pulisci colore"},
+   [{1,"Assegna il colore alla selezione"},
     {2,"Modifica colore"},
-    {3,"Mostra il menu"}]},
-  {window,
+    {3,"Mostra il menu"},
+    {4,"Pulisci colore"}]},
+  {title,
    [{1,"Tavolozza"}]}]}.
 {wings_pb,
  [{loop,

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_palette.erl,v 1.10 2004/10/08 06:02:30 dgud Exp $
+%%     $Id: wings_palette.erl,v 1.11 2004/11/15 04:10:32 bjorng Exp $
 %%
 -module(wings_palette).
 
@@ -52,7 +52,7 @@ window(Pos, Size = {W,_}, St) ->
     Pst = #pst{st=St, cols=add_empty(Cols,ColsW,ColsH), w=ColsW, h=ColsH},
     Op  = {seq,push,event({current_state,St}, Pst)},
     Props = [{display_lists,geom_display_lists}],
-    wings_wm:toplevel(palette,?STR(window,1,"Palette") , Pos, Size,
+    wings_wm:toplevel(palette, title(), Pos, Size,
 		      [{sizeable,?PANE_COLOR},
 		       closable, vscroller,
 		       {anchor,ne},
@@ -63,6 +63,9 @@ window(Pos, Size = {W,_}, St) ->
 	end,
     wings_wm:set_prop(palette, drag_filter, F),
     wings_wm:dirty().
+
+title() ->
+    ?STR(title,1,"Palette").
 
 palette(#st{pal=[]}) -> [];
 palette(#st{pal=Pal0}) ->
@@ -131,15 +134,22 @@ event({set_knob_pos, Pos}, Pst = #pst{h=N,knob=Knob}) ->
 event(close, _) ->
     delete;
 event(got_focus, _) ->
-    Msg = wings_util:button_format(?STR(event,1,"Assign color to selection  [Ctrl]+L: Clear Color"),
-				   ?STR(event,2,"Edit Color"),
-				   ?STR(event,3,"Show menu")),
+    L = wings_util:button_format(?STR(event,1,"Assign color to selection")),
+    MR = wings_util:button_format([],
+				  ?STR(event,2,"Edit color"),
+				  ?STR(event,3,"Show menu")),
+    %% XXX: Using Ctrl here will not work on a Mac with a one-button
+    %% mouse. We should probably use Command instead?
+    Ctrl = wings_s:key(ctrl),
+    CL = Ctrl ++ "+" ++
+	wings_util:button_format(?STR(event,4,"Clear color")),
+    Msg = wings_util:join_msg([L,CL,MR]),
     wings_wm:message(Msg),
     wings_wm:dirty();
 
 event({current_state,St = #st{pal=StPal}}, Pst=#pst{w=W,h=H}) ->
     case StPal of
-	[] ->  %%% Hmm think this through
+	[] ->  %%% Hm... think this through...
 	    get_event(Pst#pst{st=St});
 	_ ->
 	    get_event(Pst#pst{st=St, cols=add_empty(StPal,W,H)})
@@ -268,9 +278,10 @@ event({drop,{X,Y},{material,Name}}, #pst{cols=Cols0,st=St}=Pst) ->
 	    Cols = Bef ++ [color(Color)|Rest],
 	    get_event(update(Cols, Pst))
     end;
-event(_Ev, _Pst) ->
-%%    io:format("Missed Ev ~p~n", [_Ev]),
-    keep.
+event(language_changed, _) ->
+    wings_wm:toplevel_title(title()),
+    keep;
+event(_Ev, _Pst) -> keep.
 
 update_scroller(First,Total) ->
     {_,_,_,H} = wings_wm:viewport(),

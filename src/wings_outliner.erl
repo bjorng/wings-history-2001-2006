@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.53 2004/11/14 13:47:26 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.54 2004/11/15 04:10:32 bjorng Exp $
 %%
 
 -module(wings_outliner).
@@ -161,7 +161,7 @@ event({drop,{_,Y}=Pos,DropData}, #ost{os=Objs}=Ost) ->
 	    handle_drop(DropData, Obj, Pos, Ost)
     end;
 event(language_changed, _) ->
-    wings_wm:toplevel_title(wings_wm:this(), title()),
+    wings_wm:toplevel_title(title()),
     keep;
 event(Ev, Ost) ->
     case wings_hotkey:event(Ev) of

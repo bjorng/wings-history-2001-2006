@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sv.lang,v 1.39 2004/11/14 13:47:26 bjorng Exp $
+%%     $Id: wings_sv.lang,v 1.40 2004/11/15 04:10:32 bjorng Exp $
 %%
 
 {wings,
@@ -1177,10 +1177,11 @@
     {13,"Importera"},
     {14,"Importera en palett från fil"}]},
   {event,
-   [{1,"Sätt färg på markerade element [Ctrl]+L: Rensa färg"},
+   [{1,"Sätt färg på markerade element"},
     {2,"Redigera färg"},
-    {3,"Visa meny"}]},
-  {window,
+    {3,"Visa meny"},
+    {4,"Rensa färg"}]},
+  {title,
    [{1,"Palett"}]}]}.
 {wings_pb,
  [
