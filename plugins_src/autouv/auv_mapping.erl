@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_mapping.erl,v 1.66 2005/03/30 22:46:36 dgud Exp $
+%%     $Id: auv_mapping.erl,v 1.67 2005/03/31 22:10:15 dgud Exp $
 %%
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
@@ -54,56 +54,67 @@
 
 map_chart(Type, We, Options) ->
     Faces = wings_we:visible(We),
-    case wpa:face_outer_edges(Faces, We) of
+    case auv_placement:group_edge_loops(Faces, We) of
 	[] ->
 	    {error,"A closed surface cannot be mapped. "
 	     "(Either divide it into into two or more charts, "
 	     "or cut it along some edges.)"};
-	[[_,_]] ->
+	[{_,[_,_]}] ->
 	    {error,"A cut in a closed surface must consist of at least two edges."};
 	_ when Type == lsqcm, is_list(Options), length(Options) < 2 ->
 	    {error,"At least 2 vertices (per chart) must be selected"};
-	[_] ->
-	    map_chart_1(Type, Faces, Options, We);
-	[_,_|_] ->
-	    map_chart_1(Type, Faces, Options, We)
+	[Best|_] ->
+	    map_chart_1(Type, Faces, Best, Options, We)
     end.
 
-map_chart_1(Type, Chart, Options, We) ->
-    try map_chart_2(Type, Chart, Options, We)
+map_chart_1(Type, Chart, Loop, Options, We) ->
+    try map_chart_2(Type, Chart, Loop, Options, We)
     catch error:{badarith,_} ->
 	    {error,"Numeric problem, probably a bad face with an empty area."};
 	throw:What ->
 	    {error,lists:flatten(What)};
 	_:Reason ->
 	    Msg = io_lib:format("Internal error: ~P", [Reason,10]),
+	    io:format("~p:~p Error ~p~n  ~p ~n",
+		      [?MODULE,?LINE,Reason,erlang:get_stacktrace()]),
 	    {error,lists:flatten(Msg)}
     end.
 
-map_chart_2(project, C, _, We) ->    projectFromChartNormal(C, We);
-map_chart_2(camera, C, Dir, We) ->   projectFromCamera(C, Dir, We);
-map_chart_2(sphere, C, _, We) ->     spheremap(C, We);
-map_chart_2(lsqcm, C, Pinned, We) -> lsqcm(C, Pinned, We).
+map_chart_2(project, C, _, _, We) ->    projectFromChartNormal(C, We);
+map_chart_2(camera, C, _, Dir, We) ->   projectFromCamera(C, Dir, We);
+map_chart_2(sphere, C, Loop, _, We) ->  spheremap(C, Loop,We);
+map_chart_2(lsqcm, C, Loop, Pinned, We) -> lsqcm(C, Pinned, Loop, We).
 
-spheremap(Chart,We) ->
+
+spheremap(Chart, Loop, We = #we{vp=Vtab}) ->
+    %% Rotates to +Z axis
     Vs = projectFromChartNormal(Chart,We),
-    Proj = 
-	fun({V,{X0,Y0,Z0}}) ->
+    {{V1,_},{V2,_}} = find_pinned(Loop,We),
+    V1p = gb_trees:get(V1,Vtab),
+    V2p = gb_trees:get(V2,Vtab),
+    {Npole,Spole} = if element(2,V1p) > element(2,V2p) -> {V1p,V2p};
+		       true -> {V2p,V1p}
+		    end,
+    Center = e3d_vec:average(Npole,Spole),
+    io:format("Center ~p is of ~p~n  ~p~n",[Center,{V1,V2},{Npole,Spole}]),
+    Proj =
+	fun({V,Pos0}) ->
+		Pos1 = e3d_vec:sub(Pos0,Center),
+		%% Rotate and normalize
+		{X0,Y0,Z0} = e3d_vec:norm(Pos1),
 		X = clamp_near_zero(X0),
-		Y = clamp_near_zero(Y0),
-		Z = clamp_near_zero(Z0),
-		{S,T} = {angle(Z,X),angle(abs(Z),Y)},
-		io:format("V=~p {~.2f,~.2f,~.2f} => {~.2f,~.2f}~n",
-			  [V,X,Y,Z,S,T]),
+		T = math:acos(-Y0)/math:pi()-0.5,
+		S = case {X,clamp_near_zero(Z0)} of
+			{0.0,0.0} -> 0.0;
+			{X,Z} -> math:atan2(X,Z)/math:pi()
+		    end,
+		io:format("~p: {~.5f,~.5f,~.5f} => {~.2f,~.2f}~n",
+			  [V,X0,Y0,Z0,S,T]),
 		{V,{S,T,0.0}}
 	end,
     lists:map(Proj, Vs).
-
-angle(X,Y) ->
-    PI = math:pi(),
-    math:atan2(Y,X)/PI.
 	    
-clamp_near_zero(Z) when Z < 1.0e-8, Z > -1.0e-8 -> 0.0;
+clamp_near_zero(Z) when Z < 1.0e-5, Z > -1.0e-5 -> 0.0;
 clamp_near_zero(Z) -> Z.     
     
 projectFromChartNormal(Chart, We) ->
@@ -181,14 +192,14 @@ project_faces([Face|Fs], We, I, Tris,Area) ->
 project_faces([],_,_,Tris,Area) -> 
     {Tris,Area}.
 
-lsqcm(Fs, Pinned0, We) ->
+lsqcm(Fs, Pinned0, Loop, We) ->
     ?DBG("Project and tri ~n", []),
     TriWe = wings_tesselation:triangulate(Fs, We),
     TriFs = Fs ++ wings_we:new_items_as_ordset(face, We, TriWe),
     {Vs1,Area} = project_faces(TriFs,TriWe,-1,[],0.0),
     Pinned = case Pinned0 of
 		 none -> 
-		     {V1, V2} = find_pinned(Fs, We),
+		     {V1, V2} = find_pinned(Loop,We),
 		     [V1,V2];
 		 _ -> 
 		     Pinned0
@@ -221,18 +232,8 @@ calc_2dface_area([Face|Rest],We,Area) ->
 calc_2dface_area([],_,Area) ->
     Area.
 
-find_border_edges(Faces, We) ->
-    case auv_placement:group_edge_loops(Faces, We) of
-	[] -> 
-	    exit({invalid_chart, {Faces, is_closed_surface}});
-	[Best|_] ->
-	    Best
-    end.
-find_pinned(Faces, We) ->
-    {Circumference, BorderEdges} = find_border_edges(Faces,We),
-    find_pinned_from_edges(BorderEdges, Circumference, We).
-find_pinned_from_edges(BorderEdges, Circumference, We) ->
-    Vs = [gb_trees:get(V1, We#we.vp) || {V1,_,_,_} <-BorderEdges],
+find_pinned({Circumference, BorderEdges}, We) ->
+    Vs = [gb_trees:get(V1, We#we.vp) || {V1,_,_,_} <- BorderEdges],
     Center = e3d_vec:average(Vs),
     AllC = lists:map(fun({Id,_,_,_}) ->
 			     Pos = gb_trees:get(Id, We#we.vp),
