@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.20 2003/03/18 23:05:49 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.21 2003/03/19 16:22:03 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -318,7 +318,8 @@ modulator_dialog({modulator,Ps}, M, Maps) when list(Ps) ->
 	    _ ->
 		[{hframe,
 		  lists:map(fun ({Map,_}) ->
-				    {key_alt,TaggedType,atom_to_list(Map),Map}
+				    {key_alt,TaggedType,atom_to_list(Map),
+				     {map,Map}}
 			    end, Maps)}]
 	end,
     [{vframe,
@@ -673,59 +674,15 @@ export_shader(F, Name, Mat, ExportDir) ->
     YafRay = proplists:get_value(?TAG, Mat, []),
     Modulators = proplists:get_value(modulators, YafRay, []),
     Maps = proplists:get_value(maps, Mat, []),
-    foldl(fun ({modulator,Ps}, N) when list(Ps) ->
+    foldl(fun ({modulator,Ps}=M, N) when list(Ps) ->
 		  case proplists:get_value(mode, Ps) of
 		      off ->
 			  N+1;
 		      _ ->
-			  case proplists:get_value(type, Ps) of
-			      image ->
-				  Filename = 
-				      proplists:get_value(filename, Ps, 
-							  ?DEF_MOD_FILENAME),
-				  export_texture_image(F, [Name,$_|format(N)], 
-						       Filename),
-				  println(F),
-				  N+1;
-			      jpeg ->
-				  Filename = 
-				      proplists:get_value(filename, Ps, 
-							  ?DEF_MOD_FILENAME),
-				  export_texture_image(F, [Name,$_|format(N)], 
-						       Filename),
-				  println(F),
-				  N+1;
-			      clouds ->
-				  Color1 = proplists:get_value(color1, Ps, 
-							       ?DEF_MOD_COLOR1),
-				  Color2 = proplists:get_value(color2, Ps, 
-							       ?DEF_MOD_COLOR2),
-				  Depth = proplists:get_value(depth, Ps, 
-							      ?DEF_MOD_DEPTH),
-				  export_texture_clouds(F, [Name,$_|format(N)], 
-							Color1, Color2, Depth),
-				  println(F),
-				  N+1;
-			      Map ->
-				  case proplists:get_value(Map, Maps, none) of
-				      none ->
-					  exit({unknown_texture_map,
-						{?MODULE,?LINE,
-						 [Name,Mat,Map]}});
-				      #e3d_image{name=ImageName}=Image ->
-					  MapFile = ImageName++".tga",
-					  ok = e3d_image:save(
-						 Image, 
-						 filename:join(
-						   ExportDir,
-						   MapFile)),
-					  export_texture_image(
-					    F, 
-					    [Name,$_|format(N)],
-					    MapFile)
-				  end,
-				  N+1
-			  end
+			  export_texture(F, [Name,$_,format(N)], 
+					 Maps, ExportDir, M),
+			  println(F),
+			  N+1
 		  end;
 	      (_, N) ->
 		  N % Ignore old modulators
@@ -763,6 +720,38 @@ export_shader(F, Name, Mat, ExportDir) ->
 		  N % Ignore old modulators
 	  end, 1, Modulators),
     println(F, "</shader>").
+
+export_texture(F, Name, Maps, ExportDir, {modulator,Ps}) when list(Ps) ->
+    case proplists:get_value(type, Ps) of
+	image ->
+	    Filename = 
+		proplists:get_value(filename, Ps, 
+				    ?DEF_MOD_FILENAME),
+	    export_texture_image(F, Name, Filename);
+	jpeg -> %% Old tag
+	    Filename = 
+		proplists:get_value(filename, Ps, 
+				    ?DEF_MOD_FILENAME),
+	    export_texture_image(F, Name, Filename);
+	clouds ->
+	    Color1 = proplists:get_value(color1, Ps, 
+					 ?DEF_MOD_COLOR1),
+	    Color2 = proplists:get_value(color2, Ps, 
+					 ?DEF_MOD_COLOR2),
+	    Depth = proplists:get_value(depth, Ps, 
+					?DEF_MOD_DEPTH),
+	    export_texture_clouds(F, Name, Color1, Color2, Depth);
+	{map,Map} ->
+	    case proplists:get_value(Map, Maps, none) of
+		none ->
+		    exit({unknown_texture_map,{?MODULE,?LINE,[Name,Map]}});
+		#e3d_image{name=ImageName}=Image ->
+		    MapFile = ImageName++".tga",
+		    ok = e3d_image:save(Image, 
+					filename:join(ExportDir, MapFile)),
+		    export_texture_image(F, Name, MapFile)
+	    end
+    end.
 
 export_texture_image(F, Name, Filename) ->
     println(F, "<texture type=\"image\" name=\"~s\">~n"++
@@ -827,8 +816,9 @@ export_object(F, NameStr, #e3d_mesh{}=Mesh, Mats) ->
 	    "        emit_rad=\"on\" recv_rad=\"on\">~n"++
 	    "    <attributes>",
 	    [NameStr,"w_"++format(DefaultMaterial),IOR]),
-    export_rgb(F, caus_rcolor, 
-	       {Dr*Opacity,Dg*Opacity,Db*Opacity,1.0}),
+    export_rgb(F, caus_rcolor, proplists:get_value(ambient, OpenGL)),
+%    export_rgb(F, caus_rcolor, 
+%	       {Dr*Opacity,Dg*Opacity,Db*Opacity,1.0}),
     export_rgb(F, caus_tcolor, 
 	       {Dr*Transparency,Dg*Transparency,Db*Transparency,1.0}),
     println(F, "    </attributes>"),
