@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.95 2003/06/12 06:20:41 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.96 2003/06/13 12:04:18 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -269,54 +269,18 @@ marquee_pick(true, X, Y0, W, H, St0) ->
     case pick_all(true, X, Y0, W, H, St0) of
 	{none,_}=R -> R;
 	{Hits0,St} ->
-	    Hits1 = marquee_filter(Hits0, St),
-	    Hits2 = wings_util:rel2fam(Hits1),
-	    HitsOrig = [Hit || {Id,_}=Hit <- Hits2, Id > 0],
-	    HitsMirror = [Hit || {Id,_}=Hit <- Hits2, Id < 0],
+	    Hits1 = wings_util:rel2fam(Hits0),
+	    HitsOrig = [Hit || {Id,_}=Hit <- Hits1, Id > 0],
+	    HitsMirror = [Hit || {Id,_}=Hit <- Hits1, Id < 0],
 	    {MM,PM,ViewPort} = wings_util:get_matrices(0, original),
 	    {_,_,_,Wh} = ViewPort,
 	    Y = Wh - Y0,
 	    RectData = {MM,PM,ViewPort,X-W/2,Y-H/2,X+W/2,Y+H/2},
-	    Hits3 = marquee_convert(HitsOrig, RectData, St, []),
-	    Hits4 = marquee_convert(HitsMirror, RectData, St, []),
-	    Hits = sofs:to_external(sofs:union(Hits3, Hits4)),
+	    Hits2 = marquee_convert(HitsOrig, RectData, St, []),
+	    Hits3 = marquee_convert(HitsMirror, RectData, St, []),
+	    Hits = sofs:to_external(sofs:union(Hits2, Hits3)),
 	    {Hits,St}
     end.
-
-marquee_filter(Hits, #st{selmode=Mode,shapes=Shs}) ->
-    EyePoint = wings_view:eye_point(),
-    marquee_filter_1(Hits, Shs, Mode, EyePoint, []).
-
-marquee_filter_1([{Id,Face}|Hits], Shs, Mode, EyePoint, Acc) ->
-    We = gb_trees:get(abs(Id), Shs),
-    Ps = [P|_] = face_vtx_pos(Face, Id, We),
-    N = e3d_vec:normal(Ps),
-    D = e3d_vec:dot(P, N),
-    case e3d_vec:dot(EyePoint, N) of
-	S when S < D ->				%Ignore back-facing face.
-	    marquee_filter_1(Hits, Shs, Mode, EyePoint, Acc);
-	_S ->					%Front-facing face.
-	    marquee_filter_1(Hits, Shs, Mode, EyePoint, [{Id,Face}|Acc])
-    end;
-marquee_filter_1([{_}|Hits], Shs, Mode, EyePoint, Acc) ->
-    marquee_filter_1(Hits, Shs, Mode, EyePoint, Acc);
-marquee_filter_1([], _, _, _, Acc) -> Acc.
-
-face_vtx_pos(Face, Id, We) when Id < 0 ->
-    Vs = wings_face:vertices_ccw(Face, We),
-    Ps = vspos(Vs, We),
-    Mtx = wings_util:mirror_matrix(-Id),
-    mul_points(Mtx, Ps);
-face_vtx_pos(Face, _, We) ->
-    Vs = wings_face:vertices_cw(Face, We),
-    vspos(Vs, We).
-
-vspos(Vs, #we{vp=Vtab}) -> vspos(Vs, Vtab, []);
-vspos(Vs, Vtab) -> vspos(Vs, Vtab, []).
-    
-vspos([V|Vs], Vtab, Acc) ->
-    vspos(Vs, Vtab, [gb_trees:get(V, Vtab)|Acc]);
-vspos([], _, Acc) -> Acc.
 
 marquee_convert([{Id,Faces}|Hits], RectData0,
 	       #st{selmode=Mode,shapes=Shs}=St, Acc) ->
@@ -474,7 +438,9 @@ raw_pick(X0, Y0, St) ->
     glu:pickMatrix(X, Y, S, S, {0,0,W,H}),
     wings_view:perspective(),
     wings_view:model_transformations(),
+    gl:enable(?GL_CULL_FACE),
     select_draw(St),
+    gl:disable(?GL_CULL_FACE),
     gl:flush(),
     case get_hits(HitBuf) of
 	none -> none;
@@ -570,20 +536,8 @@ filter_hits_1([{Id,Face}|Hits], Shs, Mode, X, Y, EyePoint, Hit0) ->
 	  end,
     We = gb_trees:get(abs(Id), Shs),
     Vs = wings_face:vertices_cw(Face, We),
-    Ps0 = vspos(Vs, We),
-    [P|_] = Ps = mul_points(Mtx, Ps0),
-    N = if
-	    Id < 0 -> e3d_vec:neg(e3d_vec:normal(Ps));
-	    true -> e3d_vec:normal(Ps)
-	end,
-    D = e3d_vec:dot(P, N),
-    case e3d_vec:dot(EyePoint, N) of
- 	S when S < D ->				%Ignore back-facing face.
- 	    filter_hits_1(Hits, Shs, Mode, X, Y, EyePoint, Hit0);
-	_S ->					%Candidate.
-	    Hit = best_hit(Id, Face, Vs, We, EyePoint, Mtx, Hit0),
-	    filter_hits_1(Hits, Shs, Mode, X, Y, EyePoint, Hit)
-    end;
+    Hit = best_hit(Id, Face, Vs, We, EyePoint, Mtx, Hit0),
+    filter_hits_1(Hits, Shs, Mode, X, Y, EyePoint, Hit);
 filter_hits_1([], _Shs, _Mode, _X, _Y, _EyePoint, none) -> none;
 filter_hits_1([], _Shs, Mode0, _X, _Y, _EyePoint, {_,{Id,_}}) ->
     %% This is a light.
@@ -600,9 +554,6 @@ filter_hits_1([], _Shs, Mode, X, Y, _EyePoint, {_,{Id,Face,We}}) ->
 mul_point(identity, P) -> P;
 mul_point(Mtx, P) -> e3d_mat:mul_point(Mtx, P).
 
-mul_points(identity, Ps) -> Ps;
-mul_points(Mtx, Ps) -> [e3d_mat:mul_point(Mtx, P) || P <- Ps].
-    
 best_hit(Id, Face, Vs, We, EyePoint, Matrix, Hit0) ->
     Center = mul_point(Matrix, wings_vertex:center(Vs, We)),
     D = e3d_vec:sub(Center, EyePoint),
@@ -738,13 +689,16 @@ pick_all(DrawFaces, X, Y0, W, H, St) ->
     gl:initNames(),
     gl:matrixMode(?GL_PROJECTION),
     gl:loadIdentity(),
-    {_,_,Ww,Wh} = wings_wm:viewport(),
+    {Ww,Wh} = wings_wm:win_size(),
     Y = Wh-Y0,
     glu:pickMatrix(X, Y, W, H, [0,0,Ww,Wh]),
     wings_view:perspective(),
     wings_view:model_transformations(),
     case DrawFaces of
-	true -> select_draw(St);
+	true ->
+	    gl:enable(?GL_CULL_FACE),
+	    select_draw(St),
+	    gl:disable(?GL_CULL_FACE);
 	false -> marquee_draw(St)
     end,
     {get_hits(HitBuf),St}.
@@ -827,11 +781,13 @@ draw_dlist(#dlo{mirror=Matrix,pick=Pick,src_we=#we{id=Id}}=D) ->
     gl:pushName(Id),
     wings_draw_util:call(Pick),
     gl:loadName(-Id),
+    gl:frontFace(?GL_CW),
     gl:pushMatrix(),
     gl:multMatrixf(Matrix),
     wings_draw_util:call(Pick),
     gl:popMatrix(),
     gl:popName(),
+    gl:frontFace(?GL_CCW),
     D.
 
 select_draw_1(#we{perm=Perm}=We) when ?IS_SELECTABLE(Perm) ->
