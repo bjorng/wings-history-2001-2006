@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.22 2002/05/18 07:09:32 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.23 2002/10/18 18:26:20 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -117,8 +117,7 @@ smooth_faces(Faces0, Id, FacePos, #we{fs=Ftab0}=We) ->
 		Ftab1 = gb_trees:to_list(Ftab0),
 		Ftab2 = sofs:relation(Ftab1, [{face,data}]),
 		FaceSet = sofs:set(Faces0, [face]),
-		Ftab = sofs:drestriction(Ftab2, FaceSet),
-		Faces1 = sofs:restriction(Ftab2, FaceSet),
+		{Faces1,Ftab} = sofs:partition(1, Ftab2, FaceSet),
 		{sofs:to_external(Faces1),sofs:to_external(Ftab)}
 	end,
     smooth_faces(Faces, Id, FacePos, [], FaceAcc, [], We).

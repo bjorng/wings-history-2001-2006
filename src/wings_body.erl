@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.38 2002/09/25 16:32:42 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.39 2002/10/18 18:26:20 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -259,11 +259,11 @@ combine(#st{shapes=Shs0,sel=[{Id,_}=S|_]=Sel0}=St) ->
     Shs1 = sofs:from_external(gb_trees:to_list(Shs0), [{id,object}]),
     Sel1 = sofs:from_external(Sel0, [{id,dummy}]),
     Sel2 = sofs:domain(Sel1),
-    Wes = sofs:to_external(sofs:range(sofs:restriction(Shs1, Sel2))),
+    {Wes0,Shs2} = sofs:partition(1, Shs1, Sel2),
+    Wes = sofs:to_external(sofs:range(Wes0)),
     Mode = unify_modes(Wes),
     We0 = wings_we:merge(Wes),
     We = We0#we{id=Id,mode=Mode},
-    Shs2 = sofs:drestriction(Shs1, Sel2),
     Shs = gb_trees:from_orddict(sort([{Id,We}|sofs:to_external(Shs2)])),
     St#st{shapes=Shs,sel=[S]}.
 
