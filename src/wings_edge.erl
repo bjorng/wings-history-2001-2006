@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.88 2004/04/08 11:24:41 dgud Exp $
+%%     $Id: wings_edge.erl,v 1.89 2004/04/14 16:18:46 dgud Exp $
 %%
 
 -module(wings_edge).
@@ -36,6 +36,9 @@
 -include("wings.hrl").
 -import(lists, [foldl/3,last/1,member/2,reverse/1,reverse/2,
 		seq/2,sort/1]).
+-import(e3d_vec, [add/1,add/2,sub/2,neg/1,norm/1,len/1,
+		  average/1,average/2,
+		  dot/2,cross/2]).
 
 menu(X, Y, St) ->
     Dir = wings_menu_util:directions(St),
@@ -415,17 +418,16 @@ cut_pick_marker({finish,[I]}, D0, Edge, We, Start, Dir, Char) ->
 %%%
 
 slide(St) ->
-%    SUp = {0.0,0.0,0.0},
-%    SDown = {0.0,0.0,0.0},
-%    SUp   = e3d_vec:norm({1.0,1.0,1.0}),
-%    SDown = e3d_vec:norm({-1.0,-1.0,-1.0}),
-    SUp   = {0.1,0.1,0.1},
-    SDown = {-0.1,-0.1,-0.1},
+    SUp = {0.0,0.0,0.0},
+    SDown = {0.0,0.0,0.0},
     {Tvs,_,_} = 
 	wings_sel:fold(
 	  fun(EsSet, #we{id=Id} = We, {Acc,Up0,Dw0}) ->
-		  Es = gb_sets:to_list(EsSet),
-		  {Slides,Up,Dw} = slide_add_edges(Es, Up0, Dw0,We,gb_trees:empty()),
+		  LofEs = wings_edge_loop:partition_edges(EsSet, We),
+		  {Slides,Up,Dw} = 
+		      foldl(fun(Es, {Prev, Up, Down}) ->
+				    slide_add_edges(Es, Up, Down,We,Prev)
+			    end, {gb_trees:empty(), Up0, Dw0}, LofEs),
 		  {[{Id, make_slide_tv(Slides)}| Acc], Up,Dw}
 	  end, {[], SUp, SDown}, St),
     Units = [distance],
@@ -452,112 +454,157 @@ make_slide_fun(Vs, Slides) ->
 	    make_slide_fun(Vs,Slides)
     end.
 
-slide_add_edges([Edge|Es], Up0, Dw0, #we{es=Etab,vp=Vtab}=We, Acc0) ->
-    #edge{vs=V1,ve=V2,ltpr=LP,ltsu=LS,rtpr=RP,rtsu=RS} = 
-	gb_trees:get(Edge, Etab),
-    
-    S1 = other(V1,gb_trees:get(RP, Etab)),
-    E1 = other(V1,gb_trees:get(LS, Etab)),
-    S2 = other(V2,gb_trees:get(RS, Etab)),
-    E2 = other(V2,gb_trees:get(LP, Etab)),
+slide_add_edges(Es0, GUp0, GDw0, We,Acc0) ->
+    {LN,LUp,Es} = slide_part_loop(Es0,We),
+    case (len(LUp) > len(LN)) or (length(Es0) == 1) of
+	true ->
+%%	    io:format("Up ~p ~p~n", [len(LUp), len(LN)]),
+	    Norm0 = norm(LUp),
+	    Dot = dot(Norm0,norm(GUp0)),
+	    Norm = if Dot < 0.0 -> neg(Norm0); true -> Norm0 end,
+	    Acc = slide_dirs(Es,Dot,Acc0),
+	    {Acc, add(Norm, GUp0), GDw0};
+	false ->
+%%	    io:format("Normal ~p ~p~n", [len(LUp), len(LN)]),
+	    Norm0 = norm(LN),
+	    Dot = dot(Norm0,norm(GUp0)),
+	    Norm = if Dot < 0.0 -> neg(Norm0); true -> Norm0 end,
+	    Acc = slide_dirs(Es,Dot,Acc0),
+	    {Acc, GUp0, add(Norm, GDw0)}
+    end.
 
-%    io:format("Slide for Edge ~p~n", [Edge]),
-    {Up,Down,V1dir,V2dir} = slide_dir(V1,S1,E1,V2,S2,E2,Up0,Dw0,Vtab),
-    Acc1 = add_slide_vertex(V1,V1dir, Acc0),
-    Acc  = add_slide_vertex(V2,V2dir, Acc1),
-    slide_add_edges(Es,Up,Down,We,Acc);
-slide_add_edges([],Up,Down,_,Acc) -> {Acc,Up,Down}.
+slide_dirs([{V1,V1dir},{V2,V2dir}|Es],Up,Acc0) ->
+    case Up < 0 of
+	true ->
+	    Acc1 = add_slide_vertex(V1,swap(V1dir), Acc0),
+	    Acc  = add_slide_vertex(V2,swap(V2dir), Acc1),
+	    slide_dirs(Es,Up,Acc);
+	false ->
+	    Acc1 = add_slide_vertex(V1,V1dir, Acc0),
+	    Acc  = add_slide_vertex(V2,V2dir, Acc1),
+	    slide_dirs(Es,Up,Acc)
+    end;
+slide_dirs([],_,Acc) -> Acc.
+
+slide_part_loop(Es,We) ->
+    Def = {0.0,0.0,0.0},
+    Eis = slide_gather_info(Es,We,[]),
+    EdsNormal = foldl(fun(EI, P) -> add(element(7,EI),P) end,
+		      Def, Eis),
+    Sz = e3d_vec:len(EdsNormal) / length(Es),
+    case wings_edge_loop:edge_loop_vertices(Es,We) of
+	[Vs] ->
+	    LoopNormal = wings_face:face_normal_cw(Vs, We),
+	    Center = wings_vertex:center(Vs, We),
+	    NormDir = dot(norm(EdsNormal), LoopNormal),
+%	    io:format("Loop ~p ~p ~n", [Sz, NormDir]),
+%	    io:format("LN ~p EN ~p ~n", [LoopNormal, EdsNormal]),
+	    if 
+		(Sz < 0.5) or (abs(NormDir) < 0.5) -> 
+%		    io:format("Updown\n", []),
+		    {_, Res} = slide_updown(Eis, LoopNormal, false, []),
+		    {Def, LoopNormal, Res};
+		NormDir > 0.0 -> 
+%		    io:format("Inout\n", []),
+		    {LoopNormal, Def, slide_inout(Eis,Center,false,[])};
+		true ->    
+%		    io:format("Inout\n", []),
+		    {neg(LoopNormal), Def, slide_inout(Eis,Center,false,[])}
+	    end;
+	_ when Sz > 0.7 -> %% Rougly the same normals try inout first.
+	    Vs = to_vertices(Es,We),
+	    Center = wings_vertex:center(Vs, We),
+	    case catch slide_inout(Eis, Center, true, []) of
+		{'EXIT', _} ->  %% Nope not a good algo
+		    {Up, Res} = slide_updown(Eis, Def, true, []),
+		    {Def, norm(Up), Res};
+		Res ->
+		    {norm(EdsNormal), Def, Res}
+	    end;
+	_ ->
+	    {Up, Res} = slide_updown(Eis, Def, true, []),
+	    {Def, norm(Up), Res}
+    end.
+
+slide_gather_info([Edge|Es],We=#we{es=Etab,vp=Vtab},Acc) ->
+    #edge{vs=V1,ve=V2,ltpr=LP,ltsu=LS,lf=LF,rtpr=RP,rtsu=RS,rf=RF} = 
+	gb_trees:get(Edge, Etab),
+    A1 = other(V1,gb_trees:get(RP, Etab)),
+    B1 = other(V1,gb_trees:get(LS, Etab)),
+    A2 = other(V2,gb_trees:get(RS, Etab)),
+    B2 = other(V2,gb_trees:get(LP, Etab)),
+    N1 = wings_face:normal(LF,We), N2 = wings_face:normal(RF,We),
+    N = norm(average(N2,N1)),
+    V1pos = gb_trees:get(V1, Vtab),V2pos = gb_trees:get(V2, Vtab),
+    A1pos = gb_trees:get(A1, Vtab),A2pos = gb_trees:get(A2, Vtab),
+    B1pos = gb_trees:get(B1, Vtab),B2pos = gb_trees:get(B2, Vtab),
+    E1v1 = norm(sub(A1pos,V1pos)), E2v1 = norm(sub(B1pos,V1pos)),
+    E1v2 = norm(sub(A2pos,V2pos)), E2v2 = norm(sub(B2pos,V2pos)), 
+    E1 = norm(average(E1v1,E1v2)), E2 = norm(average(E2v1,E2v2)),
+    New = {V1, {V1pos, E1v1, E2v1},
+	   V2, {V2pos, E1v2, E2v2},
+	   E1, E2, N},
+    slide_gather_info(Es, We, [New|Acc]);
+slide_gather_info([],_,Acc) ->
+    Acc.
+
+slide_updown([{V1,V1E,V2,V2E,E1,E2,_N}|R],Up,ModUp,Acc) ->
+    E1dotUp  = dot(E1,norm(Up)),
+    E2dotUp  = dot(E2,norm(Up)),
+    if 
+	(E1dotUp > 0.0) and (E2dotUp =< 0.0) ->
+	    slide_updown(R, add(Up,E1,ModUp), ModUp, [{V1,V1E},{V2,V2E}|Acc]);
+	(E2dotUp > 0.0) and (E1dotUp =< 0.0) ->
+	    slide_updown(R, add(Up,E2,ModUp), ModUp,[{V1,swap(V1E)},{V2,swap(V2E)}|Acc]);
+	abs(E1dotUp) > abs(E2dotUp) ->
+%	    io:format("E1 ~p E2 ~p ~nUp ~p ~p ~p~n", [E1,E2,Up,E1dotUp,E2dotUp]),
+	    if E1dotUp > 0.0 ->		    
+		    slide_updown(R,add(Up,E1,ModUp), ModUp,[{V1,V1E},{V2,V2E}|Acc]);
+	       true ->
+		    slide_updown(R,add(Up,E2,ModUp), ModUp,[{V1,swap(V1E)},{V2,swap(V2E)}|Acc])
+	    end;
+	true ->
+%	    io:format("E1 ~p E2 ~p ~nUp ~p ~p ~p~n", [E1,E2,Up,E1dotUp,E2dotUp]),
+	    if E1dotUp < 0.0 ->		    
+		    slide_updown(R,add(Up,E1,ModUp),ModUp,[{V1,V1E},{V2,V2E}|Acc]);
+	       true ->
+		    slide_updown(R,add(Up,E2,ModUp),ModUp,[{V1,swap(V1E)},{V2,swap(V2E)}|Acc])
+	    end
+    end;
+slide_updown([],Up,_,Acc) -> {Up,Acc}.
+
+add(Up, _, false) -> Up;
+add(Up, Vec, true) -> add(Up,Vec).
+    
+
+slide_inout([{V1,V1E={V1pos,_,_},V2,V2E={V2pos,_,_},E1,E2,N}|R],C,Test,Acc) ->
+    Cdir   = norm(sub(average(V1pos,V2pos),C)),
+    CdotE1 = dot(Cdir, E1), CdotE2 = dot(Cdir, E2), 
+    CdotN  = dot(Cdir, N),
+    if 
+ 	Test and ((abs(CdotN) > 0.7) or ((abs(CdotE1) < 0.5) and (abs(CdotE2) < 0.5))) ->
+%	    io:format("~p CdotN ~p CdotE1 ~p CdotE2 ~p ~n", [?LINE,CdotN,CdotE1,CdotE2]),
+	    exit(not_inout);
+	(abs(CdotE1) >= abs(CdotE2)) and (CdotE1 > 0.0) ->		    
+%	    io:format("~p~n", [?LINE]),
+	    slide_inout(R, C, Test, [{V1,V1E},{V2,V2E}|Acc]);
+	(abs(CdotE1) >= abs(CdotE2)) ->
+%	    io:format("~p~n", [?LINE]),
+	    slide_inout(R, C, Test, [{V1,swap(V1E)},{V2,swap(V2E)}|Acc]);
+	CdotE2 > 0.0 ->
+%	    io:format("~p~n", [?LINE]),
+	    slide_inout(R, C, Test, [{V1,swap(V1E)},{V2,swap(V2E)}|Acc]);
+	CdotE2 < 0.0 ->
+%	    io:format("~p~n", [?LINE]),
+	    slide_inout(R, C, Test, [{V1,V1E},{V2,V2E}|Acc])
+    end;
+slide_inout([],_,_, Acc) -> Acc.
 
 other(Vertex, #edge{vs=Vertex,ve=Other}) -> Other;
 other(Vertex, #edge{vs=Other,ve=Vertex}) -> Other.
 
-slide_dir(V1,S1,E1,V2,S2,E2,Up0,Down0,Vtab) ->
-    Up    = e3d_vec:norm(Up0),
-    Down  = e3d_vec:norm(Down0), 
-
-    V1pos  = gb_trees:get(V1, Vtab),  V2pos = gb_trees:get(V2, Vtab),
-    E1pos  = gb_trees:get(E1, Vtab),  E2pos = gb_trees:get(E2, Vtab),
-    S1pos  = gb_trees:get(S1, Vtab),  S2pos = gb_trees:get(S2, Vtab), 
-    
-    E1v1   = e3d_vec:sub(S1pos,V1pos),E2v1 = e3d_vec:sub(E1pos,V1pos),
-    E1v2   = e3d_vec:sub(S2pos,V2pos),E2v2 = e3d_vec:sub(E2pos,V2pos), 
-
-    D1 = e3d_vec:norm(e3d_vec:average(E1v1,E1v2)),
-    D2 = e3d_vec:norm(e3d_vec:average(E2v1,E2v2)),
-    
-    E1dotUp = e3d_vec:dot(D1,Up),
-    E2dotUp = e3d_vec:dot(D2,Up),
-
-    E1dotDown = e3d_vec:dot(D1,Down),
-    E2dotDown = e3d_vec:dot(D2,Down),
-%     io:format("\n\nUp ~p\nD1 ~p\nDw ~p\nD2 ~p\n", [Up,D1, Down,D2]),
-%     io:format(" ~p >  ~p or  ~p > ~p \n", [E1dotUp,E2dotUp,E2dotDown,E1dotDown]),
-
-    if (E1dotUp > E2dotUp) and (E1dotUp > 0.0) ->
-	    case (E2dotDown > E1dotDown) of
-		true when E2dotDown > 0.0 ->
-%		    io:format("~p~n", [?LINE]),
-		    {e3d_vec:add(Up0,D1),e3d_vec:add(Down0,D2),
-		     {V1pos, E1v1, E2v1},{V2pos, E1v2, E2v2}};
-		_ when (E1dotUp > E1dotDown) ->
-%		    io:format("~p~n", [?LINE]),
-		    {e3d_vec:add(Up0,D1),e3d_vec:add(Down0, swap(E2dotDown, D2)),
-		     {V1pos, E1v1, E2v1},{V2pos, E1v2, E2v2}};
-		%% E1dotDown > E1dotUp => swap
-		_ -> 
-%		    io:format("~p~n", [?LINE]),
-		    {e3d_vec:add(Up0, swap(E2dotUp,D2)), e3d_vec:add(Down0,D1),
-		     {V1pos, E2v1, E1v1},{V2pos, E2v2, E1v2}}
-	    end;
-       (E1dotUp =< E2dotUp) and (E2dotUp > 0.0) ->
-	    case (E1dotDown > E2dotDown) of
-		true when E1dotDown > 0.0 ->
-%		    io:format("~p~n", [?LINE]),
-		    {e3d_vec:add(Up0,D2),e3d_vec:add(Down0,D1),
-		     {V1pos, E2v1, E1v1},{V2pos, E2v2, E1v2}};
-		_ when E2dotUp > E2dotDown ->
-%		    io:format("~p~n", [?LINE]),		    
-		    {e3d_vec:add(Up0,D2),e3d_vec:add(Down0, swap(E1dotDown,D1)),
-		     {V1pos, E2v1, E1v1},{V2pos, E2v2, E1v2}};
-		_ ->
-%		    io:format("~p~n", [?LINE]),
-		    {e3d_vec:add(Up0, swap(E1dotUp,D1)), e3d_vec:add(Down0,D2),
-		     {V1pos, E1v1, E2v1},{V2pos, E1v2, E2v2}}
-	    end;
-       abs(E1dotUp) > abs(E2dotUp) ->
-	    case E2dotDown < E1dotDown of
-		true when E2dotDown < 0.0 ->
-%		    io:format("~p~n", [?LINE]),
-		    {e3d_vec:add_prod(Up0,D1, -1.0),e3d_vec:add_prod(Down0,D2,-1.0),
-		     {V1pos, E1v1, E2v1},{V2pos, E1v2, E2v2}};
-		_ when abs(E1dotUp) > abs(E1dotDown) ->
-%		    io:format("~p~n", [?LINE]),
-		    {e3d_vec:add_prod(Up0,D1, -1.0), e3d_vec:add(Down0, swap(E2dotDown,D2)),
-		     {V1pos, E1v1, E2v1},{V2pos, E1v2, E2v2}};
-		_ ->
-%		    io:format("~p~n", [?LINE]),
-		    {e3d_vec:add(Up0, swap(E2dotUp,D2)), e3d_vec:add_prod(Down0,D1, -1.0),
-		     {V1pos, E2v1, E1v1},{V2pos, E2v2, E1v2}}
-	    end;
-       abs(E1dotUp) =< abs(E2dotUp) ->
- 	    case E1dotDown < E2dotDown of
-		true when E1dotDown < 0.0 ->
-%		    io:format("~p~n", [?LINE]),
-		    {e3d_vec:add_prod(Up0,D2, -1.0),e3d_vec:add_prod(Down0,D1,-1.0),
-		     {V1pos, E2v1, E1v1},{V2pos, E2v2, E1v2}};
-		_ when abs(E2dotUp) > abs(E2dotDown) ->
-%		    io:format("~p~n", [?LINE]),
-		    {e3d_vec:add_prod(Up0,D2,-1.0),e3d_vec:add(Down0, swap(E1dotDown,D1)),
-		     {V1pos, E2v1, E1v1},{V2pos, E2v2, E1v2}};
-		_ ->
-%		    io:format("~p~n", [?LINE]),
-		    {e3d_vec:add(Up0, swap(E1dotUp,D1)), e3d_vec:add_prod(Down0,D2, -1.0),
-		     {V1pos, E1v1, E2v1},{V2pos, E1v2, E2v2}}
-	    end
-    end.
-
-swap(Dot, Dir) when Dot >= 0.0 -> Dir;
-swap(_, Dir) -> e3d_vec:mul(Dir, -1.0).
+swap({Vpos,Ndir,Pdir}) -> 
+    {Vpos,Pdir,Ndir}.
 
 add_slide_vertex(V,{Vpos, Ndir,Pdir},Acc) ->
     case gb_trees:lookup(V,Acc) of
