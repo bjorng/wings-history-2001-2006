@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.109 2003/07/03 14:44:34 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.110 2003/07/08 12:38:24 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -503,16 +503,24 @@ read_out(Motion, Eq0) ->
     end.
 
 wait_for_event(Eq) ->
+    State = sdl_active:getAppState(),
+    Time = if
+	       State == 0 ->			%Iconified.
+		   650;
+	       State == 7 ->			%Fully active.
+		   10;
+	       true ->				%Cursor outside of window.
+		   120
+	   end,
     receive
         {timeout,Ref,{event,Event}} when is_reference(Ref) ->
             {Event,Eq}
-    after 10 ->
+    after Time ->
             case sdl_events:peepEvents() of
                 [] -> wait_for_event(Eq);
                 [_|_]=Evs -> read_events(enter_events(Evs, Eq))
             end
     end.
-
 
 %%%
 %%% Timer support.
