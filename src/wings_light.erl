@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.9 2002/08/13 09:42:20 bjorng Exp $
+%%     $Id: wings_light.erl,v 1.10 2002/08/14 20:47:00 bjorng Exp $
 %%
 
 -module(wings_light).
 -export([light_types/0,menu/3,command/2,is_any_light_selected/1,
-	 create/2,update_dynamic/2,update/1,render/1,
+	 create/2,update_dynamic/2,update_matrix/2,update/1,render/1,
 	 global_lights/0,camera_lights/0,
 	 export/1,import/2]).
 
@@ -320,21 +320,26 @@ create(Type, #st{onext=Oid}=St) ->
 %%%
 %%% Updating, drawing and rendering lights.
 %%%
-update_dynamic(#dlo{work=[Work|_],src_we=#we{light=#light{type=Type}}=We0}=D, Vtab0) ->
+update_dynamic(#dlo{work=[Work|_],src_we=We0}=D, Vtab0) ->
     Vtab = gb_trees:from_orddict(lists:sort(Vtab0)),
     We = We0#we{vs=Vtab},
-    List = update_1(Type, We, D),
+    List = update_1(We, D),
     D#dlo{work=[Work,List],src_we=We}.
 
-update(#dlo{work=none,src_we=#we{light=#light{type=Type}}=We}=D) ->
-    List = update_1(Type, We, D),
+update_matrix(#dlo{src_we=We0}=D, Matrix) ->
+    We = wings_we:transform_vs(Matrix, We0),
+    List = update_1(We, D),
+    D#dlo{work=List,transparent=We}.
+
+update(#dlo{work=none,src_we=#we{light=#light{}}=We}=D) ->
+    List = update_1(We, D),
     D#dlo{work=List,sel=List};
-update(#dlo{sel=none,src_we=#we{light=#light{type=Type}}=We}=D) ->
-    List = update_1(Type, We, D),
+update(#dlo{sel=none,src_we=#we{light=#light{}}=We}=D) ->
+    List = update_1(We, D),
     D#dlo{work=List,sel=List};
 update(D) -> D.
 
-update_1(Type, We, #dlo{src_sel=SrcSel}) ->
+update_1(#we{light=#light{type=Type}}=We, #dlo{src_sel=SrcSel}) ->
     Selected = (SrcSel =/= none),
     List = gl:genLists(1),
     gl:newList(List, ?GL_COMPILE),
@@ -554,10 +559,16 @@ disable_from(Lnum) ->
 
 scene_lights_fun(_, Lnum) when Lnum > ?GL_LIGHT7 -> Lnum;
 scene_lights_fun(#dlo{src_we=#we{light=none}}, Lnum) -> Lnum;
-scene_lights_fun(#dlo{src_we=#we{light=#light{type=ambient,ambient=Amb}}}, Lnum) ->
+scene_lights_fun(#dlo{transparent=#we{}=We}, Lnum) ->
+    %% This happens when dragging in Body selection mode.
+    scene_lights_fun_1(We, Lnum);
+scene_lights_fun(#dlo{src_we=We}, Lnum) when ?IS_LIGHT(We) ->
+    scene_lights_fun_1(We, Lnum).
+
+scene_lights_fun_1(#we{light=#light{type=ambient,ambient=Amb}}, Lnum) ->
     gl:lightModelfv(?GL_LIGHT_MODEL_AMBIENT, Amb),
     Lnum;
-scene_lights_fun(#dlo{src_we=#we{light=L}=We}, Lnum) ->
+scene_lights_fun_1(#we{light=L}=We, Lnum) ->
     setup_light(Lnum, L, We),
     gl:enable(Lnum),
     Lnum+1.

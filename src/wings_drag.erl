@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.102 2002/08/14 19:08:55 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.103 2002/08/14 20:47:00 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -545,6 +545,9 @@ motion_update(Move, Drag) ->
 			   end, []),
     Drag.
 
+motion_update_fun(#dlo{src_we=We,drag={matrix,Tr,Mtx0}}=D, Move) when ?IS_LIGHT(We) ->
+    Mtx = Tr(Mtx0, Move),
+    wings_light:update_matrix(D, Mtx);
 motion_update_fun(#dlo{work={matrix,_,Work},sel={matrix,_,Sel},
 		       drag={matrix,Trans,Matrix0}}=D, Move) ->
     Matrix = e3d_mat:expand(Trans(Matrix0, Move)),
@@ -628,6 +631,10 @@ normalize_1(#drag{st=#st{shapes=Shs0}=St}) ->
     St#st{shapes=Shs}.
 
 normalize_fun(#dlo{drag=none}=D, Shs) -> {D,Shs};
+normalize_fun(#dlo{drag={matrix,_,_},transparent=#we{id=Id}=We}=D, Shs0)
+  when ?IS_LIGHT(We) ->
+    Shs = gb_trees:update(Id, We, Shs0),
+    {D#dlo{work=none,drag=none,src_we=We,transparent=false},Shs};
 normalize_fun(#dlo{work={matrix,Matrix,_},
 		   src_we=#we{id=Id,mirror=M}=We0}=D, Shs0) ->
     We = wings_we:transform_vs(Matrix, We0),
