@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.9 2002/10/15 14:29:30 dgud Exp $
+%%     $Id: auv_mapping.erl,v 1.10 2002/10/16 08:22:19 dgud Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -21,14 +21,26 @@
 %% All credits about the LSQCM implementation goes to Raimo, who
 %% implemented the lot.
 
+%%-define(lsq_standalone, 1).
+
 -module(auv_mapping).
+-ifdef(lsq_standalone).
+-define(DBG(Fmt,Args), begin io:format(?MODULE_STRING++":~p:~n"++(Fmt), 
+				       [?LINE | (Args)])
+		       end).
+-define(TC(X), begin io:format(?MODULE_STRING++":~p:~p:~n~p~n", 
+			       [?LINE,
+				(fun ({Now1,Now2,Now3}) ->
+					 (Now1*1000000 + Now2)*1000000 + Now3
+				 end)(erlang:now()),
+				(X)]), (X)
+	       end).
+-export([lsq/3]).
+-else.
 -include("wings.hrl").
 -include("auv.hrl").
 -include("e3d.hrl").
 -export([projectFromChartNormal/2, project2d/3, lsqcm/2]).
-
-
--export([lsq/3]).
 
 %%% From camera would look something like this!! 
 %%% It actually worked once :-) 
@@ -138,7 +150,8 @@ find_pinned(C = {Id, Faces}, We) ->
 	    [Best|_] ->
 		Best
 	end,
-    Vs = [{(gb_trees:get(V1, We#we.vs))#vtx.pos,V1} || {V1,_,_,_} <-BorderEdges],
+    Vs = [{(gb_trees:get(V1, We#we.vs))#vtx.pos,V1} || 
+	     {V1,_,_,_} <-BorderEdges],
     [{V1pos,V1}|_] = lists:sort(Vs),
     BE1 = reorder_edge_loop(V1, BorderEdges, []),
     {V2,Dist} = find_furthest_away(BE1, 0.0, Circumference/2),
@@ -179,7 +192,7 @@ get_other(D1, D2, Tot) ->
 %           Tot-D1
 %    end.
     Tot-D1.
-
+-endif. % -ifdef(lsq_standalone)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 
@@ -206,7 +219,7 @@ lsq_int(L, {P1,{U1,V1}} = PUV1, {P2,{U2,V2}} = PUV2) ->
     %% in the indata. Translate the point identities into a
     %% continous integer sequence.
     {M, Dict, Rdict} = lsq_points(L),
-    {N, L1, L2} = lsq_triangles(L, Dict),
+    {N, L1, L2} = ?TC(lsq_triangles(L, Dict, M)),
     Q1 = case dict:find(P1, Dict) of 
 	     {ok, Q_1} -> Q_1;
 	     error -> throw({error, {invalid_arguments, [PUV1]}})
@@ -226,7 +239,7 @@ lsq_int(L, {P1,{U1,V1}} = PUV1, {P2,{U2,V2}} = PUV2) ->
 	?TC(build_matrixes(N,M,Mf1c,Mp1c,Mf2c,Mp2c,Mf2nc,Mp2nc,UVa,UVb)),
     ?DBG("Solving matrises~n", []),
     X = solve(Af,B),
-    ?DBG("X=~p~n", [X]),
+%%    ?DBG("X=~p~n", [X]),
     %% Extract the vector of previously unknown points,
     %% and insert the pinned points. Re-translate the
     %% original point identities.
@@ -236,8 +249,7 @@ lsq_int(L, {P1,{U1,V1}} = PUV1, {P2,{U2,V2}} = PUV2) ->
 build_basic(N,M,L1,L2) ->
     M1 = auv_matrix:rows(N, M, L1),
     M2 = auv_matrix:rows(N, M, L2),
-    L2n = [[{J,-V} || {J,V} <- R] || R <- L2],
-    M2n = auv_matrix:rows(N, M, L2n),
+    M2n = auv_matrix:rows(N, M, [auv_matrix:mult(-1, X) || X <- L2]),
     {M1,M2,M2n}.
 
 build_cols(M1,M2,M2n,Q1uv,Q2uv) ->
@@ -264,7 +276,7 @@ build_matrixes(N,M,Mf1c,Mp1c,Mf2c,Mp2c,Mf2nc,Mp2nc,{Ua,Va},{Ub,Vb}) ->
     Apu = auv_matrix:cols(N, 4, Mp1c++Mp2nc),
     Apl = auv_matrix:cols(N, 4, Mp2c++Mp1c),
     Ap = auv_matrix:cat_rows(Apu, Apl),
-    U = auv_matrix:rows(4, 1, [[{1,-Ua}], [{1,-Ub}], [{1,-Va}], [{1,-Vb}]]),
+    U = auv_matrix:vector(4, [{1,-Ua}, {2,-Ub}, {3,-Va}, {4,-Vb}]),
     B = auv_matrix:mult(Ap, U),
     {Af, B}.
 
@@ -273,17 +285,17 @@ solve(Af,B) ->
     %% X becomes [ I x ] where x is the vector of unknown points
     %% I.e reduce and backsubstitute
     %%     [ (trans(Af) Af) (trans(Af) B) ]    
-    AA  = ?TC(mult_and_trans(Af,B)),   
+    AA = ?TC(solve_matrix(Af, B)),
     AAA = ?TC(auv_matrix:reduce(AA)),
     X   = ?TC(auv_matrix:backsubst(AAA)),
     ?DBG("Solved~n",[]),
     X.    
 
-mult_and_trans(Af,B) ->
+solve_matrix(Af,B) ->
     AfT = auv_matrix:trans(Af),
     AfTAf = auv_matrix:mult_trans(AfT, AfT),
     AfTB = auv_matrix:mult(AfT, B),
-    AA = auv_matrix:cat_cols(AfTAf, AfTB).
+    auv_matrix:cat_cols(AfTAf, AfTB).
 
 %% Extract all point identities from indata, and create
 %% forwards and backwards dictionaries for translation
@@ -309,7 +321,7 @@ lsq_points(L) ->
 %% Create matrix M rows for all triangles in indata.
 %% Return number of triangles, and lists for Re(M) and Im(M).
 %%
-lsq_triangles(L, Dict) ->
+lsq_triangles(L, Dict, M) ->
     {N, L1, L2} =
 	lists:foldl(
 	  fun ({_,[{P1,{X1,Y1}},{P2,{X2,Y2}},{P3,{X3,Y3}}]}, {N,Re,Im})
@@ -317,49 +329,49 @@ lsq_triangles(L, Dict) ->
 		   number(Y1), number(Y2), number(Y3) ->
 		  SqrtDT = math:sqrt(abs((X2-X1)*(Y3-Y1) - 
 					 (Y2-Y1)*(X3-X1))),
-		  W1re = auv_matrix:sub(X3, X2), 
-		  W1im = auv_matrix:sub(Y3, Y2),
-		  W2re = auv_matrix:sub(X1, X3), 
-		  W2im = auv_matrix:sub(Y1, Y3),
-		  W3re = auv_matrix:sub(X2, X1), 
-		  W3im = auv_matrix:sub(Y2, Y1),
+		  W1re = X3-X2, W1im = Y3-Y2, 
+		  W2re = X1-X3, W2im = Y1-Y3, 
+		  W3re = X2-X1, W3im = Y2-Y1,
 		  Q1 = dict:fetch(P1, Dict),
 		  Q2 = dict:fetch(P2, Dict),
 		  Q3 = dict:fetch(P3, Dict),
-		      {N+1,
-		       [[{Q1,W1re/SqrtDT}, 
-			 {Q2,W2re/SqrtDT}, 
-			 {Q3,W3re/SqrtDT}]
-			| Re],
-		       [[{Q1,W1im/SqrtDT}, 
-			 {Q2,W2im/SqrtDT}, 
-			 {Q3,W3im/SqrtDT}]
-			| Im]};
-		   (Invalid, _) ->
+		  {N+1,
+		   [auv_matrix:vector(M, [{Q1,W1re/SqrtDT}, 
+					  {Q2,W2re/SqrtDT}, 
+					  {Q3,W3re/SqrtDT}])
+		    | Re],
+		   [auv_matrix:vector(M, [{Q1,W1im/SqrtDT}, 
+					  {Q2,W2im/SqrtDT}, 
+					  {Q3,W3im/SqrtDT}])
+		    | Im]};
+	      (Invalid, _) ->
 		  throw({error, {invalid_triangle, Invalid}})
 	  end, {0, [],[]}, L),
     {N, lists:reverse(L1), lists:reverse(L2)}.
 
 
 
-%% Extract the result from matrix X and combine it with the 
+%% Extract the result from vector X and combine it with the 
 %% pinned points. Re-translate the point identities.
 %%
 lsq_result(X, QUV1, QUV2, Rdict) ->
-    {_,MM} = auv_matrix:size(X),
-    {_,UlistVlistR} =
-	lists:foldl(
-	  fun ([{J,1}, {M,H}], {J,R}) when M == MM ->
-		  {J+1, [H | R]};
-	      ([{J,1}], {J,R}) ->
-		  {J+1, [0 | R]};
-	      (Other, State) ->
-		  throw({error, {?FILE, ?LINE, [Other, State, X]}})
-	  end, {1, []}, auv_matrix:rows(X)),
-    {Ulist, Vlist} = split(lists:reverse(UlistVlistR), MM div 2),
+    {MM} = auv_matrix:size(X),
+%     {_,UlistVlistR} =
+% 	lists:foldl(
+% 	  fun ({J,UV}, {J,R}) ->
+% 		  {J+1, [UV | R]};
+% 	      ({J2,_}, {J1,R}) ->
+% 		  {J2+1, lists:duplicate(J2-J1, 0.0) ++ R};
+% 	      (Other, State) ->
+% 		  throw({error, {?FILE, ?LINE, [Other, State, X]}})
+% 	  end, {1, []}, auv_matrix:vector(X)),
+%     {Ulist, Vlist} = ?TC(split(lists:reverse(UlistVlistR), MM div 2)),
+    {Ulist, Vlist} = ?TC(split(auv_matrix:vector(X), MM div 2)),
     {[],UVlistR} = 
 	lists:foldl(
-	  fun (U, {[V | L], R}) ->
+	  fun (U, {[], R}) ->
+		  {[], [{U,0.0} | R]};
+	      (U, {[V | L], R}) ->
 		  {L, [{U,V} | R]};
 	      (Other, State) ->
 		  throw({error, {?FILE, ?LINE, [Other, State, X]}})
