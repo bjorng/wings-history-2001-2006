@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.11 2002/08/19 06:27:37 bjorng Exp $
+%%     $Id: wings_light.erl,v 1.12 2002/08/23 07:24:36 bjorng Exp $
 %%
 
 -module(wings_light).
@@ -49,7 +49,7 @@ menu(X, Y, St) ->
     Dir = wings_menu_util:directions(St#st{selmode=body}),
     Menu = [{"Light operations",ignore},
 	    separator,
-	    {"Move",{move,Dir}},
+	    {"Move",{move_light,Dir}},
 	    separator,
 	    {"Position Highlight",position_fun(),
 	     "Position the aim point or location of light"},
@@ -72,10 +72,12 @@ menu(X, Y, St) ->
 	    separator,
 	    {"Edit Properties",edit,"Edit light properties"},
 	    separator,
-	    {"Delete",delete}],
+	    {"Duplicate",{duplicate,Dir},
+	     "Duplicate and move selected lights"},
+	    {"Delete",delete,"Delete seleced lights"}],
     wings_menu:popup_menu(X, Y, light, Menu).
 
-command({move,Type}, St) ->
+command({move_light,Type}, St) ->
     wings_move:setup(Type, St);
 command(color, St) ->
     color(St);
@@ -91,6 +93,8 @@ command(edit, St) ->
     edit(St);
 command(delete, St) ->
     {save_state,delete(St)};
+command({duplicate,Dir}, St) ->
+    duplicate(Dir, St);
 command(color, St) ->
     St.
     
@@ -321,6 +325,20 @@ delete(#st{shapes=Shs0}=St) ->
 				 gb_trees:delete(Id, Shs)
 			 end, Shs0, St),
     St#st{shapes=Shs,sel=[]}.
+
+%%%
+%%% The Duplicate command.
+%%%
+
+duplicate(Dir, St0) ->
+    Copy = "copy",
+    {St,Sel} = wings_sel:fold(
+		 fun(Elems, We, {#st{onext=Id}=S0,Sel}) when ?IS_LIGHT(We) ->
+			 S = wings_shape:insert(We, Copy, S0),
+			 {S,[{Id,Elems}|Sel]};
+		    (_, _, A) -> A
+		 end, {St0,[]}, St0),
+    wings_move:setup(Dir, wings_sel:set(Sel, St)).
     
 %%%
 %%% Creating lights.
