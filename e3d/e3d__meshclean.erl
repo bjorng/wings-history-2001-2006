@@ -3,12 +3,12 @@
 %%
 %%     Internal module for cleaning E3D meshes.
 %%
-%%  Copyright (c) 2001-2004 Bjorn Gustavsson
+%%  Copyright (c) 2001-2002 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__meshclean.erl,v 1.11 2004/06/29 08:35:12 bjorng Exp $
+%%     $Id: e3d__meshclean.erl,v 1.12 2004/07/01 14:02:35 dgud Exp $
 %%
 
 -module(e3d__meshclean).
@@ -28,70 +28,106 @@ orient_normals(#e3d_mesh{fs=Fs0}=Mesh) ->
     Ws1 = sofs:relation_to_family(Ws0),
     Ws = gb_trees:from_orddict(sofs:to_external(Ws1)),
 
-    ProjFun = {external,fun({F,{E,S}}) -> {E,{S,F}} end},
-    E2F0 = sofs:projection(ProjFun, Ws0),
-    E2F1 = sofs:relation_to_family(E2F0),
-    E2F = ets:new(e2f, []),
-
-    ets:insert(E2F, sofs:to_external(E2F1)),
-    Res0 = orient_1(Ws, E2F, gb_trees:empty()),
-    ets:delete(E2F),
-
-    Ftab0 = sofs:from_term(Faces, [{face,data}]),
-    Res = sofs:from_term(gb_trees:to_list(Res0), [{face,ok}]),
-    Ftab2 = sofs:relative_product1(Ftab0, Res),
-    Ftab = foldl(fun({F,true}, A) -> [F|A];
-		    ({#e3d_face{vs=Vs}=F,false}, A) ->
-			 [F#e3d_face{vs=reverse(Vs)}|A]
-		 end, [], sofs:to_external(Ftab2)),
-    Mesh#e3d_mesh{fs=Ftab}.
+    ProjFun2 = {external,fun({F,{E,S}}) -> {E,{F,S}} end},
+    E2F0 = sofs:projection(ProjFun2, Ws0),
+    E2F = ets:new(e2f, [bag, named_table]),
+    ets:insert(E2F, sofs:to_external(E2F0)),
     
-orient_1(Ws0, E2F, Res0) ->
-    case gb_trees:is_empty(Ws0) of
-	true -> Res0;
-	false ->
-	    {Face,Es,Ws1} = gb_trees:take_smallest(Ws0),
-	    Res1 = gb_trees:insert(Face, true, Res0),
-	    {Ws,Res} = orient_2(gb_sets:from_list(Es), E2F, Ws1, Res1),
-	    orient_1(Ws, E2F, Res)
+    case catch orient_0(Ws,[], 100) of
+	{'EXIT', Reason} -> 
+	    ets:delete(e2f),
+	    io:format("Reorient-normals failed with: ~p~n", [Reason]),
+	    exit(Reason);
+	Res0 -> 
+	    ets:delete(e2f),    
+	    Ftab0 = sofs:from_term(Faces, [{face,data}]),
+	    Res = sofs:from_term(gb_trees:to_list(Res0), [{face,ok}]),
+	    Ftab2 = sofs:relative_product1(Ftab0, Res),
+	    Ftab = foldl(fun({F,true}, A) -> [F|A];
+			    ({#e3d_face{vs=Vs}=F,false}, A) ->
+				 [F#e3d_face{vs=reverse(Vs)}|A]
+			 end, [], sofs:to_external(Ftab2)),
+	    Mesh#e3d_mesh{fs=Ftab}
     end.
 
-orient_2(Es0, E2F, Ws0, Res0) ->
-    case gb_sets:is_empty(Es0) of
-	true -> {Ws0,Res0};
-	false ->
-	    {{E,Side},Es1} = gb_sets:take_smallest(Es0),
-	    case ets:lookup(E2F, E) of
-		[{E,[_,_]=L}] ->
-		    {Es,Ws,Res} = orient_3(L, Side, Es1, Ws0, Res0),
-		    orient_2(Es, E2F, Ws, Res);
+qadd(Face, Es, Bool, Q) ->
+    lists:foldl(fun({E,S}, Q0) -> 
+			queue:in({Face,{E, not Bool xor S}},Q0) 
+		end,Q,Es).
+qget(Q) ->
+    queue:out(Q).
+
+orient_0(_Ws0,BF,Max) when length(BF) > Max  -> 
+    exit({to_many_retries, ?MODULE});
+orient_0(Ws0,BF,Max) ->
+    case catch orient_1(Ws0,gb_trees:empty()) of
+	{bad, Bad} ->
+	    io:format("Found bad face ~p when reorienting deleting it and retrying ~n", [Bad]),
+	    Es0 = gb_trees:get(Bad, Ws0),
+	    Ws = gb_trees:delete(Bad, Ws0),
+	    [ets:delete_object(e2f, {E, {Bad,S}}) || {E,S} <- Es0], 
+	    orient_0(Ws,[Bad|BF],Max);
+	Else ->
+	    Else
+    end.
+
+orient_1(Ws0, Res0) ->
+    case gb_trees:is_empty(Ws0) of
+	true -> Res0;
+	false ->	    
+	    {Face,Es,Ws1} = gb_trees:take_smallest(Ws0),
+	    Res1 = gb_trees:insert(Face, true, Res0),
+	    Q = queue:new(),
+	    {Ws,Res} = orient_2(qadd(Face,Es,true,Q), Ws1, Res1, undefined),
+	    orient_1(Ws, Res)
+    end.
+
+orient_2(Es0, Ws0, Res0, Bad0) ->
+    case qget(Es0) of
+	{empty, _} -> {Ws0,Res0};
+	{{value,{Face,{E,Side}}},Es1} ->
+	    case ets:lookup(e2f, E) of
 		[_] ->
-		    orient_2(Es1, E2F, Ws0, Res0)
+		    orient_2(Es1, Ws0, Res0,Bad0);
+		[{E,{Face,_}},{E,Other}] ->
+		    {Es,Ws,Res,Bad} = 
+			orient_3(Other, E, {Face,Side}, Es1, Ws0, Res0, Bad0),
+		    orient_2(Es, Ws, Res, Bad);
+		[{E,Other},{E,{Face,_}}] ->
+		    {Es,Ws,Res,Bad} = 
+			orient_3(Other, E, {Face,Side}, Es1, Ws0, Res0, Bad0),
+		    orient_2(Es, Ws, Res, Bad)
 	    end
     end.
 
-orient_3([{Side,Face}|T], Side, Es0, Ws0, Res0) ->
+orient_3({Face,Side1}, _E, {Father,Side2}, Es0, Ws0, Res0, Bad0) ->
+    Correct = not (Side1 == Side2),
     case gb_trees:lookup(Face, Ws0) of
 	{value,FaceEs0} ->
+	    Bad = if Correct ->            Bad0;
+		     Bad0 == undefined ->  Father;
+		     true ->               Bad0
+		  end,
 	    Ws = gb_trees:delete(Face, Ws0),
-	    Res = gb_trees:insert(Face, false, Res0),
-	    FaceEs = [{E,not S} || {E,S} <- FaceEs0],
-	    Es = gb_sets:union(gb_sets:from_list(FaceEs), Es0),
-	    orient_3(T, Side, Es, Ws, Res);
+	    Res = gb_trees:insert(Face, Correct, Res0),
+	    Es = qadd(Face,FaceEs0,Correct,Es0),
+	    {Es,Ws,Res,Bad};
 	none ->
-	    orient_3(T, Side, Es0, Ws0, Res0)
-    end;
-orient_3([{_,Face}|T], Side, Es0, Ws0, Res0) ->
-    case gb_trees:lookup(Face, Ws0) of
-	{value,FaceEs} ->
-	    Ws = gb_trees:delete(Face, Ws0),
-	    Res = gb_trees:insert(Face, true, Res0),
-	    Es = gb_sets:union(gb_sets:from_list(FaceEs), Es0),
-	    orient_3(T, Side, Es, Ws, Res);
-	none ->
-	    orient_3(T, Side, Es0, Ws0, Res0)
-    end;
-orient_3([], _, Es, Ws, Res) -> {Es,Ws,Res}.
+	    Orient = gb_trees:get(Face, Res0),
+	    if 
+		Orient == Correct ->   % Consistent
+		    ok;
+		Bad0 == undefined ->   % NOT consistent	and no Bad Face
+% 		    io:format("Not cons ~p ~p => ~p(~p) Father has ~p Bad ~p~n", 
+% 			      [_E,Father,Face,Correct,gb_trees:lookup(Father, Res0),Bad0]),
+		    throw({bad,Father});
+		true ->
+% 		    io:format("Not cons ~p ~p => ~p(~p) Father has ~p Bad ~p~n", 
+% 			      [_E,Father,Face,Correct,gb_trees:lookup(Father, Res0),Bad0]),
+		    throw({bad,Bad0})
+	    end,
+	    {Es0,Ws0,Res0,Bad0}
+    end.
 
 build_edges(Fs) ->
     build_edges(Fs, []).
