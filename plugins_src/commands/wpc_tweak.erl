@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.56 2004/05/17 17:51:03 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.57 2004/11/17 11:06:43 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -179,9 +179,13 @@ handle_tweak_event1({action,Action}, #tweak{st=St0}=T) ->
 	    wings_view:command(aim, St),
 	    update_tweak_handler(T);
 	{view,Cmd} ->
-	    St = wings_view:command(Cmd, St0),
-	    refresh_dlists(Cmd, St),
-	    update_tweak_handler(T#tweak{st=St});
+	    case wings_view:command(Cmd, St0) of
+		keep ->
+		    keep;
+		#st{}=St ->
+		    refresh_dlists(Cmd, St),
+		    update_tweak_handler(T#tweak{st=St})
+	    end;
 	{edit,undo_toggle} ->
 	    St = wings_undo:undo_toggle(St0),
 	    wings_draw:refresh_dlists(St),
@@ -202,9 +206,9 @@ handle_tweak_event1(Ev, #tweak{st=St}) ->
 	Other -> wings_wm:later({action,Other})
     end.
 
-exit_tweak(#tweak{orig_st=St,st=#st{shapes=Shs}}=T) ->
+exit_tweak(#tweak{orig_st=St,st=#st{shapes=Shs,views=Views}}=T) ->
     remember_mode(T),
-    wings_wm:later({new_state,St#st{shapes=Shs}}),
+    wings_wm:later({new_state,St#st{shapes=Shs,views=Views}}),
     pop.
 
 remember_mode(#tweak{magnet=Mag,mag_type=MagType,mag_r=MagR,

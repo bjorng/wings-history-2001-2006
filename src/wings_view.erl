@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.160 2004/11/02 07:20:34 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.161 2004/11/17 11:06:45 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -954,11 +954,11 @@ frame_1([A,B]=BB) ->
 			  distance=Dist,pan_x=0.0,pan_y=0.0}).
 
 views({save,[Legend]}, #st{views={_,{}}}=St) ->
-    {save_state,St#st{views={1,{{current(),Legend}}}}};
+    St#st{views={1,{{current(),Legend}}}};
 views({save,[Legend]}, #st{views={CurrentView,Views}}=St) ->
     J = view_index(CurrentView, size(Views)),
     {L1,L2} = lists:split(J, tuple_to_list(Views)),
-    {save_state,St#st{views={J+1,list_to_tuple(L1++[{current(),Legend}|L2])}}};
+    St#st{views={J+1,list_to_tuple(L1++[{current(),Legend}|L2])}};
 views({save,Ask}, #st{views={CurrentView,Views}}) when is_atom(Ask) ->
     View = current(),
     S = size(Views),
@@ -1009,7 +1009,7 @@ views(delete, #st{views={CurrentView,Views}}=St) ->
 	{View,_} ->
 	    I = J - 1,
 	    {L1,[_|L2]} = lists:split(I, tuple_to_list(Views)),
-	    {save_state,St#st{views={I,list_to_tuple(L1++L2)}}};
+	    St#st{views={I,list_to_tuple(L1++L2)}};
 	_ ->
 	    wings_util:message(?STR(views,4,"You have to be at the current view"))
     end;
