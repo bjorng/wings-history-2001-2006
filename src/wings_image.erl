@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.22 2003/03/09 19:20:17 bjorng Exp $
+%%     $Id: wings_image.erl,v 1.23 2003/05/21 04:58:48 bjorng Exp $
 %%
 
 -module(wings_image).
@@ -223,12 +223,11 @@ maybe_scale(#e3d_image{width=W0,height=H0,bytes_pp=BytesPerPixel,
     case {nearest_power_two(W0),nearest_power_two(H0)} of
 	{W0,H0} -> Image;
 	{W,H} ->
-	    Out = sdl_util:malloc(BytesPerPixel*W*H, ?GL_UNSIGNED_BYTE),
+	    Out = sdl_util:alloc(BytesPerPixel*W*H, ?GL_UNSIGNED_BYTE),
 	    Format = texture_format(Image),
 	    glu:scaleImage(Format, W0, H0, ?GL_UNSIGNED_BYTE,
 			   Bits0, W, H, ?GL_UNSIGNED_BYTE, Out),
-	    Bits = sdl_util:readBin(Out, BytesPerPixel*W*H),
-	    sdl_util:free(Out),
+	    Bits = sdl_util:getBin(Out),
 	    Image#e3d_image{width=W,height=H,image=Bits}
     end.
 
