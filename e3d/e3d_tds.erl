@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_tds.erl,v 1.34 2004/02/05 06:32:00 bjorng Exp $
+%%     $Id: e3d_tds.erl,v 1.35 2004/06/22 07:33:59 bjorng Exp $
 %%
 
 -module(e3d_tds).
@@ -46,7 +46,10 @@ dbg(_, _) -> ok.
 import(Name) ->
     case file:read_file(Name) of
 	{ok,Bin} ->
-	    import_1(Bin);
+	    ?MODULE = ets:new(?MODULE, [named_table,ordered_set]),
+	    Res = import_1(Bin),
+	    ets:delete(?MODULE),
+	    Res;
 	{error,Reason} ->
 	    {error,file:format_error(Reason)}
     end.
@@ -73,24 +76,32 @@ main(<<16#3D3D:16/little,Sz0:32/little,Rest0/binary>>, Acc0) ->
     Acc = editor(Ed, Acc0),
     main(Rest, Acc);
 main(<<16#B000:16/little,Sz0:32/little,T0/binary>>, Acc) ->
-    dbg("Key Framer (ignoring) ~p bytes\n", [Sz0]),
+    dbg("Keyframer: ~p bytes\n", [Sz0]),
     Sz = Sz0 - 6,
-    <<_:Sz/binary,T/binary>> = T0,
+    <<Keyframer:Sz/binary,T/binary>> = T0,
+    keyframer(Keyframer),
     main(T, Acc);
 main(<<Tag:16/little,Sz0:32/little,T0/binary>>, Acc) ->
     dbg("Ignoring unknown chunk ~.16#; ~p bytes\n", [Tag,Sz0]),
     Sz = Sz0 - 6,
     <<_:Sz/binary,T/binary>> = T0,
     main(T, Acc);
-main(<<>>, #e3d_file{mat=Mat0}=File) ->
+main(<<>>, #e3d_file{objs=Objs0,mat=Mat0}=File) ->
     Mat = reformat_material(Mat0),
-    File#e3d_file{mat=Mat}.
+    Objs = case catch fix_transform(Objs0) of
+	       {'EXIT',Reason} ->
+		   io:format("~P\n", [Reason,20]),
+		   Objs0;
+	       Other -> Other
+	   end,
+    File#e3d_file{objs=Objs,mat=Mat}.
 
 editor(<<16#4000:16/little,Sz0:32/little,T0/binary>>,
        #e3d_file{objs=Objs0}=Acc) ->
     Sz = Sz0 - 6,
     <<Obj0:Sz/binary,T/binary>> = T0,
     {Name,Obj1} = get_cstring(Obj0),
+    ets:insert(?MODULE, {current_name,Name}),
     dbg("\nObject block: ~s\n", [Name]),
     case block(Obj1) of
 	no_mesh -> editor(T, Acc);
@@ -116,6 +127,42 @@ editor(<<Tag:16/little,Sz0:32/little,T0/binary>>, Acc) ->
     dbg("Unknown editor chunk: ~.16#: ~P\n", [Tag,Chunk,20]),
     editor(T, Acc);
 editor(<<>>, Acc) -> Acc.
+
+%% keyframer(Bin)
+%%  Go through the keyframer data and collect the only information
+%%  we are interested in: how the objects are related in the
+%%  hieararchy. We'll need that to calculate the correct transformation
+%%  matrix for each object.
+
+keyframer(Bin) ->
+    put(e3d_tds_node_id, -1),
+    R = keyframer_1(Bin),
+    erase(e3d_tds_node_id),
+    R.
+
+keyframer_1(<<Tag:16/little,Sz0:32/little,T0/binary>>) ->
+    Sz = Sz0 - 6,
+    <<Contents:Sz/binary,T/binary>> = T0,
+    if
+	Tag == 16#B002 ->
+	    keyframer_1(Contents),
+	    put(e3d_tds_node_id, get(e3d_tds_node_id)+1);
+	true ->
+	    keyframer_chunk(Tag, Contents)
+    end,
+    keyframer_1(T);
+keyframer_1(<<>>) -> ok.
+
+keyframer_chunk(16#B030, <<NodeId:16/little-signed>>) ->
+    put(e3d_tds_node_id, NodeId);
+keyframer_chunk(16#B010, Bin) ->
+    NameSz = size(Bin) - 7,
+    <<Name0:NameSz/binary,_:5/unit:8,Parent:16/little-signed>> = Bin,
+    Name = binary_to_list(Name0),
+    NodeId = get(e3d_tds_node_id),
+    ets:insert(?MODULE, {NodeId,Name}),
+    ets:insert(?MODULE, {Name,Parent});
+keyframer_chunk(_, _) -> ok.
 
 block(Bin) ->
     block(Bin, no_mesh).
@@ -164,18 +211,17 @@ trimesh(<<16#4140:16/little,Sz0:32/little,T0/binary>>, Acc) ->
     Tx = get_uv(Tx0),
     trimesh(T, Acc#e3d_mesh{tx=Tx});
 trimesh(<<16#4160:16/little,_Sz:32/little,T0/binary>>, Acc) ->
-    <<_V1X:32/?FLOAT,_V1Y:32/?FLOAT,_V1Z:32/?FLOAT,
-     _V2X:32/?FLOAT,_V2Y:32/?FLOAT,_V2Z:32/?FLOAT,
-     _V3X:32/?FLOAT,_V3Y:32/?FLOAT,_V3Z:32/?FLOAT,
+    <<V1X:32/?FLOAT,V1Y:32/?FLOAT,V1Z:32/?FLOAT,
+     V2X:32/?FLOAT,V2Y:32/?FLOAT,V2Z:32/?FLOAT,
+     V3X:32/?FLOAT,V3Y:32/?FLOAT,V3Z:32/?FLOAT,
      OX:32/?FLOAT,OY:32/?FLOAT,OZ:32/?FLOAT,
      T/binary>> = T0,
-    _CS = {1.0,0.0,0.0,0.0,
-	   0.0,1.0,0.0,0.0,
-	   0.0,0.0,1.0,0.0,
-	   OX,OY,OZ,1.0},
-    %%dbg("Local:~p\n", [CS]),
-    %%trimesh(T, Acc#e3d_mesh{matrix=Id});
-    %% Ignore local coordinate system.
+    Matrix = {V1X,V1Y,V1Z,
+	      V2X,V2Y,V2Z,
+	      V3X,V3Y,V3Z,
+	      OX,OY,OZ},
+    [{current_name,Name}] = ets:lookup(?MODULE, current_name),
+    ets:insert(?MODULE, {{local_matrix,Name},Matrix}),
     trimesh(T, Acc);
 trimesh(<<Tag:16/little,Sz0:32/little,T0/binary>>, Acc) ->
     Sz = Sz0 - 6,
@@ -342,6 +388,39 @@ general_rest(<<Tag:16/little,Sz0:32/little,T0/binary>>) ->
     <<Chunk:Sz/binary,T/binary>> = T0,
     dbg("Unknown general tag: ~.16#: ~P\n", [Tag,Chunk,20]),
     general_rest(T).
+
+fix_transform(Objs) ->
+    lists:foldl(fun(O, A) -> [fix_transform_1(O)|A] end, [], Objs).
+
+fix_transform_1(#e3d_object{name=Name,obj=Mesh}=Obj) ->
+    Matrix = get_transform(Name),
+    Obj#e3d_object{obj=Mesh#e3d_mesh{matrix=Matrix}}.
+
+get_transform(Name) ->
+    case ets:lookup(?MODULE, Name) of
+	[] ->
+	    none;
+	[{Name,ParentId}] ->
+	    case get_name_and_matrix(ParentId) of
+		none -> none;
+		{Parent,Matrix} ->
+		    case get_transform(Parent) of
+			none -> Matrix;
+			OtherMatrix ->
+			    e3d_mat:mul(OtherMatrix, Matrix)
+		    end
+	    end
+    end.
+
+get_name_and_matrix(Id) ->
+    case ets:lookup(?MODULE, Id) of
+	[] -> none;
+	[{Id,Name}] ->
+	    case ets:lookup(?MODULE, {local_matrix,Name}) of
+		[] -> none;
+		[{_,Matrix}] -> {Name,Matrix}
+	    end
+    end.
 
 %%%
 %%% Utilities.
