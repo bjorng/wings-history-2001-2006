@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_ndo.erl,v 1.3 2001/11/07 15:40:53 bjorng Exp $
+%%     $Id: wings_ff_ndo.erl,v 1.4 2001/11/07 20:53:37 bjorng Exp $
 %%
 
 -module(wings_ff_ndo).
@@ -67,7 +67,7 @@ read_object_1(<<L:16,T0/binary>>) ->
 	bad -> bad;
 	{Name,T1} ->
 	    io:format("~w: ~s\n", [L,Name]),
-	    <<Vis:8,Sensivity:8,_:16,_:72/binary,T2/binary>> = T1,
+	    <<Vis:8,Sensivity:8,_:8,_:8,_:72/binary,T2/binary>> = T1,
 	    {Etab,Htab,T3} = read_edges(T2),
 	    {Ftab,T4} = read_faces(T3),
 	    {Vtab,T5} = read_vertices(T4),
@@ -174,13 +174,17 @@ export(Name, #st{hidden=Hidden,shapes=Shapes0}=St) ->
 
 shape(#shape{name=Name,sh=We0}, Acc) ->
     NameChunk = [<<(length(Name)):16>>|Name],
-    Header = <<1:8,1:8,0:16,0:72/unit:8>>,
+    Vis = 1,
+    Sense = 1,
+    Shaded = 1,
+    Unknown = 0,
+    Header = <<Vis:8,Sense:8,Shaded:8,Unknown:8,0:72/unit:8>>,
     We = wings_we:renumber(We0, 0),
     #we{vs=Vs,es=Etab,fs=Ftab,he=Htab} = We,
     EdgeChunk = write_edges(gb_trees:to_list(Etab), Htab, []),
     FaceChunk = write_faces(gb_trees:values(Ftab), []),
     VertexChunk = write_vertices(gb_trees:values(Vs), []),
-    FillChunk = [0,0,0,0,0],
+    FillChunk = [0,0,0,0,0,1],
     [[NameChunk,Header,EdgeChunk,FaceChunk,VertexChunk,FillChunk]|Acc].
 
 write_edges([{Edge,Erec0}|Es], Htab, Acc) ->
