@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_rib.erl,v 1.8 2002/06/14 13:06:28 bjorng Exp $
+%%     $Id: wpc_rib.erl,v 1.9 2002/08/11 19:10:14 bjorng Exp $
 
 -module(wpc_rib).
 -include_lib("e3d.hrl").
@@ -29,15 +29,15 @@ menu({file,export_selected}, Menu) ->
 menu({file,render}, Menu0) ->
     Menu1 = case os:find_executable("rendrib") of
 		false -> Menu0;
-		_Path -> Menu0 ++ [{"Render to BMRT 2.6",rendrib,[option]}]
+		_Path -> Menu0 ++ [{"BMRT 2.6",rendrib,[option]}]
 	    end,
     Menu2 = case os:find_executable("air") of
 		false -> Menu1;
-		_Path2 -> Menu1 ++ [{"Render to Air",air,[option]}]
+		_Path2 -> Menu1 ++ [{"Air",air,[option]}]
 	   end,
     Menu3 = case os:find_executable("entropy") of
 		false -> Menu2;
-		_Path3 -> Menu2 ++  [{"Render to Entropy",entropy,[option]}]
+		_Path3 -> Menu2 ++  [{"Entropy",entropy,[option]}]
 	    end,
     Menu3;
 menu(_, Menu) -> Menu.
@@ -113,19 +113,7 @@ render_dialog(entropy) ->
      {"Export UV Coordinates",get_pref(export_uv, true),[{key,export_uv}]} | common_dialog()].
 
 common_dialog() ->
-    [{"Export Normals",get_pref(export_normals, true),[{key,export_normals}]},
-     {vframe,
-      [{label_column,
-	[{"Light 1",
-	  {slider,{text,get_pref(light1, 600),
-		   [{range,{0,999}},{key,light1}]}}},
-	 {"Light 2",
-	  {slider,{text,get_pref(light2, 200),
-		   [{range,{0,999}},{key,light2}]}}},
-	 {"Light 3",
-	  {slider,{text,get_pref(light3, 200),
-		   [{range,{0,999}},{key,light3}]}}}]}],
-      [{title,"Light Intensities"}]}].
+    [{"Export Normals",get_pref(export_normals, true),[{key,export_normals}]}].
 
 get_pref(Key, Def) ->
     wpa:pref_get(?MODULE, Key, Def).
@@ -150,8 +138,9 @@ do_render(Attr0, Engine, St) ->
 		    [{render_file,RendFile}|Attr0];
 		preview -> Attr0
 	    end,
-    Attr2 = [{tmp_render,Engine}|Attr1],
-    Attr = add_attr(Engine,Attr2),
+    Ls = wpa:lights(St),
+    Attr2 = [{lights,Ls},{tmp_render,Engine}|Attr1],
+    Attr = add_attr(Engine, Attr2),
     wpa:export(none, render_fun(Attr), St).
 
 add_attr(rendrib, Attr) ->
@@ -239,9 +228,10 @@ do_export(Ask, _Exporter, St) when is_atom(Ask) ->
 	       fun(Res) ->
 		       {file,{export,{rib,Res}}}
 	       end);
-do_export(Attr0, Exporter, _St) when is_list(Attr0) ->
+do_export(Attr0, Exporter, St) when is_list(Attr0) ->
     set_pref(Attr0),
-    Attr = [{tmp_render,none}|Attr0],
+    Ls = wpa:lights(St),
+    Attr = [{lights,Ls},{tmp_render,none}|Attr0],
     Exporter(props(), export_fun(Attr)).
 
 export_fun(Attr) ->
@@ -261,8 +251,8 @@ export_1(Name, #e3d_file{objs=Objs,mat=Mat,creator=Creator}, Attr) ->
     end,
     export_camera(F),
     io:put_chars(F, "WorldBegin\n"),
-    export_lights(F, Attr),
     io:put_chars(F, "Identity\n"),
+    export_lights(F, Attr),
     TmpImgs = export_materials_one(Mat, Base, Attr),
     foreach(fun(Obj) -> export_object(F, Obj, Mat, Base, Attr) end, Objs),
     io:put_chars(F, "WorldEnd\n"),
@@ -480,63 +470,49 @@ export_material(F, Name, Mat, Base, Attr) ->
     end.
 
 export_lights(F, Attr) ->
-    Light1 = property_lists:get_value(light1, Attr),
-    Light2 = property_lists:get_value(light2, Attr),
-    Light3 = property_lists:get_value(light3, Attr),
-    io:format(F,
-	      "# Lights!
-TransformBegin
-      ConcatTransform [1 0 0 0 0 1 0 0 0 0 1 0 -7.65848 6.78137 6.28592 1]
-      Declare \"shadows\" \"string\"
-      Attribute \"light\" \"shadows\" [\"off\"]
-      AttributeBegin
-      Declare \"intensity\" \"float\"
-      Declare \"lightcolor\" \"color\"
-      AreaLightSource \"arealight\" 1 \"intensity\" [~p] \"lightcolor\" [1 1 1]
-      Interior \"arealight\" \"intensity\" [~p] \"lightcolor\" [1 1 1]
-      AttributeBegin
-      TransformBegin
-      Sphere 1 -1 1 360
-      TransformEnd
-      AttributeEnd
-      AttributeEnd
-      Illuminate 1 1
-      TransformEnd
-      TransformBegin
-      ConcatTransform [1 0 0 0 0 1 0 0 0 0 1 0 11.844 6.78137 3.38473 1]
-      Declare \"shadows\" \"string\"
-      Attribute \"light\" \"shadows\" [\"off\"]
-      AttributeBegin
-      Declare \"intensity\" \"float\"
-      Declare \"lightcolor\" \"color\"
-      AreaLightSource \"arealight\" 2 \"intensity\" [~p] \"lightcolor\" [1 1 1]
-      Interior \"arealight\" \"intensity\" [~p] \"lightcolor\" [1 1 1]
-      AttributeBegin
-      TransformBegin
-      Sphere 1 -1 1 360
-      TransformEnd
-      AttributeEnd
-      AttributeEnd
-      Illuminate 2 1
-      TransformEnd
-      TransformBegin
-      ConcatTransform [1 0 0 0 0 1 0 0 0 0 1 0 -4.75729 6.78137 -12.0883 1]
-      Declare \"shadows\" \"string\"
-      Attribute \"light\" \"shadows\" [\"off\"]
-      AttributeBegin
-      Declare \"intensity\" \"float\"
-      Declare \"lightcolor\" \"color\"
-      AreaLightSource \"arealight\" 3 \"intensity\" [~p] \"lightcolor\" [1 1 1]
-      Interior \"arealight\" \"intensity\" [~p] \"lightcolor\" [1 1 1]
-      AttributeBegin
-      TransformBegin
-      Sphere 1 -1 1 360
-      TransformEnd
-      AttributeEnd
-      AttributeEnd
-      Illuminate 3 1
-      TransformEnd\n",
-      [Light1,Light1,Light2,Light2,Light3,Light3]).
+    declare(F, "from", "point"),
+    declare(F, "to", "point"),
+    declare(F, "lightcolor", "color"),
+    Ls = property_lists:get_value(lights, Attr),
+    foldl(fun(L, I) -> export_light(F, I, L), I+1 end, 0, Ls).
+    
+export_light(F, I, {_,Ps}) ->
+    OpenGL = property_lists:get_value(opengl, Ps, []),
+    Type = property_lists:get_value(type, OpenGL, point),
+    export_light(F, Type, I, OpenGL).
+
+export_light(F, point, I, OpenGL) ->
+    io:format(F, "LightSource \"pointlight\" ~p", [I]),
+    export_light_common(F, OpenGL),
+    io:nl(F);
+export_light(F, infinite, I, OpenGL) ->
+    To = property_lists:get_value(aim_point, OpenGL, {0,0,1}),
+    io:format(F, "LightSource \"distantlight\" ~p", [I]),
+    export_light_common(F, OpenGL),
+    show_point(F, "to", To),
+    io:nl(F);
+export_light(F, spot, I, OpenGL) ->
+    To = property_lists:get_value(aim_point, OpenGL, {0,0,1}),
+    Angle0 = property_lists:get_value(cone_angle, OpenGL, 30),
+    Angle = Angle0*math:pi()/180,
+    io:format(F, "LightSource \"spotlight\" ~p", [I]),
+    export_light_common(F, OpenGL),
+    show_point(F, "to", To),
+    io:format(F, " ~p ~p ", ["coneangle",Angle]),
+    io:nl(F).
+
+export_light_common(F, OpenGL) ->
+    From = property_lists:get_value(position, OpenGL, {0,0,0}),
+    {R,G,B,_} = property_lists:get_value(diffuse, OpenGL, {1,1,1,1}),
+    io:format(F, " ~p ~p ", ["intensity",1.0]),
+    show_point(F, "lightcolor", {R,G,B}),
+    show_point(F, "from", From).
+    
+show_point(F, Label, {X,Y,Z}) ->
+    io:format(F, "~p [~p ~p ~p] ", [Label,X,Y,Z]).
+
+declare(F, N, V) ->
+    io:format(F, "Declare ~p ~p\n", [N,V]).
 
 %%%
 %%% Utilities.
