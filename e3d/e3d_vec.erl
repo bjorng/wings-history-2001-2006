@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_vec.erl,v 1.23 2004/05/19 03:45:18 bjorng Exp $
+%%     $Id: e3d_vec.erl,v 1.24 2004/12/30 09:31:06 bjorng Exp $
 %%
 
 -module(e3d_vec).
@@ -109,17 +109,16 @@ norm({V1,V2,V3}) ->
     norm(V1, V2, V3).
 
 norm(V1, V2, V3) when is_float(V1), is_float(V2), is_float(V3) ->
-    D = math:sqrt(V1*V1+V2*V2+V3*V3),
-    case catch {V1/D,V2/D,V3/D} of
-	{'EXIT',_} -> {0.0,0.0,0.0};
-	R -> R
-    end.
+    norm(V1*V1+V2*V2+V3*V3, V1, V2, V3).
 
+
+norm(SqrLen, _, _, _) when SqrLen < 1.0E-16 ->
+    {0.0,0.0,0.0};
 norm(SqrLen, V1, V2, V3) ->
     D = math:sqrt(SqrLen),
-    case catch {V1/D,V2/D,V3/D} of
-	{'EXIT',_} -> {0.0,0.0,0.0};
-	R -> R
+    try {V1/D,V2/D,V3/D}
+    catch
+	error:badarith -> {0.0,0.0,0.0}
     end.
 
 normal({V10,V11,V12}, {V20,V21,V22}, {V30,V31,V32})
@@ -136,9 +135,9 @@ normal({V10,V11,V12}, {V20,V21,V22}, {V30,V31,V32})
     N1 = D12*D20-D10*D22,
     N2 = D10*D21-D11*D20,
     D = math:sqrt(N0*N0+N1*N1+N2*N2),
-    case catch {N0/D,N1/D,N2/D} of
-	{'EXIT',_} -> {0.0,0.0,0.0};
-	R -> R
+    try {N0/D,N1/D,N2/D}
+    catch
+	error:badarith -> {0.0,0.0,0.0}
     end.
 
 area({V10,V11,V12}, {V20,V21,V22}, {V30,V31,V32})
