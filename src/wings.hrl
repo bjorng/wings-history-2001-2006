@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.51 2002/03/18 06:15:00 bjorng Exp $
+%%     $Id: wings.hrl,v 1.52 2002/03/20 07:37:41 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -71,6 +71,7 @@
 %% Display lists.
 -record(dl,
 	{faces=none,				%Faces.
+	 vs=none,				%Unselected vertices.
 	 pick=none,				%For picking.
 	 old_sel,				%Actual selection.
 	 sel=none,				%Selected items.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.121 2002/03/19 09:19:30 bjorng Exp $
+%%     $Id: wings.erl,v 1.122 2002/03/20 07:37:40 bjorng Exp $
 %%
 
 -module(wings).
@@ -246,7 +246,7 @@ do_command(Cmd, St0) ->
     case Res of
 	{'EXIT',Reason} -> exit(Reason);
 	{command_error,Error} ->
-	    wings_draw:clear_orig_sel(),
+	    wings_draw:model_changed(),
 	    wings_util:message(Error),
 	    main_loop(St0);
 	#st{}=St -> main_loop(St);

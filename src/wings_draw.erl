@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.67 2002/03/19 09:21:26 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.68 2002/03/20 07:37:41 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -50,7 +50,7 @@ clear_orig_sel() ->
     end.
 
 -define(DL_FACES, (?DL_DRAW_BASE)).
--define(DL_EDGES, (?DL_DRAW_BASE+1)).
+-define(DL_VERTICES, (?DL_DRAW_BASE+1)).
 -define(DL_SEL1, (?DL_DRAW_BASE+2)).
 -define(DL_SEL2, (?DL_DRAW_BASE+3)).
 -define(DL_NORMALS, (?DL_DRAW_BASE+4)).
@@ -160,11 +160,42 @@ draw_plain_shapes(#st{selmode=SelMode}=St) ->
     ?CHECK_ERROR(),
     draw_orig_sel(),
     draw_sel(St),
+    draw_vertices(St),
     ?CHECK_ERROR(),
     draw_hard_edges(St).
 
 draw_hilite(#st{hilite=none}) -> ok;
 draw_hilite(#st{hilite=Hilite}) -> Hilite().
+
+draw_vertices(#st{selmode=vertex}=St) ->
+    case get_dlist() of
+	#dl{vs=none}=DL ->
+    	    gl:newList(?DL_VERTICES, ?GL_COMPILE),
+	    draw_vertices_1(St),
+	    gl:endList(),
+	    put_dlist(DL#dl{vs=?DL_VERTICES}),
+	    gl:callList(?DL_VERTICES);
+	#dl{vs=DlistVs} ->
+	    gl:callList(DlistVs)
+    end;
+draw_vertices(_) -> ok.
+
+draw_vertices_1(#st{shapes=Shs}) ->
+    case wings_pref:get_value(vertex_size) of
+	0.0 -> ok;
+	PtSize -> 
+	    gl:pointSize(PtSize),
+	    gl:color3f(0, 0, 0),
+	    gl:'begin'(?GL_POINTS),
+	    foreach(fun(#we{vs=Vtab,perm=Perm}) when ?IS_VISIBLE(Perm) ->
+			    draw_vertices_2(gb_trees:values(Vtab));
+		       (#we{}) -> ok
+		    end, gb_trees:values(Shs)),
+	    gl:'end'()
+    end.
+
+draw_vertices_2(Vs) ->
+    foreach(fun(#vtx{pos=Pos}) -> gl:vertex3fv(Pos) end, Vs).
 
 draw_orig_sel() ->
     case get_dlist() of
@@ -223,7 +254,7 @@ draw_faces() ->
     #dl{faces=DlistFaces} = get_dlist(),
     gl:callList(DlistFaces).
 
-update_display_lists(#st{shapes=Shapes}=St) ->
+update_display_lists(#st{shapes=Shs}=St) ->
     case get_dlist() of
 	undefined ->
 	    Smooth = wings_pref:get_value(smooth_preview),
@@ -231,7 +262,7 @@ update_display_lists(#st{shapes=Shapes}=St) ->
 	    foreach(fun(#we{perm=Perm}=We) when ?IS_VISIBLE(Perm) ->
 			    draw_faces(We, Smooth, St);
 		       (#we{}) -> ok
-		    end, gb_trees:values(Shapes)),
+		    end, gb_trees:values(Shs)),
 	    gl:endList(),
 	    put_dlist(#dl{faces=?DL_FACES});
 	_DL -> ok
@@ -252,16 +283,15 @@ do_make_sel_dlist(false, #st{selmode=body,sel=Sel,shapes=Shs}=St) ->
 	{Sz,Sz} ->
 	    sel_color(),
 	    draw_faces();
-	{_,_} ->
-	    draw_selection(false, St)
+	{_,_} -> draw_selection(St)
     end,
     gl:endList(),
     put_dlist(DL#dl{old_sel=Sel,sel=DlistSel});
-do_make_sel_dlist(Smooth, #st{sel=Sel}=St) ->
+do_make_sel_dlist(_Smooth, #st{sel=Sel}=St) ->
     DL = get_dlist(),
     DlistSel = get_sel_dlist(DL),
     gl:newList(DlistSel, ?GL_COMPILE),
-    draw_selection(Smooth, St),
+    draw_selection(St),
     gl:endList(),
     put_dlist(DL#dl{old_sel=Sel,sel=DlistSel}).
 
@@ -419,13 +449,13 @@ draw_hard_edges_1(#we{es=Etab,he=Htab,vs=Vtab}) ->
 %% Draw the currently selected items.
 %%
 
-draw_selection(_Smooth, #st{selmode=body}=St) ->
+draw_selection(#st{selmode=body}=St) ->
     sel_color(),
     wings_sel:foreach(
       fun(_, We) ->
 	      draw_faces(We, false, St)
       end, St);
-draw_selection(_Smooth, #st{selmode=face}=St) ->
+draw_selection(#st{selmode=face}=St) ->
     sel_color(),
     wings_draw_util:begin_end(
       fun() ->
@@ -435,7 +465,7 @@ draw_selection(_Smooth, #st{selmode=face}=St) ->
 			wings_draw_util:face(Face, Edge, We)
 		end, St)
       end);
-draw_selection(_Smooth, #st{selmode=edge}=St) ->
+draw_selection(#st{selmode=edge}=St) ->
     sel_color(),
     gl:'begin'(?GL_LINES),
     wings_sel:foreach(
@@ -445,31 +475,12 @@ draw_selection(_Smooth, #st{selmode=edge}=St) ->
 	      gl:vertex3fv(lookup_pos(Vend, Vtab))
       end, St),
     gl:'end'();
-draw_selection(Smooth, #st{selmode=vertex}=St) ->
-    draw_vtx_sel(Smooth, St).
+draw_selection(#st{selmode=vertex,shapes=Shapes,sel=Sel}) ->
+    draw_vtx_sel(gb_trees:to_list(Shapes), Sel).
 
-draw_vtx_sel(Smooth, #st{shapes=Shapes,sel=Sel}) ->
-    draw_vtx_sel(gb_trees:to_list(Shapes), Sel, Smooth).
-
-draw_vtx_sel([{Id1,_}|Shs], [{Id2,_}|_]=Sel, true) when Id1 < Id2 ->
-    draw_vtx_sel(Shs, Sel, true);
-draw_vtx_sel([{Id1,#we{vs=Vtab}=We}|Shs], [{Id2,_}|_]=Sel, false)
-  when Id1 < Id2 ->
-    draw_unsel_vtx(fun() ->
-			   foreach(fun(#vtx{pos=Pos}) ->
-					   gl:vertex3fv(Pos) end,
-				   gb_trees:values(Vtab))
-		   end, We),
-    draw_vtx_sel(Shs, Sel, false);
-draw_vtx_sel([_|_], [], true) -> ok;
-draw_vtx_sel([{_,#we{vs=Vtab}=We}|Shs], [], false) ->
-    draw_unsel_vtx(fun() ->
-			   foreach(fun(#vtx{pos=Pos}) ->
-					   gl:vertex3fv(Pos) end,
-				   gb_trees:values(Vtab))
-		   end, We),
-    draw_vtx_sel(Shs, [], false);
-draw_vtx_sel([{Id,#we{vs=Vtab0}=We}|Shs], [{Id,Vs}|Sel], Smooth) ->
+draw_vtx_sel([{Id1,_}|Shs], [{Id2,_}|_]=Sel) when Id1 < Id2 ->
+    draw_vtx_sel(Shs, Sel);
+draw_vtx_sel([{Id,#we{vs=Vtab0}}|Shs], [{Id,Vs}|Sel]) ->
     Vtab = sofs:from_external(gb_trees:to_list(Vtab0), [{vertex,data}]),
     R = sofs:from_external(gb_sets:to_list(Vs), [vertex]),
     SelVs = sofs:restriction(Vtab, R),
@@ -477,29 +488,9 @@ draw_vtx_sel([{Id,#we{vs=Vtab0}=We}|Shs], [{Id,Vs}|Sel], Smooth) ->
     gl:'begin'(?GL_POINTS),
     foreach(DrawFun, sofs:to_external(SelVs)),
     gl:'end'(),
-    case Smooth of
-	true -> ok;
-	false ->
-	    NonSelVs = sofs:drestriction(Vtab, R),
-	    draw_unsel_vtx(
-	      fun() ->
-		      foreach(DrawFun, sofs:to_external(NonSelVs))
-	      end, We)
-    end,
-    draw_vtx_sel(Shs, Sel, Smooth);
-draw_vtx_sel([], [], _Smooth) -> ok.
-
-draw_unsel_vtx(_Draw, #we{perm=Perm}) when ?IS_NOT_VISIBLE(Perm)-> ok;
-draw_unsel_vtx(Draw, _We) ->
-    case wings_pref:get_value(vertex_size) of
-	0.0 -> ok;
-	PtSize -> 
-	    gl:pointSize(PtSize),
-	    gl:color3f(0, 0, 0),
-	    gl:'begin'(?GL_POINTS),
-	    Draw(),
-	    gl:'end'()
-    end.
+    draw_vtx_sel(Shs, Sel);
+draw_vtx_sel([_|_], []) -> ok;
+draw_vtx_sel([], []) -> ok.
 
 lookup_pos(Key, Tree) ->
     #vtx{pos=Pos} = gb_trees:get(Key, Tree),
