@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv.hrl,v 1.18 2003/07/16 12:01:47 bjorng Exp $
+%%     $Id: auv.hrl,v 1.19 2003/08/12 17:17:43 bjorng Exp $
 
 %% Chart record (one for each chart).
 %% Stored in the 'name' field in the #we{} record.
@@ -32,7 +32,7 @@
 
 -record(uvstate,
 	{op,               %% Current op i.e. move rotate, scale..
-	 mode = faceg,     %% faceg, face, edge, vertex
+	 mode = body,      %% body, face, edge, vertex
 	 size = [0,0],     %% Max Size currently (unscaled)
 	 option = #setng{},%% Settings
 	 geom,             %% Window geom

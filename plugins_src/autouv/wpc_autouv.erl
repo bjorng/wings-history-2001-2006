@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.141 2003/08/07 05:13:42 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.142 2003/08/12 17:17:43 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -596,7 +596,7 @@ redraw(#uvstate{mode=Mode,geom=Geom}=Uvs0) ->
     gl:popAttrib(),
     Uvs.
 
-command_menu(faceg, X,Y, _Uvs) ->
+command_menu(body, X,Y, _Uvs) ->
     Rotate = [{"Z    Free",  free, "Drag mouse to rotate free"},
 	      {"Z   90 deg", 90, " "},
 	      {"Z  -90 deg", -90, " "},
@@ -791,8 +791,7 @@ handle_event_1(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,x=MX,y=M
 	    CX = if OX > MX -> MX + BW div 2; true -> MX - BW div 2 end,
 	    CY = if OY > MY -> MY + BH div 2; true -> MY - BH div 2 end,
 	    %%		    ?DBG("BW ~p BH ~p Center ~p \n",[BW,BH, {CX,CY}]),
-	    case select_1(Mode, CX,(OH-CY), BW,BH, gb_trees:values(Curr0),
-			  Curr0, ViewP) of
+	    case select_1(Mode, CX,(OH-CY), BW,BH, Curr0, ViewP) of
 		none -> 
 		    get_event(Uvs0#uvstate{op = undefined});
 		Hits -> 
@@ -1067,29 +1066,23 @@ update_selection(Areas, Sel0, Other0) ->
 		  end
 	  end, {Sel0, Other0}, Areas).
 
-select(Mode, X,Y, Objects, {XYS,XM,XYS,YM}=ViewP) ->
-    {_,_,UVW,UVH} = wings_wm:viewport(),
-    XT = (XM-XYS)*X/UVW+XYS,
-    YT = (YM-XYS)*Y/UVH+XYS,
-    case find_selectable(XT,YT, gb_trees:values(Objects), []) of
-	[] -> none;
-	Possible -> select_1(Mode, X,Y, 3,3, Possible, Objects, ViewP)
-    end.
+select(Mode, X,Y, Objects, ViewP) ->
+    select_1(Mode, X,Y, 3,3, Objects, ViewP).
 
-select_1(Mode, X,Y, W, H, Possible, All, {XYS,XM,XYS,YM}) ->
+select_1(Mode, X,Y, W, H, All, {XYS,XM,XYS,YM}) ->
     {_,_,UVW,UVH} = wings_wm:viewport(),
     HitBuf = get(wings_hitbuf),
     gl:selectBuffer(?HIT_BUF_SIZE, HitBuf),
     gl:renderMode(?GL_SELECT),
     gl:initNames(),
-    gl:viewport(0,0,UVW,UVH),
+    gl:viewport(0, 0, UVW, UVH),
     gl:matrixMode(?GL_PROJECTION),
     gl:loadIdentity(),
     glu:pickMatrix(float(X), float(Y), W,H, {0,0,UVW,UVH}),
     glu:ortho2D(XYS, XM, XYS, YM),
     gl:matrixMode(?GL_MODELVIEW),
     gl:loadIdentity(),
-    select_draw(Possible, Mode),
+    select_draw(gb_trees:values(All), Mode),
     gl:flush(),
     case gl:renderMode(?GL_RENDER) of
 	0 -> 
@@ -1119,43 +1112,8 @@ select_draw_1([#we{id=Id,name=Ch}=We|R], Mode) ->
     select_draw_1(R, Mode);
 select_draw_1([], _) -> gl:popName().
 
-select_draw_2(faceg, Fs, We) ->
-    draw_faces(Fs, We);
-select_draw_2(face, Fs, We) ->
-    select_draw_faces(Fs, We),
-    gl:edgeFlag(?GL_TRUE);
-select_draw_2(edge, Fs, #we{vp=Vtab}=We) ->
-    DrawEdge = fun(_Face, _V, Edge, #edge{vs=Va,ve=Vb}, _) ->
-		       gl:pushName(Edge),
-		       gl:glBegin(?GL_LINES),
-		       gl:vertex3fv(gb_trees:get(Va, Vtab)),
-		       gl:vertex3fv(gb_trees:get(Vb, Vtab)),
-		       gl:glEnd(),   
-		       gl:popName()
-	       end,
-    wings_face:fold_faces(DrawEdge, [], Fs, We);
-select_draw_2(vertex, Fs, #we{vp=Vtab}=We) ->
-    DrawPoint = fun(_Face, V, _Edge, _Rec, _) ->
-			gl:pushName(V),
-			gl:glBegin(?GL_POINTS),
-			gl:vertex3fv(gb_trees:get(V, Vtab)),
-			gl:glEnd(),   
-			gl:popName()
-		end,
-    wings_face:fold_faces(DrawPoint, [], Fs, We).
-
-select_draw_faces(Faces, We) ->
-    gl:pushName(0),
-    select_draw_faces_1(Faces, We),
-    gl:popName().
-    
-select_draw_faces_1([H|R], We) ->
-    gl:loadName(H),
-    gl:'begin'(?GL_TRIANGLES),
-    wings_pick:face(H, We),
-    gl:'end'(),
-    select_draw_faces_1(R, We);
-select_draw_faces_1([], _) -> ok.
+select_draw_2(body, Fs, We) ->
+    draw_faces(Fs, We).
 
 get_hits(N, Buf) ->
     get_hits_1(N, Buf, []).
@@ -1165,14 +1123,6 @@ get_hits_1(N, [1,_,_,A|T], Acc) ->
     get_hits_1(N-1, T, [A|Acc]).
 
 -define(OUT, 1.2/2). %% was 1/2 
-
-find_selectable(X,Y, [#we{name=#ch{center={CX,CY},size={W,H}}}=We|Rest], Acc)
-  when X > (CX-W*?OUT), X < (CX+W*?OUT), Y > (CY-H*?OUT), Y < (CY+H*?OUT) ->
-    find_selectable(X,Y, Rest, [We|Acc]);
-find_selectable(X,Y, [_|R], Acc) ->
-    find_selectable(X,Y, R, Acc);
-find_selectable(_X,_Y, [], Acc) ->
-    reverse(Acc).
 
 wings_select_faces([], _, St) ->
     wpa:sel_set(face, [], St);
@@ -1185,23 +1135,23 @@ wings_select_faces(As, Id, St) ->
 
 %%%% GUI Operations
 
-move_area(faceg, {Id,#we{name=#ch{center={X0,Y0}}=Ch}=We}, DX, DY) ->
+move_area(body, {Id,#we{name=#ch{center={X0,Y0}}=Ch}=We}, DX, DY) ->
 %    ?DBG("Move ~p ~p ~p~n", [{X0,Y0}, S, {DX, DY}]),
 %%    A#ch{center = {X0+DX/S, Y0+DY/S}}.
     {Id,We#we{name=Ch#ch{center={X0+DX,Y0+DY}}}}.
 
-scale_area(faceg,{Id,#we{name=#ch{scale=S,size={W,H}}=Ch}=We}, Ns) ->
+scale_area(body,{Id,#we{name=#ch{scale=S,size={W,H}}=Ch}=We}, Ns) ->
     {Id,We#we{name=Ch#ch{scale=S+Ns,size={W/S*(S+Ns),H/S*(S+Ns)}}}}.
 
-rotate_area(faceg, {Id,#we{name=#ch{rotate=R0}=Ch}=We}, Ns) ->
+rotate_area(body, {Id,#we{name=#ch{rotate=R0}=Ch}=We}, Ns) ->
     R = R0 + Ns*180,
     {Id,We#we{name=Ch#ch{rotate=R}}}.
 
-transpose_x(faceg, {Id,#we{vp=Vpos0}=We}) ->
+transpose_x(body, {Id,#we{vp=Vpos0}=We}) ->
     Vpos = [{V,{-X,Y,Z}} || {V,{X,Y,Z}} <- gb_trees:to_list(Vpos0)],
     {Id,We#we{vp=gb_trees:from_orddict(Vpos)}}.
 
-transpose_y(faceg, {Id,#we{vp=Vpos0}=We}) ->
+transpose_y(body, {Id,#we{vp=Vpos0}=We}) ->
     Vpos = [{Nr, {X,-Y,Z}} || {Nr, {X,Y,Z}} <- gb_trees:to_list(Vpos0)],
     {Id,We#we{vp=gb_trees:from_orddict(Vpos)}}.
 
