@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.224 2004/05/02 09:49:36 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.225 2004/05/02 13:29:44 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -595,53 +595,47 @@ is_power_of_two(X) ->
 update_selection(#st{selmode=Mode,sel=Sel}=St,
 		 #st{bb=#uvstate{st=#st{selmode=Mode,sel=Sel}}=Uvs}=AuvSt) ->
     get_event_nodraw(AuvSt#st{bb=Uvs#uvstate{st=St}});
-update_selection(#st{selmode=Mode,sel=Sel}=St,
+update_selection(#st{selmode=Mode,sel=Sel}=St0,
 		 #st{selmode=AuvMode,bb=#uvstate{id=Id}=Uvs,
 		     shapes=Charts0}=AuvSt0) ->
+    Charts = gb_trees:to_list(Charts0),
     case keysearch(Id, 1, Sel) of
 	false ->
-	    AuvSt = reset_sel(AuvSt0#st{bb=Uvs#uvstate{st=St}}),
+	    %% No selection in any chart - clear selection.
+	    AuvSt = reset_sel(AuvSt0#st{bb=Uvs#uvstate{st=St0}}),
 	    get_event(AuvSt);
-	{value,{Id,Elems0}} ->
+	{value,{Id,Elems}} when AuvMode == body ->
+	    %% Body selection in charts - must be speciallay handled.
+	    NewSel = update_body_sel(Mode, Elems, Charts),
+	    AuvSt = AuvSt0#st{sel=sort(NewSel),sh=false,
+			      bb=Uvs#uvstate{st=St0}},
+	    get_event(AuvSt);
+	{value,{Id,Elems0}} when AuvMode =:= Mode->
+	    %% Same selection mode in Geometry and AutoUV.
 	    Elems = gb_sets:to_list(Elems0),
-	    Charts = gb_trees:to_list(Charts0),
-	    Res = update_selection_1(AuvMode, Mode, Elems, Charts),
-	    case Res of
-		none ->
-		    AuvSt = AuvSt0#st{sel=[],sh=false,bb=Uvs#uvstate{st=St}},
-		    get_event_nodraw(AuvSt);
-		NewSel ->
-		    AuvSt = AuvSt0#st{sel=sort(NewSel),sh=false,
-				      bb=Uvs#uvstate{st=St}},
-		    get_event(AuvSt)
-	    end
+	    NewSel = update_selection_1(AuvMode, Elems, Charts),
+	    AuvSt = AuvSt0#st{sel=sort(NewSel),sh=false,
+			      bb=Uvs#uvstate{st=St0}},
+	    get_event(AuvSt);
+	{value,IdElems} ->
+	    %% Different selection modes. Convert Geom selection to
+	    %% the mode in AutoUV.
+	    St = St0#st{sel=[IdElems]},
+	    #st{sel=[{Id,Elems0}]} = wings_sel:convert_selection(AuvMode, St),
+	    Elems = gb_sets:to_list(Elems0),
+	    NewSel = update_selection_1(AuvMode, Elems, Charts),
+	    AuvSt = AuvSt0#st{sel=sort(NewSel),sh=false,
+			      bb=Uvs#uvstate{st=St0}},
+	    get_event(AuvSt)
     end.
 
-update_selection_1(vertex, _, _, _) ->
+update_selection_1(vertex, Vs, Charts) ->
+    vertex_sel_to_vertex(Charts, Vs, []);
+update_selection_1(edge, _, _) ->
     io:format("~p\n", [?LINE]),
-    none;
-update_selection_1(edge, _, _, _) ->
-    io:format("~p\n", [?LINE]),
-    none;
-update_selection_1(face, Mode, Elems, Charts) ->
-    update_face_sel(Mode, Elems, Charts);
-update_selection_1(body, Mode, Elems, Charts) ->
-    update_body_sel(Mode, Elems, Charts).
-
-%% update_face_sel(SelModeInGeom, GeomFaces, Charts) -> Selection
-%%  Convert the selection from the geoemetry window to
-%%  a face selection in the AutoUV window.
-
-update_face_sel(vertex, Vs, Charts) ->
-    io:format("~p: ~p\n", [?LINE,edge]),
-    none;
-update_face_sel(edge, _, _) ->
-    io:format("~p: ~p\n", [?LINE,edge]),
-    none;
-update_face_sel(face, Faces, Charts) ->
-    face_sel_to_face(Charts, Faces, []);
-update_face_sel(body, _, Charts) ->
-    body_sel_to_face(Charts, []).
+    [];
+update_selection_1(face, Faces, Charts) ->
+    face_sel_to_face(Charts, Faces, []).
 
 face_sel_to_face([{K,We}|Cs], Faces, Sel) ->
     ChartFaces = auv2geom_faces(wings_we:visible(We), We),
@@ -655,11 +649,17 @@ face_sel_to_face([{K,We}|Cs], Faces, Sel) ->
     end;
 face_sel_to_face([], _, Sel) -> Sel.
 
-body_sel_to_face([{K,We}|Cs], Sel) ->
-    FaceSel = gb_sets:from_ordset(wings_we:visible(We)),
-    body_sel_to_face(Cs, [{K,FaceSel}|Sel]);
-body_sel_to_face([], Sel) -> Sel.
-
+vertex_sel_to_vertex([{K,#we{vp=Vtab}=We}|Cs], Vs, Sel) ->
+    ChartVs = auv2geom_vs(gb_trees:keys(Vtab), We),
+    case ordsets:intersection(ChartVs, Vs) of
+ 	[] ->
+	    vertex_sel_to_vertex(Cs, Vs, Sel);
+ 	VertexSel0 ->
+	    VertexSel1 = geom2auv_vs(VertexSel0, We),
+	    VertexSel = gb_sets:from_list(VertexSel1),
+	    vertex_sel_to_vertex(Cs, Vs, [{K,VertexSel}|Sel])
+    end;
+vertex_sel_to_vertex([], _, Sel) -> Sel.
 
 %% update_body_sel(SelModeInGeom, Elems, Charts) -> Selection
 %%  Convert the selection from the geoemetry window to
@@ -671,7 +671,7 @@ update_body_sel(body, _, Charts) ->
     body_sel_to_body(Charts, []);
 update_body_sel(Mode, _, _) ->
     io:format("~p: ~p\n", [?LINE,Mode]),
-    none.
+    [].
 
 face_sel_to_body([{K,We}|Cs], Faces, Sel) ->
     Fs = wings_we:visible(We),
@@ -908,6 +908,9 @@ geom2auv_faces(Fs0, #we{name=#ch{fm_a2g=A2G}}) ->
     Fs = sofs:inverse_image(A2G, Fs1),
     sofs:to_external(Fs).
 
+auv2geom_vs(Vs, #we{name=#ch{vmap=Vmap}}) ->
+    [auv_segment:map_vertex(V, Vmap) || V <- Vs].
+
 geom2auv_vs(Vs, #we{name=#ch{vmap=Vmap},vp=Vtab}) ->
     geom2auv_vs_1(gb_trees:keys(Vtab), gb_sets:from_list(Vs), Vmap, []).
 
@@ -917,4 +920,3 @@ geom2auv_vs_1([V|Vs], VsSet, Vmap, Acc) ->
 	false -> geom2auv_vs_1(Vs, VsSet, Vmap, Acc)
     end;
 geom2auv_vs_1([], _, _, Acc) -> sort(Acc).
-    
