@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_export.erl,v 1.13 2005/02/20 05:34:30 bjorng Exp $
+%%     $Id: wings_export.erl,v 1.14 2005/03/09 05:57:17 bjorng Exp $
 %%
 
 -module(wings_export).
@@ -77,9 +77,11 @@ make_mesh_1(We0, Ps) ->
     #we{vp=Vs0,es=Etab,he=He0} = We = wings_we:renumber(We2, 0),
     Vs = gb_trees:values(Vs0),
     {ColTab0,UvTab0} = make_tables(Ps, We),
+    ColTab1 = gb_trees:from_orddict(ColTab0),
+    UvTab1 = gb_trees:from_orddict(UvTab0),
     Fs0 = foldl(fun({_,'_hole_'}, A) -> A;
 		   ({Face,Mat}, A) ->
-			case make_face(Face, Mat, ColTab0, UvTab0, We) of
+			case make_face(Face, Mat, ColTab1, UvTab1, We) of
 			    #e3d_face{vs=[_,_]} -> A;
 			    E3DFace -> [E3DFace|A]
 			end
@@ -107,14 +109,25 @@ tesselate(triangulate,We) ->
 tesselate(quadrangulate,We) ->
     wings_tesselation:quadrangulate(We).
 
-make_face(Face, Mat, _ColTab, [], #we{mode=material}=We) ->
+make_face(Face, Mat, _ColTab, UvTab, #we{mode=material}=We) ->
+    case gb_trees:is_empty(UvTab) of
+	false -> make_uv_face(Face, Mat, UvTab, We);
+	true -> make_plain_face(Face, Mat, We)
+    end;
+make_face(Face, Mat, ColTab, _UvTab, #we{mode=vertex}=We) ->
+    case gb_trees:is_empty(ColTab) of
+	false -> make_col_face(Face, Mat, ColTab, We);
+	true -> make_plain_face(Face, Mat, We)
+    end.
+
+make_plain_face(Face, Mat, We) ->
     Vs = wings_face:fold_vinfo(
 	   fun(V, _, Acc) ->
 		   [V|Acc]
 	   end, [], Face, We),
-    #e3d_face{vs=Vs,mat=make_face_mat(Mat)};
-make_face(Face, Mat, _ColTab, [_|_]=UvTab0, #we{mode=material}=We) ->
-    UvTab = gb_trees:from_orddict(UvTab0),
+    #e3d_face{vs=Vs,mat=make_face_mat(Mat)}.
+
+make_uv_face(Face, Mat, UvTab, We) ->
     {Vs,UVs0} = wings_face:fold_vinfo(
 		  fun(V, {_,_}=UV, {VAcc,UVAcc}) ->
 			  {[V|VAcc],[gb_trees:get(UV, UvTab)|UVAcc]};
@@ -125,15 +138,9 @@ make_face(Face, Mat, _ColTab, [_|_]=UvTab0, #we{mode=material}=We) ->
 	      length(Vs) =:= length(UVs0) -> UVs0;
 	      true -> []
 	  end,
-    #e3d_face{vs=Vs,tx=UVs,mat=make_face_mat(Mat)};
-make_face(Face, Mat, [], _UvTab, #we{mode=vertex}=We) ->
-    Vs = wings_face:fold_vinfo(
-	   fun(V, _, Acc) ->
-		   [V|Acc]
-	   end, [], Face, We),
-    #e3d_face{vs=Vs,mat=make_face_mat(Mat)};
-make_face(Face, Mat, [_|_]=ColTab0, _UvTab, #we{mode=vertex}=We) ->
-    ColTab = gb_trees:from_orddict(ColTab0),
+    #e3d_face{vs=Vs,tx=UVs,mat=make_face_mat(Mat)}.
+
+make_col_face(Face, Mat, ColTab, We) ->
     {Vs,Cols} = wings_face:fold_vinfo(
 		  fun(V, {_,_,_}=Col, {VAcc,ColAcc}) ->
 			  {[V|VAcc],[gb_trees:get(Col, ColTab)|ColAcc]};
