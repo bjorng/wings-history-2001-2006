@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.34 2002/03/15 10:13:15 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.35 2002/03/16 10:30:35 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -123,17 +123,14 @@ normalize_menu([{advanced,El}|Els], Hotkeys, true, Acc) ->
 normalize_menu([Elem0|Els], Hotkeys, Adv, Acc) ->
     Elem1 = case Elem0 of
 		{S,Name,Help,Ps} ->
-		    {S,Name,[],Help,Ps};
+		    {S,Name,[],Help,adv_filter(Adv, Ps)};
 		{S,Name,[C|_]=Help} when is_integer(C) ->
-		    Ps = [],
 		    {S,Name,[],Help,[]};
 		{S,Name,Ps} ->
-		    {S,Name,[],[],Ps};
+		    {S,Name,[],[],adv_filter(Adv, Ps)};
 		{S,Name} ->
-		    Ps = [],
 		    {S,Name,[],[],[]};
 		separator ->
-		    Ps = [],
 		    Name = none,
 		    separator
 	    end,
@@ -150,6 +147,10 @@ normalize_menu([Elem0|Els], Hotkeys, Adv, Acc) ->
     normalize_menu(Els, Hotkeys, Adv, [Elem|Acc]);
 normalize_menu([], _Hotkeys, _Adv, Acc) -> list_to_tuple(reverse(Acc)).
 
+adv_filter(false, [magnet|T]) -> adv_filter(false, T);
+adv_filter(Flag, [H|T]) -> [H|adv_filter(Flag, T)];
+adv_filter(_, []) -> [].
+    
 menu_dims(Menu) ->
     menu_dims(Menu, size(Menu), 0, 0, 0, []).
 
