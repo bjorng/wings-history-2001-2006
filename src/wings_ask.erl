@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.103 2003/11/08 21:33:22 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.104 2003/11/09 06:30:02 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -1223,10 +1223,6 @@ button_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #but{label=Label}, DisEnable) ->
 		  disable -> color3_disabled(); 
 		  _ -> color3_text()
 	      end,
-    BorderCol = case Active of 
-		    false -> FgColor;
-		    true -> {0.0,0.0,0.75}
-		end,
     case Active of
 	false -> ok;
 	true -> gl:lineWidth(2.0)
