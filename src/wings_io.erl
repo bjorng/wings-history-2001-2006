@@ -8,14 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.81 2002/12/01 09:41:45 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.82 2002/12/08 17:39:47 bjorng Exp $
 %%
 
 -module(wings_io).
 -export([init/0,resize/0,
 	 icon_restriction/1,clear_icon_restriction/0,get_icon_restriction/0,
 	 arrow/0,hourglass/0,
-	 update/1,info/1,
+	 info/1,
 	 disable_progress/0,progress/1,progress_tick/0,
 	 border/5,
 	 sunken_rect/5,raised_rect/4,raised_rect/5,
@@ -124,34 +124,6 @@ clear_icon_restriction() ->
 get_icon_restriction() ->
     #io{selmodes=Modes} = get_state(),
     Modes.
-
-update(St) ->
-    wings_wm:current_st(St),
-    maybe_show_mem_used().
-
-maybe_show_mem_used() ->
-    case wings_pref:get_value(show_memory_used) of
-	true ->
-	    {memory,Sz} = process_info(self(), memory),
-	    {N,M} = if
-			Sz < 1024 ->
-			    {Sz,"bytes"};
-			Sz < 1024*1204 ->
-			    {(Sz+512) div 1024,"Kb"};
-			true ->
-			    {(Sz+1024*512) div 1024 div 1024,"Mb"}
-		    end,
-	    Dl = gl:genLists(1),
-	    gl:deleteLists(Dl, 1),
-	    {binary,B} = process_info(self(), binary),
-	    Mem = ["Memory: ",integer_to_list(N),M,
-		   "  Dlist: ",integer_to_list(Dl),
-		   "  Binaries: ",integer_to_list(length(B))],
-	    ortho_setup(),
-	    {_,_,_,H} = wings_wm:viewport(),
-	    text_at(4, H-3, Mem);
-	false -> ok
-    end.
 
 border(X0, Y0, Mw0, Mh0, FillColor) ->
     X = X0 + 0.5,
