@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.293 2005/03/08 16:16:45 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.294 2005/03/09 20:00:04 dgud Exp $
 %%
 
 -module(wpc_autouv).
@@ -345,8 +345,9 @@ command_menu(body, X, Y) ->
     Menu = [{basic,{"Chart operations",ignore}},
 	    {basic,separator},
 	    {"Move", move, "Move selected charts"},
-	    {"Scale", {scale, scale_directions()}, "Scale selected charts"},
-	    {"Rotate", {rotate, rotate_directions()}, "Rotate selected charts"},
+	    {"Scale", {scale, scale_directions()++ stretch_directions()}, 
+	     "Scale selected charts"},
+	    {"Rotate", {rotate, rotate_directions()},"Rotate selected charts"},
 	    separator,
 	    {"Move to", 
 	     {move_to, 
@@ -362,8 +363,6 @@ command_menu(body, X, Y) ->
 	       {"Left", left, "Move to left border"},
 	       {"Rigth", rigth, "Move to rigth border"}
 	      ]}, "Move charts to position"},
-	    {"Stretch", {stretch, xy_directions("Stretch")},
-	     "Maximize the selected charts size"},
 	    {"Flip",{flip,
 		     [{"Horizontal",horizontal,"Flip selection horizontally"},
 		      {"Vertical",vertical,"Flip selection vertically"}]},
@@ -396,17 +395,15 @@ command_menu(face, X, Y) ->
 command_menu(edge, X, Y) ->
     Scale = scale_directions(),
     Rotate = rotate_directions(),
+    Align = 	    
+	[{"Chart to X", align_x, "Rotate chart so selected axis is parallel to X-axis"},
+	 {"Chart to Y", align_y, "Rotate chart so selected axis is parallel to Y-axis"},
+	 {"Chart to XY", align_xy, "Rotate chart so selected axis is parallel to XY-axis"}],
     Menu = [{basic,{"Edge operations",ignore}},
 	    {basic,separator},
 	    {"Move",move,"Move selected edges",[magnet]},
 	    {"Scale",{scale,Scale},"Scale selected edges"},
-	    {"Rotate",{rotate,Rotate},"Rotate selected edges"},
-	    separator,
-	    {"Rotate Chart to axis", 
-	     {align,			
-	      [{"X", x, "Align horizontally"},
-	       {"Y", y, "Align vertically"}]}, 
-	     "Rotate chart so selected edge is parallel to  axis"},
+	    {"Rotate",{rotate,Rotate++Align},"Rotate commands"},
 	    separator,
 	    {"Stitch", stitch, "Stitch edges/charts"},
 	    {"Cut", cut_edges, "Cut selected edges"}
@@ -415,11 +412,16 @@ command_menu(edge, X, Y) ->
 command_menu(vertex, X, Y) ->
     Scale = scale_directions(),
     Rotate = rotate_directions(),
+    Align = 	    
+	[{"Chart to X", align_x, "Rotate chart so selected axis is parallel to X-axis"},
+	 {"Chart to Y", align_y, "Rotate chart so selected axis is parallel to Y-axis"},
+	 {"Chart to XY", align_xy, "Rotate chart so selected axis is parallel to XY-axis"}],
+
     Menu = [{basic,{"Vertex operations",ignore}},
 	    {basic,separator},
 	    {"Move",move,"Move selected vertices",[magnet]},
 	    {"Scale",{scale,Scale},"Scale selected vertices"},
-	    {"Rotate",{rotate,Rotate},"Rotate selected vertices"},
+	    {"Rotate",{rotate,Rotate++Align},"Rotation commands"},
 	    separator,
 	    {"Flatten",{flatten,
 			[{"X", x, "Flatten horizontally"},
@@ -429,11 +431,6 @@ command_menu(vertex, X, Y) ->
 	     "Move UV coordinates towards average midpoint",
 	     [magnet]},
 	    separator, 
-	    {"Rotate Chart to axis", 
-	     {align,			
-	      [{"X", x, "Align horizontally"},
-	       {"Y", y, "Align vertically"}]}, 
-	     "Rotate chart so selected axis is parallel to X|Y axis"},
 	    {"Unfold",lsqcm,"Unfold the chart (without moving the selected vertices)"}
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu);
@@ -441,10 +438,10 @@ command_menu(_, X, Y) ->
     [_|Menu] = option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu).
 
-xy_directions(Str) ->
-    [{"Both",    both, Str ++ " both horizontally and vertically"},
-     {"Horizontal", x, Str ++ " horizontally (X dir)"},
-     {"Vertical",   y, Str ++ " vertically (Y dir)"}].
+stretch_directions() ->
+    [{"Max Uniform",    max_uniform, "Maximize either horizontally or vertically"},
+     {"Max Horizontal", max_x, "Maximize horizontally (X dir)"},
+     {"Max Vertical",   max_y, "Maximize vertically (Y dir)"}].
 
 scale_directions() ->
     [{"Uniform",    scale_uniform, "Scale in both directions"},
@@ -452,7 +449,7 @@ scale_directions() ->
      {"Vertical",   scale_y, "Scale vertically (Y dir)"}].
 
 rotate_directions() ->
-    [{"Free",free,"Rotate freely"},
+    [{"Free",free,"Rotate selection freely"},
      {"90"++[?DEGREE]++" CW",-90,
       "Rotate selection 90 degrees clockwise"},
      {"90"++[?DEGREE]++" CCW",90,
@@ -593,8 +590,15 @@ handle_event_3({action,Ev}, St) ->
 	    handle_command({scale,scale_y},St);
 	{_, {scale,_}} ->
 	    handle_command({scale,scale_uniform},St);
+	{view,aim} ->
+	    St1 = fake_selection(St),
+	    wings_view:command(aim, St1),
+	    get_event(St);
+	{view,Cmd} when Cmd == frame ->
+	    wings_view:command(Cmd,St),
+	    get_event(St);
 	_ ->
-%%	    io:format("MissEvent ~p~n", [Ev]),
+	    io:format("MissEvent ~p~n", [Ev]),
 	    keep
     end;
 handle_event_3(got_focus, _) ->
@@ -632,18 +636,14 @@ handle_command({scale,scale_x}, St) ->
     drag(wings_scale:setup({x,center}, St));
 handle_command({scale,scale_y}, St) ->
     drag(wings_scale:setup({y,center}, St));
+handle_command({scale,Dir}, St0) -> %% Maximize chart
+    St1 = wpa:sel_map(fun(_, We) -> stretch(Dir,We) end, St0),
+    St = update_selected_uvcoords(St1),
+    get_event(St);
 handle_command({rotate,free}, St) ->
     drag(wings_rotate:setup({free,center}, St));
 handle_command({move_to,Dir}, St0) ->
     St1 = wpa:sel_map(fun(_, We) -> move_to(Dir,We) end, St0),
-    St = update_selected_uvcoords(St1),
-    get_event(St);
-handle_command({stretch,Dir}, St0) ->
-    St1 = wpa:sel_map(fun(_, We) -> stretch(Dir,We) end, St0),
-    St = update_selected_uvcoords(St1),
-    get_event(St);
-handle_command({align,Dir}, St0) ->
-    St1 = align_chart(Dir, St0),
     St = update_selected_uvcoords(St1),
     get_event(St);
 handle_command({flip,horizontal}, St0) ->
@@ -652,6 +652,11 @@ handle_command({flip,horizontal}, St0) ->
     get_event(St);
 handle_command({flip,vertical}, St0) ->
     St1 = wpa:sel_map(fun(_, We) -> flip_vertical(We) end, St0),
+    St = update_selected_uvcoords(St1),
+    get_event(St);
+handle_command({rotate,Dir}, St0) 
+  when Dir == align_y; Dir == align_x; Dir == align_xy ->
+    St1 = align_chart(Dir, St0),
     St = update_selected_uvcoords(St1),
     get_event(St);
 handle_command({rotate,Deg}, St0) ->
@@ -688,6 +693,25 @@ handle_command(cut_edges, St0 = #st{selmode=edge,bb=#uvstate{id=Id,st=Geom}}) ->
 %%    get_event(St);
 handle_command(_, #st{sel=[]}) ->
     keep.
+
+fake_selection(St) ->
+    wings_dl:fold(fun(#dlo{src_sel=none}, S) ->
+			  %% No selection, try highlighting.
+			  fake_sel_1(S);
+		     (#dlo{src_we=#we{id=Id},src_sel={Mode,Els}}, S) ->
+			  S#st{selmode=Mode,sel=[{Id,Els}]}
+		  end, St).
+
+fake_sel_1(St0) ->
+    case wings_pref:get_value(use_temp_sel) of
+	false -> St0;
+	true ->
+	    {_,X,Y} = wings_wm:local_mouse_state(),
+	    case wings_pick:do_pick(X, Y, St0) of
+		{add,_,St} -> St;
+		_ -> St0
+	    end
+    end.
 
 drag({drag,Drag}) ->
     wings:mode_restriction([vertex,edge,face,body]),
@@ -1071,8 +1095,10 @@ align_chart(Dir, St = #st{selmode=Mode}) ->
 align_chart(Dir, V1={X1,Y1,_},V2={X2,Y2,_}, We) ->
     Deg0 = 180.0/math:pi() *
 	case Dir of
-	    x -> math:atan2(Y2-Y1,X2-X1);
-	    y -> math:atan2(X1-X2,Y2-Y1)
+	    align_x -> math:atan2(Y2-Y1,X2-X1);
+	    align_y -> math:atan2(X1-X2,Y2-Y1);
+	    align_xy -> math:atan2(Y2-Y1,X2-X1) -
+			    45/180*math:pi()
 	end,
     Deg = if abs(Deg0) < 90.0 -> Deg0;
 	     true -> Deg0 + 180
@@ -1121,17 +1147,21 @@ stretch(Dir,We) ->
     [{X1,Y1,_},{X2,Y2,_}] = wings_vertex:bounding_box(We),
     Center = {CX,CY,CZ} = {X1+(X2-X1)/2, Y1+(Y2-Y1)/2, 0.0},
     T0 = e3d_mat:translate(e3d_vec:neg(Center)),
+    SX0 = 1.0/(X2-X1), SY0= 1.0/(Y2-Y1),
     {SX,SY} = case Dir of
-		  x -> {1.0/(X2-X1), 1.0};
-		  y -> {1.0, 1.0/(Y2-Y1)};
-		  both -> {1.0/(X2-X1), 1.0/(Y2-Y1)}
+		  max_x -> {SX0, 1.0};
+		  max_y -> {1.0, SY0};
+		  max_uniform when SX0 < SY0 -> 
+		      {SX0, SX0};
+		  _ ->
+		      {SY0, SY0}
 	      end,
     Stretch = e3d_mat:scale(SX, SY, 1.0),
     T1 = e3d_mat:mul(Stretch, T0),
     Pos = case Dir of
-	      both -> {0.5,0.5,CZ};
-	      x -> {0.5,CY,CZ};
-	      y -> {CX,0.5,CZ}
+	      max_uniform -> {0.5,0.5,CZ};
+	      max_x -> {0.5,CY,CZ};
+	      max_y -> {CX,0.5,CZ}
 	  end,    
     T = e3d_mat:mul(e3d_mat:translate(Pos), T1),
     wings_we:transform_vs(T, We).
