@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.45 2003/08/18 06:21:55 bjorng Exp $
+%%     $Id: wings_ff_wings.erl,v 1.46 2003/10/12 09:11:15 bjorng Exp $
 %%
 
 -module(wings_ff_wings).
@@ -122,7 +122,11 @@ import_face_mat([F|Fs], NameMap, Face, Acc) ->
 import_face_mat([], _, _, Acc) -> reverse(Acc).
 
 import_face_mat_1([{material,Name}|T], NameMap, _) ->
-    Mat = gb_trees:get(Name, NameMap),
+    %% Silently ignore materials not found in the name map.
+    Mat = case gb_trees:lookup(Name, NameMap) of
+	      none ->  default;
+	      {value,Other} -> Other
+	  end,
     import_face_mat_1(T, NameMap, Mat);
 import_face_mat_1([_|T], NameMap, Mat) ->
     import_face_mat_1(T, NameMap, Mat);
