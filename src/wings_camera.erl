@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.22 2002/04/11 16:12:04 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.23 2002/04/15 13:08:03 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -31,14 +31,17 @@ sub_menu(_St) ->
 
 command(camera_mode, St) ->
     DefVar = {mode,wings_pref:get_value(camera_mode, blender)},
+    ZoomFlag0 = wings_pref:get_value(wheel_zooms, true),
     Qs = [{vframe,[{alt,DefVar,"Wings/Blender",blender},
 		   {alt,DefVar,"Nendo",nendo},
 		   {alt,DefVar,"3ds max",tds},
 		   {alt,DefVar,"Maya",maya}],
-	   [{title,"Camera Mode"}]}],
+	   [{title,"Camera Mode"}]},
+	  {"Scroll wheel zooms",ZoomFlag0}],
     wings_ask:dialog(Qs, St,
-		  fun([Mode]) ->
+		  fun([Mode,ZoomFlag]) ->
 			  wings_pref:set_value(camera_mode, Mode),
+			  wings_pref:set_value(wheel_zooms, ZoomFlag),
 			  ignore
 		  end).
 
@@ -62,6 +65,10 @@ help() ->
 						   
 %% Event handler.
 
+event(#mousebutton{button=4,state=?SDL_RELEASED}, _Redraw) ->
+    zoom_step(-1);
+event(#mousebutton{button=5,state=?SDL_RELEASED}, _Redraw) ->
+    zoom_step(1);
 event(Ev, Redraw) ->
     case wings_pref:get_value(camera_mode, blender) of
 	blender -> blender(Ev, Redraw);
@@ -273,6 +280,10 @@ generic_event(redraw, _Camera, #st{}=St) ->
 generic_event(redraw, _Camera, Redraw) when is_function(Redraw) ->
     Redraw(),
     keep;
+generic_event(#mousebutton{button=4,state=?SDL_RELEASED}, _Camera, _Redraw) ->
+    zoom_step(-1);
+generic_event(#mousebutton{button=5,state=?SDL_RELEASED}, _Camera, _Redraw) ->
+    zoom_step(1);
 generic_event(_, _, _) -> keep.
 
 get_st(#st{}=St) -> St;
@@ -284,6 +295,15 @@ rotate(Dx, Dy) ->
     Az = Az0 + Dx,
     El = El0 + Dy,
     wings_view:set_current(View#view{azimuth=Az,elevation=El,along_axis=none}).
+
+zoom_step(Dir) ->
+    case wings_pref:get_value(wheel_zooms, true) of
+	false -> keep;
+	true ->
+	    wings_wm:dirty(),
+	    zoom(5*Dir),
+	    keep
+    end.
 
 zoom(Delta) ->
     #view{distance=Dist} = View = wings_view:current(),
