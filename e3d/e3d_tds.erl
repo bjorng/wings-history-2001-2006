@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_tds.erl,v 1.39 2004/06/24 07:00:41 bjorng Exp $
+%%     $Id: e3d_tds.erl,v 1.40 2004/06/24 16:23:09 bjorng Exp $
 %%
 
 -module(e3d_tds).
@@ -271,26 +271,20 @@ material(Tag, Chunk, [{Name,Props}|Acc]) ->
 
 read_map(Type, Chunk, [{Name,Props}|Acc]) ->
     dbg("Map: ~p\n", [Type]),
-    Map = read_map_chunks(Chunk, none),
+    MapPs = fold_chunks(fun texture/3, [], Chunk),
+    Map = proplists:get_value(filename, MapPs),
     [{Name,[{map,Type,Map}|Props]}|Acc].
 
-read_map_chunks(<<16#A300:16/little,Sz0:32/little,T0/binary>>, _Acc) ->
-    Sz = Sz0 - 6 - 1,
-    <<Filename0:Sz/binary,_:8,T/binary>> = T0,
-    Filename = binary_to_list(Filename0),
+texture(16#A300, Chunk, Acc) ->
+    {Filename,_} = get_cstring(Chunk),
     dbg("Filename: ~s\n", [Filename]),
-    read_map_chunks(T, Filename);
-read_map_chunks(<<16#A351:16/little,Sz0:32/little,T0/binary>>, Acc) ->
-    Sz = Sz0 - 6,
-    <<Params:Sz/binary,T/binary>> = T0,
+    [{filename,Filename}|Acc];
+texture(16#A351, Params, Acc) ->
     dbg("Params: ~p\n", [Params]),
-    read_map_chunks(T, Acc);
-read_map_chunks(<<Tag:16/little,Sz0:32/little,T0/binary>>, Acc) ->
-    Sz = Sz0 - 6,
-    <<_Chunk:Sz/binary,T/binary>> = T0,
-    dbg("Unknown map sub-chunk: ~.16#: ~P\n", [Tag,_Chunk,20]),
-    read_map_chunks(T, Acc);
-read_map_chunks(<<>>, Acc) -> Acc.
+    Acc;
+texture(Tag, Chunk, Acc) ->
+    dbg("~.16#: ~P\n", [Tag,Chunk,20]),
+    Acc.
 
 reformat_material([{Name,Mat}|T]) ->
     Opac = proplists:get_value(opacity, Mat, 1.0),
