@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.82 2003/01/26 20:57:10 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.83 2003/01/27 06:53:01 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -145,13 +145,18 @@ setup_menu_killer() ->
     end.
 
 menu_killer(#mousebutton{button=1,state=?SDL_PRESSED}) ->
+    kill_menus();
+menu_killer(#keyboard{keysym=#keysym{sym=27}}) -> %Escape.
+    kill_menus();
+menu_killer(_) -> keep.
+
+kill_menus() ->    
     wings_wm:send(menubar, clear_menu_selection),
     foreach(fun({menu,_}=Name) ->
 		    wings_wm:delete(Name);
 	       (_) -> ok
 	    end, wings_wm:windows()),
-    delete;
-menu_killer(_) -> keep.
+    delete.
     
 menu_show(#mi{ymarg=Margin,shortcut=Shortcut,w=Mw,h=Mh}=Mi) ->
     wings_io:blend(wings_pref:get_value(menu_color),
@@ -268,7 +273,6 @@ handle_menu_event(lost_focus, Mi) ->
 	true -> mousemotion(X, H-2, Mi)
     end;
 handle_menu_event(#keyboard{keysym=KeySym}, Mi) ->
-    wings_wm:dirty(),
     handle_key(KeySym, Mi);
 handle_menu_event(#mousemotion{x=X,y=Y}, Mi) ->
     mousemotion(X, Y, Mi);
@@ -350,6 +354,7 @@ handle_key(#keysym{sym=C}, Mi0) when C == ?SDLK_DELETE; C == $\\  ->
     case current_command(Mi0) of
 	none -> keep;
 	{Cmd0,OptionBox} ->
+	    wings_wm:dirty(),
 	    Cmd = add_option(OptionBox, Cmd0, false),
 	    NextKey = wings_hotkey:delete_by_command(Cmd),
 	    Mi = set_hotkey(NextKey, Mi0),
@@ -359,7 +364,9 @@ handle_key(#keysym{sym=C}, Mi) when C == ?SDLK_INSERT; C == $/ ->
     %% Define new hotkey for this entry.
     case current_command(Mi) of
 	none -> keep;
-	Cmd -> get_hotkey(Cmd, Mi)
+	Cmd ->
+	    wings_wm:dirty(),
+	    get_hotkey(Cmd, Mi)
     end;
 handle_key(_, _) -> keep.
 
