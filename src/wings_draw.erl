@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.112 2003/04/21 14:12:18 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.113 2003/05/07 06:52:37 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -90,7 +90,8 @@ invalidate_by_mat(#dlo{src_we=We}=D, Changed) ->
 
 empty_we(We) ->
     Et = gb_trees:empty(),
-    We#we{es=Et,fs=Et,vc=Et,vp=Et,he=gb_sets:empty(),mirror=none,light=none}.
+    We#we{es=Et,fs=Et,vc=Et,vp=Et,he=gb_sets:empty(),mat=default,
+	  mirror=none,light=none}.
 
 check_mirror(#we{mirror=none}) -> none;
 check_mirror(#we{fs=Ftab,mirror=Face}) ->
