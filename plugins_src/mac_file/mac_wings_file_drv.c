@@ -11,7 +11,7 @@
  *  See the file "license.terms" for information on usage and redistribution
  *  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
  *
- *     $Id: mac_wings_file_drv.c,v 1.4 2002/07/19 10:04:15 bjorng Exp $
+ *     $Id: mac_wings_file_drv.c,v 1.5 2002/07/19 10:14:18 bjorng Exp $
  */
 
 /*cc -ObjC -I ~/local/lib/erlang/usr/include -bundle -flat_namespace -undefined suppress -framework Cocoa -o ../../plugins/mac_file/mac_wings_file_drv.so mac_wings_file_drv.c */
@@ -39,22 +39,6 @@ static int mac_wings_file_control(ErlDrvData handle, unsigned int command,
 /*
 ** Internal routines
 */
-
-
-@interface ComboView : NSView {
-    NSPoint center;
-    NSColor *color;
-    float radius;
-}
-
-// Standard view create/free methods
-- (id)initWithFrame:(NSRect)frame;
-- (void)dealloc;
-
-// Drawing
-- (void)drawRect:(NSRect)rect;
-- (BOOL)isOpaque;
-@end
 
 /*
 ** The driver struct
@@ -181,9 +165,7 @@ static int mac_wings_file_control(ErlDrvData handle, unsigned int command,
 	  return 0;
 	} else {
 	  NSSavePanel *sPanel = [NSSavePanel savePanel];
-	  ComboView *comboView = [ComboView alloc];
 	  [sPanel setRequiredFileType:filter1];
-	  [sPanel setAccessoryView:comboView];
 	  result = [sPanel runModalForDirectory:defdir1 file:defname1];
 	  if (result == NSOKButton) {
 	    NSString *aFile = [sPanel filename];
@@ -207,70 +189,3 @@ static int mac_wings_file_control(ErlDrvData handle, unsigned int command,
         return -1; /* Error return, throws exception in erlang */
     }
 }
-
-
-@implementation ComboView
-
-// initWithFrame: is NSView's designated initializer (meaning it should be
-// overridden in the subclassers if needed, and it should call super, that is
-// NSView's implementation).  In DotView we do just that, and also set the
-// instance variables.
-//
-// Note that we initialize the instance variables here in the same way they are
-// initialized in the nib file. This is adequate, but a better solution is to make
-// sure the two places are initialized from the same place. Slightly more
-// sophisticated apps which load nibs for each document or window would initialize
-// UI elements at the time they're loaded from values in the program.
-
-- (id)initWithFrame:(NSRect)frame {
-    [super initWithFrame:frame];
-    center.x = 50.0;
-    center.y = 50.0;
-    radius = 10.0;
-    color = [[NSColor redColor] retain];
-    return self;
-}
-
-// dealloc is the method called when objects are being freed. (Note that "release"
-// is called to release objects; when the number of release calls reduce the
-// total reference count on an object to zero, dealloc is called to free
-// the object.  dealloc should free any memory allocated by the subclass
-// and then call super to get the superclass to do additional cleanup.
-
-- (void)dealloc {
-    [color release];
-    [super dealloc];
-}
-
-// drawRect: should be overridden in subclassers of NSView to do necessary
-// drawing in order to recreate the the look of the view. It will be called
-// to draw the whole view or parts of it (pay attention the rect argument);
-// it will also be called during printing if your app is set up to print.
-// In DotView we first clear the view to white, then draw the dot at its
-// current location and size.
-
-- (void)drawRect:(NSRect)rect {
-    NSRect dotRect;
-
-    [[NSColor whiteColor] set];
-    NSRectFill([self bounds]);   // Equiv to [[NSBezierPath bezierPathWithRect:[self bounds]] fill]
-
-    dotRect.origin.x = center.x - radius;
-    dotRect.origin.y = center.y - radius;
-    dotRect.size.width  = 2 * radius;
-    dotRect.size.height = 2 * radius;
-    
-    [color set];
-    [[NSBezierPath bezierPathWithOvalInRect:dotRect] fill];
-}
-
-// Views which totally redraw their whole bounds without needing any of the
-// views behind it should override isOpaque to return YES. This is a performance
-// optimization hint for the display subsystem. This applies to DotView, whose
-// drawRect: does fill the whole rect its given with a solid, opaque color.
-
-- (BOOL)isOpaque {
-    return YES;
-}
-
-@end
