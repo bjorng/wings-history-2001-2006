@@ -3,12 +3,12 @@
 %%
 %%     This module contains most of the face commands.
 %%
-%%  Copyright (c) 2001-2004 Bjorn Gustavsson
+%%  Copyright (c) 2001-2005 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.125 2004/12/31 10:09:40 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.126 2005/01/11 08:16:45 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -516,11 +516,11 @@ smooth(Faces0, #we{id=Id}=We0, Acc) ->
     Rs = wings_sel:face_regions(Faces0, We0),
     wings_pb:start(?__(1,"smoothing")),
     We1 = wings_pb:done(smooth_regions(Rs, 1, length(Rs), We0)),
-    NewFaces = wings_we:new_items(face, We0, We1),
-    NewVs = wings_we:new_items(vertex, We0, We1),
-    We2 = smooth_connect(NewVs, NewFaces, We1),
+    NewSelFaces = wings_we:new_items_as_ordset(face, We0, We1),
+    NewVs = wings_we:new_items_as_ordset(vertex, We0, We1),
+    We2 = smooth_connect(NewVs, NewSelFaces, We1),
     We = wings_we:mirror_flatten(We0, We2),
-    {We,[{Id,NewFaces}|Acc]}.
+    {We,[{Id,gb_sets:from_ordset(NewSelFaces)}|Acc]}.
 
 smooth_regions([Faces0|Rs], I, N, #we{he=Htab}=We0) ->
     wings_pb:update(I/N, io_lib:format("~p/~p\n", [I,N])),
@@ -540,8 +540,8 @@ all_edges(Faces, We) ->
     {ordsets:from_list(Vs),ordsets:from_list(Es)}.
 
 smooth_connect(Vs, Faces0, #we{mirror=Mirror}=We0) ->
-    Faces1 = gb_sets:add(Mirror, Faces0),
-    Faces = sofs:from_external(gb_sets:to_list(Faces1), [face]),
+    Faces1 = ordsets:add_element(Mirror, Faces0),
+    Faces = sofs:from_external(Faces1, [face]),
     FaceVs0 = wings_vertex:per_face(Vs, We0),
     FaceVs1 = sofs:from_external(FaceVs0, [{face,[vertex]}]),
     FaceVs2 = sofs:drestriction(FaceVs1, Faces),
