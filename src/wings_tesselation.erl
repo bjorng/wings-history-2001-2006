@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_tesselation.erl,v 1.4 2003/08/27 06:56:56 bjorng Exp $
+%%     $Id: wings_tesselation.erl,v 1.5 2004/01/21 12:57:03 dgud Exp $
 %%
 
 -module(wings_tesselation).
@@ -89,16 +89,36 @@ triangulate_quad_1([V|Vs], Vs0, Vtab, We, Acc) ->
 triangulate_quad_1([], [Ai,Bi,Ci,Di], _, We, VsPos) ->
     N = e3d_vec:normal(VsPos),
     [D,C,B,A] = VsPos,
-    case e3d_vec:dist(A, C) < e3d_vec:dist(B, D) of
-	true ->
+    AC = e3d_vec:dist(A, C),
+    BD = e3d_vec:dist(B, D),
+    Epsilon = 0.03,  %% (1-0.98)/1=0.02 and is rougly equal 
+    case AC < BD of
+	true when ((BD-AC) / BD)  > Epsilon ->
 	    case wings_draw_util:good_triangulation(N, D, C, B, A) of
 		false -> error;
 		true -> wings_vertex_cmd:connect([Ai,Ci], We)
 	    end;
-	false ->
+	false when ((AC-BD) / AC) > Epsilon ->
 	    case wings_draw_util:good_triangulation(N, C, B, A, D) of
 		false -> error;
 		true -> wings_vertex_cmd:connect([Bi,Di], We)
+	    end;
+	_ ->  
+	    %% Both diagonal rougly equal in length, use 3d position
+	    %% to place the diagonal to get uniform triangulation over 
+	    %% a quad mesh.
+	    ACS = if A < C -> A; true -> C end,
+	    DBS = if B < D -> B; true -> D end,
+	    if ACS < DBS ->
+		    case wings_draw_util:good_triangulation(N, D, C, B, A) of
+			false -> error;
+			true -> wings_vertex_cmd:connect([Ai,Ci], We)
+		    end;
+	       true ->
+		    case wings_draw_util:good_triangulation(N, C, B, A, D) of
+			false -> error;
+			true -> wings_vertex_cmd:connect([Bi,Di], We)
+		    end
 	    end
     end.
 
