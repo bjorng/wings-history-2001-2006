@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.139 2004/03/27 06:41:38 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.140 2004/03/30 09:43:56 raimo_niskanen Exp $
 %%
 
 -module(wings_wm).
@@ -16,7 +16,7 @@
 -export([init/0,enter_event_loop/0,dirty/0,dirty_mode/1,reinit_opengl/0,
 	 new/4,delete/1,raise/1,
 	 link/2,hide/1,show/1,is_hidden/1,
-	 later/1,send/2,send_after_redraw/2,
+	 later/1,send/2,psend/2,send_after_redraw/2,
 	 set_timer/2,cancel_timer/1,
 	 this/0,offset/3,move/2,move/3,resize/2,pos/1,windows/0,is_window/1,
 	 window_below/2,
@@ -133,6 +133,11 @@ later(Ev) ->
 
 send(Name, Ev) ->
     wings_io:putback_event({wm,{send_to,Name,Ev}}),
+    keep.
+
+%% Send from another erlang process than the main wings process
+psend(Name, Ev) ->
+    wings ! {timeout,make_ref(),{event,{wm,{send_to,Name,Ev}}}},
     keep.
 
 send_once(Name, Ev) ->

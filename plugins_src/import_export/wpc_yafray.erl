@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.71 2004/03/29 11:27:31 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.72 2004/03/30 09:43:56 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -269,9 +269,8 @@ command_file(render, Attr, St) when is_list(Attr) ->
 command_file(render, Ask, _St) when is_atom(Ask) ->
     wpa:dialog(Ask, "YafRay Render Options", export_dialog(render),
 	       fun(Attr) -> {file,{render,{?TAG,Attr}}} end);
-command_file(?TAG_RENDER, {Pid,Result,Ack}, _St) ->
+command_file(?TAG_RENDER, Result, _St) ->
     Rendering = set_var(rendering, false),
-    Pid ! Ack,
     case Rendering of
 	false ->
 	    keep;
@@ -281,8 +280,10 @@ command_file(?TAG_RENDER, {Pid,Result,Ack}, _St) ->
 		    io:format("Loading rendered image~n"),
 		    load_image(RenderFile);
 		ok ->
+		    io:format("Rendering Job ready~n"),
 		    keep;
-		_ ->
+		{error,Error} ->
+		    io:format("Rendering error: ~p~n", [Error]),
 		    wpa:error("Rendering error")
 	    end
     end;
@@ -311,7 +312,7 @@ attr(St, Attr) ->
 	wpa:camera_info([aim,distance_to_aim,azimuth,elevation,tracking,fov]),
     CameraInfo = #camera_info{aim=Aim,distance_to_aim=Dist,azimuth=Az,
 			      elevation=El,tracking=Track,fov=Fov},
-    [CameraInfo,{lights,wpa:lights(St)}|Attr].
+    [CameraInfo,{lights,wpa:lights(St)},{parent,wings_wm:this()}|Attr].
 
 fun_export_2(Attr) ->
     fun (Filename, Contents) ->
@@ -1050,6 +1051,7 @@ bhook(Type, Tag) ->
 export(Attr, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
     ExportTS = erlang:now(),
     Render = proplists:get_value(?TAG_RENDER, Attr, false),
+    Parent = proplists:get_value(parent, Attr),
     ExportDir = filename:dirname(Filename),
     {ExportFile,RenderFile} =
 	case Render of
@@ -1151,7 +1153,7 @@ export(Attr, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
 	    file:delete(ExportFile),
 	    no_renderer;
 	_ ->
-	    Parent = self(),
+%%%	    Parent = self(),
 	    spawn_link(
 	      fun () -> 
 		      set_var(export_ts, ExportTS),
@@ -1195,26 +1197,6 @@ render(Renderer, Options, Filename, Parent, LoadImage) ->
     end.
 
 render_done(Filename, Parent, ExitStatus, LoadImage) ->
-    Status =
-	case ExitStatus of
-	    0 ->
-		ok;
-	    undefined ->
-		ok;
-	    _ ->
-		ExitStatus
-	end,
-    Result =
-	case {Status,LoadImage} of
-	    {ok,true} ->
-		load_image;
-	    {ok,false} ->
-		ok;
-	    {{error,_},_} ->
-		Status;
-	    {Error,_} ->
-		{error,Error}
-	end,
     io:format("~nRendering Job returned: ~p~n", [ExitStatus]),
     ExportTS = get_var(export_ts),
     RenderTS = get_var(render_ts),
@@ -1226,18 +1208,22 @@ render_done(Filename, Parent, ExitStatus, LoadImage) ->
 	       now_diff(FinishTS, RenderTS),
 	       now_diff(FinishTS, ExportTS)]),
     file:delete(Filename),
-    render_cleanup(Parent, make_ref(), Result).
-
-render_cleanup(Parent, Ref, Result) ->
-    Ack = {Parent,ack,Ref},
-    Command = {file,{?TAG_RENDER,{self(),Result,Ack}}},
-    Parent ! {timeout,Ref,{event,{action,Command}}},
-    receive Ack -> 
-	    io:format("Rendering Job ready~n"),
-	    ok
-    after 5000 -> 
-	    render_cleanup(Parent, Ref, Result)
-    end.
+    Status =
+	case ExitStatus of
+	    0         -> ok;
+	    undefined -> ok;
+	    {error,_} -> ExitStatus;
+	    _         -> {error,ExitStatus}
+	end,
+    Result =
+	case {Status,LoadImage} of
+	    {ok,true}  -> load_image;
+	    {ok,false} -> ok;
+	    _          -> Status
+	end,
+    Command = {file,{?TAG_RENDER,Result}},
+    wings_wm:psend(Parent, {action,Command}),
+    ok.
 
 render_job(Port) ->
     receive
