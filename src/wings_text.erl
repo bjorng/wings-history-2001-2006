@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_text.erl,v 1.26 2004/04/17 19:02:07 bjorng Exp $
+%%     $Id: wings_text.erl,v 1.27 2004/04/20 06:11:50 bjorng Exp $
 %%
 
 -module(wings_text).
@@ -49,7 +49,13 @@ width(S) ->
 	    (C, W) ->
 		 W+WF0(C)
 	 end,
-    foldl(WF, 0, S).
+    width_1(S, WF, 0).
+
+width_1([{bold,S}|Cs], WF, W) ->
+    width_1(Cs, WF, width_1(S, WF, W+length(S)));
+width_1([C|Cs], WF, W) ->
+    width_1(Cs, WF, WF(C, W));
+width_1([], _, W) -> W.
 
 width() -> (current_font()):width().
 
