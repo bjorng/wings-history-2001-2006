@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.239 2004/05/11 06:08:14 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.240 2004/05/13 08:57:43 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -358,12 +358,12 @@ command_menu(body, X, Y) ->
 	    separator,
 	    {"Delete",delete,"Remove UV-coordinates for the selected charts"},
 	    separator,
-	    {"ReMap UV", {remap, [{"Project Normal", project, 
-				   "Project UVs from chart normal"},
-				  {"Unfold", lsqcm, "Unfold the chart"},
+	    {"ReMap UV", {remap, [{"Stretch optimization", stretch_opt, 
+				   "Optimize the chart stretch"},
 				  separator,
-				  {"Stretch optimization", stretch_opt, 
-				   "Optimize the chart stretch"}
+				  {"Project Normal", project, 
+				   "Project UVs from chart normal"},
+				  {"Unfold", lsqcm, "Unfold the chart"}
 				 ]}, 
 	     "Calculate new UVs with choosen algorithm"}
 	   ] ++ option_menu(),
