@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.78 2004/11/02 20:20:35 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.79 2004/11/08 05:28:58 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -114,12 +114,7 @@ getting_started(Head) ->
 	 ?STR(getting_started,two_a,
 	      "followed by any hotkey actions."),
 
-	 ?STR(getting_started,3,
-	      "To use mice with only one or two buttons, you must inform Wings how many buttons your mouse has in the ")++
-	 cmd([?STR(getting_started,4,"Edit"),
-	      ?STR(getting_started,5,"Preferences")
-	     ])++
-	 ?STR(getting_started,6," dialog."),
+	 use_one_or_two(),
 	 ?STR(getting_started,7,
 	      "Generally, L (left mouse button) is used for selecting and accepting, M (middle mouse button) for operating the camera, and R (right mouse button) to access the context-sensitive pop-up menus.")
 	],
@@ -127,31 +122,35 @@ getting_started(Head) ->
 
 one_or_two(Head) ->
     Nendo = [{ul,wings_s:camera_mode(nendo)}],
-    Help = [?STR(getting_started,9,"To use mice with only one or two buttons, you must inform Wings how many buttons your mouse has in the ")
-		++cmd([?STR(getting_started,10,"Edit"),
-                       ?STR(getting_started,11,"Preferences")
-		      ])++
-	    ?STR(getting_started,12," dialog."),
-
-	    ?STR(getting_started,13,"Note that only the ")++
+    Help = [use_one_or_two(),
+	    ?STR(one_or_two,1,"Note that only the ")++
 	    Nendo++
-	    ?STR(getting_started,15," and ")++
+	    ?STR(one_or_two,2," and ")++
 	    [{ul,wings_s:camera_mode(blender)}]++
-	    ?STR(getting_started,17,
+	    ?STR(one_or_two,3,
 		 " modes can be used with a two-button mouse."
 		 " Only the ")++
 	    Nendo++
-	    ?STR(getting_started,19,
+	    ?STR(one_or_two,4,
 		 " mode can be used with an one-button mouse.")
 	   ],
     help_window(Head, Help).
 
+use_one_or_two() ->
+    ?STR(use_one_or_two,1,
+	 "To use mice with only one or two buttons, "
+	 "you must inform Wings how many buttons "
+	 "your mouse has in the ")++
+	edit_prefs()++
+	?STR(use_one_or_two,2," dialog.").
+
 advanced_menus(Head) ->
-    Help = [?STR(advanced_menus,1,"In the ")
-	    ++cmd([?STR(advanced_menus,2,"Edit"),
-		   ?STR(advanced_menus,3,"Preferences")
-		  ])++?STR(advanced_menus,4,"dialog, there is a check box for \"Advanced Menus\"."),
-	    ?STR(advanced_menus,5,"Activating advanced menus provide the following additional features:"),
+    Help = [?STR(advanced_menus,1,"In the ")++
+	    edit_prefs()++
+	    ?STR(advanced_menus,4,
+		 "dialog, there is a check box for \"Advanced Menus\"."),
+	    ?STR(advanced_menus,5,
+		 "Activating advanced menus provide the following additional features:"),
 	    ?STR(advanced_menus,6,"New commands: ")
 	    ++cmd([?STR(advanced_menus,7,"Face"),
 		   ?STR(advanced_menus,8,"Put On")
@@ -180,11 +179,10 @@ international(Head) ->
 def_commands(Head) ->
     Ctrl = wings_s:key(ctrl)++ "+",
     ShiftCtrl = wings_s:key(shift)++ "+" ++ Ctrl,
-    Help = [?STR(def_commands,1,"In the")++" "
-	    ++cmd([?STR(def_commands,2,"Edit"),
-		   ?STR(def_commands,3,"Preferences")
-		  ])++" "++
-	    ?STR(def_commands,4,"dialog, you can turn on \"Default Commands\"."),
+    Help = [?STR(def_commands,1,"In the ")++
+	    edit_prefs()++
+	    ?STR(def_commands,4,
+		 " dialog, you can turn on \"Default Commands\"."),
 	    ?STR(def_commands,5,"Two default commands can be defined."
 		 " To save the previous command that was executed, use one of:"),
 	    "  " ++ ShiftCtrl ++ wings_s:lmb(),
@@ -545,3 +543,8 @@ splash_contents() ->
      {text,?STR(splash_contents,8,"JPEG library: Copyright") ++ [$\s,169] ++
       " 1991-1998 Thomas G. Lane"}
     ].
+
+edit_prefs() ->
+    cmd([?STR(edit_prefs,1,"Edit"),
+	 ?STR(edit_prefs,2,"Preferences")]).
+    
