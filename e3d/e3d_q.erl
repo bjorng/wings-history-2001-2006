@@ -1,24 +1,24 @@
 %%
 %%  e3d_q.erl --
 %%
-%%     Operations on quaternions.
+%%     Operations on unit quaternions.
 %%
 %%  Copyright (c) 2003 Dan Gudmundsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_q.erl,v 1.2 2003/05/05 07:44:27 dgud Exp $
+%%     $Id: e3d_q.erl,v 1.3 2003/05/06 13:45:42 bjorng Exp $
 %%
 
 %% Quaternions are represented as a {{Qx,Qy,Qz},Qw}
 %% to differ them from Vectors.
 %% The following is implemented from
-%% "The Matrix and Quaternions FAQ"
+%% "The Matrix and Quaternions FAQ".
 
 -module(e3d_q).
 
--export([identity/0,inverse/1,norm/1,mult/1,mult/2,
+-export([identity/0,inverse/1,norm/1,mul/1,mul/2,
 	 add/2, scale/2,
 	 magnitude/1, conjugate/1,
 	 to_rotation_matrix/1, from_rotation_matrix/1,
@@ -60,27 +60,20 @@ scale({{Qx,Qy,Qz},Qw}, S)
   when is_float(Qx),is_float(Qy),is_float(Qz),is_float(Qw), is_float(S) ->
     {{Qx*S,Qy*S,Qz*S},Qw*S}.
 
-mult([H|R]) ->
-    mmult(R,H).
-mmult([H|R],A) ->
-    mmult(R, mult(A,H));
-mmult([],A) ->
-    A.
+mul([H|R]) ->
+    mmult(R, H).
 
-mult({{X1,Y1,Z1},W1}, {{X2,Y2,Z2},W2})
+mmult([H|R], A) ->
+    mmult(R, mul(A,H));
+mmult([], A) -> A.
+
+mul({{X1,Y1,Z1},W1}, {{X2,Y2,Z2},W2})
   when is_float(X1),is_float(Y1),is_float(Z1),is_float(W1),
        is_float(X2),is_float(Y2),is_float(Z2),is_float(W2) ->
     {{W1*X2+X1*W2+Y1*Z2-Z1*Y2,
       W1*Y2+Y1*W2+Z1*X2-X1*Z2,
       W1*Z2+Z1*W2+X1*Y2-Y1*X2},
      W1*W2-X1*X2-Y1*Y2-Z1*Z2}.
-
-%% We use opengl matrices instead of the mathematical representation
-%% {M0,M1,M2,M3,                    {M0 ,M4 ,M8 ,M12,
-%%  M4,M5,M6,M7,                     M1 ,M5 ,M9 ,M13,
-%%  M8,M9,M10,M11,     instead of    M2 ,M6 ,M10,M14,
-%%  M12,M13,M14,M15}                 M3 ,M7 ,M11,M15}
-%%
 
 to_rotation_matrix({{Qx,Qy,Qz},Qw})
   when is_float(Qx),is_float(Qy),is_float(Qz),is_float(Qw) ->
@@ -93,23 +86,19 @@ to_rotation_matrix({{Qx,Qy,Qz},Qw})
     M4=Two*(XY+ZW),     M5=One-Two*(XX+ZZ), M6=Two*(YZ-XW),
     M8=Two*(XZ-YW),     M9=Two*(YZ+XW),     M10=One-Two*(XX+YY),
 
-    M3=M7=M11=M12=M13=M14=Zero,
-    M15 = One,
-    {M0, M4, M8, M12,
-     M1, M5, M9, M13,
-     M2, M6, M10,M14,
-     M3, M7, M11,M15}.
+    M3=M7=M11=Zero,
+    {M0, M4, M8,
+     M1, M5, M9,
+     M2, M6, M10,
+     M3, M7, M11}.
 
-from_rotation_matrix(M) when size(M) /= 16 ->
-    from_rotation_matrix(e3d_mat:expand(M));
-from_rotation_matrix({M0, M4, M8, M12,
-		      M1, M5, M9, M13,
-		      M2, M6, M10,M14,
-		      M3, M7, M11,M15})
+from_rotation_matrix({M0, M4, M8,
+		      M1, M5, M9,
+		      M2, M6, M10,
+		      M3, M7, M11})
   when is_float(M0),is_float(M1),is_float(M2),is_float(M3),
        is_float(M4),is_float(M5),is_float(M6),is_float(M7),
-       is_float(M8),is_float(M9),is_float(M10),is_float(M11),
-       is_float(M12),is_float(M13),is_float(M14),is_float(M15) ->
+       is_float(M8),is_float(M9),is_float(M10),is_float(M11) ->
     One = 1.0,  Two = 2.0, Eps = 0.000000001,
     T = One + M0 + M5 + M10,
     if T > Eps ->
@@ -124,7 +113,9 @@ from_rotation_matrix({M0, M4, M8, M12,
        true ->
 	    S = math:sqrt(One+M10-M0-M5),
 	    {{(M2+M8)/S,(M9+M6)/S,0.25*S},(M4-M1)/S}
-    end.
+    end;
+from_rotation_matrix(M) when size(M) =:= 16 ->
+    from_rotation_matrix(e3d_mat:compress(M)).
 
 from_angle_axis(Angle0,Axis0) ->
     HalfAngle = Angle0*3.14159/180/2,
@@ -146,7 +137,7 @@ to_angle_axis(Q) ->
 
 vec_rotate(V = {_,_,_},Q) ->
     IQ = inverse(Q),
-    {Vec0,Scale} = mult([Q,{V,1.0},IQ]),
+    {Vec0,Scale} = mul([Q,{V,1.0},IQ]),
     if Scale =:= 1.0 -> 
 	    Vec0;
        true ->
