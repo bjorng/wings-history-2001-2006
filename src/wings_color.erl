@@ -3,12 +3,12 @@
 %%
 %%     Color utilites.
 %%
-%%  Copyright (c) 2001-2002 Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_color.erl,v 1.8 2003/01/01 12:09:47 bjorng Exp $
+%%     $Id: wings_color.erl,v 1.9 2003/04/05 07:53:27 bjorng Exp $
 %%
 
 -module(wings_color).
@@ -51,11 +51,6 @@ store({_,_,_}=RGB) ->
 	Other -> Other
     end.
 
-average([{V10,V11}|T]=All) ->
-    average(T, V10, V11, length(All));
-average(Colors) ->
-    share(e3d_vec:average(Colors)).
-
 mix(_W, Same, Same) -> Same;
 mix(Wa, {Ua,Va}, {Ub,Vb}) when is_float(Wa) ->
     Wb = 1.0 - Wa,
@@ -67,6 +62,18 @@ mix(Wa, {Ra,Ga,Ba}, {Rb,Gb,Bb}) when is_float(Wa) ->
 white() ->
     get(?WHITE).
 
+average([Same,Same|T]=All) ->
+    case all_same(T, Same) of
+	false -> average_1(All);
+	true -> Same
+    end;
+average(All) -> average_1(All).
+	    
+average_1([{V10,V11}|T]=All) ->
+    average(T, V10, V11, length(All));
+average_1(Colors) ->
+    share(e3d_vec:average(Colors)).
+
 average([{V10,V11}|T], A0, A1, L)
   when is_float(V10), is_float(V11), is_float(A0), is_float(A1) ->
     average(T, A0+V10, A1+V11, L);
@@ -74,6 +81,9 @@ average([], A0, A1, L0) ->
     L = float(L0),
     {A0/L,A1/L}.
 
+all_same([Same|T], Same) -> all_same(T, Same);
+all_same([_|_], _) -> false;
+all_same([], _) -> true.
 
 rgb_to_hsv({R,G,B}) ->
     rgb_to_hsv(R,G,B).
