@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_obj.erl,v 1.31 2002/11/23 21:02:18 bjorng Exp $
+%%     $Id: e3d_obj.erl,v 1.32 2002/12/21 15:23:11 bjorng Exp $
 %%
 
 -module(e3d_obj).
@@ -355,17 +355,20 @@ export(File, Contents) ->
 
 export(File, #e3d_file{objs=Objs,mat=Mat,creator=Creator}, Flags) ->
     {ok,MtlLib} = materials(File, Mat, Creator),
-    {ok,F} = file:open(File, [write]),
-    label(F, Creator),
-    case proplists:get_bool(dot_slash_mtllib, Flags) of
-	false -> io:format(F, "mtllib ~s\r\n", [MtlLib]);
-	true -> io:format(F, "mtllib ./~s\r\n", [MtlLib])
-    end,
-    foldl(fun(#e3d_object{name=Name}=Obj, {Vbase,UVbase,Nbase}) ->
-		  io:format(F, "o ~s\r\n", [Name]),
-		  export_object(F, Obj, Flags, Vbase, UVbase, Nbase)
-	  end, {1,1,1}, Objs),
-    ok = file:close(F).
+    case file:open(File, [write]) of
+	{error,_}=Error -> Error;
+	{ok,F} ->
+	    label(F, Creator),
+	    case proplists:get_bool(dot_slash_mtllib, Flags) of
+		false -> io:format(F, "mtllib ~s\r\n", [MtlLib]);
+		true -> io:format(F, "mtllib ./~s\r\n", [MtlLib])
+	    end,
+	    foldl(fun(#e3d_object{name=Name}=Obj, {Vbase,UVbase,Nbase}) ->
+			  io:format(F, "o ~s\r\n", [Name]),
+			  export_object(F, Obj, Flags, Vbase, UVbase, Nbase)
+		  end, {1,1,1}, Objs),
+	    ok = file:close(F)
+    end.
 
 
 export_object(F, #e3d_object{name=Name,obj=Mesh0}, Flags,

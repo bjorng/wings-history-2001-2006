@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_tds.erl,v 1.24 2002/11/18 17:45:57 bjorng Exp $
+%%     $Id: e3d_tds.erl,v 1.25 2002/12/21 15:23:11 bjorng Exp $
 %%
 
 -module(e3d_tds).
@@ -434,7 +434,10 @@ export(Name, Objs) ->
     Version = make_chunk(16#0002, <<3:32/little>>),
     Editor = make_editor(Name, Objs),
     Main = make_chunk(16#4D4D, [Version|Editor]),
-    ok = file:write_file(Name, Main).
+    case file:write_file(Name, Main) of
+	ok -> ok;
+	{error,_}=Error -> Error
+    end.
 
 make_editor(Name, #e3d_file{objs=Objs0,mat=Mat0}) ->
     MeshVer = make_chunk(16#3d3e, <<3:32/little>>),

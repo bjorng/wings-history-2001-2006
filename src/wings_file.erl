@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.92 2002/12/14 10:06:48 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.93 2002/12/21 15:23:12 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -628,7 +628,13 @@ do_export(Exporter, Name, SubDivs, #st{shapes=Shs}=St) ->
     Mat0 = wings_material:used_materials(St),
     Mat = keydelete('_hole_', 1, Mat0),
     Contents = #e3d_file{objs=Objs,mat=Mat,creator=Creator},
-    Exporter(Name, Contents).
+    case Exporter(Name, Contents) of
+	ok -> ok;
+	{error,Atom} when is_atom(Atom) ->
+	    wings_util:error("Failed to export: " ++ file:format_error(Atom));
+	{error,Reason} ->
+	    wings_util:error(Reason)
+    end.
 
 do_export(#we{perm=Perm}, _, Acc) when ?IS_NOT_VISIBLE(Perm) -> Acc;
 do_export(#we{name=Name,light=none}=We, SubDivs, Acc) ->
