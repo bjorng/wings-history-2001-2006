@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_fbx.erl,v 1.8 2005/03/16 05:42:58 bjorng Exp $
+%%     $Id: wpc_fbx.erl,v 1.9 2005/03/16 20:26:15 bjorng Exp $
 %%
 
 -module(wpc_fbx).
@@ -148,6 +148,10 @@ export_mesh(#e3d_mesh{fs=Fs,vs=Vs0,ns=Ns,tx=Tx,vc=VtxCol}=Mesh, Mat0) ->
     Vs = fake_matrix(Vs0),
     Mat = used_materials(Mesh, Mat0),
     Textures = texture_materials(Mat),
+    if
+	Textures =:= [] -> ok;
+	true -> cast(?ExpInitTextures)
+    end,
     MatMap = make_mat_map(Mat, Textures),
     NumVs = length(Vs),
     cast(?ExpInitControlPoints, <<NumVs:32/native>>),
@@ -792,8 +796,8 @@ import_tx_all_same(N, #e3d_mesh{fs=Fs0}=Mesh) ->
     Mesh#e3d_mesh{fs=Fs}.
 
 import_tx_by_polygon(N, #e3d_mesh{fs=Fs0}=Mesh) ->
-    cast(?ImpTextureIndices),
     Tx = list_to_tuple(import_all_tx(N-1, [])),
+    cast(?ImpTextureIndices),
     Fs = import_tx_by_polygon_1(Fs0, Tx, []),
     Mesh#e3d_mesh{fs=Fs}.
 

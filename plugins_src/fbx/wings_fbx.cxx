@@ -8,7 +8,7 @@
  *  See the file "license.terms" for information on usage and redistribution
  *  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
  *
- *     $Id: wings_fbx.cxx,v 1.8 2005/03/16 17:01:41 bjorng Exp $
+ *     $Id: wings_fbx.cxx,v 1.9 2005/03/16 20:26:15 bjorng Exp $
  */
 
 
@@ -118,14 +118,14 @@ fbx_control(unsigned int command,
   case ExpCreateMesh:
     {
       Mesh = SdkManager->CreateKFbxMesh();
-      Mesh->InitTextureIndices(KFbxLayerElement::eBY_POLYGON);
-      matLayer = new KFbxLayerElementMaterial;
-      matLayer->SetMappingMode(KFbxLayerElement::eBY_POLYGON);
-      matLayer->SetReferenceMode(KFbxLayerElement::eINDEX_TO_DIRECT);
       if (Mesh->GetLayer(0) == NULL) {
 	Mesh->CreateLayer();
       }
       Layer = Mesh->GetLayer(0);
+
+      matLayer = new KFbxLayerElementMaterial;
+      matLayer->SetMappingMode(KFbxLayerElement::eBY_POLYGON);
+      matLayer->SetReferenceMode(KFbxLayerElement::eINDEX_TO_DIRECT);
       Layer->SetMaterials(matLayer);
     }
     break;
@@ -255,6 +255,10 @@ fbx_control(unsigned int command,
     break;
   case ExpShininess:
     Material->SetShininess(get_float(buff));
+    break;
+
+  case ExpInitTextures:
+    Mesh->InitTextureIndices(KFbxLayerElement::eBY_POLYGON);
     break;
   case ExpCreateTexture:
     {
@@ -747,7 +751,7 @@ fbx_control(unsigned int command,
 	  // There is a texture layer element. Unfortunately, careless
 	  // exporters (such as previous releases of this plug-in)
 	  // could create the layer element without filling it in.
-	  // Therefore, check that the needed arrays are really there.
+	  // Therefore, check that the needed arrays really are there.
 	  switch (layerElem->GetReferenceMode()) {
 	  case KFbxLayerElement::eDIRECT:
 	    b = texLayer->GetDirectArray() != NULL;
