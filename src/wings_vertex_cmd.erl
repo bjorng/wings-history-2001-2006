@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.5 2001/09/14 09:58:03 bjorng Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.6 2001/09/17 07:19:18 bjorng Exp $
 %%
 
 -module(wings_vertex_cmd).
@@ -84,7 +84,7 @@ ex_new_vertices(V, #we{vs=Vtab}=We0) ->
 			 end,
 		  Dir = e3d_vec:norm(Dir0),
 		  Pos = e3d_vec:add(Center, e3d_vec:mul(Dir, Dist)),
-		  {W,NewV,_} = wings_edge:fast_cut(Edge, Pos, W0),
+		  {W,NewV} = wings_edge:fast_cut(Edge, Pos, W0),
 		  {W,[NewV,Face|Vs]}
 	  end, {We0,[]}, V, We0),
     ex_connect(VsFaces, VsFaces, We).
@@ -234,8 +234,8 @@ connect(St) ->
 connect(Vs, #we{}=We) ->
     FaceVs = wings_vertex:per_face(Vs, We),
     foldl(fun({Face,Vs}, Acc) ->
-		 wings_vertex:connect(Face, Vs, Acc)
-	 end, We, FaceVs).
+		  wings_vertex:connect(Face, Vs, Acc)
+	  end, We, FaceVs).
 
 %%%
 %%% The Tighten command.

@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.9 2001/09/14 09:58:03 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.10 2001/09/17 07:19:18 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
--export([select_material/2,set_material/2,
+-export([select_material/2,set_material/2,bevel_faces/1,
 	 extrude/2,extrude_region/2,extract_region/2,
 	 inset/1,dissolve/1,smooth/1,bridge/1,
 	 intrude/1,mirror/1,flatten/2]).
@@ -95,6 +95,86 @@ extrude_region_2([], We, Sel) ->
     {We,gb_sets:union(Sel)}.
 
 %%%
+%%% The Bevel command.
+%%%
+
+bevel_faces(St0) ->
+    {St,OrigVs} = wings_sel:mapfold_region(fun bevel_faces/4, [], St0),
+    wings_scale:bevel_face(sort(OrigVs), St).
+
+bevel_faces(ShId, Faces, We0, Acc) ->
+    DisEdges = wings_face:inner_edges(Faces, We0),
+    OrigVs = wings_face:to_vertices(Faces, We0),
+    MoveEdges = bevel_move_edges(Faces, We0),
+    We1 = wings_extrude_face:faces(Faces, We0),
+    NewVs = wings_we:new_items(vertex, We0, We1),
+    We2 = dissolve_edges(DisEdges, We1),
+    We3 = bevel_connect(OrigVs, NewVs, We2),
+    We = dissolve_more_edges(OrigVs, NewVs, We3),
+    {We,[{ShId,MoveEdges}|Acc]}.
+
+bevel_connect(Vs, NewVs, We) ->
+    gb_sets:fold(fun(V, A) -> bevel_connect_1(V, NewVs, A) end, We, Vs).
+
+bevel_connect_1(V, NewVs, We) ->
+    Vs = wings_vertex:fold(
+	  fun(Edge, _, Rec, A) ->
+		  OtherV = wings_vertex:other(V, Rec),
+		  case gb_sets:is_member(OtherV, NewVs) of
+		      false -> A;
+		      true ->
+			  wings_vertex:fold(
+			    fun(_, Face, _, A1) ->
+				    [{Face,OtherV}|A1]
+			    end, A, OtherV, We)
+		  end
+	  end, [], V, We),
+    R = sofs:relation(Vs),
+    Family = sofs:relation_to_family(R),
+    foldl(fun ({Face,[_]}, A) -> A;
+	      ({Face,[Vstart,Vend]}, A0) ->
+		  {A,_} = wings_vertex:force_connect(Vstart, Vend, Face, A0),
+		  A
+	  end, We, sofs:to_external(Family)).
+
+dissolve_edges(Edges, We0) ->
+    foldl(fun(E, W) -> wings_edge:dissolve_edge(E, W) end, We0, Edges).
+
+dissolve_more_edges(Vs, NewVs, We) ->
+    gb_sets:fold(fun(V, A) ->
+			 dissolve_more_edges_1(V, NewVs, A)
+		 end, We, Vs).
+
+dissolve_more_edges_1(V, NewVs, We) ->
+    Dis = wings_vertex:fold(
+	    fun (Edge, Face, #edge{lf=Lf,rf=Rf}=Rec, A) ->
+		    OtherV = wings_vertex:other(V, Rec),
+		    case gb_sets:is_member(OtherV, NewVs) of
+			false -> A;
+			true -> [{Lf,Edge},{Rf,Edge}|A]
+		    end
+	    end, [], V, We),
+    R = sofs:relation(Dis),
+    F0 = sofs:relation_to_family(R),
+    F = sofs:family_specification(fun(L) ->
+					   sofs:no_elements(L) =:= 2
+				   end, F0),
+    Fs = sofs:to_external(sofs:domain(F)),
+    Inner = wings_face:inner_edges(Fs, We),
+    dissolve_edges(Inner, We).
+
+bevel_move_edges(Faces, We) ->
+    R0 = wings_face:fold_faces(
+	   fun(F, _, E, _, A) ->
+		   [{F,E}|A]
+	   end, [], Faces, We),
+    R = sofs:relation(R0),
+    P = sofs:partition(2, R),
+    M = sofs:specification(fun(L) -> sofs:no_elements(L) =:= 1 end, P),
+    U = sofs:union(M),
+    sofs:to_external(sofs:relation_to_family(U)).
+
+%%%
 %%% The Extract Region command.
 %%%
 
@@ -131,14 +211,14 @@ dissolve_1([Faces|Rs], WeOrig, We0, Sel) ->
 	    [Face] = gb_sets:to_list(Faces),
 	    dissolve_1(Rs, WeOrig, We0, [Face|Sel]);
 	Other ->
-	    Parts = outer_edge_partition(Faces, We0),
-	    We = do_dissolve(Faces, Parts, WeOrig, We0),
+ 	    Parts = outer_edge_partition(Faces, We0),
+ 	    We = do_dissolve(Faces, Parts, WeOrig, We0),
 	    dissolve_1(Rs, WeOrig, We, Sel)
     end;
 dissolve_1([], WeOrig, We, Sel) -> {We,Sel}.
-    
+
 do_dissolve(Faces, Ess, WeOrig, We0) ->
-    We1 = dissolve_faces(Faces, We0),
+    We1 = do_dissolve_faces(Faces, We0),
     Inner = wings_face:inner_edges(Faces, WeOrig),
     {DelVs0,We2} = delete_inner(Inner, We1),
     {KeepVs,We} = do_dissolve_1(Ess, WeOrig, gb_sets:empty(), We2),
@@ -159,7 +239,7 @@ do_dissolve_1([EdgeList|Ess], WeOrig, KeepVs0, #we{es=Etab0,fs=Ftab0}=We0) ->
     do_dissolve_1(Ess, WeOrig, KeepVs, We#we{es=Etab,fs=Ftab});
 do_dissolve_1([], WeOrig, KeepVs, We) -> {KeepVs,We}.
 
-dissolve_faces(Faces, #we{fs=Ftab0}=We) ->
+do_dissolve_faces(Faces, #we{fs=Ftab0}=We) ->
     Ftab = gb_sets:fold(fun(Face, Ft) ->
 				gb_trees:delete(Face, Ft)
 			end, Ftab0, Faces),
@@ -180,12 +260,11 @@ update_outer([Pred|[Edge|Succ]=T], More, Face, WeOrig, Ftab, KeepVs0, Etab0) ->
     Rec = case gb_trees:is_defined(Rf, Ftab) of
 	      true ->
 		  ?ASSERT(false == gb_trees:is_defined(Lf, Ftab)),
-		  LS = uo_succ(Succ, More),
+		  LS = succ(Succ, More),
 		  R0#edge{lf=Face,ltpr=Pred,ltsu=LS};
 	      false ->
 		  ?ASSERT(true == gb_trees:is_defined(Lf, Ftab)),
-		  ?ASSERT(false == gb_trees:is_defined(Rf, Ftab)),
-		  RS = uo_succ(Succ, More),
+		  RS = succ(Succ, More),
 		  R0#edge{rf=Face,rtpr=Pred,rtsu=RS}
 	  end,
     KeepVs = gb_sets:add(Va, gb_sets:add(Vb, KeepVs0)),
@@ -194,8 +273,8 @@ update_outer([Pred|[Edge|Succ]=T], More, Face, WeOrig, Ftab, KeepVs0, Etab0) ->
 update_outer([_], More, Face, WeOrig, Ftab, KeepVs, Etab) ->
     {KeepVs,Etab}.
 
-uo_succ([Succ|_], More) -> Succ;
-uo_succ([], [Succ|_]) -> Succ.
+succ([Succ|_], More) -> Succ;
+succ([], [Succ|_]) -> Succ.
 
 update_vtab(Vs, Etab, We, Vtab) ->
     gb_sets:fold(
@@ -633,32 +712,24 @@ are_neighbors(FaceA, FaceB, We) ->
 	      end
       end, false, FaceA, We).
 
-%% outer_edge_partition(FaceSet, WingedEdge) -> [TreeOfEdges...].
-%%  Find all outer edges for the sets of faces.
-%%  Outer edges are all edges between one face in the set and one
-%%  outside.
+%% outer_edge_partition(FaceSet, WingedEdge) -> [[Edge]].
+%%  Partition all outer edges. Outer edges are all edges
+%%  between one face in the set and one outside.
 
 outer_edge_partition(Faces, We) ->
-    Edges = ex_outer_edges(gb_sets:to_list(Faces), Faces, We, []),
-    partition_edges(Edges, []).
+    collect_outer_edges(gb_sets:to_list(Faces), Faces, We, []).
 
-ex_outer_edges([Face|Fs], Faces, We, Acc0) ->
+collect_outer_edges([Face|Fs], Faces, We, Acc0) ->
     Acc = wings_face:fold(
 	    fun(_, E, Erec, A) ->
 		    outer_edge(E, Erec, Face, Faces, A)
 	    end, Acc0, Face, We),
-    ex_outer_edges(Fs, Faces, We, Acc);
-ex_outer_edges([], Faces, We, Acc) ->
-    gb_trees:from_orddict(uniqify(sort(Acc), [])).
+    collect_outer_edges(Fs, Faces, We, Acc);
+collect_outer_edges([], Faces, We, Acc) ->
+    R = sofs:relation(Acc),
+    F = sofs:relation_to_family(R),
+    partition_edges(gb_trees:from_orddict(sofs:to_external(F)), []).
 
-uniqify([{V,Data1},{V,Data2}|T], Acc) when list(Data1) ->
-    uniqify([{V,[Data2|Data1]}|T], Acc);
-uniqify([{V,Data1},{V,Data2}|T], Acc) ->
-    uniqify([{V,[Data1,Data2]}|T], Acc);
-uniqify([H|T], Acc) ->
-    uniqify(T, [H|Acc]);
-uniqify([], Acc) -> reverse(Acc).
-    
 outer_edge(Edge, Erec, Face, Faces, Acc) ->
     {V,OtherV,OtherFace} =
 	case Erec of
@@ -669,39 +740,30 @@ outer_edge(Edge, Erec, Face, Faces, Acc) ->
 	end,
     case gb_sets:is_member(OtherFace, Faces) of
 	true -> Acc;
-	false -> [{V,{OtherV,Edge}}|Acc]
+	false -> [{V,{Edge,V,OtherV,Face}}|Acc]
     end.
-
-%% Partition edges into connected sets.
 
 partition_edges(Es0, Acc) ->
     case gb_sets:is_empty(Es0) of
 	true -> Acc;
 	false ->
 	    {Key,Val,Es1} = gb_trees:take_smallest(Es0),
-	    {Part,Es} = partition_edges(Key, Val, Key, Es1, []),
+	    {Part,Es} = partition_edges(Key, unknown, Val, Es1, []),
 	    partition_edges(Es, [Part|Acc])
     end.
 
-partition_edges(Va, [Val], Last, Es, Acc) ->
-    partition_edges(Va, Val, Last, Es, Acc);
-partition_edges(Va, [Val|More], Last, Es0, Acc) ->
-    case partition_edges(Va, Val, Last, Es0, Acc) of
-	none ->
-	    Es = gb_trees:insert(Va, More, Es0),
-	    partition_edges(Va, Val, Last, Es, Acc);
-	{_,_} ->
-	    partition_edges(Va, More++Val, Last, Es0, Acc)
-    end;
-partition_edges(Vs, {Ve,Edge}, Last, Es0, Acc0) ->
+partition_edges(Va, _, [{Edge,Va,Vb,Face}], Es0, Acc0) ->
     Acc = [Edge|Acc0],
-    if
-	Ve =:= Last -> {Acc,Es0};
-	true ->
-	    case gb_trees:lookup(Ve, Es0) of
-		none -> none;
-		{value,Val} ->
-		    Es = gb_trees:delete(Ve, Es0),
-		    partition_edges(Ve, Val, Last, Es, Acc)
-	    end
-    end.
+    case gb_trees:lookup(Vb, Es0) of
+	none -> {Acc,Es0};
+	{value,Val} ->
+	    Es = gb_trees:delete(Vb, Es0),
+	    partition_edges(Vb, Face, Val, Es, Acc)
+    end;
+partition_edges(Va, unknown, [{_,Va,_,Face}|_]=Edges, Es, Acc) ->
+    partition_edges(Va, Face, Edges, Es, Acc);
+partition_edges(Va, Face, Edges0, Es0, Acc) ->
+    [Val] = [E || {_,_,_,AFace}=E <- Edges0, AFace =:= Face],
+    Edges = [E || {_,_,_,AFace}=E <- Edges0, AFace =/= Face],
+    Es = gb_trees:insert(Va, Edges, Es0),
+    partition_edges(Va, Face, [Val], Es, Acc).

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.5 2001/09/14 09:58:03 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.6 2001/09/17 07:19:18 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -34,7 +34,7 @@ projection(St) ->
 
 perspective(#st{opts=#opt{ortho=false}}) ->
     [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
-    glu:perspective(45.0, W/H, 2.0, 1000.0);
+    glu:perspective(45.0, W/H, 0.25, 1000.0);
 perspective(#st{opts=#opt{ortho=true}}) ->
     [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
     Aspect = W/H,
@@ -47,11 +47,11 @@ model_transformations(#st{origo=Origo,distance=Dist0,azimuth=Az,
     gl:loadIdentity(),
     [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
     Dist = Dist0 * math:sqrt((W*H) / (640*480)),
-    {OX,OY,OZ} = Origo,
     gl:translatef(PanX, PanY, 0.0),
     gl:translatef(0.0, 0.0, -Dist),
     gl:rotatef(El, 1.0, 0.0, 0.0),
     gl:rotatef(Az, 0.0, 1.0, 0.0),
+    {OX,OY,OZ} = Origo,
     gl:translatef(OX, OY, OZ).
     
 aim(#st{sel=[]}=St) -> St;

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex.erl,v 1.8 2001/09/14 09:58:03 bjorng Exp $
+%%     $Id: wings_vertex.erl,v 1.9 2001/09/17 07:19:18 bjorng Exp $
 %%
 
 -module(wings_vertex).
@@ -18,7 +18,9 @@
 	 center/1,center/2,
 	 bounding_box/1,bounding_box/2,bounding_box/3,
 	 normal/2,per_face/2,
-	 dissolve/2,connect/3,force_connect/4,patch_vertex/3,pos/2]).
+	 dissolve/2,
+	 connect/3,force_connect/4,
+	 patch_vertex/3,pos/2]).
 
 -include("wings.hrl").
 -import(lists, [member/2,keymember/3,foldl/3,reverse/1,last/1]).
@@ -434,8 +436,8 @@ try_connect({Start,End}, Face, We0) ->
     end.
 
 force_connect(Vstart, Vend, Face, #we{es=Etab0,fs=Ftab0}=We0) ->
-    {NewFace,We} = wings_we:new_ids(2, We0),
-    NewEdge = NewFace + 1,
+    {NewFace,We} = wings_we:new_ids(1, We0),
+    NewEdge = NewFace,
     NeRec0 = #edge{vs=Vstart,ve=Vend,lf=NewFace,rf=Face},
 
     Iter0 = wings_face:iterator(Face, We),

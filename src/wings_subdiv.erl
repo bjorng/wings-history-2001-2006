@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.5 2001/09/14 09:58:03 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.6 2001/09/17 07:19:18 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -153,7 +153,7 @@ cut_edges_1([{Edge,#edge{vs=Va,ve=Vb,lf=Lf,rf=Rf}}|Es], FacePos, Htab,
 	    #we{vs=Vtab}=We0) ->
     case gb_sets:is_member(Edge, Htab) of
 	true ->
-	    {We,_,_} = wings_edge:fast_cut(Edge, default, We0),
+	    {We,_} = wings_edge:fast_cut(Edge, default, We0),
 	    cut_edges_1(Es, FacePos, Htab, We);
 	false ->
 	    [LfPos|_] = gb_trees:get(Lf, FacePos),
@@ -161,7 +161,7 @@ cut_edges_1([{Edge,#edge{vs=Va,ve=Vb,lf=Lf,rf=Rf}}|Es], FacePos, Htab,
 	    VaPos = wings_vertex:pos(Va, Vtab),
 	    VbPos = wings_vertex:pos(Vb, Vtab),
 	    Pos = e3d_vec:average([LfPos,RfPos,VaPos,VbPos]),
-	    {We,_,_} = wings_edge:fast_cut(Edge, Pos, We0),
+	    {We,_} = wings_edge:fast_cut(Edge, Pos, We0),
 	    cut_edges_1(Es, FacePos, Htab, We)
     end;
 cut_edges_1([], FacePos, Htab, We) -> We.

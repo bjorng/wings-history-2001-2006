@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.8 2001/09/14 09:58:02 bjorng Exp $
+%%     $Id: wings.erl,v 1.9 2001/09/17 07:19:18 bjorng Exp $
 %%
 
 -module(wings).
@@ -408,7 +408,7 @@ command({face,{extract_region,Type}}, St) ->
 command({face,{flatten,Plane}}, St) ->
     {save_state,model_changed(wings_face_cmd:flatten(Plane, St))};
 command({face,bevel}, St) ->
-    wings_bevel:bevel_faces(St);
+    wings_face_cmd:bevel_faces(St);
 command({face,inset}, St) ->
     wings_face_cmd:inset(St);
 command({face,mirror}, St) ->
@@ -484,6 +484,8 @@ command({tools,save_bb}, St) ->
     wings_align:copy_bb(St);
 command({tools,{scale_to_bb,Dir}}, St) ->
     {save_state,model_changed(wings_align:scale_to_bb(Dir, St))};
+command({tools,{scale_to_bb_prop,Dir}}, St) ->
+    {save_state,model_changed(wings_align:scale_to_bb_prop(Dir, St))};
 command({tools,{move_to_bb,Dir}}, St) ->
     {save_state,model_changed(wings_align:move_to_bb(Dir, St))};
 
@@ -634,6 +636,7 @@ menu(X, Y, tools, St) ->
 	    separator,
 	    {"Save Bounding Box",save_bb},
 	    {"Scale to Saved BB",{scale_to_bb,Dirs}},
+	    {"Scale to Saved BB Proportionally",{scale_to_bb_prop,Dirs}},
 	    {"Move to Saved BB",{move_to_bb,all_xyz()}}},
     wings_menu:menu(X, Y, tools, Menu);
 menu(X, Y, objects, #st{shapes=Shapes,hidden=Hidden}=St) ->

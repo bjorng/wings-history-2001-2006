@@ -8,13 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_face.erl,v 1.1 2001/09/14 09:58:03 bjorng Exp $
+%%     $Id: wings_extrude_face.erl,v 1.2 2001/09/17 07:19:18 bjorng Exp $
 %%
 
 -module(wings_extrude_face).
 -export([faces/2,region/2]).
+
 -include("wings.hrl").
--import(lists, [foldl/3,foreach/2,last/1,reverse/1,sort/1,merge/1]).
+-import(lists, [foldl/3,foreach/2,last/1,reverse/1,reverse/2,sort/1,merge/1]).
 
 %%%
 %%% Extrusion of faces individually (used by Extrude, Inset, Bevel).
@@ -25,18 +26,16 @@ faces(Faces, We) when list(Faces) ->
 faces(Faces, We) ->
     faces(gb_sets:to_list(Faces), We).
     
-inner_extrude([Face|Faces], We0, EdgeAcc0) ->
+inner_extrude([Face|Faces], #we{next_id=AnEdge,fs=Ftab0}=We0, EdgeAcc0) ->
+    #face{mat=Mat} = FaceRec = gb_trees:get(Face, Ftab0),
+    Ftab = gb_trees:update(Face, FaceRec#face{edge=AnEdge}, Ftab0),
+    We1 = We0#we{fs=Ftab},
     Edges = inner_extrude_edges(Face, We0),
     NumVs = length(Edges),
-    {Ids,We1} = wings_we:new_wrap_range(NumVs, 4, We0),
+    {Ids,We2} = wings_we:new_wrap_range(NumVs, 2, We1),
     PrevEdge = last(Edges),
-    #face{mat=Mat} = gb_trees:get(Face, We0#we.fs),
-    {We2,EdgeAcc} = inner_extrude_1(Edges, PrevEdge, Face, Mat,
-				    Ids, We1, EdgeAcc0),
-    AnEdge = wings_we:id(1, Ids),
-    #we{fs=Ftab0} = We2,
-    Ftab = wings_face:patch_face(Face, AnEdge, Ftab0),
-    We = We2#we{fs=Ftab},
+    {We,EdgeAcc} = inner_extrude_1(Edges, PrevEdge, Face, Mat,
+				   Ids, We2, EdgeAcc0),
     inner_extrude(Faces, We, EdgeAcc);
 inner_extrude([], #we{es=Etab0}=We, EdgeAcc) ->
     Etab1 = merge([sort(EdgeAcc),gb_trees:to_list(Etab0)]),
@@ -47,17 +46,18 @@ inner_extrude_edges(Face, We) ->
     reverse(wings_face:fold(fun(_, E, _, A) -> [E|A] end, [], Face, We)).
 
 inner_extrude_1([Edge|Es], PrevEdge, Face, Mat, Ids0, We0, EdgeAcc0) ->
-    PrevHor = wings_we:id(5-4, Ids0),
-    PrevFace = wings_we:id(7-4, Ids0),
+    PrevHor = wings_we:id(2-2, Ids0),
+    PrevFace = PrevHor,
 
-    V = wings_we:id(4, Ids0),
-    HorEdge = wings_we:id(5, Ids0),
-    VertEdge = wings_we:id(6, Ids0),
-    NewFace = wings_we:id(7, Ids0),
+    HorEdge = wings_we:id(2, Ids0),
+    VertEdge = HorEdge + 1,
+    V = NewFace = HorEdge,
 
-    NextV = wings_we:id(4+4, Ids0),
-    NextHor = wings_we:id(5+4, Ids0),
-    NextVert = wings_we:id(6+4, Ids0),
+    NextHor = wings_we:id(2+2, Ids0),
+    NextVert = NextHor + 1,
+    NextV = NextHor,
+
+    Ids = wings_we:bump_id(Ids0),
 
     #we{fs=Ftab0,es=Etab0,vs=Vtab0} = We0,
 
@@ -83,7 +83,6 @@ inner_extrude_1([Edge|Es], PrevEdge, Face, Mat, Ids0, We0, EdgeAcc0) ->
     Ftab = gb_trees:insert(NewFace, #face{mat=Mat,edge=HorEdge}, Ftab0),
 
     We = We0#we{fs=Ftab,es=Etab,vs=Vtab},
-    Ids = wings_we:bump_id(Ids0),
     inner_extrude_1(Es, Edge, Face, Mat, Ids, We, EdgeAcc);
 inner_extrude_1([], PrevEdge, Face, Mat, Ids, We, EdgeAcc) ->
     {We,EdgeAcc}.
@@ -92,7 +91,7 @@ inner_extrude_1([], PrevEdge, Face, Mat, Ids, We, EdgeAcc) ->
 %%% Extrude entire regions (does NOT work for single faces).
 %%%
 
-region(Faces, #we{next_id=Wid,es=Etab}=We0) ->
+region(Faces, #we{es=Etab}=We0) ->
     ?ASSERT(gb_sets:size(Faces) > 1),
     Edges0 = wings_face:outer_edges(Faces, We0),
     G = digraph:new(),
@@ -106,7 +105,7 @@ region(Faces, #we{next_id=Wid,es=Etab}=We0) ->
     We1 = foldl(fun(V, A) ->
 			new_vertices(V, G, Edges, Faces, A)
 		end, We0, Vs),
-    We = connect(G, Wid, We1),
+    We = connect(G, We1),
     digraph:delete(G),
     Sel = selection(Edges0, Faces, We0, We),
     {We,Sel}.
@@ -131,8 +130,8 @@ new_vertices(V, G, Edges, Faces, We0) ->
 		      #edge{lf=Lf,rf=Rf} = gb_trees:get(Edge, Etab),
 		      case gb_sets:is_member(Lf, Faces) of
 			  true ->
-			      {We,NewV,NewE} =
-				  wings_edge:fast_cut(Edge, Pos, W0),
+			      {We,NewV} = wings_edge:fast_cut(Edge, Pos, W0),
+			      NewE = NewV,
 			      Rec = get_edge_rec(V, NewV, Edge, NewE, We),
 			      digraph_edge(G, Faces, Rec),
 			      We;
@@ -165,34 +164,44 @@ digraph_insert(G, Va0, Vb0, Face) ->
     digraph:add_vertex(G, Vb),
     digraph:add_edge(G, Va, Vb).
 
-connect(G, Wid, We0) ->
-    Cs = digraph_utils:components(G),
+connect(G, We0) ->
+    Cs = get_edge_chains(G),
     {We,Edges} = foldl(fun(C, {W,A}) ->
-			       connect(G, C, Wid, W, A)
+			       connect(C, W, A)
 		       end, {We0,[]}, Cs),
     foldl(fun(E, W) -> wings_collapse:collapse_edge(E, W) end, We, Edges).
 
-connect(G, C, Wid, We0, Acc) ->
-    [Va0,Vb0] = Vs = [VF || {V,_}=VF <- C, V >= Wid],
-    case digraph_get_path(G, Va0, Vb0) of
-	[{Va,_},_,{Vb,_}] ->
+connect(C, We0, Acc) ->
+    case C of
+	[Va,_,Vb] ->
 	    Face = get_face(Va, Vb, We0),
-	    {We,NewFace} = wings_vertex:force_connect(Va, Vb, Face, We0),
-	    NewEdge = NewFace+1,
+	    {We,NewEdge} = wings_vertex:force_connect(Va, Vb, Face, We0),
 	    {We,[NewEdge|Acc]};
-	[{Va,_}|Path0] ->
-	    Path = [V || {V,_} <- Path0],
+	[Va|Path] ->
 	    {connect_inner(Va, Path, We0),Acc}
     end.
 
-digraph_get_path(G, Va, Vb) ->
-    case digraph:get_path(G, Va, Vb) of
-	false -> digraph:get_path(G, Vb, Va);
-	Path -> Path
+get_edge_chains(G) ->
+    Vs = digraph:vertices(G),
+    get_edge_chains(G, Vs, []).
+
+get_edge_chains(G, [V|Vs], Acc) ->
+    case digraph:in_degree(G, V) of
+	0 ->
+	    Chain = collect_chain(G, V, []),
+	    get_edge_chains(G, Vs, [Chain|Acc]);
+	Other -> get_edge_chains(G, Vs, Acc)
+    end;
+get_edge_chains(G, [], Acc) -> Acc.
+
+collect_chain(G, {V,_}=Va, Acc) ->
+    case digraph:out_neighbours(G, Va) of
+	[] -> reverse(Acc, [V]);
+	[Vb] -> collect_chain(G, Vb, [V|Acc])
     end.
 
 connect_inner(Current0, [A|[B,C,_|_]=Next], We0) ->
-    {We,Current,_} = connect_one_inner(Current0, A, B, C, We0),
+    {We,Current} = connect_one_inner(Current0, A, B, C, We0),
     connect_inner(Current, Next, We);
 connect_inner(Current, [_|[_,_]=Next], We) ->
     connect_inner(Current, Next, We);
@@ -203,8 +212,7 @@ connect_inner(Current, [_,Last], We0) ->
 
 connect_one_inner(Current, A, B, C, We0) ->
     Face = get_face(Current, B, We0),
-    {We1,NewFace} = wings_vertex:force_connect(Current, B, Face, We0),
-    Edge = NewFace + 1,
+    {We1,Edge} = wings_vertex:force_connect(Current, B, Face, We0),
     Pos = wings_vertex:pos(B, We1),
     wings_edge:fast_cut(Edge, Pos, We1).
 

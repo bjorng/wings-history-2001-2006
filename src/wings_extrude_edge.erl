@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.5 2001/09/14 09:58:02 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.6 2001/09/17 07:19:18 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -109,7 +109,8 @@ new_vertices(V, G, Edges, We0) ->
 	      case gb_sets:is_member(Edge, Edges) of
 		  true -> A;
 		  false ->
-		      {W1,NewV,NewE} = wings_edge:cut(Edge, 2, W0),
+		      {W1,NewV} = wings_edge:cut(Edge, 2, W0),
+		      NewE = NewV,
 		      Rec = get_edge_rec(V, NewV, Edge, NewE, W1),
 		      digraph_edge(G, Rec),
 		      move_vertex(NewV, Center, W1)
@@ -187,12 +188,10 @@ connect_inner(Current, [_,Last], N, DefFace, We0) ->
 
 connect_one_inner(Current, A, B, C, N, DefFace, We0) ->
     Face = get_face(Current, B, DefFace, We0),
-    {We1,NewFace} = wings_vertex:force_connect(Current, B, Face, We0),
-    Edge = NewFace + 1,
+    {We1,Edge} = wings_vertex:force_connect(Current, B, Face, We0),
     #we{vs=Vtab} = We1,
     Pos = new_vertex_pos(A, B, C, N, Vtab),
-    {We,NewV,_} = wings_edge:fast_cut(Edge, Pos, We1),
-    {We,NewV}.
+    wings_edge:fast_cut(Edge, Pos, We1).
 
 get_face(Va, Vb, DefFace, We) ->
     FaceVs = wings_vertex:per_face([Va,Vb], We),

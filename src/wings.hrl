@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.6 2001/09/14 09:58:02 bjorng Exp $
+%%     $Id: wings.hrl,v 1.7 2001/09/17 07:19:18 bjorng Exp $
 %%
 
 -define(WINGS_VERSION, {0,6}).

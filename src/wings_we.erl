@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.10 2001/09/14 09:58:03 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.11 2001/09/17 07:19:18 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -25,7 +25,7 @@
 	 new_items/3]).
 -include("wings.hrl").
 -import(lists, [map/2,foreach/2,foldl/3,sort/1,keysort/2,
-		last/1,reverse/1,duplicate/2,seq/2]).
+		last/1,reverse/1,duplicate/2,seq/2,filter/2]).
 
 %%%
 %%% Build Winged-Edges.
@@ -52,7 +52,7 @@ build(Matrix, Fs0, Vs, HardEdges) ->
     #we{es=Etab,fs=Ftab,vs=Vtab,he=Htab,first_id=0,next_id=NextId}.
 
 build_edges(Fs) ->
-    build_edges(Fs, 1, []).
+    build_edges(Fs, 0, []).
 
 build_edges([{Material,Vs}|Fs], Face, Eacc0) ->
     build_edges_1(Vs, Fs, Face, Eacc0);
@@ -109,10 +109,22 @@ combine_half_edges(HalfEdges) ->
     
 combine_half_edges([{Name,[{left,Ldata},{right,Rdata}]}|Hes], Good, Bad) ->
     combine_half_edges(Hes, [{Name,{Ldata,Rdata}}|Good], Bad);
-combine_half_edges([Other|Hes], Good, Bad) ->
-    combine_half_edges(Hes, Good, [Other|Bad]);
+combine_half_edges([{Name,Other}|Hes], Good0, Bad) ->
+    Left = filter(fun({Side,_}) -> Side =:= left end, Other),
+    Right = filter(fun({Side,_}) -> Side =:= right end, Other),
+    case length(Left) =:= length(Right) of
+	true ->
+	    Good = combine_half_edges_1(Name, Left, Right, Good0),
+	    combine_half_edges(Hes, Good, Bad);
+	false -> combine_half_edges(Hes, Good0, [Other|Bad])
+    end;
 combine_half_edges([], Good, Bad) ->
     {reverse(Good),reverse(Bad)}.
+
+combine_half_edges_1(Name, [{left,Ldata}|Les], [{right,Rdata}|Res], Good0) ->
+    Good = [{Name,{Ldata,Rdata}}|Good0],
+    combine_half_edges_1(Name, Les, Res, Good);
+combine_half_edges_1(Name, [], [], Good) -> Good.
 
 number_edges(Es) ->
     number_edges(Es, 1, []).
@@ -131,28 +143,35 @@ hard_edges(HardNames0, Es) ->
     gb_sets:from_list(Htab).
 
 build_tables(Edges) ->
-    build_tables(Edges, gb_trees:from_orddict(Edges), [], [], []).
+    Emap = make_edge_map(Edges),
+    build_tables(Edges, Emap, [], [], []).
 
-build_tables([H|T], Etree, Vtab0, Etab0, Ftab0) ->
+build_tables([H|T], Emap, Vtab0, Etab0, Ftab0) ->
     {{Vs,Ve},{Edge,{Ldata,Rdata}}} = H,
-    {Lface,Lpred,Lsucc} = Ldata,
-    {Rface,Rpred,Rsucc} = Rdata,
-    Erec = #edge{vs=Vs,ve=Ve,lf=Lface,rf=Rface,
-		 ltpr=edge_num(Lpred, Etree),
-		 ltsu=edge_num(Lsucc, Etree),
-		 rtpr=edge_num(Rpred, Etree),
-		 rtsu=edge_num(Rsucc, Etree)},
+    {Lf,Lpred,Lsucc} = Ldata,
+    {Rf,Rpred,Rsucc} = Rdata,
+    Erec = #edge{vs=Vs,ve=Ve,lf=Lf,rf=Rf,
+		 ltpr=edge_num(Lf, Lpred, Emap),
+		 ltsu=edge_num(Lf, Lsucc, Emap),
+		 rtpr=edge_num(Rf, Rpred, Emap),
+		 rtsu=edge_num(Rf, Rsucc, Emap)},
     Etab = [{Edge,Erec}|Etab0],
-    Ftab = [{Lface,Edge},{Rface,Edge}|Ftab0],
+    Ftab = [{Lf,Edge},{Rf,Edge}|Ftab0],
     Vtab = [{Vs,Edge},{Ve,Edge}|Vtab0],
-    build_tables(T, Etree, Vtab, Etab, Ftab);
+    build_tables(T, Emap, Vtab, Etab, Ftab);
 build_tables([], Etree, Vtab, Etab0, Ftab) ->
     Etab = gb_trees:from_orddict(reverse(Etab0)),
     {Vtab,Etab,Ftab}.
 
-edge_num(Edge, Etree) ->
-    {Num,_} = gb_trees:get(Edge, Etree),
-    Num.
+make_edge_map(Es) ->
+    make_edge_map(Es, []).
+
+make_edge_map([{Name,{Edge,{{Lf,_,_},{Rf,_,_}}}}|Es], Acc) ->
+    make_edge_map(Es, [{{Lf,Name},Edge},{{Rf,Name},Edge}|Acc]);
+make_edge_map([], Acc) -> gb_trees:from_orddict(sort(Acc)).
+
+edge_num(Face, Name, Emap) ->
+    gb_trees:get({Face,Name}, Emap).
 
 fill_in_vertices(Ps, Matrix, Vtab0) ->
     Vtab1 = sofs:relation(Vtab0),
@@ -215,8 +234,7 @@ make_digraph([], G) -> ok.
 
 %%% Utilities for allocating IDs.
 
-new_wrap_range(Items, Inc, We0) ->
-    #we{next_id=Id}= We = debug_bump(We0),
+new_wrap_range(Items, Inc, #we{next_id=Id}=We) ->
     NumIds = Items*Inc,
     {{0,Id,Inc,NumIds},We#we{next_id=Id+NumIds}}.
 
@@ -226,20 +244,11 @@ id(N, {Current,BaseId,Inc,NumIds}) ->
 bump_id({Id,BaseId,Inc,NumIds}) ->
     {Id+Inc,BaseId,Inc,NumIds}.
 
-new_id(We0) ->
-    #we{next_id=Id} = We = debug_bump(We0),
+new_id(#we{next_id=Id}=We) ->
     {Id,We#we{next_id=Id+1}}.
 
-new_ids(N, We0) ->
-    #we{next_id=Id}= We = debug_bump(We0),
+new_ids(N, #we{next_id=Id}=We) ->
     {Id,We#we{next_id=Id+N}}.
-
--ifdef(DEBUG).
-debug_bump(#we{next_id=Id}=We) ->
-    We#we{next_id=100 * ((Id+99) div 100)}.
--else.
-debug_bump(We) -> We.
--endif.
 
 invert_normals(#we{es=Etab0}=We) ->
     Etab1 = [invert_dir(E) || E <- gb_trees:to_list(Etab0)],
@@ -605,6 +614,3 @@ new_items_2(Wid, NewWid, Tab, Acc) when Wid < NewWid ->
     end;
 new_items_2(Wid, NewWid, Tab, Acc) ->
     gb_sets:from_ordset(reverse(Acc)).
-    
-	    
-    

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.7 2001/09/14 09:58:03 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.8 2001/09/17 07:19:18 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -295,12 +295,16 @@ dump_faces(F, Fs) ->
 %% Validation of shapes.
 %%
 
-validate(#st{shapes=Shapes}) ->
+validate(X) ->
+    validate_1(X),
+    X.
+
+validate_1(#st{shapes=Shapes}) ->
     foreach(fun ({_,#shape{sh=#we{}=We}}) ->
 		    validate_we(We);
 		({_,_}) -> ok end,
 	    gb_trees:to_list(Shapes));
-validate(#we{}=We) -> validate_we(We).
+validate_1(#we{}=We) -> validate_we(We).
 
 validate_we(#we{}=We) ->
     validate_vertex_tab(We),

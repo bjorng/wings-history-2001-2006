@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.9 2001/09/14 09:58:02 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.10 2001/09/17 07:19:18 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -19,7 +19,7 @@
 	 hardness/2,hardness/3,loop_cut/1]).
 
 -include("wings.hrl").
--import(lists, [foldl/3,last/1,member/2,reverse/1,reverse/2,seq/3,sort/1]).
+-import(lists, [foldl/3,last/1,member/2,reverse/1,reverse/2,seq/2,sort/1]).
 
 %%
 %% Convert the current selection to an edge selection.
@@ -186,7 +186,7 @@ cut(N, St) -> St.
 
 cut_edges(Edges, N, We0) ->
     gb_sets:fold(fun(Edge, W0) ->
-			 {We,_,_} = cut(Edge, N, W0),
+			 {We,_} = cut(Edge, N, W0),
 			 We
 		 end, We0, Edges).
 
@@ -195,7 +195,7 @@ cut_edges(Edges, N, We0) ->
 cut(Edge, 2, We) ->
     fast_cut(Edge, default, We);
 cut(Edge, N, We0) ->
-    NumIds = 2*(N-1),
+    NumIds = (N-1),
     {BaseId,We} = wings_we:new_ids(NumIds, We0),
     #we{es=Etab0,vs=Vtab0,he=Htab0} = We,
     #edge{vs=Vstart,ve=Vend} = Template = gb_trees:get(Edge, Etab0),
@@ -208,27 +208,27 @@ cut(Edge, N, We0) ->
     Etab2 = patch_edge(EdgeA, LastEdge, Edge, Etab1),
     Etab3 = patch_edge(EdgeB, LastEdge, Edge, Etab2),
     
-    NewEdge = Template#edge{ve=BaseId,rtsu=BaseId+1,ltpr=BaseId+1},
+    NewEdge = Template#edge{ve=BaseId,rtsu=BaseId,ltpr=BaseId},
     Etab = gb_trees:update(Edge, NewEdge, Etab3),
 
     Htab = case gb_sets:is_member(Edge, Htab0) of
 	       false -> Htab0;
 	       true ->
-		   Hard = gb_sets:from_list(seq(BaseId+1,BaseId+NumIds,2)),
+		   Hard = gb_sets:from_list(seq(BaseId, BaseId+NumIds)),
 		   gb_sets:union(Hard, Htab0)
 	   end,
-    {We#we{es=Etab,vs=Vtab,he=Htab},BaseId,BaseId+1}.
+    {We#we{es=Etab,vs=Vtab,he=Htab},BaseId}.
 		    
 make_edges(2, Id, #edge{ltpr=EdgeA,rtsu=EdgeB}=Template, Prev, Etab) ->
-    ThisEdge = Id+1,
+    ThisEdge = Id,
     New = Template#edge{vs=Id,ltsu=Prev,rtpr=Prev},
     {gb_trees:insert(ThisEdge, New, Etab),EdgeA,EdgeB};
 make_edges(N, Id, Template, Prev, Etab0) ->
-    ThisEdge = Id+1,
-    New = Template#edge{vs=Id,ve=Id+2,ltsu=Prev,rtpr=Prev,
-			ltpr=ThisEdge+2,rtsu=ThisEdge+2},
+    ThisEdge = Id,
+    New = Template#edge{vs=Id,ve=Id+1,ltsu=Prev,rtpr=Prev,
+			ltpr=ThisEdge+1,rtsu=ThisEdge+1},
     Etab = gb_trees:insert(ThisEdge, New, Etab0),
-    make_edges(N-1, Id+2, Template, ThisEdge, Etab).
+    make_edges(N-1, Id+1, Template, ThisEdge, Etab).
 
 make_vertices(N, Id, Vstart, Vend, Vtab) ->
     Va = wings_vertex:pos(Vstart, Vtab),
@@ -239,17 +239,17 @@ make_vertices(N, Id, Vstart, Vend, Vtab) ->
 make_vertices_1(1, Id, Va, Dir, Vtab) -> Vtab;
 make_vertices_1(N, Id, Va, Dir, Vtab0) ->
     NextPos = wings_util:share(e3d_vec:add(Va, Dir)),
-    Vtx = #vtx{pos=NextPos,edge=Id+1},
+    Vtx = #vtx{pos=NextPos,edge=Id},
     Vtab = gb_trees:insert(Id, Vtx, Vtab0),
-    make_vertices_1(N-1, Id+2, NextPos, Dir, Vtab).
+    make_vertices_1(N-1, Id+1, NextPos, Dir, Vtab).
 
 %% fast_cut(Edge, Position, We0) -> {We,NewVertex,NewEdge}
 %%  Cut an edge in two parts. Position can be given as
 %%  the atom `default', in which case the position will
 %%  be set to the midpoint of the edge.
 fast_cut(Edge, Pos, We0) ->
-    {NewV,We} = wings_we:new_ids(2, We0),
-    NewEdge = NewV+1,
+    {NewV,We} = wings_we:new_ids(1, We0),
+    NewEdge = NewV,
     #we{es=Etab0,vs=Vtab0,he=Htab0} = We,
     Template = gb_trees:get(Edge, Etab0),
     #edge{vs=Vstart,ve=Vend,ltpr=EdgeA,rtsu=EdgeB} = Template,
@@ -281,7 +281,7 @@ fast_cut(Edge, Pos, We0) ->
 	       false -> Htab0;
 	       true -> gb_sets:insert(NewEdge, Htab0)
 	   end,
-    {We#we{es=Etab,vs=Vtab,he=Htab},NewV,NewEdge}.
+    {We#we{es=Etab,vs=Vtab,he=Htab},NewV}.
 
 %%%
 %%% The Connect command.
@@ -300,7 +300,7 @@ connect(Id, Es, We0, Acc) ->
 
 cut_edges(Es, We) ->
     gb_sets:fold(fun(Edge, {W0,Vs0}) ->
-			 {W,V,_} = cut(Edge, 2, W0),
+			 {W,V} = cut(Edge, 2, W0),
 			 {W,[V|Vs0]}
 		 end, {We,[]}, Es).
 

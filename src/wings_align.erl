@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_align.erl,v 1.5 2001/09/14 09:58:02 bjorng Exp $
+%%     $Id: wings_align.erl,v 1.6 2001/09/17 07:19:18 bjorng Exp $
 %%
 
 -module(wings_align).
 -export([align/2,center/2,copy_bb/1,
-	 scale_to_bb/2,move_to_bb/2]).
+	 scale_to_bb/2,scale_to_bb_prop/2,move_to_bb/2]).
 
 -include("wings.hrl").
 -import(lists, [map/2,foldr/3,foldl/3,reverse/1]).
@@ -40,6 +40,15 @@ scale_to_bb(Dir, #st{bb=Dest}=St) ->
 	none -> St;
 	Src ->
 	    Matrix = make_scale(Dir, Src, Dest),
+	    transform(Matrix, St)
+    end.
+
+scale_to_bb_prop(Dir, #st{bb=none}=St) -> St;
+scale_to_bb_prop(Dir, #st{bb=Dest}=St) ->
+    case wings_sel:bounding_box(St) of
+	none -> St;
+	Src ->
+	    Matrix = make_prop_scale(Dir, Src, Dest),
 	    transform(Matrix, St)
     end.
 
@@ -71,20 +80,49 @@ make_move(Dir, Src, Dest0) ->
     e3d_mat:translate(Tvec).
 
 make_scale(Dir, Src0, Dest0) ->
-    Src = e3d_vec:sub(Src0),
-    Dest = e3d_vec:sub(Dest0),
-    {SrcX,SrcY,SrcZ} = filter_coord(Dir, Src),
-    {DestX,DestY,DestZ} = filter_coord(Dir, Dest),
-    e3d_mat:scale(mksc1(DestX, SrcX),
-		  mksc1(DestY, SrcY),
-		  mksc1(DestZ, SrcZ)).
+    Src1 = e3d_vec:sub(Src0),
+    Dest1 = e3d_vec:sub(Dest0),
+    Src = filter_coord(Dir, Src1),
+    Dest = filter_coord(Dir, Dest1),
+    Sc0 = make_scales(Dest, Src),
+    [ScX,ScY,ScZ] = map(fun(none) -> 1.0;
+			   (Sc) -> Sc end, Sc0),
+    e3d_mat:scale(ScX, ScY, ScZ).
 
-mksc1(A, 0.0) -> 1.0;
-mksc1(A, B) ->
-    case catch A / B of				%catch if B is very small
-	{'EXIT',_} -> 1.0;
-	Q -> Q
-    end.
+make_prop_scale(Dir, Src0, Dest0) ->
+    Src1 = e3d_vec:sub(Src0),
+    Dest1 = e3d_vec:sub(Dest0),
+    Src = filter_coord(Dir, Src1),
+    Dest = filter_coord(Dir, Dest1),
+    Sc0 = make_scales(Dest, Src),
+    Max = max_scale(Sc0),
+    e3d_mat:scale(Max, Max, Max).
+
+make_scales(Ta, Tb) ->
+    make_scales(1, Ta, Tb).
+
+make_scales(I, Ta, Tb) when I > size(Ta); I > size(Tb) -> [];
+make_scales(I, Ta, Tb) ->
+    S = case {element(I, Ta),element(I, Tb)} of
+	    {A,0.0} -> none;
+	    {A,B} ->
+		case catch A / B of		%catch if B is very small
+		    {'EXIT',_} -> none;
+		    Q -> Q
+		end
+	end,
+    [S|make_scales(I+1, Ta, Tb)].
+
+max_scale([none|Ss]) -> max_scale(Ss);
+max_scale([S|Ss]) -> max_scale(Ss, S).
+
+max_scale([none|Ss], Max) ->
+    max_scale(Ss, Max);
+max_scale([S|Ss], Max) when Max < S ->
+    max_scale(Ss, S);
+max_scale([_|Ss], Max) ->
+    max_scale(Ss, Max);
+max_scale([], Max) -> Max.
 
 move_to(Center, Cs, Axis, #st{selmode=body}=St0) ->
     {St,_} = wings_sel:mapfold(

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d.hrl,v 1.2 2001/09/14 09:58:02 bjorng Exp $
+%%     $Id: e3d.hrl,v 1.3 2001/09/17 07:19:18 bjorng Exp $
 %%
 
 -record(e3d_file,
