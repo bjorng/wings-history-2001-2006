@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.38 2003/01/19 06:08:59 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.39 2003/01/26 15:44:37 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -72,6 +72,12 @@ menu(St) ->
      {"Hide Selected",hide_selected,"Hide all (partly or wholly) selected objects"},
      {"Hide Unselected",hide_unselected,"Hide objects that have no selection"},
      {"Lock Unselected",lock_unselected,"Lock objects that have no selection"},
+     {"Show All",show_all,"Show all objects that have been hidden"},
+     separator,
+     {"Store Selection",store_selection,
+      "Store the selection into the selection group named \"StoredSelection\""},
+     {"Recall Selection",recall_selection,
+      "Recall the selection from the selection group named \"StoredSelection\""},
      separator,
      {"New Group...",new_group,"Create a new selection group"}|groups_menu(St)].
 
@@ -206,8 +212,22 @@ command(hide_unselected, St) ->
     {save_state,hide_unselected(St)};
 command(lock_unselected, St) ->
     {save_state,lock_unselected(St)};
+command(show_all, St) ->
+    {save_state,wings_shape:restore_all(St)};
 command({adjacent,Type}, St) ->
     set_select_mode(Type, St);
+command(store_selection, #st{ssels=Ssels0,selmode=Mode,sel=Sel}=St) ->
+    Key = {Mode,"StoredSelection"},
+    Ssels = gb_trees:enter(Key, Sel, Ssels0),
+    {save_state,St#st{ssels=Ssels}};
+command(recall_selection, #st{selmode=Mode,ssels=Ssels}=St0) ->
+    Key = {Mode, "StoredSelection"},
+    case gb_trees:is_defined(Key, Ssels) of
+	false -> St0;
+	true ->
+	    St = select_group(Key, St0),
+	    {save_state,St}
+    end;
 command(Type, St) ->
     set_select_mode(Type, St).
 
