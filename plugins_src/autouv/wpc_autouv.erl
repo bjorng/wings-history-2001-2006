@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.59 2002/12/03 06:59:31 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.60 2002/12/03 15:24:05 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -128,9 +128,8 @@ seg_event_3(Ev, #seg{st=#st{selmode=Mode}}=Ss) ->
     case wings_menu:is_popup_event(Ev) of
 	no -> seg_event_4(Ev, Ss);
 	{yes,X,Y,_} -> 
-	    Menu = [{"Continue",{continue,
-				 [{"Unfolding",lsqcm},
-				  {"Projection",project}]}},
+	    Mappers = mappers(), 
+	    Menu = [{"Continue",{continue, Mappers}},
 		    separator,
 		    {"Segment by",{segment,
 				   [{"Projection",autouvmap},
@@ -143,6 +142,9 @@ seg_event_3(Ev, #seg{st=#st{selmode=Mode}}=Ss) ->
 
 -ifndef(DEBUG).
 seg_debug(Tail) -> Tail.
+mappers() ->
+    [{"Unfolding",lsqcm},				  
+     {"Projection",project}].
 -else.
 seg_debug(Tail) ->
     [separator,
@@ -151,6 +153,10 @@ seg_debug(Tail) ->
        [{"Select features",select_features},
 	{"Select seeds",select_seeds},
         {"Select Pinned vertices", select_pinned}]}}|Tail].
+mappers() ->
+    [{"Unfolding",lsqcm}, 
+     {"Two pass Unfolding",lsqcm2},
+     {"Projection",project}].
 -endif.
 
 seg_mode_menu(vertex, _, Tail) -> Tail;

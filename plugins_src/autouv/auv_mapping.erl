@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.27 2002/12/01 21:44:20 raimo_niskanen Exp $
+%%     $Id: auv_mapping.erl,v 1.28 2002/12/03 15:24:05 dgud Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -80,7 +80,9 @@ map_chart(Type, Chart, We) ->
     end.
 
 map_chart_1(project, C, We) -> projectFromChartNormal(C, We);
-map_chart_1(lsqcm, C, We) -> lsqcm(C, We).
+map_chart_1(lsqcm, C, We) -> lsqcm(C, We);
+map_chart_1(lsqcm2, C, We) -> lsqcm2(C, We).
+
 
 projectFromChartNormal(Chart, We) ->
     CalcNormal = fun(Face, Sum) ->
@@ -169,6 +171,74 @@ lsqcm(Fs, We) ->
 	    scaleVs(Vs3,math:sqrt(Scale),[])
     end.
 
+%%
+%%  We have extended the lsqcm idea with a seperate pass to generate good
+%%  borders, then we use the result of the first pass as input to the second
+%%  pass when we generate the whole chart.
+%%
+lsqcm2(Fs, We) ->
+    OVs = gb_sets:from_list(wings_vertex:outer_partition(Fs,We)),    
+    IEds = wings_face:inner_edges(Fs,We),
+    case has_inner_vs(IEds, OVs, We#we.es) of
+	false ->  %% We don't want the 2pass algo for one face charts..
+	    lsqcm(Fs,We);  
+	_ -> 
+	    lsqcm2impl(Fs, We)
+    end.
+
+has_inner_vs([Edge|Rest], Ovs, Etab) ->
+    #edge{vs = Va, ve = Vb} = gb_trees:get(Edge, Etab),
+    case gb_sets:is_member(Va,Ovs) andalso gb_sets:is_member(Vb,Ovs) of
+	true ->
+	    has_inner_vs(Rest,Ovs, Etab);
+	false ->
+	    true
+    end;
+has_inner_vs([], _, _) ->
+    false.
+
+lsqcm2impl(Fs, We) ->
+    ?DBG("LSQCM2 => Project and tri ~n", []),
+    {Vs1,Area} = ?TC(project_and_triangulate(Fs,We,-1,[],0.0)),
+    {CF, BorderEds} = find_border_edges(Fs,We),
+    ?DBG("BE ~p ~n", [BorderEds]),
+%     {BorderVs, Center0} = 
+% 	lists:mapfoldl(fun({V1,_V2,_E,Dist}, Acc) ->
+% 			      V1p = (gb_trees:get(V1, We#we.vs))#vtx.pos,
+% 			      T = e3d_vec:mul(V1p, Dist),
+% 			      Sum = e3d_vec:add(Acc, T),
+% 			      {{V1, V1p}, Sum}
+% 		      end, e3d_vec:zero(), BorderEds),
+%     Center = e3d_vec:divide(Center0, CF),        
+    BorderVs = [{V1,(gb_trees:get(V1, We#we.vs))#vtx.pos} || {V1,_,_,_} <-BorderEds],
+    Vs = [Vpos || {_,Vpos} <- BorderVs],
+    Center = e3d_vec:average(Vs),    
+    {V1, V2} = ?TC(find_pinned_from_edges(BorderEds, CF, We)),
+    TempFs = create_border_fs(BorderVs, BorderVs, {-1,Center}, 0, []),
+    ?DBG("LSQ2 (1pass) ~p ~p~n", [V1,V2]),
+    PinnedBorder =
+	case ?TC(lsq(TempFs, [V1,V2])) of
+	    {error, What} ->
+		?DBG("TXMAP error (1st pass) ~p~n", [What]),
+		exit({txmap_error1, What});
+	    {ok,Pinned0} ->
+		?DBG("LSQ2 (2pass) ~p ~n", [Pinned0]),
+		lists:keydelete(-1, 1, Pinned0)
+	end,
+     case ?TC(lsq(Vs1, PinnedBorder)) of
+ 	{error, What2} ->
+ 	    ?DBG("TXMAP (second pass) error ~p~n", [What2]),
+ 	    exit({txmap_error2, What2});
+ 	{ok,Vs2} ->
+ %	    ?DBG("LSQ res ~p~n", [Vs2]),
+ 	    Patch = fun({Idt, {Ut,Vt}}) -> {Idt,#vtx{pos={Ut,Vt,0.0}}} end,
+ 	    Vs3 = lists:sort(lists:map(Patch, Vs2)),
+ 	    TempVs = gb_trees:from_orddict(Vs3),
+ 	    MappedArea = calc_2dface_area(Fs, We#we{vs=TempVs}, 0.0),	    
+ 	    Scale = Area/MappedArea,
+ 	    scaleVs(Vs3,math:sqrt(Scale),[])
+     end.
+
 scaleVs([{Id, #vtx{pos={X,Y,_}}}|Rest],Scale,Acc) 
   when float(X), float(Y), float(Scale) ->
     scaleVs(Rest, Scale, [{Id, {X*Scale,Y*Scale,0.0}}|Acc]);
@@ -182,14 +252,32 @@ calc_2dface_area([Face|Rest],We,Area) ->
 calc_2dface_area([],_,Area) ->
     Area.
 
+create_border_fs([F,S|R], Orig, C, N, Acc) ->
+    New = {N,create_border_2d_face(S,F,C)},
+    create_border_fs([S|R], Orig, C, N+1, [New|Acc]);
+create_border_fs([F], [S|_], C, N, Acc) ->
+    New = {N,create_border_2d_face(S,F,C)},
+    [New|Acc].
+
+create_border_2d_face({I0, P0}, {I1,P1}, {I2,P2}) ->
+    Normal = e3d_vec:normal(P0,P1,P2),
+    Rot = e3d_mat:rotate_s_to_t(Normal,{0.0,0.0,1.0}),
+    {P0X,P0Y,_} = e3d_mat:mul_point(Rot,P0),
+    {P1X,P1Y,_} = e3d_mat:mul_point(Rot,P1),
+    {P2X,P2Y,_} = e3d_mat:mul_point(Rot,P2),
+    [{I0,{P0X,P0Y}},{I1,{P1X,P1Y}},{I2,{P2X,P2Y}}].
+
+find_border_edges(Faces, We) ->
+    case auv_placement:group_edge_loops(Faces, We) of
+	[] -> 
+	    exit({invalid_chart, {Faces, is_closed_surface}});
+	[Best|_] ->
+	    Best
+    end.
 find_pinned(Faces, We) ->
-    {Circumference, BorderEdges} = 
-	case auv_placement:group_edge_loops(Faces, We) of
-	    [] -> 
-		exit({invalid_chart, {Faces, is_closed_surface}});
-	    [Best|_] ->
-		Best
-	end,
+    {Circumference, BorderEdges} = find_border_edges(Faces,We),
+    find_pinned_from_edges(BorderEdges, Circumference, We).
+find_pinned_from_edges(BorderEdges, Circumference, We) ->
     Vs = [(gb_trees:get(V1, We#we.vs))#vtx.pos || {V1,_,_,_} <-BorderEdges],
     Center = e3d_vec:average(Vs),
     AllC = lists:map(fun({Id,_,_,_}) ->
@@ -309,8 +397,8 @@ lsq_int(L, Lpuv, Method) ->
 	    ge ->
 		?TC(minimize(Af,B));
 	    _ ->
-		X0 = auv_matrix:vector(lists:duplicate(M-2, Usum/Np)++
-				       lists:duplicate(M-2, Vsum/Np)),
+		X0 = auv_matrix:vector(lists:duplicate(M-Np, Usum/Np)++
+				       lists:duplicate(M-Np, Vsum/Np)),
 		{_,X1} = ?TC(minimize_cg(Af, X0, B, Method)),
 		X1
 	end,
@@ -401,6 +489,8 @@ mk_solve_matrix(Af,B) ->
 %% iteration start vector.
 %%
 minimize_cg(A, X0, B, Method) ->
+    ?DBG("minimize_cg - dim A=~p X0=~p B=~p~n",
+	 [auv_matrix:dim(A), auv_matrix:dim(X0), auv_matrix:dim(B)]),
     {N,M} = auv_matrix:dim(A),
     {M,1} = auv_matrix:dim(X0),
     {N,1} = auv_matrix:dim(B),
@@ -502,7 +592,7 @@ minimize_cg_2(M_inv, At, A, AtB, Delta_max,
        true ->
 	    D_new = auv_matrix:add(S, auv_matrix:mult(Delta_new/Delta, D)),
 	    minimize_cg(M_inv, At, A, AtB, Delta_max,
-			Delta_new, I+1, D_new, R_new, X_new)
+			Delta_new, I-1, D_new, R_new, X_new)
     end.
 
 minimize_cg_3(M_inv, At, A, AtB, Delta_max,
@@ -514,7 +604,7 @@ minimize_cg_3(M_inv, At, A, AtB, Delta_max,
     Delta_new = auv_matrix:mult(auv_matrix:trans(R_new), S),
     D_new = auv_matrix:add(S, auv_matrix:mult(Delta_new/Delta, D)),
     minimize_cg(M_inv, At, A, AtB, Delta_max,
-		Delta_new, I+1, D_new, R_new, X_new).
+		Delta_new, I-1, D_new, R_new, X_new).
 
 
 
