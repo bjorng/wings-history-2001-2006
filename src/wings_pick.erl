@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.132 2004/04/12 18:34:43 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.133 2004/04/19 04:33:59 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -814,16 +814,11 @@ draw_1(_) -> ok.
 
 face([_|[A,B,C]]) ->
     gl:'begin'(?GL_TRIANGLES),
-    gl:vertex3fv(A),
-    gl:vertex3fv(B),
-    gl:vertex3fv(C),
+    wpc_ogla:tri(A, B, C),
     gl:'end'();
 face([_|[A,B,C,D]]) ->
     gl:'begin'(?GL_QUADS),
-    gl:vertex3fv(A),
-    gl:vertex3fv(B),
-    gl:vertex3fv(C),
-    gl:vertex3fv(D),
+    wpc_ogla:quad(A, B, C, D),
     gl:'end'();
 face({_,Fs,VsPos}) ->
     gl:'begin'(?GL_TRIANGLES),

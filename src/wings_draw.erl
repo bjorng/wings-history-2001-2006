@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.186 2004/04/13 04:05:18 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.187 2004/04/19 04:33:59 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -247,9 +247,9 @@ update_needed_fun(#dlo{src_we=#we{id=Id,he=Htab},proxy_data=Pd}=D,
 	       Pd =:= none -> Need1;
 	       true -> [proxy|Need1]
 	   end,
-    D#dlo{needed=more_need(Wins, Id, true, Need)}.
+    D#dlo{needed=more_need(Wins, Id, Need)}.
 
-more_need([W|Ws], Id, FastEdges0, Acc0) ->
+more_need([W|Ws], Id, Acc0) ->
     Wire = wings_wm:get_prop(W, wireframed_objects),
     IsWireframe = gb_sets:is_member(Id, Wire),
     Acc = case {wings_wm:get_prop(W, workmode),IsWireframe} of
@@ -265,16 +265,9 @@ more_need([W|Ws], Id, FastEdges0, Acc0) ->
 		      true -> [edges,work|Acc0]
 		  end
 	  end,
-    FastEdges = FastEdges0 andalso wings_wm:get_prop(W, show_wire_backfaces),
-    more_need(Ws, Id, FastEdges, Acc);
-more_need([], _, false, Acc) ->
-    ordsets:from_list(Acc);
-more_need([], _, true, Acc) ->
-    Need = ordsets:from_list(Acc),
-    case member(edges, Need) of
-	false -> Need;
-	true -> [fast_edges|Need--[edges]]
-    end.
+    more_need(Ws, Id, Acc);
+more_need([], _, Acc) ->
+    ordsets:from_list(Acc).
 
 wins_of_same_class() ->
     case wings_wm:get_prop(display_lists) of
@@ -324,7 +317,7 @@ update_fun_2({vertex,PtSize}, #dlo{vs=none,src_we=#we{vp=Vtab}}=D, _) ->
     gl:pointSize(PtSize),
     gl:color3b(0, 0, 0),
     gl:'begin'(?GL_POINTS),
-    foreach(fun(Pos) -> gl:vertex3fv(Pos) end, gb_trees:values(Vtab)),
+    pump_vertices(gb_trees:values(Vtab)),
     gl:'end'(),
     gl:endList(),
     D#dlo{vs=UnselDlist};
@@ -335,17 +328,14 @@ update_fun_2(hard_edges, #dlo{hard=none,src_we=#we{he=Htab}=We}=D, _) ->
     #we{es=Etab,vp=Vtab} = We,
     foreach(fun(Edge) ->
 		    #edge{vs=Va,ve=Vb} = gb_trees:get(Edge, Etab),
-		    gl:vertex3fv(gb_trees:get(Va, Vtab)),
-		    gl:vertex3fv(gb_trees:get(Vb, Vtab))
+		    wpc_ogla:two(gb_trees:get(Va, Vtab), 
+				 gb_trees:get(Vb, Vtab))
 	    end, gb_sets:to_list(Htab)),
     gl:'end'(),
     gl:endList(),
     D#dlo{hard=List};
 update_fun_2(edges, #dlo{edges=none,src_we=#we{fs=Ftab}}=D, _) ->
     EdgeDl = make_edge_dl(Ftab, D),
-    D#dlo{edges=EdgeDl};
-update_fun_2(fast_edges, #dlo{edges=none,src_we=#we{fs=Ftab}}=D, _) ->
-    EdgeDl = make_fast_edge_dl(Ftab, D),
     D#dlo{edges=EdgeDl};
 update_fun_2(normals, D, _) ->
     make_normals_dlist(D);
@@ -372,21 +362,16 @@ make_edge_dl_2([F|Fs], Ns, Mode) ->
     case gb_trees:get(F, Ns) of
 	[_|[A,B,C]] ->
 	    end_begin(?GL_TRIANGLES, Mode),
-	    gl:vertex3fv(A),
-	    gl:vertex3fv(B),
-	    gl:vertex3fv(C),
+	    wpc_ogla:tri(A, B, C),
 	    make_edge_dl_2(Fs, Ns, ?GL_TRIANGLES);
 	[_|[A,B,C,D]] ->
 	    end_begin(?GL_QUADS, Mode),
-	    gl:vertex3fv(A),
-	    gl:vertex3fv(B),
-	    gl:vertex3fv(C),
-	    gl:vertex3fv(D),
+	    wpc_ogla:quad(A, B, C, D),
 	    make_edge_dl_2(Fs, Ns, ?GL_QUADS);
 	{_,_,VsPos} ->
 	    maybe_end(Mode),
 	    gl:'begin'(?GL_POLYGON),
-	    foreach(fun(V) -> gl:vertex3fv(V) end, VsPos),
+	    pump_vertices(VsPos),
 	    gl:'end'(),
 	    make_edge_dl_2(Fs, Ns, none)
     end;
@@ -404,33 +389,16 @@ end_begin(New, _Old) ->
     gl:'end'(),
     gl:'begin'(New).
 
-make_fast_edge_dl(Faces, #dlo{src_we=We}) ->
-    Dl = gl:genLists(1),
-    gl:newList(Dl, ?GL_COMPILE),
-    make_fast_edge_dl_1(Faces, We),
-    gl:endList(),
-    Dl.
-
-make_fast_edge_dl_1(Faces, We) ->
-    case sofs:is_sofs_set(Faces) of
-	false -> make_fast_edge_dl_2(gb_trees:keys(Faces), We);
-	true -> make_fast_edge_dl_2(sofs:to_external(Faces), We)
-    end.
-
-make_fast_edge_dl_2(Fs, #we{es=Etab,vp=Vtab}) ->
-    gl:'begin'(?GL_LINES),
-    make_fast_edge_dl_3(gb_trees:values(Etab), gb_sets:from_list(Fs), Vtab).
-
-make_fast_edge_dl_3([#edge{vs=Va,ve=Vb,lf=Lf,rf=Rf}|Es], Fs, Vtab) ->
-    case gb_sets:is_member(Lf, Fs) orelse gb_sets:is_member(Rf, Fs) of
-	false ->
-	    make_fast_edge_dl_3(Es, Fs, Vtab);
-	true ->
-	    gl:vertex3fv(gb_trees:get(Va, Vtab)),
-	    gl:vertex3fv(gb_trees:get(Vb, Vtab)),
-	    make_fast_edge_dl_3(Es, Fs, Vtab)
-    end;
-make_fast_edge_dl_3([], _, _) -> gl:'end'().
+pump_vertices([A,B,C,D|Vs]) ->
+    wpc_ogla:quad(A, B, C, D),
+    pump_vertices(Vs);
+pump_vertices([A,B,C]) ->
+    wpc_ogla:tri(A, B, C);
+pump_vertices([A,B]) ->
+    wpc_ogla:two(A, B);
+pump_vertices([A]) ->
+    gl:vertex3fv(A);
+pump_vertices([]) -> ok.
 
 force_flat([], _) -> [];
 force_flat([H|T], Color) ->
@@ -464,14 +432,14 @@ update_sel(#dlo{sel=none,src_sel={edge,Edges}}=D) ->
     case gb_trees:size(Etab) =:= gb_sets:size(Edges) of
 	true ->
 	    foreach(fun(#edge{vs=Va,ve=Vb}) ->
-			    gl:vertex3fv(gb_trees:get(Va, Vtab)),
-			    gl:vertex3fv(gb_trees:get(Vb, Vtab))
+			    wpc_ogla:two(gb_trees:get(Va, Vtab),
+					 gb_trees:get(Vb, Vtab))
 		    end, gb_trees:values(Etab));
 	false ->
 	    foreach(fun(Edge) ->
 			    #edge{vs=Va,ve=Vb} = gb_trees:get(Edge, Etab),
-			    gl:vertex3fv(gb_trees:get(Va, Vtab)),
-			    gl:vertex3fv(gb_trees:get(Vb, Vtab))
+			    wpc_ogla:two(gb_trees:get(Va, Vtab),
+					 gb_trees:get(Vb, Vtab))
 		    end, gb_sets:to_list(Edges))
     end,
     gl:'end'(),
@@ -484,7 +452,7 @@ update_sel(#dlo{sel=none,src_sel={vertex,Vs}}=D) ->
 	true ->
 	    gl:newList(SelDlist, ?GL_COMPILE),
 	    gl:'begin'(?GL_POINTS),
-	    foreach(fun(Pos) -> gl:vertex3fv(Pos) end, gb_trees:values(Vtab0)),
+	    pump_vertices(gb_trees:values(Vtab0)),
 	    gl:'end'(),
 	    gl:endList(),
 	    D#dlo{sel=SelDlist};
@@ -492,11 +460,11 @@ update_sel(#dlo{sel=none,src_sel={vertex,Vs}}=D) ->
 	    Vtab1 = gb_trees:to_list(Vtab0),
 	    Vtab = sofs:from_external(Vtab1, [{vertex,data}]),
 	    R = sofs:from_external(gb_sets:to_list(Vs), [vertex]),
-	    Sel = sofs:to_external(sofs:restriction(Vtab, R)),
+	    Sel = sofs:to_external(sofs:image(Vtab, R)),
 
 	    gl:newList(SelDlist, ?GL_COMPILE),
 	    gl:'begin'(?GL_POINTS),
-	    foreach(fun({_,Pos}) -> gl:vertex3fv(Pos) end, Sel),
+	    pump_vertices(Sel),
 	    gl:'end'(),
 	    gl:endList(),
 
@@ -836,7 +804,6 @@ draw_vtx_faces_3([[F|Cols]|Fs], D) ->
     wings_draw_util:vcol_face(F, D, Cols),
     draw_vtx_faces_3(Fs, D);
 draw_vtx_faces_3([], _) -> ok.
-
 
 %%%
 %%% Set material and draw faces.

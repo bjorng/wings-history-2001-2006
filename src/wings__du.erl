@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings__du.erl,v 1.16 2004/04/13 04:31:34 bjorng Exp $
+%%     $Id: wings__du.erl,v 1.17 2004/04/19 04:33:59 bjorng Exp $
 %%
 
 -module(wings__du).
@@ -25,16 +25,9 @@
 %% plain_face([Position]) -> ok
 %%  Draw a tri or quad face with neither UV coordinates nor vertex colors.
 plain_face([A,B,C]) ->
-    gl:vertex3fv(A),
-    gl:vertex3fv(B),
-    gl:vertex3fv(C);
+    wpc_ogla:tri(A, B, C);
 plain_face([A,B,C,D]) ->
-    gl:vertex3fv(A),
-    gl:vertex3fv(B),
-    gl:vertex3fv(C),
-    gl:vertex3fv(C),
-    gl:vertex3fv(D),
-    gl:vertex3fv(A).
+    wpc_ogla:quad_tri(A, B, C, D).
 
 %% plain_face([{VertexA,VertexB,VertexC}], [Position]) -> ok
 %%  Draw a face with neither UV coordinates nor vertex colors.
@@ -42,9 +35,7 @@ plain_face(Fs, VsPos) ->
     plain_face_1(Fs, list_to_tuple(VsPos)).
 
 plain_face_1([{A,B,C}|Fs], Vtab) ->
-    gl:vertex3fv(element(A, Vtab)),
-    gl:vertex3fv(element(B, Vtab)),
-    gl:vertex3fv(element(C, Vtab)),
+    wpc_ogla:tri(element(A, Vtab), element(B, Vtab), element(C, Vtab)),
     plain_face_1(Fs, Vtab);
 plain_face_1([], _) -> ok.
 
