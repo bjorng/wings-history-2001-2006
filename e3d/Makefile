@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.2 2001/09/03 11:01:39 bjorng Exp $
+#     $Id: Makefile,v 1.3 2001/10/18 16:06:18 bjorng Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -25,12 +25,15 @@ TYPE_FLAGS=
 endif
 
 MODULES= \
+	e3d_image \
 	e3d_mesh \
 	e3d_obj \
 	e3d_tds \
 	e3d_mat \
 	e3d_vec \
-	e3d__meshclean
+	e3d__meshclean \
+	e3d__bmp \
+	e3d__tga
 
 TARGET_FILES= $(MODULES:%=$(EBIN)/%.beam)
 
