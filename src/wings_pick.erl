@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.5 2001/11/22 09:03:17 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.6 2001/11/22 09:07:15 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -102,8 +102,8 @@ find_item(Id, Face, X, Y, #st{selmode=Mode,shapes=Shapes}=St) ->
     wings_view:projection(),
     wings_view:model_transformations(St),
     ViewPort = gl:getIntegerv(?GL_VIEWPORT),
-    ModelMatrix = list_to_tuple(gl:getDoublev(?GL_MODELVIEW_MATRIX)),
-    ProjMatrix = list_to_tuple(gl:getDoublev(?GL_PROJECTION_MATRIX)),
+    ModelMatrix = gl:getDoublev(?GL_MODELVIEW_MATRIX),
+    ProjMatrix = gl:getDoublev(?GL_PROJECTION_MATRIX),
     case Mode of
 	vertex ->
 	    find_vertex(Face, We, X, Y, ModelMatrix, ProjMatrix, ViewPort);
@@ -126,7 +126,9 @@ find_vertex(Face, We, X, Y, ModelMatrix, ProjMatrix, ViewPort) ->
 find_edge(Face, We, X, Y, ModelMatrix, ProjMatrix, ViewPort) ->
     1.
 
-project(Objx, Objy, ObjZ, ModelMatrix, ProjMatrix, [Vx,Vy,Vw,Vh]) ->
+project(Objx, Objy, ObjZ, ModelMatrix0, ProjMatrix0, [Vx,Vy,Vw,Vh]) ->
+    ModelMatrix = list_to_tuple(ModelMatrix0),
+    ProjMatrix = list_to_tuple(ProjMatrix0),
     Pos0 = {Objx,Objy,ObjZ,1.0},
     Pos1 = e3d_mat:mul(ModelMatrix, Pos0),
     Pos2 = {X0,Y0,Z0,W} = e3d_mat:mul(ProjMatrix, Pos1),
