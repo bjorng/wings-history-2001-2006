@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.15 2001/12/06 14:05:13 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.16 2001/12/07 08:40:06 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -17,7 +17,7 @@
 	 update/1,button/2,
 	 info/1,message/1,clear_message/0,progress/2,
 	 clear_menu_sel/0,
-	 sunken_rect/4,raised_rect/4,
+	 sunken_rect/4,sunken_rect/5,raised_rect/4,raised_rect/5,
 	 text_at/2,text_at/3,menu_text/3,space_at/2,
 	 draw_icon/3,draw_icon/5,
 	 draw_message/1,draw_completions/1]).
@@ -34,6 +34,9 @@
 -import(lists, [flatmap/2,foldl/3,keysearch/3,
 		reverse/1,foreach/2,last/1]).
 
+-define(ICON_WIDTH, 45).
+-define(ICON_HEIGHT, 34).
+
 -record(io,
 	{w,					%Width of screen (pixels).
 	 h,					%Height of screen (pixels).
@@ -48,16 +51,24 @@
 	}).
 
 init() ->
-    Icons = [{10,vertex},{10+33,edge},{10+2*33,face},{10+3*33,body},
-	     {10+4*40,groundplane},{10+5*40,axes},
-	     {20+6*40,wire},{20+7*40,smooth},
-	     {20+8*40,perspective}],
-    put_state(#io{eq=queue:new(),icons=Icons}).
+    put_state(#io{eq=queue:new()}).
 
 resize(W, H) ->
     Io = get_state(),
+    Icons = place_icons(W, H),
     Tex = load_textures(),
-    put_state(Io#io{w=W,h=H,tex=Tex}).
+    put_state(Io#io{w=W,h=H,tex=Tex,icons=Icons}).
+
+place_icons(W, H) ->
+    Mid = W div 2,
+    Lmarg = 5,
+    Rmarg = 20,
+    [{Lmarg,wire},{Lmarg+?ICON_WIDTH,flatshade},{Lmarg+2*?ICON_WIDTH,smooth},
+     {Mid-2*?ICON_WIDTH,vertex},{Mid-?ICON_WIDTH,edge},
+     {Mid,face},{Mid+?ICON_WIDTH,body},
+     {W-3*?ICON_WIDTH-Rmarg,perspective},
+     {W-2*?ICON_WIDTH-Rmarg,groundplane},
+     {W-?ICON_WIDTH-Rmarg,axes}].
 
 menubar(Menubar) ->
     Io = get_state(),
@@ -146,7 +157,7 @@ update(#io{message=Msg,info=Info}=Io0, St) ->
     Io0.
 
 draw_panes(#io{w=W,h=H,menubar=Bar,sel=Sel}=Io) ->
-    raised_rect(-1, 0, W+2, ?LINE_HEIGHT+6),
+    raised_rect(-2, 0, W+2, ?LINE_HEIGHT+6),
     sunken_rect(6, H-2*?LINE_HEIGHT+5, W-10, 2*?LINE_HEIGHT-8),
     draw_bar(0, Bar, Sel).
 
@@ -165,7 +176,7 @@ draw_bar(X, [{Name,Item}|T], Sel) ->
 draw_bar(X, [], Sel) -> ok.
 
 draw_icons(#io{w=W,h=H,icons=Icons}, St) ->
-    raised_rect(-1, H-4*?LINE_HEIGHT-3, W+2, 4*?LINE_HEIGHT+3),
+    raised_rect(-2, H-4*?LINE_HEIGHT-3, W+2, 4*?LINE_HEIGHT+3),
     gl:enable(?GL_TEXTURE_2D),
     gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
     Y = H-4*?LINE_HEIGHT+2,
@@ -181,10 +192,12 @@ icon_button(axes=Name, St) ->
     icon_button(Name, show_axes, true);
 icon_button(wire=Name, St) ->
     icon_button(Name, wire_mode, true);
+icon_button(flatshade=Name, St) ->
+    icon_button(Name, smooth_preview, false);
 icon_button(smooth=Name, St) ->
     icon_button(Name, smooth_preview, true);
 icon_button(perspective=Name, St) ->
-    icon_button(Name, orthogonal_view, false);
+    icon_button(Name, orthogonal_view, true);
 icon_button(Name, #st{selmode=Name}) -> {Name,down};
 icon_button(Name, St) -> {Name,up}.
 
@@ -221,12 +234,13 @@ button_1(XRel, X, []) ->
     put_state((get_state())#io{sel=undefined}),
     none.
 
-icon_row_hit(X, [{Pos,Name}|Is]) when Pos =< X, X < Pos+32 ->
+icon_row_hit(X, [{Pos,Name}|Is]) when Pos =< X, X < Pos+?ICON_WIDTH ->
     Action = case Name of
 		 groundplane -> {view,show_groundplane};
 		 axes -> {view,show_axes};
 		 wire -> {view,wire_mode};
-		 smooth -> {view,smooth_preview};
+		 flatshade -> {view,flatshade};
+		 smooth -> {view,smoothshade};
 		 perspective -> {view,orthogonal_view};
 		 Other -> {select,Name}
 	     end,
@@ -237,22 +251,30 @@ icon_row_hit(X, [_|Is]) ->
 icon_row_hit(X, []) -> none.
 
 raised_rect(X, Y, Mw, Mh) ->
-    sunken_rect(X+Mw, Y+Mh, -Mw, -Mh).
+    raised_rect(X, Y, Mw, Mh, ?PANE_COLOR).
 
-sunken_rect(X0, Y0, Mw0, Mh0) ->
+raised_rect(X, Y, Mw, Mh, FillColor) ->
+    sunken_rect(X+Mw, Y+Mh, -Mw, -Mh, FillColor).
+
+sunken_rect(X, Y, W, H) ->
+    sunken_rect(X, Y, W, H, ?PANE_COLOR).
+   
+sunken_rect(X0, Y0, Mw0, Mh0, FillColor) ->
     X = X0 + 0.5,
     Y = Y0 + 0.5,
     Mw = Mw0 + 0.5,
     Mh = Mh0 + 0.5,
-    gl:color3f(0.52, 0.52, 0.52),
+    gl:color3fv(FillColor),
     gl:rectf(X0, Y0, X0+Mw0, Y0+Mh0),
-    gl:color3f(1.0, 0, 0),
-    gl:'begin'(?GL_LINE_STRIP),
-    gl:vertex2f(X, Y+Mh),
+    gl:'begin'(?GL_LINES),
     gl:color3f(0.0, 0.0, 0.0),
+    gl:vertex2f(X, Y+Mh),
+    gl:vertex2f(X, Y),
     gl:vertex2f(X, Y),
     gl:vertex2f(X+Mw, Y),
     gl:color3f(1.0, 1.0, 1.0),
+    gl:vertex2f(X+Mw, Y),
+    gl:vertex2f(X+Mw, Y+Mh),
     gl:vertex2f(X+Mw, Y+Mh),
     gl:vertex2f(X, Y+Mh),
     gl:'end'(),
@@ -330,24 +352,26 @@ put_state(Io) ->
     put(wings_io, Io).
 
 draw_icon(X, Y, Icon) ->
-    draw_icon(X, Y, 32, 32, Icon).
+    draw_icon(X, Y, ?ICON_WIDTH, ?ICON_HEIGHT, 64, 64, Icon).
     
 draw_icon(X, Y, W, H, Icon) ->
+    draw_icon(X, Y, W, H, W, H, Icon).
+
+draw_icon(X, Y, W, H, Wtot, Htot, Icon) ->
     #io{tex=Tex} = get_state(),
     {value,{Icon,Id}} = keysearch(Icon, 1, Tex),
     gl:bindTexture(?GL_TEXTURE_2D, Id),
     gl:'begin'(?GL_QUADS),
-    gl:texCoord2f(0.0, 1.0),
+    gl:texCoord2f(0, H/Htot),
     gl:vertex2i(X, Y),
-    gl:texCoord2f(0.0, 0.0),
+    gl:texCoord2f(0, 0),
     gl:vertex2i(X, Y+H),
-    gl:texCoord2f(1.0, 0.0),
+    gl:texCoord2f(W/Wtot, 0),
     gl:vertex2i(X+W, Y+H),
-    gl:texCoord2f(1.0, 1.0),
+    gl:texCoord2f(W/Wtot, H/Htot),
     gl:vertex2i(X+W, Y),
     gl:'end'(),
-    gl:color3f(0.0, 0.0, 0.0),
-    ok.
+    gl:color3f(0.0, 0.0, 0.0).
 
 load_textures() ->
     Dir = filename:dirname(code:which(?MODULE)),
@@ -368,7 +392,6 @@ load_textures() ->
     end.
 
 create_textures([{Name,{W,H,Icon}}|T], Id) ->
-    Size = size(Icon),
     gl:bindTexture(?GL_TEXTURE_2D, Id),
     gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_MAG_FILTER, ?GL_LINEAR),
     gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_MIN_FILTER, ?GL_LINEAR),
@@ -380,35 +403,29 @@ create_textures([{Name,{W,H,Icon}}|T], Id) ->
 create_textures([], Id) -> [].
 
 create_buttons(Icons0) ->
-    flatmap(fun({Name,{32,32,Icon}}) ->
-		    [{{Name,down},create_button(fun button_down/5, Icon)},
-		     {{Name,up},create_button(fun button_up/5, Icon)}];
+    flatmap(fun({Name,{64,64,Icon}}) ->
+		    [{{Name,down},create_button(fun active/5, Icon)},
+		     {{Name,up},create_button(fun inactive/5, Icon)}];
 	       ({Name,Icon}=T) -> [T]
 	    end, Icons0).
 
 create_button(Tr, Icon) ->
-    create_button(Tr, Icon, 0, []).
+    create_button(Tr, Icon, 0, 0, []).
 
-create_button(Tr, <<R:8,G:8,B:8,T/binary>>, I, Acc) ->
-    X = I band 16#1F,
-    Y = 31 - (I bsr 5),
-    create_button(Tr, T, I+1, [Tr(X, Y, R, G, B)|Acc]);
-create_button(Tr, <<>>, I, Acc) ->
-    {32,32,list_to_binary(reverse(Acc))}.
+create_button(Tr, T, 64, Y, Acc) ->
+    create_button(Tr, T, 0, Y+1, Acc);
+create_button(Tr, <<>>, X, Y, Acc) ->
+    {64,64,list_to_binary(reverse(Acc))};
+create_button(Tr, <<R:8,G:8,B:8,T/binary>>, X, Y, Acc) ->
+    create_button(Tr, T, X+1, Y, [Tr(X, Y, R, G, B)|Acc]).
 
-button_down(X, Y, R, G, B) ->
+active(X, Y, R, G, B) ->
     if
-	Y == 0; X == 0 -> [0,0,0];
-	Y == 31; X == 31 -> [255,255,255];
+	X < 2; X > 42; Y < 2; Y > 31 -> [255,255,255];
 	true -> [R,G,B]
     end.
 
-button_up(X, Y, R, G, B) ->
-    if
-	Y == 0; X == 0 -> [255,255,255];
-	Y == 31; X == 31 -> [0,0,0];
-	true -> [R,G,B]
-    end.
+inactive(X, Y, R, G, B) -> [R,G,B].
 
 %%%
 %%% Input.

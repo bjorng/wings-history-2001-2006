@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.6 2001/10/24 08:51:39 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.7 2001/12/07 08:40:06 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -36,7 +36,7 @@ show_splash(W, H) ->
     Xs = 280,
     Ys = 170+40,
     gl:translated((W-Xs) / 2, (H-Ys) / 2, 0.0),
-    wings_io:beveled_rect(0, 0, Xs, Ys),
+    wings_io:raised_rect(0, 0, Xs, Ys),
     gl:color3f(0.0, 0.0, 0.0),
     gl:recti(3, 3, Xs-3, Ys-3),
     gl:color3f(1.0, 1.0, 1.0),
