@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.79 2002/08/25 15:55:21 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.80 2002/09/08 16:23:45 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -20,7 +20,7 @@
 -include("wings.hrl").
 -include_lib("kernel/include/file.hrl").
 
--import(lists, [sort/1,reverse/1,flatten/1,foldl/3,keymember/3]).
+-import(lists, [sort/1,reverse/1,flatten/1,foldl/3,keymember/3,keydelete/3]).
 -import(filename, [dirname/1]).
 
 -define(WINGS,    ".wings").
@@ -575,7 +575,8 @@ rename_mat([], _, _, Acc) -> gb_trees:from_orddict(reverse(Acc)).
 do_export(Exporter, Name, #st{shapes=Shs}=St) ->
     Objs = foldl(fun do_export/2, [], gb_trees:values(Shs)),
     Creator = "Wings 3D " ++ ?WINGS_VERSION,
-    Mat = wings_material:used_materials(St),
+    Mat0 = wings_material:used_materials(St),
+    Mat = keydelete('_hole_', 1, Mat0),
     Contents = #e3d_file{objs=Objs,mat=Mat,creator=Creator},
     Exporter(Name, Contents).
 

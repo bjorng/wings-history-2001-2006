@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_obj.erl,v 1.4 2002/08/21 20:30:33 bjorng Exp $
+%%     $Id: wpc_obj.erl,v 1.5 2002/09/08 16:23:45 bjorng Exp $
 %%
 
 -module(wpc_obj).
@@ -98,6 +98,8 @@ dialog(import) ->
 dialog(export) ->
     [{"One group per material",get_pref(group_per_material, true),
       [{key,group_per_material}]},
+     {"Vue d'Esprit workaround",get_pref(dot_slash_mtllib, false),
+      [{key,dot_slash_mtllib}]},
      {label,"(Import scale)"},{text,get_pref(import_scale, 1.0),[{key,import_scale}]},
      {label,"Export scale"},{text,get_pref(export_scale, 1.0),[{key,export_scale}]}].
 
