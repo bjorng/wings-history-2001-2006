@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_it.lang,v 1.16 2004/10/17 07:42:53 bjorng Exp $
+%%     $Id: wings_it.lang,v 1.17 2004/10/29 18:32:18 bjorng Exp $
 %%
 
 {wings,
@@ -70,12 +70,7 @@
     {11,"~p spigoli scelti in ~p oggetti"},
     {12,"~p facce scelte in ~p oggetti"}]},
   {init,
-   [{1,"\n\nNota: il messaggio di cui sopra, sull'errore,"
-     "nella ricerca dei parametri TCP/IP e' normale.\n"
-     "E' stato fatto per prevenire che wings3d contatti "
-     "i server dei nomi DNS su Internet\n"
-     "(non causa danni, ma e' inutile che wings lo faccia)\n\n"},
-    {7,"Geometrie"}]},
+   [{7,"Geometrie"}]},
   {init_menubar,
    [{1,"Archivio"},
     {2,"Modifica"},

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sv.lang,v 1.22 2004/10/29 08:05:26 dgud Exp $
+%%     $Id: wings_sv.lang,v 1.23 2004/10/29 18:32:18 bjorng Exp $
 %%
 
 {wings,
@@ -70,8 +70,7 @@
     {11,"~p kanter markerade i ~p objekt"},
     {12,"~p ytor markerade i ~p objekt"}]},
   {init,
-   [{1,"\n\nOBS! Ovanstående meddelanden om TCP/IP är helt normalt.\n Det görs för att föhindra erlang att kontakta DNS via internet\n(ofarligt, men onödigt)\n\n"},
-    {7,"Geometri"}]},
+   [{7,"Geometri"}]},
   {init_menubar,
    [{1,"Arkiv"},
     {2,"Redigera"},
@@ -595,10 +594,26 @@
      "vill du öppna den i stället?"}]}]}.
 {wings_help,
  [
-%%
-%% Regenerate the rest of the wings_help texts when it is time to translate.
-%% (Many changes.)
-%%
+  {advanced_menus,
+   [{1,"I dialogen "},
+    {2,"Redigera"},
+    {3,"Inställningar"},
+    {4," finns det en kryssruta för \"Avancerade menyer\"."},
+    {5,"När man slår på Avancerade menyer får man följande nya finesser:"},
+    {6,"Nya kommandon: "},
+    {7,"Yta"},
+    {8,"Ställ på"},
+    {9," och "},
+    {10,"Yta"},
+    {11,"Lyft"},
+    {12,"Vektor-baserade operationer: Möjlighet att specificera en axel "
+     "(eller vektor) och att kunna flytta den så att den passerar genom en ny punkt."},
+    {13,"Magnet operations: A facility that provides a way of attaining smooth modifications / transitions to surrounding geometry during the operation of any valid tool. Magnet type and influence radius settings provide further control options."},
+    {14,"Vector and magnet operations can be combined."},
+    {15,"With advanced menus turned on, many menu commands do different things depending on which mouse button you invoke them with."},
+    {16,"For instance, R clicking on the Rotate command allows you to specify an axis (or vector) to rotate your selection around, while M clicking lets you define an axis - and a new point through which that axis will pass. (A vector does not have to be parallel to an x, y or z axis.)"},
+    {17,"Reading the contents of the info line at the bottom of the Wings window is highly recommended when using advanced menus."},
+    {18,"Avancerade menyer"}]},
   {menu,
    [{1,"Komma igång"},
     {2,"Använda en mus med en eller två knappar"},
@@ -1054,7 +1069,7 @@
 {wings_pref,
  [
   {advanced_prefs,
-   [{1,"Snabb Kommandon"},
+   [{1,"Snabbkommandon"},
     {2,"Tillåt definition av kommandon som kan användas med Ctrl+V eller Ctrl+M"},
     {3,"Använd Highlight som en temporär markering"},
     {4,"om inget är markerat, "},
@@ -1063,7 +1078,7 @@
     {7,"Visa inte markeringar i interaktiva kommandon"},
     {8,"Göm markering när kameran flyttas"},
     {9,"Visa inte markering när kameran flyttas"},
-    {10,"Advancerade Menyer"},
+    {10,"Avancerade menyer"},
     {11,"Mera kommandon och mera optioner som t.ex. magneter"},
     {12,"Power-user temporära markeringar"},
     {13,"I sekundärt läge lägger alltid HMB-klick till markering"},
@@ -1394,8 +1409,8 @@
     {9,"Toggla shaded/wireframe för aktiva objekt"},
     {10,"Toggla shaded/wireframe för alla andra objekt"}]},
   {window,
-   [{1,"Geometri Graf"},
-    {2,"Geometri Graf #"}]}]}.
+   [{1,"Geometrigraf"},
+    {2,"Geometrigraf #"}]}]}.
 {wings_shapes,
  [
   {ask,
@@ -1678,7 +1693,7 @@
     {4,"Du måste vara vid den aktiva vyn"},
     {5,"Är du säker att du vill radera alla sparade vyer?"}]},
   {views_jump,
-   [{1,"Det finns ingen sådan vy position"}]},
+   [{1,"Det finns ingen sådan vyposition"}]},
   {views_jumpmenu,
    [{1,"Hoppa"},
     {2,"Det finns inga sparade vyer!"},
