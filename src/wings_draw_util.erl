@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.101 2003/08/23 09:52:48 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.102 2003/08/24 09:20:22 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -16,11 +16,11 @@
 	 update/2,map/2,fold/2,changed_materials/1,
 	 render/1,call/1,call_one_of/2,
 	 prepare/3,
-	 face/2,flat_face/2,flat_face/3,
+	 flat_face/2,flat_face/3,
 	 uv_face/2,uv_face/3,vcol_face/2,vcol_face/3,
 	 smooth_mat_faces/1,smooth_uv_faces/1,smooth_vcol_faces/1,
 	 unlit_tri/2,unlit_tri/3,
-	 force_flat_color/2,consistent_normal/4]).
+	 force_flat_color/2,consistent_normal/4,good_triangulation/5]).
 
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
@@ -579,15 +579,6 @@ vtx_smooth_face_color_1([_|_], _) -> different;
 vtx_smooth_face_color_1([], Col) -> Col.
 
 %%
-%% Tesselate and draw face. Include vertex colors or UV coordinates.
-%%
-
-face(Face, #we{mode=material}=We) ->
-    flat_face(Face, We);
-face(Face, #we{mode=vertex}=We) ->
-    vcol_face(Face, We).
-
-%%
 %% Triangulate and draw a face.
 %%
 
@@ -646,6 +637,21 @@ vcol_face_1([], _, Nacc, Vs) ->
     gl:normal3fv(N),
     wings__du:vcol_face(N, Vs).
 
+%% good_triangulation(Normal, Point1, Point2, Point3, Point4) -> true|false
+%%  Return true if triangulation by connecting Point1 to Point3 is OK.
+%%  The normal Normal should be averaged normal for the quad.
+good_triangulation({Nx,Ny,Nz}, {Ax,Ay,Az}, {Bx,By,Bz}, {Cx,Cy,Cz}, {Dx,Dy,Dz})
+  when is_float(Ax), is_float(Ay), is_float(Az) ->
+    CAx = Cx-Ax, CAy = Cy-Ay, CAz = Cz-Az,
+    ABx = Ax-Bx, ABy = Ay-By, ABz = Az-Bz,
+    DAx = Dx-Ax, DAy = Dy-Ay, DAz = Dz-Az,
+    D1 = Nx*(CAy*ABz-CAz*ABy) + Ny*(CAz*ABx-CAx*ABz) + Nz*(CAx*ABy-CAy*ABx),
+    D2 = Nx*(DAz*CAy-DAy*CAz) + Ny*(DAx*CAz-DAz*CAx) + Nz*(DAy*CAx-DAx*CAy),
+    good_triangulation_1(D1, D2).
+
+good_triangulation_1(D1, D2) when D1 > 0, D2 > 0 -> true;
+good_triangulation_1(_, _) -> false.
+
 %% consistent_normal(Point1, Point2, Point3, Normal) -> true|false
 %%  Return true if the normal for the triangle Point1-Point2-Point3
 %%  points in approximately the same direction as the normal Normal.
@@ -659,7 +665,7 @@ consistent_normal({A0,A1,A2}, {B0,B1,B2}, {C0,C1,C2}, {X,Y,Z})
     D20 = B0-C0,
     D21 = B1-C1,
     D22 = B2-C2,
-    X*(D11*D22-D12*D21) + Y*(D12*D20-D10*D22) + Z*(D10*D21-D11*D20) > 0.2.
+    X*(D11*D22-D12*D21) + Y*(D12*D20-D10*D22) + Z*(D10*D21-D11*D20) > 0.
 
 %% force_flat_color(OriginalDlist, Color) -> NewDlist.
 %%  Wrap a previous display list (that includes gl:color*() calls)

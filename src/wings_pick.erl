@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.115 2003/08/23 13:43:10 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.116 2003/08/24 09:20:22 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -787,8 +787,7 @@ face_2(_, [A,B,C]) ->
     gl:vertex3dv(C),
     gl:'end'();
 face_2(N, [A,B,C,D]=VsPos) ->
-    case wings_draw_util:consistent_normal(A, B, C, N) andalso
-	wings_draw_util:consistent_normal(A, C, D, N) of
+    case wings_draw_util:good_triangulation(N, A, B, C, D) of
 	false ->
 	    face_3(N, VsPos);
 	true ->

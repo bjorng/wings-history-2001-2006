@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings__du.erl,v 1.1 2003/08/04 19:34:34 bjorng Exp $
+%%     $Id: wings__du.erl,v 1.2 2003/08/24 09:20:22 bjorng Exp $
 %%
 
 -module(wings__du).
@@ -75,8 +75,7 @@ mat_face(_, [A,B,C]) ->
     gl:vertex3dv(B),
     ?GL__END(gl:vertex3dv(C));
 mat_face(N, [A,B,C,D]=VsPos) ->
-    case wings_draw_util:consistent_normal(A, B, C, N) andalso
-	wings_draw_util:consistent_normal(A, C, D, N) of
+    case wings_draw_util:good_triangulation(N, A, B, C, D) of
 	false ->
 	    mat_face_1(N, VsPos);
 	true ->
@@ -117,8 +116,7 @@ uv_face(_, [A,B,C]) ->
     uv_face_vtx(B),
     ?GL__END(uv_face_vtx(C));
 uv_face(N, [[A0|_]=A,[B0|_]=B,[C0|_]=C,[D0|_]=D]=VsPos) ->
-    case wings_draw_util:consistent_normal(A0, B0, C0, N) andalso
-	wings_draw_util:consistent_normal(A0, C0, D0, N) of
+    case wings_draw_util:good_triangulation(N, A0, B0, C0, D0) of
 	false ->
 	    uv_face_1(N, VsPos);
 	true ->
@@ -169,8 +167,7 @@ vcol_face(_, [A,B,C]) ->
     vcol_face_vtx(B),
     ?GL__END(vcol_face_vtx(C));
 vcol_face(N, [[A0|_]=A,[B0|_]=B,[C0|_]=C,[D0|_]=D]=VsPos) ->
-    case wings_draw_util:consistent_normal(A0, B0, C0, N) andalso
-	wings_draw_util:consistent_normal(A0, C0, D0, N) of
+    case wings_draw_util:good_triangulation(N, A0, B0, C0, D0) of
 	false ->
 	    vcol_face_1(N, VsPos);
 	true ->
@@ -228,8 +225,7 @@ smooth_mat_face(N, [A,B,C,D]=Vs) ->
     Bp = element(1, B),
     Cp = element(1, C),
     Dp = element(1, D),
-    case wings_draw_util:consistent_normal(Ap, Bp, Cp, N) andalso
-	wings_draw_util:consistent_normal(Ap, Cp, Dp, N) of
+    case wings_draw_util:good_triangulation(N, Ap, Bp, Cp, Dp) of
 	true ->
 	    ?GL__BEGIN(?GL_TRIANGLES),
 	    smooth_mat_face_vtx(A),
@@ -275,8 +271,7 @@ smooth_uv_face(N, [A,B,C,D]=Vs) ->
     Bp = element(1, B),
     Cp = element(1, C),
     Dp = element(1, D),
-    case wings_draw_util:consistent_normal(Ap, Bp, Cp, N) andalso
-	wings_draw_util:consistent_normal(Ap, Cp, Dp, N) of
+    case wings_draw_util:good_triangulation(N, Ap, Bp, Cp, Dp) of
 	true ->
 	    ?GL__BEGIN(?GL_TRIANGLES),
 	    smooth_uv_face_vtx(A),
@@ -330,8 +325,7 @@ smooth_vcol_face(N, [A,B,C,D]=Vs) ->
     Bp = element(1, B),
     Cp = element(1, C),
     Dp = element(1, D),
-    case wings_draw_util:consistent_normal(Ap, Bp, Cp, N) andalso
-	wings_draw_util:consistent_normal(Ap, Cp, Dp, N) of
+    case wings_draw_util:good_triangulation(N, Ap, Bp, Cp, Dp) of
 	true ->
 	    ?GL__BEGIN(?GL_TRIANGLES),
 	    smooth_vcol_face_vtx(A),
