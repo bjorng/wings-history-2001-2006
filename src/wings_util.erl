@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.92 2004/05/17 17:51:11 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.93 2004/06/02 04:41:34 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -433,6 +433,7 @@ export_we(Name, #st{shapes=Shs}) ->
 %%%
 
 crash_log(WinName, BackTrace) ->
+    wings_pb:cancel(),
     LogFileDir = log_file_dir(),
     LogName = filename:absname("wings_crash.dump", LogFileDir),
     F = open_log_file(LogName),
