@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.37 2003/05/31 08:21:38 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.38 2003/06/04 06:38:22 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -256,7 +256,7 @@ end_drag(#dlo{src_we=#we{id=Id,mirror=M},drag={matrix,_,Matrix,_},
     We = wings_we:transform_vs(Matrix, We0),
     Shs = gb_trees:update(Id, We, Shs0),
     St = St0#st{shapes=Shs},
-    {#dlo{src_we=We,mirror=M,proxy_data=Pd},St};
+    {#dlo{src_we=We,mirror={M},proxy_data=Pd},St};
 end_drag(D, St) -> {D,St}.
 
 sel_to_vs(vertex, Vs, _) -> Vs;
