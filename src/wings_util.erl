@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.107 2005/01/22 08:12:11 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.108 2005/03/25 08:42:45 bjorng Exp $
 %%
 %% Note: To keep the call graph clean, wings_util MUST NOT call
 %%       other wings_* modules (except wings_pref).
@@ -18,6 +18,7 @@
 	 rel2fam/1,
 	 key_format/2,
 	 cap/1,upper/1,stringify/1,quote/1,
+	 expand_utf8/1,
 	 add_vpos/2,update_vpos/2,
 	 gb_trees_smallest_key/1,gb_trees_largest_key/1,
 	 gb_trees_map/2,gb_trees_to_gb_set/1,
@@ -117,6 +118,58 @@ upper([Lower|T]) when $a =< Lower, Lower =< $z ->
 upper([H|T]) ->
     [H|upper(T)];
 upper([]) -> [].
+
+%% expand_utf8([Byte]) -> {[UnicodeChar],NumberOfBadBytes}
+%%  Expand UTF8 byte sequences to ISO 10646/Unicode
+%%  charactes. Any illegal bytes are removed and the number of
+%%  bad bytes are returned.
+%%
+%%  Reference:
+%%     RFC 3629: "UTF-8, a transformation format of ISO 10646".
+
+expand_utf8(Str) ->
+    expand_utf8_1(Str, [], 0).
+
+expand_utf8_1([C|Cs], Acc, Bad) when C < 16#80 ->
+    %% Plain Ascii character.
+    expand_utf8_1(Cs, [C|Acc], Bad);
+expand_utf8_1([C1,C2|Cs], Acc, Bad) when C1 band 16#E0 =:= 16#C0,
+					 C2 band 16#C0 =:= 16#80 ->
+    case ((C1 band 16#1F) bsl 6) bor (C2 band 16#3F) of
+	C when 16#80 =< C ->
+	    expand_utf8_1(Cs, [C|Acc], Bad);
+	_ ->
+	    %% Bad range.
+	    expand_utf8_1(Cs, Acc, Bad+1)
+    end;
+expand_utf8_1([C1,C2,C3|Cs], Acc, Bad) when C1 band 16#F0 =:= 16#E0,
+					    C2 band 16#C0 =:= 16#80,
+					    C3 band 16#C0 =:= 16#80 ->
+    case ((((C1 band 16#0F) bsl 6) bor (C2 band 16#3F)) bsl 6) bor
+	(C3 band 16#3F) of
+	C when 16#800 =< C ->
+	    expand_utf8_1(Cs, [C|Acc], Bad);
+	_ ->
+	    %% Bad range.
+	    expand_utf8_1(Cs, Acc, Bad+1)
+    end;
+expand_utf8_1([C1,C2,C3,C4|Cs], Acc, Bad) when C1 band 16#F8 =:= 16#F0,
+					       C2 band 16#C0 =:= 16#80,
+					       C3 band 16#C0 =:= 16#80,
+					       C4 band 16#C0 =:= 16#80 ->
+    case ((((((C1 band 16#0F) bsl 6) bor (C2 band 16#3F)) bsl 6) bor
+	(C3 band 16#3F)) bsl 6) bor (C4 band 16#3F) of
+	C when 16#10000 =< C ->
+	    expand_utf8_1(Cs, [C|Acc], Bad);
+	_ ->
+	    %% Bad range.
+	    expand_utf8_1(Cs, Acc, Bad+1)
+    end;
+expand_utf8_1([_|Cs], Acc, Bad) ->
+    %% Ignore bad character.
+    expand_utf8_1(Cs, Acc, Bad+1);
+expand_utf8_1([], Acc, Bad) -> {reverse(Acc),Bad}.
+    
 
 add_vpos(Vs, #we{vp=Vtab}) -> add_vpos(Vs, Vtab);
 add_vpos(Vs, Vtab) ->
