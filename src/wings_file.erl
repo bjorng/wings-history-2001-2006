@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.20 2001/10/25 12:24:58 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.21 2001/10/25 14:24:05 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -22,7 +22,7 @@
 -import(filename, [dirname/1]).
 
 new(#st{saved=false}=St0) ->
-    case wings_plugin:call_ui({file,ask_save_changes}) of
+    case wings_plugin:call_ui({file,ask_save_changes,[]}) of
 	no ->
 	    new(St0#st{saved=true});
 	yes ->
@@ -39,7 +39,7 @@ read(St0) ->
     case new(St0) of
 	aborted -> St0;
 	St1 ->
-	    case wings_plugin:call_ui({file,{open,".wings"}}) of
+	    case wings_plugin:call_ui({file,open,wings_prop()}) of
 		aborted -> St0;
 		Name0 ->
 		    Name = ensure_extension(Name0, ".wings"),
@@ -55,7 +55,7 @@ read(St0) ->
     end.
 
 merge(St0) ->
-    case wings_plugin:call_ui({file,merge}) of
+    case wings_plugin:call_ui({file,merge,wings_prop()}) of
 	aborted -> St0;
 	Name0 ->
 	    Name = ensure_extension(Name0, ".wings"),
@@ -80,7 +80,7 @@ save(#st{shapes=Shapes,file=Name}=St) ->
     end.
 
 save_as(#st{shapes=Shapes}=St) ->
-    case output_file(save, ".wings") of
+    case output_file(save, wings_prop()) of
 	false -> St;
 	aborted -> aborted;
 	Name ->
@@ -93,6 +93,9 @@ save_as(#st{shapes=Shapes}=St) ->
 		    aborted
 	    end
     end.
+
+wings_prop() ->
+    [{ext,".wings"},{ext_description,"Wings File"}].
 
 %%
 %% The Revert command.
@@ -114,7 +117,8 @@ import(tds, St) -> import(".3ds", e3d_tds, St);
 import(obj, St) -> import(".obj", e3d_obj, St).
 
 import(Ext, Mod, St0) ->
-    case wings_plugin:call_ui({file,{import,Ext}}) of
+    Prop = file_prop(Ext),
+    case wings_plugin:call_ui({file,import,Prop}) of
 	aborted -> St0;
 	Name0 ->
 	    Name = ensure_extension(Name0, Ext),
@@ -133,16 +137,24 @@ import(Ext, Mod, St0) ->
 %%
 
 export(tds, St) -> export(e3d_tds, ".3ds", St);
-export(rib, St) -> export(e3d_rib, ".rib", St);
+%%export(rib, St) -> export(e3d_rib, ".rib", St);
 export(obj, St) -> export(e3d_obj, ".obj", St).
 
 export(Mod, Ext, St) ->
-    case output_file(export, Ext) of
+    case output_file(export, file_prop(Ext)) of
 	aborted -> St;
 	Name ->
 	    wings_getline:set_cwd(dirname(Name)),
 	    do_export(Mod, Name, St)
     end.
+
+%%% Utilities.
+
+file_prop(".3ds"=Ext) -> file_prop(Ext, "3D Stdio File");
+file_prop(".obj"=Ext) -> file_prop(Ext, "Wawefront (OBJ)").
+
+file_prop(Ext, Desc) ->
+    [{ext,Ext},{ext_desc,Desc}].
 
 ensure_extension(Name, Ext) ->
     case filename:extension(Name) of
@@ -150,15 +162,17 @@ ensure_extension(Name, Ext) ->
 	Other -> Name ++ Ext
     end.
 
-output_file(Tag, Ext) ->
-    case wings_plugin:call_ui({file,{Tag,Ext}}) of
+output_file(Tag, Prop) ->
+    case wings_plugin:call_ui({file,Tag,Prop}) of
 	aborted -> aborted;
 	Name0 ->
+	    Ext = property_lists:get_value(ext, Prop),
 	    Name = ensure_extension(Name0, Ext),
 	    case filelib:is_file(Name) of
 		true ->
 		    Base = filename:basename(Name),
-		    case wings_plugin:call_ui({file,{overwrite,Base}}) of
+		    OProp = [{existing_file,Base}],
+		    case wings_plugin:call_ui({file,overwrite,OProp}) of
 			yes -> Name;
 			Other -> aborted
 		    end;

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.26 2001/10/25 12:24:58 bjorng Exp $
+%%     $Id: wings.erl,v 1.27 2001/10/25 14:24:04 bjorng Exp $
 %%
 
 -module(wings).
@@ -271,8 +271,12 @@ repeatable(Mode, Cmd) ->
 command(ignore, St) -> St;
 command({_,{[_|_]}=Plugin}, St0) ->
     case wings_plugin:command(Plugin, St0) of
-	St0 -> St0;
-	St -> {save_state,model_changed(St)}
+	St0 ->
+	    St0;
+	#st{dl=#dl{drag_faces=Faces}}=St when is_list(Faces) ->
+	    {save_state,model_changed(St)};
+	St ->
+	    {save_state,model_changed(St)}
     end;
 command({_,[_|_]=Plugin}, St0) ->
     case wings_plugin:command(Plugin, St0) of
@@ -602,8 +606,8 @@ menu(X, Y, file, St) ->
 			{"Wawefront (.obj)",obj}}}},
 	    {"Export",{export,
 		       {{"3D Studio (.3ds)",tds},
-			{"Wawefront (.obj)",obj},
-			{"RenderMan (.rib)",rib}}}},
+			{"Wawefront (.obj)",obj}}}},
+%%			{"RenderMan (.rib)",rib}}}},
 	    separator,
 	    {"Exit","Ctrl-Q",quit}},
     wings_menu:menu(X, Y, file, Menu);
@@ -932,7 +936,7 @@ save(St0) ->
 
 quit(#st{saved=true}) -> quit;
 quit(St) ->
-    case wings_plugin:call_ui({quit,ask_save_changes}) of
+    case wings_plugin:call_ui({quit,ask_save_changes,[]}) of
 	no -> quit;
 	yes ->
 	    case save(St) of
