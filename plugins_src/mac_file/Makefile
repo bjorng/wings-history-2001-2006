@@ -1,3 +1,15 @@
+#
+#  Makefile --
+#
+#     Makefile for building file dialog plug-in for Mac.
+#
+#  Copyright (c) 2002 Bjorn Gustavsson
+#
+#  See the file "license.terms" for information on usage and redistribution
+#  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+#
+#     $Id: Makefile,v 1.2 2002/07/11 18:19:14 bjorng Exp $
+#
 LIBDIR = ../../plugins/mac_file
 
 ERL_DIR := $(shell echo 'io:format("~s~n",[code:root_dir()]),halt().' | erl | sed 's,^[0-9]*> *,,g' | tail +2)
