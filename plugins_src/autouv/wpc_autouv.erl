@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.123 2003/07/09 09:28:24 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.124 2003/07/09 09:59:11 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -367,7 +367,7 @@ add_material(Im = #e3d_image{}, _, MatName,St) ->
 init_drawarea() ->
     {X,Y,_,H} = wings_wm:viewport(geom),
     {W0,TopH} = wings_wm:top_size(),
-    W = (W0 - 0) div 2,
+    W = W0 div 2,
     {{X+W,TopH-Y-H,W,H}, wingeom(W,H)}.
     
 wingeom(W,H) ->
@@ -416,10 +416,8 @@ setup_view({Left,Right,Bottom,Top}, Uvs) ->
     gl:disable(?GL_CULL_FACE),
     gl:disable(?GL_LIGHTING),
 
-    wings_wm:viewport(),
-    wings_io:ortho_setup(),
-    gl:enable(?GL_DEPTH_TEST),
-    gl:depthFunc(?GL_ALWAYS),    
+    %%gl:enable(?GL_DEPTH_TEST),
+    %%gl:depthFunc(?GL_ALWAYS),    
 
     gl:matrixMode(?GL_PROJECTION),
     gl:loadIdentity(),
@@ -430,7 +428,9 @@ setup_view({Left,Right,Bottom,Top}, Uvs) ->
     gl:color3f(1, 1, 1),
 
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
+
     gl:pushMatrix(),
+
     gl:translatef(0, 0, -0.99),
     gl:rectf(Left, Bottom, Right, Top),
     gl:translatef(0, 0, 0.01),
@@ -444,6 +444,7 @@ setup_view({Left,Right,Bottom,Top}, Uvs) ->
     gl:vertex2f(D, 1-D),
     gl:'end'(),    
     gl:popMatrix(),
+
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
     gl:color3f(1.0, 1.0, 1.0),   %%Clear
     case TexBg of
@@ -459,6 +460,7 @@ setup_view({Left,Right,Bottom,Top}, Uvs) ->
     gl:texCoord2f(0,1),    gl:vertex3f(0,1,-0.9),
     gl:'end'(), 
 
+    gl:enable(?GL_DEPTH_TEST),
     gl:depthFunc(?GL_LESS),
     gl:disable(?GL_TEXTURE_2D),
     gl:shadeModel(?GL_SMOOTH).
@@ -571,7 +573,7 @@ get_event(Uvs) ->
 get_event_nodraw(Uvs) ->
     {replace,fun(Ev) -> handle_event(Ev, Uvs) end}.
 
-draw_windows(#uvstate{mode=Mode,geom=Geom}=Uvs0) ->
+redraw(#uvstate{mode=Mode,geom=Geom}=Uvs0) ->
     Text = [atom_to_list(Mode)," mode: ",
 	    "[L] Select [R] Show menu"],
     wings_wm:message(Text),
@@ -689,7 +691,7 @@ quit_menu(Uvs) ->
 
 handle_event(redraw, Uvs0) ->
     %%    ?DBG("redraw event\n"),
-    Uvs = draw_windows(Uvs0),
+    Uvs = redraw(Uvs0),
     get_event_nodraw(Uvs);
 handle_event(#mousemotion{}=Ev, #uvstate{op=Op}=Uvs) when Op /= undefined ->	   
     handle_mousemotion(Ev, Uvs);
@@ -1167,16 +1169,6 @@ get_hits_1(0, _, Acc) -> Acc;
 get_hits_1(N, [1,_,_,A|T], Acc) ->
     get_hits_1(N-1, T, [A|Acc]).
 
-% get_hits(0, _, Acc) -> Acc;
-% get_hits(N, <<NumNames:32,_:32,_:32,Tail0/binary>>, Acc) ->
-%     <<Names:NumNames/binary-unit:32,Tail/binary>> = Tail0,
-%     Name = get_name(NumNames, Names, []),
-%     get_hits(N-1, Tail, [Name|Acc]).
-
-% get_name(0, _Tail, Acc) -> reverse(Acc);
-% get_name(N, <<Name:32,Names/binary>>, Acc) ->
-%     get_name(N-1, Names, [Name|Acc]).
-
 -define(OUT, 1.2/2). %% was 1/2 
 
 find_selectable(X,Y, [A={_, #ch{center={CX,CY},size={W,H}}}|Rest], Acc)
@@ -1307,9 +1299,9 @@ broken_event(Ev, _) ->
 draw_area(#ch{fs=Fs,center={CX,CY},scale=Scale,rotate=R,be=Tbe, we=We}, 
 	  Options = #setng{color = ColorMode, edges = EdgeMode}, Materials) -> 
     gl:pushMatrix(),
-    gl:translatef(CX, CY, 0.0),
-    gl:scalef(Scale, Scale, 1.0),
-    gl:rotatef(float(trunc(R)),0,0,1),
+    gl:translatef(CX, CY, 0),
+    gl:scalef(Scale, Scale, 1),
+    gl:rotatef(trunc(R), 0, 0, 1),
     gl:lineWidth(Options#setng.edge_width),
     %% Draw Materials and Vertex Colors
     if
