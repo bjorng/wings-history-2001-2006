@@ -5,11 +5,11 @@
 %%%
 %%% Created :  4 Oct 2002 by Dan Gudmundsson <dgud@erix.ericsson.se>
 %%%-------------------------------------------------------------------
-%%  Copyright (c) 2001-2002 Dan Gudmundsson, Raimo Niskanen, Bjorn Gustavsson.
+%%  Copyright (c) 2001-2004 Dan Gudmundsson, Raimo Niskanen, Bjorn Gustavsson.
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.50 2004/05/03 14:29:58 dgud Exp $
+%%     $Id: auv_mapping.erl,v 1.51 2004/05/04 06:21:48 bjorng Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -40,8 +40,9 @@
 
 -export([lsq/2, lsq/3, find_pinned/2]). % Debug entry points
 -export([stretch_opt/2, area2d2/3,area3d/3]).
+-export([map_chart/2, project2d/3]).
 
-%%-compile(export_all).
+%% Internal exports.
 -export([model_l2/5]).
 
 -ifdef(lsq_standalone).
@@ -56,8 +57,6 @@ tc(Module, Line, Fun) ->
     io:format("~p:~p: ~.3f ms:~n", [Module, Line, Time/1000]),
     Result.
 -else.
-
--export([map_chart/3, project2d/3]).
 
 -include("wings.hrl").
 -include("auv.hrl").
@@ -79,8 +78,9 @@ tc(Module, Line, Fun) ->
 %    %%		?DBG("Projected by ~p using camera ~p ~n", [N2, _CI]),
 %    [create_area(Clustered, N2, We0)];
 
-map_chart(Type, Chart, We) ->
-    case wpa:face_outer_edges(Chart, We) of
+map_chart(Type, We) ->
+    Faces = wings_we:visible(We),
+    case wpa:face_outer_edges(Faces, We) of
 	[] ->
 	    {error,"A closed surface cannot be mapped. "
 	     "(Either divide it into into two or more charts, "
@@ -88,9 +88,9 @@ map_chart(Type, Chart, We) ->
 	[[_,_]] ->
 	    {error,"A cut in a closed surface must consist of at least two edges."};
 	[_] ->
-	    map_chart_1(Type, Chart, We);
+	    map_chart_1(Type, Faces, We);
 	[_,_|_] ->
-	    map_chart_1(Type, Chart, We)
+	    map_chart_1(Type, Faces, We)
 	    %% For the moment at least, allow holes.
             %%{error,"A chart is not allowed to have holes."}
     end.

@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.227 2004/05/02 19:08:49 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.228 2004/05/04 06:21:48 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -773,22 +773,22 @@ remap(stretch_opt, We, St) ->
     Vs3d = orig_pos(We,St),
     ?SLOW(auv_mapping:stretch_opt(We, Vs3d));
 remap(Type, #we{name=Ch}=We0, St) ->
-    Fs = wings_we:visible(We0),
     [Lower,Upper] = wings_vertex:bounding_box(We0),
     {W,H,_} = e3d_vec:sub(Upper, Lower),
 
     %% Get 3d positions (even for mapped vs).
-    Vs3d = orig_pos(We0,St),
-    Vs0 = auv_mapping:map_chart(Type, Fs, We0#we{vp=Vs3d}),
+    Vs3d = orig_pos(We0, St),
+    Vs0 = auv_mapping:map_chart(Type, We0#we{vp=Vs3d}),
     We1 = We0#we{vp=gb_trees:from_orddict(sort(Vs0))},    
-    {{Dx,Dy}, Vs1} = auv_placement:center_rotate(Fs, We1),
+    Fs = wings_we:visible(We1),
+    {{Dx,Dy},Vs1} = auv_placement:center_rotate(Fs, We1),
     Center = wings_vertex:center(We0),
     Scale = if Dx > Dy -> W / Dx;
  	       true -> H / Dy
 	    end,
     Smat = e3d_mat:scale(Scale),
     Cmat = e3d_mat:translate(Center),
-    Fix  = e3d_mat:mul(Cmat,Smat),
+    Fix  = e3d_mat:mul(Cmat, Smat),
     Vs = foldl(fun({VId, Pos}, Acc) -> 
 		       [{VId,e3d_mat:mul_point(Fix, Pos)}|Acc] 
 	       end, [], Vs1),
