@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.61 2002/11/29 06:32:18 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.62 2002/12/08 17:30:33 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -126,8 +126,7 @@ command(prefs, _St) ->
 	    {vframe,
 	     [{label_column,
 	       [{"Auto-save interval (min)",autosave_time}]},
-	      {"Advanced Menus",advanced_menus},
-	      {"Show Debugging Info",show_memory_used}
+	      {"Advanced Menus",advanced_menus}
 	     ],
 	     [{title,"Miscellanous"}]}]}],
     dialog(Qs);
@@ -293,7 +292,6 @@ defaults() ->
      {edge_hilite,true},
      {face_hilite,true},
      {body_hilite,true},
-     {show_memory_used,false},
      {auto_rotate_angle,1.0},
      {auto_rotate_delay,60},
      {autosave_time,2},
@@ -349,7 +347,8 @@ not_bad(none, _) -> false;
 not_bad(use_front_buffer, _) -> false;
 not_bad(one_button_mouse, _) -> false;
 not_bad(face_color, _) -> false;
-
+not_bad(show_memory_used, _) -> false;
+    
 %% Crashes have occurred.
 not_bad(last_axis, Val) -> is_wings_vector(Val);
 not_bad(default_axis, Val) -> is_wings_vector(Val);
