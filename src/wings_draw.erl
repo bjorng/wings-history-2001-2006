@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.175 2004/03/24 07:34:19 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.176 2004/03/24 07:53:28 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -534,7 +534,7 @@ split_1(D, Vs, St) ->
     split_2(D, Vs, update_materials(D, St)).
 
 split_2(#dlo{mirror=M,src_sel=Sel,src_we=#we{fs=Ftab0}=We,
-	     proxy_data=Pd,ns=Ns0}=D, Vs0, St) ->
+	     proxy_data=Pd,ns=Ns0,needed=Needed}=D, Vs0, St) ->
     %% Efficiency note: Looping over the face table is slower than
     %% looping over the edge table, but sofs:relation/2 will be
     %% considerable faster, because an edge table loop will construct
@@ -563,7 +563,8 @@ split_2(#dlo{mirror=M,src_sel=Sel,src_we=#we{fs=Ftab0}=We,
 		   dyn_faces=Faces,dyn_plan=DynPlan,
 		   orig_ns=Ns0,orig_we=We},
     #dlo{work=Work,edges=[StaticEdgeDl],mirror=M,vs=VsDlist,
-	 src_sel=Sel,src_we=WeDyn,split=Split,proxy_data=Pd}.
+	 src_sel=Sel,src_we=WeDyn,split=Split,proxy_data=Pd,
+	 needed=Needed}.
 
 split_faces(#dlo{needed=Need}=D, Ftab, Faces, St) ->
     case member(work, Need) of
