@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_connect_tool.erl,v 1.5 2004/07/10 07:56:31 dgud Exp $
+%%     $Id: wpc_connect_tool.erl,v 1.6 2004/07/14 13:10:26 dgud Exp $
 %%
 -module(wpc_connect_tool).
 
@@ -27,6 +27,7 @@
 	     we,    %% Current we
 	     st,    %% Working St
 	     cpos,  %% Cursor Position
+	     mode=normal, %% or slide
 	     ost}). %% Original St
 
 %% Vertex info
@@ -86,6 +87,21 @@ handle_connect_event0(#mousemotion{}=Ev, #cs{st=St, v=VL}=C) ->
     end;
 handle_connect_event0(Ev, S) -> handle_connect_event1(Ev, S).
 
+handle_connect_event1(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED},
+		      #cs{st=St0}=C0) ->
+    case wpa:pick(X,Y,St0) of
+	{add,MM,St = #st{selmode=edge,sel=[{Shape,Edge0}],shapes=Sh}} ->
+	    #we{es=Es} = gb_trees:get(Shape, Sh),
+	    [Edge] = gb_sets:to_list(Edge0),
+	    #edge{vs=V1,ve=V2} = gb_trees:get(Edge, Es),
+	    C = do_connect(X,Y,MM,St,C0),
+	    wings:unregister_postdraw_hook(geom,?MODULE),
+	    {drag, Drag} = slide(C,V1,V2),
+	    wings_wm:later({slide_setup,Drag}),
+	    update_connect_handler(C#cs{mode=slide});
+	_Other ->
+	    keep
+    end;
 handle_connect_event1(#mousebutton{button=1,x=X,y=Y,state=?SDL_RELEASED},
 		      #cs{st=St0}=C0) ->
     case wpa:pick(X,Y,St0) of
@@ -113,12 +129,24 @@ handle_connect_event1({current_state,St}, #cs{st=St}) ->
 handle_connect_event1({current_state,St}=Ev, C) ->
     case topological_change(St) of
 	false ->
+	    wings_draw:refresh_dlists(St),
 	    update_connect_handler(C#cs{st=St});
 	true ->
 	    wings_wm:later(Ev),
 	    wings:unregister_postdraw_hook(geom,?MODULE),
 	    pop
     end;
+handle_connect_event1({slide_setup,Drag},_C) ->
+    wings_drag:do_drag(Drag,none);
+handle_connect_event1({new_state,St0=#st{shapes=Sh}},C0=#cs{mode=slide,we=Shape,v=[V|VR]}) ->
+    #we{vp=Vtab} = gb_trees:get(Shape, Sh),
+    Pos = gb_trees:get(V#vi.id, Vtab),
+    St1 = St0#st{sel=[],temp_sel=none, sh=true},
+    St = wings_undo:save(St0, St1),
+    C = C0#cs{mode=normal,v=[V#vi{pos=Pos}|VR],st=St},
+    update_hook(C),
+    wings_draw:refresh_dlists(C#cs.st),
+    update_connect_handler(C);
 handle_connect_event1({new_state,St}=Ev, C) ->
     case topological_change(St) of
 	false ->
@@ -161,7 +189,7 @@ handle_connect_event1(Ev, #cs{st=St}) ->
 
 undo_refresh(St0,C0) ->
     St = St0#st{sel=[],temp_sel=none,sh=true},
-    C = C0#cs{v=[],we=undefined,last=undefined,st=St},
+    C = C0#cs{v=[],we=undefined,last=undefined,mode=normal,st=St},
     update_hook(C),
     wings_draw:refresh_dlists(St),
     update_connect_handler(C).
@@ -189,7 +217,7 @@ select_cmd(vertex=M, C) -> mode_change(M, C);
 select_cmd(edge=M, C) -> mode_change(M, C);
 % select_cmd(face=M, C) -> mode_change(M, C);
 % select_cmd(body=M, C) -> mode_change(M, C);
-select_cmd({adjacent,M}, C) -> mode_change(M, C);
+% select_cmd({adjacent,M}, C) -> mode_change(M, C);
 select_cmd(_, _) -> keep.
 
 mode_change(Mode, #cs{st=St0}=C) ->
@@ -311,8 +339,15 @@ obj_to_screen({MVM,PM,VP}, {X,Y,Z}) ->
 % screen_to_obj({MVM,PM,VP}, {Xs,Ys,Zs}) ->
 %     glu:unProject(Xs, Ys, Zs, MVM, PM, VP).
 
-help(#cs{}) ->
-    Msg1 = wings_util:button_format("Connect (and cut) vertex or edge"),
+help(#cs{v=[]}) ->
+    Msg1 = wings_util:button_format("Select vertex or cut edge"),
+    Msg2 = wings_camera:help(),
+    Msg3 = wings_util:button_format([], [], "Exit connect mode"),
+    Msg = wings_util:join_msg([Msg1,Msg2,Msg3]),
+    wings_wm:message(Msg, "");
+help(_) ->
+    Msg1 = wings_util:button_format("Connect to edge/vertex or finish loop"
+				    "by selecting the last vertex"),
     Msg2 = wings_camera:help(),
     Msg3 = wings_util:button_format([], [], "Exit connect mode"),
     Msg = wings_util:join_msg([Msg1,Msg2,Msg3]),
@@ -365,3 +400,26 @@ draw_connect(#cs{v=[#vi{pos=Pos0,mm=MM}],we=Id}) ->
     gl:'end'(),
     gl:popAttrib().
 
+slide(#cs{st=St=#st{shapes=Sh},we=Shape,v=[#vi{id=Id1}|_]},Start,End) ->
+    We = gb_trees:get(Shape, Sh),
+    {Tvs,Sel,Init} = slide_make_tvs(Id1,Start,End,We),
+    Units = [{percent,{0.0,1.0}}],
+    Flags = [{initial,[Init]}],
+    wings_drag:setup(Tvs, Units, Flags, wings_sel:set(vertex, Sel, St)).
+
+slide_make_tvs(V,S,E,#we{id=Id,vp=Vtab}) ->
+    Start = gb_trees:get(S, Vtab),
+    End   = gb_trees:get(E, Vtab),
+    Curr  = gb_trees:get(V, Vtab),
+    Dir = e3d_vec:sub(End, Start),
+    TotDist = e3d_vec:len(Dir),
+    Dist = e3d_vec:dist(Start,Curr),
+    CursorPos  = Dist/TotDist,
+    
+    Fun = fun(I,Acc) -> sliding(I, Acc, V, Start, Dir) end,
+    Sel = [{Id,gb_sets:singleton(V)}],
+    {[{Id,{[V],Fun}}],Sel,CursorPos}.
+
+sliding([Dx|_],Acc,V,Start,Dir) ->
+    Pos = e3d_vec:add_prod(Start, Dir, Dx),
+    [{V,Pos}|Acc].
