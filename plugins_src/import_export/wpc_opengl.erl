@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.15 2002/12/15 15:27:49 bjorng Exp $
+%%     $Id: wpc_opengl.erl,v 1.16 2002/12/15 15:32:42 bjorng Exp $
 
 -module(wpc_opengl).
 
@@ -145,6 +145,7 @@ render_event(_, _) ->
     keep.
 
 render_exit() ->
+    gl:getError(),
     wings_draw_util:map(fun(D, []) ->
 				D#dlo{smooth=none,smoothed=none}
 			end, []),
