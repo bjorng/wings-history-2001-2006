@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.55 2002/04/24 08:47:58 bjorng Exp $
+%%     $Id: wings.hrl,v 1.56 2002/05/10 14:02:59 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -64,22 +64,26 @@
 -define(CHECK_ERROR(), ok).
 -endif.
 
--define(DL_SMOOTHED, 97).
--define(DL_UTIL, 98).
--define(DL_PICK, 99).
--define(DL_DRAW_BASE, 100).
-
-%% Display lists.
--record(dl,
-	{faces=none,				%Faces.
+%% Display lists per object.
+-record(dlo,
+	{work=none,				%Workmode faces.
 	 smooth=none,				%Smooth-shaded faces.
+	 smoothed=none,				%Smoothed preview.
 	 vs=none,				%Unselected vertices.
-	 pick=none,				%For picking.
-	 old_sel,				%Actual selection.
+	 hard=none,				%Hard edges.
 	 sel=none,				%Selected items.
 	 orig_sel=none,				%Original selection.
 	 normals=none,				%Normals.
-	 smoothed=none				%Smoothed preview.
+	 pick=none,				%For picking.
+
+	 %% Hilighting.
+	 hilite=none,				%Hilite fun.
+
+	 %% Source for display lists.
+	 src_we=none,				%Source object.
+	 src_sel=none,				%Source selection.
+	 orig_mode=none,			%Original selection mode.
+	 drag=none				%For dragging.
 	}).
 
 %% Main state record containing all objects and other important state.
@@ -96,7 +100,6 @@
 	 onext,					%Next object id to use.
 	 bb=none,				%Saved bounding box.
 	 edge_loop=none,			%Previous edge loop.
-    	 hilite=none,				%Highlight fun.
 
 	 %% Previous commands.
 	 repeatable,				%Last repeatable command.

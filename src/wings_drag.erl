@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.75 2002/05/03 12:03:04 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.76 2002/05/10 14:02:59 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -18,14 +18,8 @@
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
 
--define(DL_STATIC_FACES, (?DL_DRAW_BASE)).
--define(DL_DYNAMIC_FACES, (?DL_DRAW_BASE+1)).
--define(DL_SEL, (?DL_DRAW_BASE+2)).
-
--define(DL_DYNAMIC, (?DL_DRAW_BASE+3)).
-
 -import(lists, [foreach/2,map/2,foldl/3,sort/1,keysort/2,
-		reverse/1,concat/1,member/2]).
+		reverse/1,reverse/2,concat/1,member/2]).
 
 -record(drag,
 	{x,					%Original 2D position
@@ -34,16 +28,12 @@
 	 ys=0,
 	 xt=0,                                  %Last warp length
 	 yt=0,
-	 tvs,					%[{Vertex,Vec}...]
 	 unit,					%Unit that drag is done in.
 	 flags=[],				%Flags.
-	 new=none,				%New objects.
-	 sel,					%Massaged selection.
-	 matrices=none,				%Transformation matrices.
+	 new=true,				%New objects.
 	 falloff,				%Magnet falloff.
 	 magnet,				%Magnet: true|false.
-	 st,					%Saved st record.
-	 done=false				%Drag is done.
+	 st					%Saved st record.
 	}).
 
 -record(dlist,					%Display list.
@@ -64,51 +54,32 @@ falloff([falloff|_]) -> 1.0;
 falloff([_|T]) -> falloff(T);
 falloff([]) -> none.
 	    
-init_1(Tvs0, Drag0, #st{selmode=Mode,sel=Sel0}=St0) ->
-    St = wings_draw:model_changed(St0),
-    wings_draw:make_vec_dlist(St),
-    case combine(Tvs0) of
-	{matrix,Tv}=Tvs ->
-	    Faces = [{Id,matrix} || {Id,_Trans,_Matrix} <- Tv],
-	    Drag = Drag0#drag{sel={Mode,[]},tvs=Tvs,st=St},
-	    static_display_list(Faces, St),
-	    wings_io:grab(),
-	    {drag,Drag};
-	Tvs ->
- 	    gl:newList(?DL_STATIC_FACES, ?GL_COMPILE),
-	    Dyn = break_apart(Tvs, St),
- 	    gl:endList(),
-	    Sel = {Mode,[{Id,gb_sets:to_list(S)} || {Id,S} <- Sel0]},
-	    Drag = Drag0#drag{tvs=Dyn,sel=Sel,st=St},
-	    wings_io:grab(),
-	    {drag,Drag}
-    end.
-
-%% 
-%% Massage the input transformation list to make it more regular.
-%%
-combine({matrix,Tvs0}) ->
-    Ident = e3d_mat:identity(),
-    Tvs = [{Id,Trans,Ident} || {Id,Trans} <- Tvs0],
-    {matrix,sort(Tvs)};
-combine(Tvs0) ->
+init_1({matrix,Tvs0}, Drag0, St) ->
+    wings_draw:update_dlists(St),
+    insert_matrix(Tvs0),
+    Drag = Drag0#drag{st=St},
+    wings_io:grab(),
+    {drag,Drag};
+init_1(Tvs0, Drag0, St) ->
+    wings_draw:update_dlists(St),
     S = sofs:relation(Tvs0, [{id,info}]),
     F = sofs:relation_to_family(S),
-    sofs:to_external(F).
+    Tvs = sofs:to_external(F),
+    break_apart(Tvs),
+    Drag = Drag0#drag{st=St},
+    wings_io:grab(),
+    {drag,Drag}.
 
 %%
 %% Here we break apart the objects into two parts - static part
 %% (not moved during drag) and dynamic (part of objects actually
 %% moved).
 %%
-break_apart({matrix,_}=Tvs, _St) -> Tvs;	%Specially handled.
-break_apart(Tvs, #st{shapes=Shs}) ->
-    break_apart(Tvs, gb_trees:to_list(Shs), []).
+break_apart(Tvs) ->
+    wings_draw_util:update(fun break_apart/2, Tvs).
 
-break_apart([{Id,_}|_]=Tvs, [{ShId,We}|Shs], Dyn) when ShId < Id ->
-    draw_faces(We),
-    break_apart(Tvs, Shs, Dyn);
-break_apart([{Id,TvList}|Tvs], [{Id,We0}|Shs], DynAcc) ->
+break_apart(eol, []) -> eol;
+break_apart(#dlo{src_sel=Sel,src_we=#we{id=Id}=We0}, [{Id,TvList}|Tvs]) ->
     {Vs0,FunList} = combine_tvs(TvList, We0),
     Vs = sofs:set(Vs0, [vertex]),
     #we{es=Etab0,fs=Ftab0,vs=Vtab0} = We0,
@@ -118,10 +89,14 @@ break_apart([{Id,TvList}|Tvs], [{Id,We0}|Shs], DynAcc) ->
     Etab2 = sofs:relation(Etab1, [{vertex,face}]),
     Faces = sofs:image(Etab2, Vs),
     Ftab1 = sofs:relation(gb_trees:to_list(Ftab0), [{face,data}]),
+
+    List = gl:genLists(1),
+    gl:newList(List, ?GL_COMPILE),
     FtabStatic0 = sofs:drestriction(Ftab1, Faces),
     FtabStatic = sofs:to_external(FtabStatic0),
     WeStatic = We0#we{fs=gb_trees:from_orddict(FtabStatic)},
     draw_faces(WeStatic),
+    gl:endList(),
 
     FtabDyn0 = sofs:restriction(Ftab1, Faces),
     FtabDyn1 = sofs:to_external(FtabDyn0),
@@ -131,12 +106,9 @@ break_apart([{Id,TvList}|Tvs], [{Id,We0}|Shs], DynAcc) ->
 		   vs=undefined},
     StaticVs0 = sofs:to_external(sofs:difference(AllVs, Vs)),
     StaticVs = reverse(insert_vtx_data_1(StaticVs0, Vtab0, [])),
-    Dyn = {FunList,StaticVs,Id,WeDyn},
-    break_apart(Tvs, Shs, [Dyn|DynAcc]);
-break_apart([], [{_,We}|Shs], Dyn) ->
-    draw_faces(We),
-    break_apart([], Shs, Dyn);
-break_apart([], [], Dyn) -> Dyn.
+    Dyn = {FunList,StaticVs},
+    {#dlo{work=[List],src_sel=Sel,src_we=WeDyn,drag=Dyn},Tvs};
+break_apart(D, Tvs) -> {D,Tvs}.
 
 dyn_faces(Flist, We) ->
     foldl(fun({Face,#face{edge=Edge}}, A) ->
@@ -183,6 +155,19 @@ insert_vtx_data([], _Vtab, Acc) -> Acc.
 insert_vtx_data_1([V|Vs], Vtab, Acc) ->
     insert_vtx_data_1(Vs, Vtab, [{V,gb_trees:get(V, Vtab)}|Acc]);
 insert_vtx_data_1([], _Vtab, Acc) -> Acc.
+
+insert_matrix(Tvs) ->
+    Id = e3d_mat:identity(),
+    wings_draw_util:update(fun(D, Data) ->
+				   insert_matrix_fun(D, Data, Id)
+			   end, sort(Tvs)).
+
+insert_matrix_fun(eol, _, _) -> eol;
+insert_matrix_fun(#dlo{work=Work,sel=Sel,src_sel=SrcSel,src_we=#we{id=Id}=We},
+		  [{Id,Tr}|Tvs], Matrix) ->
+    {#dlo{drag={matrix,Tr,Matrix},work={matrix,Matrix,Work},
+	  sel={matrix,Matrix,Sel},src_we=We,src_sel=SrcSel},Tvs};
+insert_matrix_fun(D, Tvs, _) -> {D,Tvs}.
 
 %%%
 %%% Handling of drag events.
@@ -240,25 +225,21 @@ handle_drag_event_1(#mousemotion{x=X,y=Y}, Drag0) ->
 handle_drag_event_1(#mousebutton{button=1,x=X,y=Y,state=?SDL_RELEASED},
 		    Drag0) ->
     wings_io:ungrab(),
-    {Drag,Move} = ?SLOW(motion(X, Y, Drag0#drag{done=true})),
-    cleanup(Drag),
+    {Drag,Move} = ?SLOW(motion(X, Y, Drag0)),
     St = normalize(Drag),
     DragEnded = {new_state,St#st{args=Move}},
     wings_io:putback_event(DragEnded),
     pop;
 handle_drag_event_1({drag_arguments,Move}, Drag0) ->
     wings_io:ungrab(),
-    Drag = ?SLOW(motion_update(Move, Drag0#drag{done=true})),
-    cleanup(Drag),
+    Drag = ?SLOW(motion_update(Move, Drag0)),
     St = normalize(Drag),
     DragEnded = {new_state,St#st{args=Move}},
     wings_io:putback_event(DragEnded),
     pop;
-handle_drag_event_1(#mousebutton{button=3,state=?SDL_RELEASED}, Drag) ->
-    cleanup(Drag),
+handle_drag_event_1(#mousebutton{button=3,state=?SDL_RELEASED}, _Drag) ->
     wings_io:ungrab(),
     wings_io:clear_message(),
-    wings_draw:model_changed(),
     wings_wm:dirty(),
     pop;
 handle_drag_event_1(view_changed, Drag) ->
@@ -323,12 +304,6 @@ make_move_1([_U|Units], [V|Vals]) ->
     [float(V)|make_move_1(Units, Vals)];
 make_move_1([], []) -> [].
 
-cleanup(#drag{matrices=none}) -> ok;
-cleanup(#drag{matrices=Mtxs}) ->
-    foreach(fun({Id,_Matrix}) ->
-		    gl:deleteLists(?DL_DYNAMIC+Id, 1)
-	    end, Mtxs).
-
 magnet_radius(_Sign, #drag{falloff=none}=Drag) -> Drag;
 magnet_radius(Sign, #drag{falloff=Falloff0}=Drag0) ->
     case Falloff0+Sign*?GROUND_GRID_SIZE/10 of
@@ -338,7 +313,7 @@ magnet_radius(Sign, #drag{falloff=Falloff0}=Drag0) ->
 	_Falloff -> Drag0
     end.
 
-view_changed(#drag{new=none,matrices=none,x=X,y=Y}=Drag0) ->
+view_changed(#drag{new=true,x=X,y=Y}=Drag0) ->
     {Drag,_} = motion(X, Y, Drag0),
     view_changed(Drag);
 view_changed(#drag{flags=Flags}=Drag0) ->
@@ -346,30 +321,23 @@ view_changed(#drag{flags=Flags}=Drag0) ->
     case member(screen_relative, Flags) of
 	false -> Drag0;
 	true ->
+	    wings_draw_util:update(fun view_changed_fun/2, []),
 	    {_,X,Y} = sdl_mouse:getMouseState(),
-	    Drag = Drag0#drag{x=X,y=Y,xs=0,ys=0},
-	    view_changed_1(Drag)
+	    Drag0#drag{x=X,y=Y,xs=0,ys=0}
     end.
 
-view_changed_1(#drag{matrices=none,tvs=Tvs0,new=New}=Drag) ->
-    Tvs = update_tvs(Tvs0, reverse(New)),
-    Drag#drag{tvs=Tvs};
-view_changed_1(#drag{tvs={matrix,Tvs0},matrices=Mtxs}=Drag) ->
-    Tvs = view_changed_2(Tvs0, sort(Mtxs)),
-    Drag#drag{tvs={matrix,Tvs}}.
+view_changed_fun(eol, _) -> eol;
+view_changed_fun(#dlo{work={matrix,Mtx,_},drag={matrix,Tr,_}}=D, _) ->
+    {D#dlo{drag={matrix,Tr,e3d_mat:compress(Mtx)}},[]};
+view_changed_fun(#dlo{drag={Tv0,StaticVs},src_we=We}=D, _) ->
+    Tv = update_tvs(Tv0, We, []),
+    {D#dlo{drag={Tv,StaticVs}},[]};
+view_changed_fun(D, _) -> {D,[]}.
 
-view_changed_2([{Id,Trans,_}|Tvs], [{Id,Matrix}|Ms]) ->    
-    [{Id,Trans,Matrix}|view_changed_2(Tvs, Ms)];
-view_changed_2([], []) -> [].
-
-update_tvs([{Tv,StaticVs,Id,StaticWe}|Tvs], [{Id,NewWe}|New]) ->
-    [{update_tvs_1(Tv, NewWe, []),StaticVs,Id,StaticWe}|update_tvs(Tvs, New)];
-update_tvs([], []) -> [].
-
-update_tvs_1([F0|Fs], NewWe, Acc) ->
+update_tvs([F0|Fs], NewWe, Acc) ->
     F = F0(view_changed, NewWe),
-    update_tvs_1(Fs, NewWe, [F|Acc]);
-update_tvs_1([], _, Acc) -> reverse(Acc).
+    update_tvs(Fs, NewWe, [F|Acc]);
+update_tvs([], _, Acc) -> reverse(Acc).
     
 motion(X, Y, Drag0) ->
     {Dx0,Dy0,Drag} = mouse_range(X, Y, Drag0),
@@ -440,56 +408,43 @@ maybe_falloff(_) -> [].
 %%% Update selection for new mouse position.
 %%%
 
-motion_update(Move, #drag{tvs={matrix,Tvs}}=Drag) ->
+motion_update(Move, Drag) ->
     progress(Move, Drag),
-    gl:newList(?DL_DYNAMIC_FACES, ?GL_COMPILE),
-    Mtxs = foldl(fun({Id,Trans,Matrix0}, Acc) when function(Trans) ->
-			 Matrix = Trans(Matrix0, Move),
-			 gl:pushMatrix(),
-			 gl:multMatrixf(e3d_mat:expand(Matrix)),
-			 gl:callList(?DL_DYNAMIC+Id),
-			 gl:popMatrix(),
-			 [{Id,Matrix}|Acc]
-		 end, [], Tvs),
-    gl:endList(),
-    gl:newList(?DL_SEL, ?GL_COMPILE),
-    sel_color(),
-    gl:callList(?DL_DYNAMIC_FACES),
-    gl:endList(),
-    Drag#drag{matrices=Mtxs};
-motion_update(Move, #drag{tvs=Tvs,sel=Sel,done=Done}=Drag) ->
-    progress(Move, Drag),
-    gl:newList(?DL_DYNAMIC_FACES, ?GL_COMPILE),
-    New = motion_update_1(Tvs, Move, Drag, []),
-    gl:endList(),
-    if
-	Done == true -> ok;
-	true -> make_sel_dlist(New, Sel)
-    end,
-    Drag#drag{new=New}.
+    wings_draw_util:update(fun(D, _) ->
+				   motion_update_fun(D, Move)
+			   end, []),
+    Drag#drag{new=false}.
 
-motion_update_1([{Tv,StaticVs,Id,We0}|Tvs], Move, #drag{done=Done}=Drag, A) ->
-    Vtab0 = foldl(fun(F, A0) -> F(Move, A0) end, StaticVs, Tv),
+motion_update_fun(eol, _) -> eol;
+motion_update_fun(#dlo{work={matrix,_,Work},sel={matrix,_,Sel},
+		       drag={matrix,Trans,Matrix0}}=D, Move) ->
+    Matrix = e3d_mat:expand(Trans(Matrix0, Move)),
+    D#dlo{work={matrix,Matrix,Work},sel={matrix,Matrix,Sel}};
+motion_update_fun(#dlo{work=[Work|_],src_we=We0,
+		       drag={Tv,StaticVs}}=D, Move) ->
+    Vtab0 = foldl(fun(F, A) -> F(Move, A) end, StaticVs, Tv),
     Vtab = gb_trees:from_orddict(sort(Vtab0)),
     We = We0#we{vs=Vtab},
-    if
-	Done == true -> ok;
-	true -> draw_flat_faces(We)
-    end,
-    motion_update_1(Tvs, Move, Drag, [{Id,We}|A]);
-motion_update_1([], _Move, _Drag, A) -> A.
+    List = gl:genLists(1),
+    gl:newList(List, ?GL_COMPILE),
+    draw_flat_faces(We),
+    gl:endList(),
+    D#dlo{work=[Work,List],src_we=We};
+motion_update_fun(D, _) -> D.
 
-parameter_update(Key, Val, #drag{tvs=Tvs}=Drag) ->
-    parameter_update(Tvs, Key, Val, Drag, []).
-
-parameter_update([{Tv0,StaticVs,Id,We}|Tvs], Key, Val, Drag, Acc) ->
-    Tv = foldl(fun(F, A) -> [F(Key, Val)|A] end, [], Tv0),
-    parameter_update(Tvs, Key, Val, Drag, [{Tv,StaticVs,Id,We}|Acc]);
-parameter_update([], _, _, Drag0, Tvs) ->
-    Drag1 = Drag0#drag{tvs=reverse(Tvs)},
+parameter_update(Key, Val, Drag0) ->
+    wings_draw_util:update(fun(D, _) ->
+				   parameter_update_fun(D, Key, Val)
+			   end, []),
     {_,X,Y} = sdl_mouse:getMouseState(),
-    {Drag,_} = motion(X, Y, Drag1),
+    {Drag,_} = motion(X, Y, Drag0),
     Drag.
+
+parameter_update_fun(eol, _, _) -> eol;
+parameter_update_fun(#dlo{drag={Tv0,StaticVs}}=D, Key, Val) ->
+    Tv = foldl(fun(F, A) -> [F(Key, Val)|A] end, [], Tv0),
+    {D#dlo{drag={Tv,StaticVs}},[]};
+parameter_update_fun(D, _, _) -> {D,[]}.
 
 translate({Xt0,Yt0,Zt0}, Dx, VsPos, Acc) ->
     Xt = Xt0*Dx, Yt = Yt0*Dx, Zt = Zt0*Dx,
@@ -532,159 +487,57 @@ normalize(#drag{magnet=none}=Drag) ->
 normalize(#drag{magnet=Type}=Drag) ->
     wings_pref:set_value(magnet_type, Type),
     normalize_1(Drag).
-    
-normalize_1(#drag{new=New,matrices=none,st=#st{shapes=Shs0}=St}) ->
-    Shs = foldl(fun({Id,We}, A) ->
-			normalize(Id, We, A)
-		end, Shs0, New),
-    St#st{shapes=Shs};
-normalize_1(#drag{matrices=Mtxs,st=#st{shapes=Shs0}=St}) ->
-    Shs = foldl(fun({Id,Matrix}, A) ->
-			normalize_matrix(Id, Matrix, A)
-		end, Shs0, Mtxs),
+
+normalize_1(#drag{st=#st{shapes=Shs0}=St}) ->
+    Shs = wings_draw_util:update(fun normalize_fun/2, Shs0),
     St#st{shapes=Shs}.
 
-normalize_matrix(Id, Matrix, Shapes) ->
-    We0 = gb_trees:get(Id, Shapes),
+normalize_fun(eol, _) -> eol;
+normalize_fun(#dlo{drag=none}=D, Shs) -> {D,Shs};
+normalize_fun(#dlo{work={matrix,Matrix,_},src_we=#we{id=Id}=We0}=D, Shs0) ->
     We = wings_we:transform_vs(Matrix, We0),
-    gb_trees:update(Id, We, Shapes).
-
-normalize(Id, #we{vs=Vtab0}, Shapes) ->
-    #we{vs=OldVtab0}=We0 = gb_trees:get(Id, Shapes),
-    Vtab1 = sofs:relation(gb_trees:to_list(Vtab0), [{vertex,data}]),
-    OldVtab1 = sofs:relation(gb_trees:to_list(OldVtab0), [{vertex,data}]),
-    OldVtab2 = sofs:drestriction(OldVtab1, sofs:domain(Vtab1)),
-    Vtab2 = sofs:union(Vtab1, OldVtab2),
-    Vtab = gb_trees:from_orddict(sofs:to_external(Vtab2)),
+    Shs = gb_trees:update(Id, We, Shs0),
+    case Matrix of
+	{1.0,_,_,_,_,1.0,_,_,_,_,1.0,_,_,_,_,_} ->
+	    %% Keep the display list.
+	    {D#dlo{drag=none,src_we=We},Shs};
+	_NotSafe ->
+	    %% Normals could have been scaled. Must reubild
+	    %% the display list.
+	    {D#dlo{work=none,drag=none,src_we=We},Shs}
+    end;
+normalize_fun(#dlo{src_we=#we{id=Id,vs=Vtab0}}=D, Shs) ->
+    #we{vs=OldVtab0}= We0 = gb_trees:get(Id, Shs),
+    Vtab1 = norm_update(gb_trees:to_list(Vtab0), gb_trees:to_list(OldVtab0)),
+    Vtab = gb_trees:from_orddict(Vtab1),
     We = We0#we{vs=Vtab},
-    gb_trees:update(Id, We, Shapes).
+    {D#dlo{drag=none,src_we=We},gb_trees:update(Id, We, Shs)}.
+
+norm_update(New, Old) ->
+    norm_update(New, Old, []).
+
+norm_update([{V,_}=N|New], [{V,_}|Old], Acc) ->
+    norm_update(New, Old, [N|Acc]);
+norm_update(New, [O|Old], Acc) ->
+    norm_update(New, Old, [O|Acc]);
+norm_update([], Old, Acc) ->
+    reverse(Acc, Old).
 
 %%%
 %%% Redrawing while dragging.
 %%%
 
-redraw(Drag) ->
-    ?CHECK_ERROR(),
-    gl:enable(?GL_DEPTH_TEST),
-    wings_view:projection(),
-    ?CHECK_ERROR(),
-    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
-    ?CHECK_ERROR(),
-    wings_view:model_transformations(),
-    wings_draw:ground_and_axes(),
-    draw_shapes(Drag),
-    gl:callList(?DL_UTIL),
-    wings_draw:axis_letters(),
-    gl:popAttrib(),
-    wings_io:update(Drag#drag.st).
+redraw(#drag{st=St}) ->
+    wings_draw_util:update(fun clear_sel_dlists/2, []),
+    wings_draw:update_sel_dlist(),
+    wings_draw_util:render(St),
+    wings_io:update(St).
 
-draw_shapes(#drag{sel={SelMode,_}}) ->
-    Wire = wings_pref:get_value(wire_mode),
-    gl:enable(?GL_CULL_FACE),
-    gl:cullFace(?GL_BACK),
+clear_sel_dlists(eol, _) -> eol;
+clear_sel_dlists(#dlo{drag=none}=D, _) -> {D,[]};
+clear_sel_dlists(#dlo{drag={matrix,_,_}}=D, _) -> {D,[]};
+clear_sel_dlists(D, _) -> {D#dlo{sel=none},[]}.
 
-    %% Draw faces for winged-edge-objects.
-    case Wire of
-	true -> ok;
-	false ->
- 	    FaceColor = wings_pref:get_value(face_color),
- 	    gl:color3fv(FaceColor),
-	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
-	    gl:enable(?GL_POLYGON_OFFSET_FILL),
-	    gl:polygonOffset(2.0, 2.0),
-	    gl:shadeModel(?GL_SMOOTH),
-	    gl:enable(?GL_LIGHTING),
-	    draw_we(),
-	    gl:disable(?GL_LIGHTING),
-	    gl:shadeModel(?GL_FLAT)
-    end,
-
-    %% Draw edges if they are turned on.
-    case Wire orelse wings_pref:get_value(show_edges) of
-	false -> ok;
-	true ->
-	    case {Wire,SelMode} of
-		{true,_} -> gl:color3f(1.0, 1.0, 1.0);
-		{_,body} -> gl:color3f(0.3, 0.3, 0.3);
-		{_,_} -> gl:color3f(0.0, 0.0, 0.0)
-	    end,
-	    gl:lineWidth(case SelMode of
-			     edge -> wings_pref:get_value(edge_width);
-			     _ -> ?NORMAL_LINEWIDTH end),
-	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
-	    gl:enable(?GL_POLYGON_OFFSET_LINE),
-	    gl:polygonOffset(1.0, 1.0),
-	    case wings_pref:get_value(show_wire_backfaces) of
-		true ->
-		    gl:disable(?GL_CULL_FACE),
-		    draw_we(),
-		    gl:enable(?GL_CULL_FACE);
-		false ->
-		    draw_we()
-	    end
-    end,
-
-    %% Don't draw unselected vertices.
-    %% Don't draw hard edges.
-
-    gl:disable(?GL_POLYGON_OFFSET_LINE),
-    gl:disable(?GL_POLYGON_OFFSET_POINT),
-    gl:disable(?GL_POLYGON_OFFSET_FILL),
-
-    %% Selection.
-    draw_sel(SelMode).
-
-sel_color() ->
-    gl:color3fv(wings_pref:get_value(selected_color)).
-
-draw_sel(edge) ->
-    sel_color(),
-    gl:lineWidth(wings_pref:get_value(selected_edge_width)),
-    gl:callList(?DL_SEL);
-draw_sel(vertex) ->
-    sel_color(),
-    gl:pointSize(wings_pref:get_value(selected_vertex_size)),
-    gl:callList(?DL_SEL);
-draw_sel(_Mode) ->
-    gl:enable(?GL_POLYGON_OFFSET_FILL),
-    gl:polygonOffset(1.0, 1.0),
-    sel_color(),
-    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
-    gl:callList(?DL_SEL).
-    
-draw_we() ->
-    gl:callList(?DL_STATIC_FACES),
-    gl:callList(?DL_DYNAMIC_FACES).
-
-%% Collect the static display list - faces that will not be moved.
-%% Only for the matrix case.
-static_display_list(Faces, #st{shapes=Shs0}=St) ->
-    make_dlist(?DL_STATIC_FACES, Faces, false, St),
-    Shs = gb_trees:to_list(Shs0),
-    make_dlist_1(Shs, Faces, true),
-    gl:newList(?DL_SEL, ?GL_COMPILE),
-    gl:endList().
-
-make_dlist(DlistId, Faces, DrawMembers, #st{shapes=Shapes0}) ->
-    gl:newList(DlistId, ?GL_COMPILE),
-    make_dlist_1(gb_trees:to_list(Shapes0), Faces, DrawMembers),
-    gl:endList().
-
-make_dlist_1([{Id,_}|Shs], [{Id,matrix}|Fs], false) ->
-    make_dlist_1(Shs, Fs, false);
-make_dlist_1([{Id,We}|Shs], [{Id,matrix}|Fs], true) ->
-    gl:newList(?DL_DYNAMIC+Id, ?GL_COMPILE),
-    draw_faces(We),
-    gl:endList(),
-    make_dlist_1(Shs, Fs, true);
-make_dlist_1([{_Id,We}|Shs], Fs, false) ->
-    draw_faces(We),
-    make_dlist_1(Shs, Fs, false);
-make_dlist_1([{_,_}|Shs], Fs, true) ->
-    make_dlist_1(Shs, Fs, true);
-make_dlist_1([], _Fs, _Draw) -> ok.
-
-draw_faces(#we{perm=Perm}) when ?IS_NOT_VISIBLE(Perm) -> ok;
 draw_faces(#we{fs=Ftab}=We) ->
     gl:materialfv(?GL_FRONT, ?GL_AMBIENT_AND_DIFFUSE, {1.0,1.0,1.0}),
     wings_draw_util:begin_end(
@@ -718,44 +571,6 @@ tess_flat_face(Tess, [P|T]) ->
 tess_flat_face(Tess, []) ->
     glu:tessEndContour(Tess),
     glu:tessEndPolygon(Tess).
-
-%%
-%% Draw the currently selected items.
-%% 
-
-make_sel_dlist(Objs, {Mode,Sel}) ->
-    gl:newList(?DL_SEL, ?GL_COMPILE),
-    make_sel_dlist_1(Mode, Sel, Objs),
-    gl:endList().
-
-make_sel_dlist_1(Mode, [{Id,Items}|Sel], [{Id,We}|Wes]) ->
-    draw_sel(Mode, Items, We),
-    make_sel_dlist_1(Mode, Sel, Wes);
-make_sel_dlist_1(_Mode, [], []) -> ok.
-
-draw_sel(vertex, Vs, #we{vs=Vtab}) ->
-    gl:'begin'(?GL_POINTS),
-    foreach(fun(V) ->
-		    gl:vertex3fv(pos(V, Vtab))
-	    end, Vs),
-    gl:'end'();
-draw_sel(edge, Edges, #we{es=Etab,vs=Vtab}) ->
-    gl:'begin'(?GL_LINES),
-    foreach(fun(Edge) ->
-		    #edge{vs=Va,ve=Vb} = gb_trees:get(Edge, Etab),
-		    gl:vertex3fv(pos(Va, Vtab)),
-		    gl:vertex3fv(pos(Vb, Vtab))
-	    end, Edges),
-    gl:'end'();
-draw_sel(face, Faces, We) ->
-    wings_draw_util:begin_end(
-      fun() ->
-	      foreach(fun(Face) ->
-			      wings_draw_util:flat_face(Face, We)
-		      end, Faces)
-      end);
-draw_sel(body, _, #we{fs=Ftab}=We) ->
-    draw_sel(face, gb_trees:keys(Ftab), We).
 
 pos(Key, Tab) ->
     #vtx{pos=Pos} = gb_trees:get(Key, Tab),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.33 2002/05/04 06:02:23 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.34 2002/05/10 14:02:59 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -106,11 +106,18 @@ mode_restriction(Modes, #st{selmode=Mode}=St) ->
     end.
 
 pick_init(#st{selmode=Mode}) ->
-    case wings_draw:get_dlist() of
-	#dl{sel=SelDL,orig_sel=none}=DL ->
-	    wings_draw:put_dlist(DL#dl{orig_sel={Mode,SelDL}});
-	_ -> ok
-    end.
+    wings_draw_util:update(fun(D, _) -> pick_init_1(D, Mode) end, []).
+
+pick_init_1(eol, _) -> eol;
+pick_init_1(#dlo{orig_sel=none,sel=SelDlist}=D, Mode) ->
+    {D#dlo{orig_sel=SelDlist,orig_mode=Mode},[]};
+pick_init_1(D, _) -> {D,[]}.
+
+clear_orig_sel() ->
+    wings_draw_util:update(fun clear_orig_sel/2, []).
+
+clear_orig_sel(eol, _) -> eol;
+clear_orig_sel(D, _) -> {D#dlo{orig_sel=none,orig_mode=none},[]}.
 
 %%%
 %%% Event handler for secondary selection mode.
@@ -211,7 +218,7 @@ handle_event_5(_Event, Ss, St) ->
     get_event(Ss, St).
 
 secondary_selection(abort, _Ss, _St) ->
-    wings_draw:clear_orig_sel(),
+    clear_orig_sel(),
     wings_io:clear_message(),
     wings_wm:dirty(),
     pop.
@@ -231,7 +238,7 @@ translate_key(#keyboard{keysym=KeySym}) ->
 translate_key(_Event) -> next.
 
 translate_key_1(#keysym{sym=27}) ->		%Escape
-    wings_draw:clear_orig_sel(),
+    clear_orig_sel(),
     wings_io:clear_message(),
     wings_io:message("Command aborted"),
     wings_wm:dirty(),
@@ -255,7 +262,7 @@ execute(MenuEntry) ->
 		     Fun(1, dummy)
 	     end,
     wings_io:putback_event({action,Action}),
-    wings_draw:clear_orig_sel(),
+    clear_orig_sel(),
     wings_io:clear_message(),
     wings_wm:dirty(),
     pop.

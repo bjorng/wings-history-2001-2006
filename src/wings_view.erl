@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.51 2002/04/24 08:47:58 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.52 2002/05/10 14:02:59 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -266,60 +266,99 @@ smooth_exit() ->
     pop.
 
 smooth_dlist(St) ->
-    case wings_draw:get_dlist() of
-	#dl{smoothed=none} -> build_smooth_dlist(St);
-	_ -> ok
-    end.
-	    
-build_smooth_dlist(#st{shapes=Shs}=St) ->
+    wings_draw_util:update(fun(D, []) ->
+				   smooth_dlist(D, St)
+			   end, []).
+
+smooth_dlist(eol, _) -> eol;
+smooth_dlist(#dlo{smoothed=none,src_we=We0}=D, St) ->
     wings_io:disable_progress(),
-    gl:newList(?DL_SMOOTHED, ?GL_COMPILE),
-    foreach(fun(#we{perm=Perm}=We0) when ?IS_VISIBLE(Perm) ->
-		    We = wings_subdiv:smooth(We0),
-		    wings_draw:smooth_faces(We, St);
-	       (#we{}) -> ok
-	    end, gb_trees:values(Shs)),
+    List = gl:genLists(1),
+    gl:newList(List, ?GL_COMPILE),
+    We = wings_subdiv:smooth(We0),
+    wings_draw:smooth_faces(We, St),
     gl:endList(),
-    DL = wings_draw:get_dlist(),
-    wings_draw:put_dlist(DL#dl{smoothed=?DL_SMOOTHED}).
+    {D#dlo{smoothed=List},[]};
+smooth_dlist(D, _) -> {D,[]}.
 
 smooth_redraw(#sm{st=St}=Sm) ->
-    ?CHECK_ERROR(),
-    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
-    gl:enable(?GL_DEPTH_TEST),
-    wings_view:projection(),
-    wings_view:model_transformations(),
-    gl:enable(?GL_CULL_FACE),
-    gl:cullFace(?GL_BACK),
-    gl:shadeModel(?GL_SMOOTH),
-    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
-    ?CHECK_ERROR(),
-    gl:enable(?GL_LIGHTING),
-    gl:enable(?GL_POLYGON_OFFSET_FILL),
-    gl:enable(?GL_BLEND),
-    gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
-    gl:callList(?DL_SMOOTHED),
-    wireframe(Sm),
-    gl:popAttrib(),
-    ?CHECK_ERROR(),
-    wings_io:update(St),
-    ?CHECK_ERROR().
+    ok.
+%     ?CHECK_ERROR(),
+%     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
+%     gl:enable(?GL_DEPTH_TEST),
+%     wings_view:projection(),
+%     wings_view:model_transformations(),
+%     gl:enable(?GL_CULL_FACE),
+%     gl:cullFace(?GL_BACK),
+%     gl:shadeModel(?GL_SMOOTH),
+%     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
+%     ?CHECK_ERROR(),
+%     gl:enable(?GL_LIGHTING),
+%     gl:enable(?GL_POLYGON_OFFSET_FILL),
+%     gl:enable(?GL_BLEND),
+%     gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
+%     gl:callList(?DL_SMOOTHED),
+%     wireframe(Sm),
+%     gl:popAttrib(),
+%     ?CHECK_ERROR(),
+%     wings_io:update(St),
+%     ?CHECK_ERROR().
 
-wireframe(#sm{wire=false}) -> ok;
-wireframe(#sm{st=St}) ->
-    wings_draw:update_display_lists(true, St),
-    gl:disable(?GL_POLYGON_OFFSET_FILL),
-    gl:disable(?GL_LIGHTING),
-    gl:shadeModel(?GL_FLAT),
-    gl:disable(?GL_CULL_FACE),
-    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
-    gl:enable(?GL_POLYGON_OFFSET_LINE),
-    gl:color3f(0, 0, 1),
-    draw_faces().
+% smooth_dlist(St) ->
+%     case wings_draw:get_dlist() of
+% 	#dl{smoothed=none} -> build_smooth_dlist(St);
+% 	_ -> ok
+%     end.
+	    
+% build_smooth_dlist(#st{shapes=Shs}=St) ->
+%     wings_io:disable_progress(),
+%     gl:newList(?DL_SMOOTHED, ?GL_COMPILE),
+%     foreach(fun(#we{perm=Perm}=We0) when ?IS_VISIBLE(Perm) ->
+% 		    We = wings_subdiv:smooth(We0),
+% 		    wings_draw:smooth_faces(We, St);
+% 	       (#we{}) -> ok
+% 	    end, gb_trees:values(Shs)),
+%     gl:endList(),
+%     DL = wings_draw:get_dlist(),
+%     wings_draw:put_dlist(DL#dl{smoothed=?DL_SMOOTHED}).
 
-draw_faces() ->
-    #dl{faces=DlistFaces} = wings_draw:get_dlist(),
-    gl:callList(DlistFaces).
+% smooth_redraw(#sm{st=St}=Sm) ->
+%     ?CHECK_ERROR(),
+%     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
+%     gl:enable(?GL_DEPTH_TEST),
+%     wings_view:projection(),
+%     wings_view:model_transformations(),
+%     gl:enable(?GL_CULL_FACE),
+%     gl:cullFace(?GL_BACK),
+%     gl:shadeModel(?GL_SMOOTH),
+%     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
+%     ?CHECK_ERROR(),
+%     gl:enable(?GL_LIGHTING),
+%     gl:enable(?GL_POLYGON_OFFSET_FILL),
+%     gl:enable(?GL_BLEND),
+%     gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
+%     gl:callList(?DL_SMOOTHED),
+%     wireframe(Sm),
+%     gl:popAttrib(),
+%     ?CHECK_ERROR(),
+%     wings_io:update(St),
+%     ?CHECK_ERROR().
+
+% wireframe(#sm{wire=false}) -> ok;
+% wireframe(#sm{st=St}) ->
+%     wings_draw:update_display_lists(true, St),
+%     gl:disable(?GL_POLYGON_OFFSET_FILL),
+%     gl:disable(?GL_LIGHTING),
+%     gl:shadeModel(?GL_FLAT),
+%     gl:disable(?GL_CULL_FACE),
+%     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
+%     gl:enable(?GL_POLYGON_OFFSET_LINE),
+%     gl:color3f(0, 0, 1),
+%     draw_faces().
+
+% draw_faces() ->
+%     #dl{faces=DlistFaces} = wings_draw:get_dlist(),
+%     gl:callList(DlistFaces).
 
 %%%
 %%% Other stuff.

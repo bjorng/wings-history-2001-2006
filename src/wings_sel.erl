@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel.erl,v 1.32 2002/04/27 07:40:15 bjorng Exp $
+%%     $Id: wings_sel.erl,v 1.33 2002/05/10 14:02:59 bjorng Exp $
 %%
 
 -module(wings_sel).
@@ -39,9 +39,9 @@ set(Mode, Sel, St) ->
 %%%
 
 convert_selection(Mode, #st{sel=[]}=St) ->
-    wings_draw:sel_changed(St#st{selmode=Mode});
+    St#st{selmode=Mode};
 convert_selection(Mode, St) ->
-    ?SLOW(wings_draw:sel_changed(conv_sel(Mode, St))).
+    ?SLOW(conv_sel(Mode, St)).
 
 conv_sel(vertex, St) -> wings_vertex:convert_selection(St);
 conv_sel(edge, St) -> wings_edge:convert_selection(St);

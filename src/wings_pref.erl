@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.43 2002/05/04 07:46:17 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.44 2002/05/10 14:02:59 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -134,7 +134,7 @@ command({set,List}, _St) ->
 		    set_value(Key, Val),
 		    case Key of
 			vertex_size ->
-			    wings_draw:model_changed();
+			    clear_vertex_dlist();
 			background_color ->
 			    {R,G,B} = Val,
 			    gl:clearColor(R, G, B, 1.0);
@@ -145,6 +145,12 @@ command({set,List}, _St) ->
 	    end, List),
     wings_io:putback_event(redraw),
     keep.
+
+clear_vertex_dlist() ->
+    wings_draw_util:update(fun clear_vertex_dlist/2, []).
+
+clear_vertex_dlist(eol, _) -> eol;
+clear_vertex_dlist(D, _) -> D#dlo{vs=none}.
 
 make_query([_|_]=List)  ->
     [make_query(El) || El <- List];

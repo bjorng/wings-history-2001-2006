@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.43 2002/05/07 06:20:51 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.44 2002/05/10 14:02:59 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -38,8 +38,7 @@
 %% For highlighting.
 -record(hl,
 	{st,					%Saved state.
-	 prev=none,				%Previous hit ({Id,Item}).
-	 hilite=none				%Highlite fun.
+	 prev=none				%Previous hit ({Id,Item}).
 	}).
 
 event(#mousemotion{}=Mm, #st{selmode=Mode}=St) ->
@@ -81,22 +80,36 @@ pick(X, Y, St0) ->
 get_hilite_event(HL) ->
     fun(Ev) -> handle_hilite_event(Ev, HL) end.
 
-handle_hilite_event(redraw, #hl{st=St,hilite=Hilite}) ->
-    wings:redraw(St#st{hilite=Hilite}),
+handle_hilite_event(redraw, #hl{st=St}) ->
+    wings:redraw(St),
     keep;
 handle_hilite_event(#mousemotion{x=X,y=Y}, #hl{prev=PrevHit,st=St}=HL) ->
     case do_pick_1(X, Y, St) of
 	PrevHit ->
 	    get_hilite_event(HL);
 	none ->
+	    insert_hilite_fun(none, none),
 	    wings_wm:dirty(),
-	    get_hilite_event(HL#hl{prev=none,hilite=none});
+	    get_hilite_event(HL#hl{prev=none});
 	Hit ->
 	    wings_wm:dirty(),
 	    DrawFun = hilite_draw_sel_fun(Hit, St),
-	    get_hilite_event(HL#hl{prev=Hit,hilite=DrawFun})
+	    insert_hilite_fun(Hit, DrawFun),
+	    get_hilite_event(HL#hl{prev=Hit})
     end;
-handle_hilite_event(_, _) -> next.
+handle_hilite_event(_, _) ->
+    insert_hilite_fun(none, none),
+    next.
+
+insert_hilite_fun(Hit, DrawFun) ->
+    wings_draw_util:update(fun(D, _) ->
+				   insert_hilite(D, Hit, DrawFun)
+			   end, []).
+
+insert_hilite(eol, _, _) -> eol;
+insert_hilite(#dlo{src_we=#we{id=Id}}=D, {_,{Id,_}}, DrawFun) ->
+    {D#dlo{hilite=DrawFun},[]};
+insert_hilite(D, _, _) -> {D#dlo{hilite=none},[]}.
 
 hilite_draw_sel_fun({Mode,{Id,Item}=Hit}, St) ->
     fun() ->
@@ -647,52 +660,48 @@ marquee_draw(St) -> select_draw(St).
 %% Draw for the purpose of picking the items that the user clicked on.
 %%
 
-select_draw(St) ->
-    Dlist = select_draw_0(St),
-    gl:callList(Dlist).
+select_draw(_) ->
+    wings_draw_util:update(fun select_draw/2, []).
 
-select_draw_0(St) ->
-    case wings_draw:get_dlist() of
-	#dl{pick=none}=DL ->
-	    Dlist = ?DL_PICK,
-	    gl:newList(Dlist, ?GL_COMPILE),
-	    select_draw_1(St),
-	    gl:endList(),
-	    wings_draw:put_dlist(DL#dl{pick=Dlist}),
-	    Dlist;
-	#dl{pick=Dlist} -> Dlist
-    end.
+select_draw(eol, _) -> eol;
+select_draw(#dlo{pick=none,src_we=We}=D, _) ->
+    List = gl:genLists(1),
+    gl:newList(List, ?GL_COMPILE),
+    select_draw_1(We),
+    gl:endList(),
+    gl:callList(List),
+    {D#dlo{pick=List},[]};
+select_draw(#dlo{pick=Pick}=D, _) ->
+    gl:callList(Pick),
+    {D,[]}.
 
-select_draw_1(St) ->
+select_draw_1(#we{id=Id,perm=Perm}=We) when ?IS_SELECTABLE(Perm) ->
+    gl:pushName(Id),
     case wings_pref:get_value(display_list_opt) of
-	false -> select_draw_nonopt(St);
-	true ->  select_draw_opt(St)
-    end.
+ 	false -> select_draw_nonopt(We);
+	true ->  select_draw_opt(We)
+    end,
+    gl:popName(),
+    gl:edgeFlag(?GL_TRUE);
+select_draw_1(_) -> ok.
+    
+select_draw_opt(#we{fs=Ftab}=We) ->
+    gl:pushName(0),
+    foreach(fun({Face,#face{edge=Edge}}) ->
+		    gl:loadName(Face),
+		    gl:'begin'(?GL_TRIANGLES),
+		    draw_face(Face, Edge, We),
+		    gl:'end'()
+	    end, gb_trees:to_list(Ftab)),
+    gl:popName().
 
-
-select_draw_opt(St) ->
-    foreach_we(fun(#we{fs=Ftab,perm=Perm}=We) when ?IS_SELECTABLE(Perm) ->
-		       gl:pushName(0),
-		       foreach(fun({Face,#face{edge=Edge}}) ->
-				       gl:loadName(Face),
-				       gl:'begin'(?GL_TRIANGLES),
-				       draw_face(Face, Edge, We),
-				       gl:'end'()
-			       end, gb_trees:to_list(Ftab)),
-		       gl:popName();
-		  (#we{}) -> ok
-	       end, St).
-
-select_draw_nonopt(St) ->
-    foreach_we(fun(#we{fs=Ftab,perm=Perm}=We) when ?IS_SELECTABLE(Perm) ->
-		       gl:pushName(0),
-		       foreach(fun({Face,#face{edge=Edge}}) ->
-				       gl:loadName(Face),
-				       draw_face(Face, Edge, We)
-			       end, gb_trees:to_list(Ftab)),
-		       gl:popName();
-		  (#we{}) -> ok
-	       end, St).
+select_draw_nonopt(#we{fs=Ftab}=We) ->
+    gl:pushName(0),
+    foreach(fun({Face,#face{edge=Edge}}) ->
+		    gl:loadName(Face),
+		    draw_face(Face, Edge, We)
+	    end, gb_trees:to_list(Ftab)),
+    gl:popName().
 
 %%
 %% Utilities.
