@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.2 2001/08/20 07:33:40 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.3 2001/08/24 08:45:48 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -455,63 +455,92 @@ normals(#we{fs=Ftab}=We) ->
 			 end, [], gb_trees:to_list(Ftab)),
     FaceNormals1 = reverse(FaceNormals0),
     FaceNormals = gb_trees:from_orddict(FaceNormals1),
-    VtxNormals = vertex_normals(We, FaceNormals),
-    foldl(fun({Face,#face{mat=Mat}}, Acc) ->
-		  [n_face(Face, Mat, FaceNormals, VtxNormals, We)|Acc]
-	  end, [], gb_trees:to_list(Ftab)).
+    G = new_digraph(We),
+    VtxNormals = vertex_normals(We, G, FaceNormals),
+    Ns = foldl(fun({Face,#face{mat=Mat}}, Acc) ->
+		       [n_face(Face, Mat, G, FaceNormals, VtxNormals, We)|Acc]
+	       end, [], gb_trees:to_list(Ftab)),
+    delete_digraph(G),
+    Ns.
 
-vertex_normals(#we{vs=Vtab,he=Htab}=We, FaceNormals) ->
-    Ns = foldl(
-	   fun({V,#vtx{pos=Pos}}, Acc) ->
-		   Ns = wings_vertex:fold(
-			  fun(_, _,  _, hard) -> hard;
-			     (Edge, Face, _, A) ->
-				  case gb_sets:is_member(Edge, Htab) of
-				      true -> hard;
-				      false -> [gb_trees:get(Face, FaceNormals)|A]
-				  end
-			  end, [], V, We),
-		   if
-		       Ns =:= hard ->
-			   [{V,hard}|Acc];
-		       true ->
-			   N = e3d_vec:norm(e3d_vec:add(Ns)),
-			   [{V,{Pos,N}}|Acc]
-		   end
-	   end, [], gb_trees:to_list(Vtab)),
-    gb_trees:from_orddict(reverse(Ns)).
+vertex_normals(#we{vs=Vtab,es=Etab,he=Htab}=We, G, FaceNormals) ->
+    {SoftVs,HardVs} =
+	case gb_sets:is_empty(Htab) of
+	    true -> {gb_trees:to_list(Vtab),[]};
+	    false ->
+		He0 = gb_sets:to_list(Htab),
+		He = sofs:from_external(He0, [atom]),
+		Es0 = gb_trees:to_list(Etab),
+		Es1 = sofs:from_external(Es0, [{atom,atom}]),
+		Es = sofs:restriction(Es1, He),
+		Hvs0 = foldl(fun({_,#edge{vs=Va,ve=Vb}}, A) ->
+				     [Va,Vb|A]
+			     end, [], sofs:to_external(Es)),
+		Hvs = sofs:from_term(Hvs0),
+		Vs = sofs:from_external(gb_trees:to_list(Vtab), [{atom,atom}]),
+		Svs = sofs:drestriction(Vs, Hvs),
+		{sofs:to_external(Svs),sofs:to_external(Hvs)}
+	end,
+    foreach(fun(V) -> update_digraph(G, V, We) end, HardVs),
+    Soft = foldl(
+	     fun({V,#vtx{pos=Pos}}, Acc) ->
+		     N = soft_vtx_normal(V, FaceNormals, We),
+		     [{V,{Pos,N}}|Acc]
+	     end, [], SoftVs),
+    gb_trees:from_orddict(reverse(Soft)).
 
-n_face(Face, Mat, FaceNormals, VtxNormals, We) ->
-    {Mat,wings_face:fold(
+n_face(Face, Mat, G, FaceNormals, VtxNormals, We) ->
+    Vs = wings_face:fold(
 	   fun (V, _, _, Acc) ->
-		   case gb_trees:get(V, VtxNormals) of
-		       hard ->
+		   case gb_trees:lookup(V, VtxNormals) of
+		       {value,PosNormal} ->
+			   [PosNormal|Acc];
+		       none ->
 			   Pos = wings_vertex:pos(V, We),
-			   Normal = vertex_normal(V, Face, FaceNormals, We),
-			   [{Pos,Normal}|Acc];
-		       PosNormal -> [PosNormal|Acc]
+			   Normal = hard_vtx_normal(G, V, Face, FaceNormals),
+ 			   [{Pos,Normal}|Acc]
 		   end
-	   end, [], Face, We)}.
+	   end, [], Face, We),
+    {Mat,Vs}.
 
-%% Calculate vertex normals when hard edges are involved.
-vertex_normal(V, Face, FaceNormals, #we{he=Htab}=We) ->
-    G = digraph:new(),
+soft_vtx_normal(V, FaceNormals, We) ->
+    Ns = wings_vertex:fold(
+	   fun(Edge, Face, _, A) ->
+		   [gb_trees:get(Face, FaceNormals)|A]
+	   end, [], V, We),
+    e3d_vec:mul(e3d_vec:add(Ns), 1/length(Ns)).
+
+hard_vtx_normal(G, V, Face, FaceNormals) ->
+    Reachable = digraph_utils:reachable([{V,Face}], G),
+    case [gb_trees:get(AFace, FaceNormals) || {_,AFace} <- Reachable] of
+ 	[N] -> N;
+ 	Ns -> e3d_vec:mul(e3d_vec:add(Ns), 1/length(Ns))
+    end.
+
+new_digraph(#we{he=He}) ->
+    case gb_sets:is_empty(He) of
+	true -> none;
+	false -> digraph:new()
+    end.
+
+delete_digraph(none) -> none;
+delete_digraph(G) -> digraph:delete(G).
+
+update_digraph(G, V, #we{he=Htab}=We) ->
     wings_vertex:fold(
-      fun(Edge, _, #edge{lf=Lf,rf=Rf}, A) ->
+      fun(Edge, _, #edge{lf=Lf0,rf=Rf0}, A) ->
 	      case gb_sets:is_member(Edge, Htab) of
 		  true -> ok;
 		  false ->
+		      Lf = {V,Lf0},
+		      Rf = {V,Rf0},
 		      digraph:add_vertex(G, Lf),
 		      digraph:add_vertex(G, Rf),
 		      digraph:add_edge(G, Lf, Rf),
 		      digraph:add_edge(G, Rf, Lf)
 	      end
-      end, [], V, We),
-    Reachable = digraph_utils:reachable([Face], G),
-    digraph:delete(G),
-    Ns = [gb_trees:get(AFace, FaceNormals) || AFace <- Reachable],
-    e3d_vec:norm(e3d_vec:add(Ns)).
-
+      end, [], V, We).
+    
 %% Extra fast normal calculation.
 
 face_normal(Face, #face{edge=Edge}, #we{es=Etab,vs=Vtab}) ->

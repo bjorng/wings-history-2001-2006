@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.2 2001/08/20 07:33:40 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.3 2001/08/24 08:45:48 bjorng Exp $
 %%
 
 -module(wings_body).
