@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pt.lang,v 1.1 2005/02/08 07:38:14 dgud Exp $
+%%     $Id: wings_pt.lang,v 1.2 2005/02/21 11:49:15 dgud Exp $
 %%
 
 {wpa,
@@ -1477,7 +1477,7 @@
    ]},
   {try_video_modes,
    [
-    {1,"Esperimentando os modos de OpenGL\n"}
+    {1,"Experimentando os modos de OpenGL\n"}
    ]},
   {video_mode_failure,
    [
