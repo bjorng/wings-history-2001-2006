@@ -3,12 +3,12 @@
 %%
 %%     Image plane plug-in
 %%
-%%  Copyright (c) 2002-2003 Bjorn Gustavsson.
+%%  Copyright (c) 2002-2004 Bjorn Gustavsson.
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_image.erl,v 1.18 2004/01/11 10:23:20 bjorng Exp $
+%%     $Id: wpc_image.erl,v 1.19 2004/03/21 20:24:56 bjorng Exp $
 %%
 
 -module(wpc_image).
@@ -80,8 +80,14 @@ make_image_1(Name0, #e3d_image{type=Type}=Image0) ->
 	    Vs = [{0.0,-Y,-X},{0.0,Y,-X},{0.0,Y,X},{0.0,-Y,X}],
 	    Mesh = #e3d_mesh{type=polygon,fs=Fs,vs=Vs,tx=UVs},
 	    Obj = #e3d_object{obj=Mesh},
-	    Mat = [{image,[{maps,[{diffuse,ImageId}]}]},
-		   {default,[]}],
+	    White = wings_color:white(),
+	    Black = wings_color:white(),
+	    Mat = [{image,
+		    [{opengl,[{emission,White},
+			      {diffuse,White},
+			      {specular,Black},
+			      {ambient,Black}]},
+		     {maps,[{diffuse,ImageId}]}]}],
 	    {new_shape,"image",Obj,Mat}
     end.
 
