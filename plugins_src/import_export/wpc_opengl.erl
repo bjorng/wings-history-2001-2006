@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.5 2002/07/17 06:17:22 bjorng Exp $
+%%     $Id: wpc_opengl.erl,v 1.6 2002/07/21 17:34:24 bjorng Exp $
 
 -module(wpc_opengl).
 
@@ -27,7 +27,7 @@ init() ->
     true.
 
 menu({file,render}, Menu0) ->
-    [{"Render using OpenGL",opengl,[option]}] ++ Menu0;
+    [{"OpenGL",opengl,[option]}] ++ Menu0;
 menu(_, Menu) -> Menu.
 
 command({file,{render,{opengl,Ask}}}, St) ->
