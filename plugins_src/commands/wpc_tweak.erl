@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.14 2002/06/14 13:03:33 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.15 2002/06/26 11:01:09 seanhinde Exp $
 %%
 
 -module(wpc_tweak).
@@ -92,6 +92,10 @@ handle_tweak_event(Ev, #tweak{st=St}=T) ->
 	Other -> Other
     end.
 
+handle_tweak_event0(#keyboard{keysym=#keysym{sym=?SDLK_ESCAPE}}, T) ->
+    wings_io:clear_message(),
+    wings_io:putback_event({action,{tools,tweak_end,T}}),
+    pop;
 handle_tweak_event0(#keyboard{keysym=#keysym{unicode=C}}=Ev, T0) ->
     case magnet_hotkey(C, T0) of
 	none -> handle_tweak_event1(Ev, T0);
