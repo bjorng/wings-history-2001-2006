@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.121 2003/06/10 18:34:30 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.122 2003/06/15 11:33:12 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -585,7 +585,7 @@ do_export(Exporter, Name, SubDivs, #st{shapes=Shs}=St) ->
     Mat0 = wings_material:used_materials(St),
     Mat1 = keydelete('_hole_', 1, Mat0),
     Mat = mat_images(Mat1),
-    Contents = #e3d_file{objs=Objs,mat=Mat,creator=Creator},
+    Contents = distribute_materials(#e3d_file{objs=Objs,mat=Mat,creator=Creator}),
     case Exporter(Name, Contents) of
 	ok -> ok;
 	{error,Atom} when is_atom(Atom) ->
@@ -703,3 +703,15 @@ mat_images_2([{Type,Id}|T], Acc) ->
     Im = wings_image:info(Id),
     mat_images_2(T, [{Type,Im}|Acc]);
 mat_images_2([], Acc) -> Acc.
+
+distribute_materials(#e3d_file{objs=Objs0,mat=Mat0}=File) ->
+    Mat = sofs:relation(Mat0),
+    Objs = distribute_materials_1(Objs0, Mat),
+    File#e3d_file{objs=Objs}.
+
+distribute_materials_1([#e3d_object{obj=Mesh}=Obj|T], Mat) ->
+    Used0 = e3d_mesh:used_materials(Mesh),
+    Used = sofs:set(Used0),
+    ObjMat = sofs:restriction(Mat, Used),
+    [Obj#e3d_object{mat=ObjMat}|distribute_materials_1(T, Mat)];
+distribute_materials_1([], _) -> [].
