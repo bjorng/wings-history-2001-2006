@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.107 2003/10/01 20:03:16 dgud Exp $
+%%     $Id: wings_material.erl,v 1.108 2003/10/21 14:46:24 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -94,7 +94,10 @@ command({rename,MatList0}, St) ->
     case MatList0 -- ["default","_hole_"] of
 	[] -> St;
 	MatList -> rename(MatList, St)
-    end.
+    end;
+command({update,Name,Mat}, #st{mat=Mtab0}=St) ->
+    Mtab = gb_trees:update(Name, Mat, Mtab0),
+    St#st{mat=Mtab}.
 
 new_material(Name0, Assign, #st{mat=Mtab}=St) ->
     Name1 = list_to_atom(Name0),

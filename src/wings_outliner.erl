@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.44 2003/07/27 13:40:21 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.45 2003/10/21 14:46:24 bjorng Exp $
 %%
 
 -module(wings_outliner).
@@ -19,8 +19,7 @@
 -include("wings.hrl").
 -include("e3d_image.hrl").
 -import(lists, [map/2,foldl/3,reverse/1,reverse/2,
-		keymember/3,keysearch/3,sort/1]).
--compile(inline).
+		keymember/3,keysearch/3,keydelete/3,sort/1]).
 
 %%%
 %%% Outliner window.
@@ -57,7 +56,11 @@ window(Pos, Size, St) ->
     Props = [{display_lists,geom_display_lists}],
     wings_wm:toplevel(outliner, "Outliner", Pos, Size,
 		      [{sizeable,?PANE_COLOR},closable,vscroller,{anchor,ne},
-		       {properties,Props}], Op).
+		       {properties,Props}], Op),
+    F = fun({image,_,_}) -> yes;
+	   (_) -> no
+	end,
+    wings_wm:set_prop(outliner, drag_filter, F).
 
 get_event(Ost) ->
     {replace,fun(Ev) -> event(Ev, Ost) end}.
@@ -151,6 +154,13 @@ event({action,{shape,_}}=Act, _) ->
 event(lost_focus, _) ->
     wings_wm:allow_drag(false),
     keep;
+event({drop,{_,Y}=Pos,DropData}, #ost{os=Objs}=Ost) ->
+    case active_object(Y, Ost) of
+	-1 -> keep;
+	Act ->
+	    Obj = lists:nth(Act+1, Objs),
+	    handle_drop(DropData, Obj, Pos, Ost)
+    end;
 event(Ev, Ost) ->
     case wings_hotkey:event(Ev) of
 	{select,deselect} ->
@@ -159,12 +169,24 @@ event(Ev, Ost) ->
 	_ -> keep
     end.
 
+handle_drop({image,Id,_}, {material,Name,_,_}, {X0,Y0}, _Ost) ->
+    {X,Y} = wings_wm:local2global(X0, Y0),
+    Menu = [{"Texture Type",ignore},
+	     separator,
+	    {"Diffuse",tx_cmd(diffuse, Id, Name)},
+	    {"Bump",tx_cmd(bump, Id, Name)}],
+    wings_menu:popup_menu(X, Y, outliner, Menu);
+handle_drop(_, _, _, _) -> keep.
+
+tx_cmd(Type, Id, Mat) ->
+    {'VALUE',{assign_texture,Type,Id,Mat}}.
+
 do_menu(-1, _, _, _) -> keep;
 do_menu(Act, X, Y, #ost{os=Objs}) ->
     Menu = case lists:nth(Act+1, Objs) of
 	       {material,Name,_,_} ->
 		   [{"Edit Material...",menu_cmd(edit_material, Name),
-		    "Edit material properties"},
+		     "Edit material properties"},
 		    {"Assign to Selection",menu_cmd(assign_material, Name),
 		     "Assign the material to the selected faces or bodies"},
 		    separator,
@@ -236,6 +258,13 @@ command({delete_material,Name}, _Ost) ->
     wings_wm:send(geom, {action,{material,{delete,[Name]}}});
 command({rename_material,Name}, _Ost) ->
     wings_wm:send(geom, {action,{material,{rename,[Name]}}});
+command({assign_texture,Type,Id,Name0}, #ost{st=#st{mat=Mtab}}) ->
+    Name = list_to_atom(Name0),
+    Mat0 = gb_trees:get(Name, Mtab),
+    {Maps0,Mat1} = prop_get_delete(maps, Mat0),
+    Maps = [{Type,Id}|keydelete(Type, 1, Maps0)],
+    Mat = [{maps,Maps}|Mat1],
+    wings_wm:send(geom, {action,{material,{update,Name,Mat}}});
 command({duplicate_object,Id}, _) ->
     wings_wm:send(geom, {action,{body,{duplicate_object,[Id]}}});
 command({delete_object,Id}, _) ->
@@ -264,6 +293,10 @@ command({export_image,Id}, _) ->
 command(Cmd, _) ->
     io:format("NYI: ~p\n", [Cmd]),
     keep.
+
+prop_get_delete(Key, List) ->
+    Val = proplists:get_value(Key, List),
+    {Val,keydelete(Key, 1, List)}.
 
 duplicate_image(Id) ->
     #e3d_image{name=Name0} = Im = wings_image:info(Id),
