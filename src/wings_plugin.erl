@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_plugin.erl,v 1.16 2002/05/05 07:46:13 bjorng Exp $
+%%     $Id: wings_plugin.erl,v 1.17 2002/07/28 12:36:47 bjorng Exp $
 %%
 -module(wings_plugin).
 -export([init/0,menu/2,command/2,call_ui/1]).
@@ -178,8 +178,9 @@ convert_type(_) -> undefined.
 
 check_result(_M, {command_error,_}=Error, _St) -> throw(Error);
 check_result(_M, {new_shape,Prefix,#e3d_object{}=Obj,Mat}, St0) ->
-    {We,UsedMat} = import_object(Obj),
-    St = add_materials(UsedMat, Mat, St0),
+    {We0,UsedMat} = wings_import:import(Obj, gb_sets:empty()),
+    {St,NameMap} = wings_import:add_materials(UsedMat, Mat, St0),
+    We = wings_import:rename_materials(NameMap, We0),
     new_shape(Prefix, We, St);
 check_result(_M, {new_shape,Prefix,Fs,Vs}, St) ->
     We = wings_we:build(Fs, Vs),
@@ -197,51 +198,3 @@ check_result(M, Other, St) ->
 new_shape(Prefix, We, #st{onext=Oid}=St) ->
     Name = Prefix++integer_to_list(Oid),
     wings_shape:new(Name, We, St).
-
-import_object(Obj) ->
-    import_object(Obj, gb_sets:empty()).
-
-import_object(#e3d_object{obj=Obj}, UsedMat0) ->
-    #e3d_mesh{matrix=Matrix,vs=Vs0,tx=Tx0,fs=Fs0,he=He} = Obj,
-    Vs = scale(Vs0, Matrix),
-    ObjType = obj_type(Tx0),
-    Tx = list_to_tuple(Tx0),
-    {Fs,UsedMat} = import_faces(Fs0, Tx, [], UsedMat0),
-    We = wings_we:build(ObjType, Fs, Vs, He),
-    {We,UsedMat}.
-
-import_faces([#e3d_face{vs=Vs,tx=Tx0,mat=Mat0}|Fs], Txs, Acc, UsedMat0) ->
-    UsedMat = add_used_mat(Mat0, UsedMat0),
-    Mat = translate_mat(Mat0),
-    FaceData = case Tx0 of
-		   [] -> {Mat,Vs};
-		   Tx1 ->
-		       Tx = [element(Tx+1, Txs) || Tx <- Tx1],
-		       {Mat,Vs,Tx}
-	       end,
-    import_faces(Fs, Txs, [FaceData|Acc], UsedMat);
-import_faces([], _Txs, Acc, UsedMat) -> {reverse(Acc),UsedMat}.
-
-scale(Vs, none) -> Vs;
-scale(Vs, Matrix) -> [e3d_mat:mul_point(Matrix, P) || P <- Vs].
-
-obj_type([]) -> material;
-obj_type([{_,_}|_]) -> uv;
-obj_type([{_,_,_}|_]) -> vertex.
-
-add_used_mat([], UsedMat) -> UsedMat;
-add_used_mat([M|Ms], UsedMat) -> add_used_mat(Ms, gb_sets:add(M, UsedMat)).
-    
-translate_mat([]) -> default;
-translate_mat([Mat]) -> Mat;
-translate_mat([_|_]=List) -> List.
-
-add_materials(UsedMat0, Mat0, St) ->
-    UsedMat = sofs:from_external(gb_sets:to_list(UsedMat0), [name]),
-    Mat1 = sofs:relation(Mat0, [{name,data}]),
-    Mat2 = sofs:restriction(Mat1, UsedMat),
-    NotDefined0 = sofs:difference(UsedMat, sofs:domain(Mat2)),
-    DummyData = sofs:from_term([], data),
-    NotDefined = sofs:constant_function(NotDefined0, DummyData),
-    Mat = sofs:to_external(sofs:union(Mat2, NotDefined)),
-    wings_material:add_materials(Mat, St).

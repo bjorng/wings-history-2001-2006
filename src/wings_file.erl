@@ -8,12 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.75 2002/07/26 17:43:54 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.76 2002/07/28 12:36:47 bjorng Exp $
 %%
 
 -module(wings_file).
 -export([init/0,finish/0,menu/3,command/2,
-	 export/3,export_filename/2,import/3]).
+	 export/3,export_filename/2,
+	 import/3,import_filename/1]).
 
 -include("e3d.hrl").
 -include("wings.hrl").
@@ -237,7 +238,6 @@ save_as(St) ->
 	    add_recent(Name),
 	    case ?SLOW(wings_ff_wings:export(Name, St)) of
 		ok ->
-		    set_cwd(dirname(Name)),
 		    wings:caption(St#st{saved=true,file=Name});
 		{error,Reason} ->
 		    wings_util:error("Save failed: " ++ Reason),
@@ -383,6 +383,14 @@ revert(#st{file=File}=St0) ->
 %% Import.
 %%
 
+import_filename(Prop) ->
+    case wings_plugin:call_ui({file,import,Prop}) of
+	aborted -> aborted;
+	Name ->
+	    set_cwd(dirname(Name)),
+	    Name
+    end.
+
 import(Prop, Importer, St0) ->
     case wings_plugin:call_ui({file,import,Prop}) of
 	aborted -> St0;
@@ -432,9 +440,7 @@ export(Props0, Exporter, St) ->
 	Props ->
 	    case output_file(export, Props) of
 		aborted -> ok;
-		Name ->
-		    set_cwd(dirname(Name)),
-		    ?SLOW(do_export(Exporter, Name, St))
+		Name -> ?SLOW(do_export(Exporter, Name, St))
 	    end
     end.
 
@@ -442,9 +448,7 @@ export_ndo(St) ->
     Prop = [{ext,".ndo"},{ext_desc,"Nendo File"}],
     case output_file(export, export_file_prop(Prop, St)) of
 	aborted -> St;
-	Name ->
-	    set_cwd(dirname(Name)),
-	    wings_ff_ndo:export(Name, St)
+	Name -> wings_ff_ndo:export(Name, St)
     end.
 
 %%% Utilities.
@@ -459,7 +463,9 @@ export_file_prop(Prop, #st{file=File}) ->
 output_file(Tag, Prop) ->
     case wings_plugin:call_ui({file,Tag,Prop}) of
 	aborted -> aborted;
-	Name -> Name
+	Name ->
+	    set_cwd(dirname(Name)),
+	    Name
     end.
 
 %%%
@@ -474,7 +480,7 @@ do_import(Importer, Name, St0) ->
 	    Suffix = " of " ++ integer_to_list(NumObjs),
 	    {UsedMat,St1} = translate_objects(Objs, gb_sets:empty(),
 					     1, Suffix, St0),
-	    {St2,NameMap} = add_materials(UsedMat, Mat, St1),
+	    {St2,NameMap} = wings_import:add_materials(UsedMat, Mat, St1),
 	    St = rename_materials(NameMap, St0, St2),
 	    case gb_trees:size(St#st.shapes)-gb_trees:size(St0#st.shapes) of
 		NumObjs -> St;
@@ -488,36 +494,6 @@ do_import(Importer, Name, St0) ->
 	{error,Reason} ->
 	    wings_util:error(Reason)
     end.
-
-add_materials(UsedMat0, Mat0, St) ->
-    UsedMat = sofs:from_external(gb_sets:to_list(UsedMat0), [name]),
-    Mat1 = sofs:relation(Mat0, [{name,data}]),
-    Mat2 = sofs:restriction(Mat1, UsedMat),
-    NotDefined0 = sofs:difference(UsedMat, sofs:domain(Mat2)),
-    DummyData = sofs:from_term([], data),
-    NotDefined = sofs:constant_function(NotDefined0, DummyData),
-    Mat = sofs:to_external(sofs:union(Mat2, NotDefined)),
-    wings_material:add_materials(Mat, St).
-
-rename_materials([], _, St) -> St;
-rename_materials(NameMap0, #st{onext=FirstId}, #st{shapes=Shs0}=St) ->
-    NameMap = gb_trees:from_orddict(sort(NameMap0)),
-    Shs = rename_mat(gb_trees:to_list(Shs0), NameMap, FirstId, []),
-    St#st{shapes=Shs}.
-
-rename_mat([{Id,_}=Obj|Objs], NameMap, FirstId, Acc) when Id < FirstId ->
-    rename_mat(Objs, NameMap, FirstId, [Obj|Acc]);
-rename_mat([{Id,#we{fs=Ftab0}=We}|Objs], NameMap, FirstId, Acc) ->
-    Ftab1 = foldl(fun({Face,#face{mat=Mat0}=Rec}=Pair, A) ->
-			  case gb_trees:lookup(Mat0, NameMap) of
-			      none -> [Pair|A];
-			      {value,Mat} -> [{Face,Rec#face{mat=Mat}}|A]
-			  end
-		  end, [], gb_trees:to_list(Ftab0)),
-    Ftab = gb_trees:from_orddict(reverse(Ftab1)),
-    rename_mat(Objs, NameMap, FirstId, [{Id,We#we{fs=Ftab}}|Acc]);
-rename_mat([], _, _, Acc) ->
-    gb_trees:from_orddict(reverse(Acc)).
 
 translate_objects([#e3d_object{name=Name}=Obj|Os], UsedMat0,
 		  I, Suffix, St0) ->
@@ -534,6 +510,19 @@ store_object(undefined, We, #st{onext=Oid}=St) ->
     wings_shape:new(Name, We, St);
 store_object(Name, We, St) ->
     wings_shape:new(Name, We, St).
+
+rename_materials([], _, St) -> St;
+rename_materials(NameMap0, #st{onext=FirstId}, #st{shapes=Shs0}=St) ->
+    NameMap = gb_trees:from_orddict(sort(NameMap0)),
+    Shs = rename_mat(gb_trees:to_list(Shs0), NameMap, FirstId, []),
+    St#st{shapes=Shs}.
+
+rename_mat([{Id,_}=Obj|Objs], NameMap, FirstId, Acc) when Id < FirstId ->
+    rename_mat(Objs, NameMap, FirstId, [Obj|Acc]);
+rename_mat([{Id,We0}|Objs], NameMap, FirstId, Acc) ->
+    We = wings_import:rename_materials(NameMap, We0),
+    rename_mat(Objs, NameMap, FirstId, [{Id,We}|Acc]);
+rename_mat([], _, _, Acc) -> gb_trees:from_orddict(reverse(Acc)).
 
 %%%
 %%% Generic export code.

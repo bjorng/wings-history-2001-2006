@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.42 2002/07/18 09:18:33 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.43 2002/07/28 12:36:47 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -122,9 +122,9 @@ add_materials([], St, NewNames) -> {St,NewNames}.
 add_defaults([]) ->
     add_defaults([{opengl,[]},{maps,[]}]);
 add_defaults(Props0) ->
-    OpenGL0 = prop_get(opengl, Props0),
+    OpenGL0 = prop_get(opengl, Props0, []),
     OpenGL = add_defaults_1(OpenGL0),
-    Props = keyreplace(opengl, 1, Props0, {opengl,OpenGL}),
+    Props = [{opengl,OpenGL}|lists:keydelete(opengl, 1, Props0)],
     case prop_get(maps, Props) of
 	undefined -> [{maps,[]}|Props];
 	_ -> Props
@@ -253,6 +253,7 @@ is_transparent(Name, Mtab) ->
 
 edit(Name, #st{mat=Mtab0}=St) ->
     Mat0 = gb_trees:get(Name, Mtab0),
+    Maps = prop_get(maps, Mat0),
     OpenGL0 = prop_get(opengl, Mat0),
     {Diff0,Opacity0} = ask_prop_get(diffuse, OpenGL0),
     {Amb0,_} = ask_prop_get(ambient, OpenGL0),

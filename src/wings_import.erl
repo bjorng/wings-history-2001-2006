@@ -8,15 +8,15 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_import.erl,v 1.3 2002/06/29 19:21:15 bjorng Exp $
+%%     $Id: wings_import.erl,v 1.4 2002/07/28 12:36:47 bjorng Exp $
 %%
 
 -module(wings_import).
--export([import/2]).
+-export([import/2,add_materials/3,rename_materials/2]).
 
 -include("e3d.hrl").
 -include("wings.hrl").
--import(lists, [reverse/1]).
+-import(lists, [reverse/1,foldl/3,sort/1]).
 
 %%-define(DUMP, 1).
 
@@ -85,6 +85,32 @@ rip_apart([#e3d_face{vs=Vs,tx=Tx}=Face|T], Mode, Template, Acc) ->
     We = wings_we:build(Mode, Mesh),
     rip_apart(T, Mode, Template, [We|Acc]);
 rip_apart([], _, _, Wes) -> Wes.
+
+%% add_materials(UsedMat, Materials, St0) -> {St,NameMap}
+add_materials(UsedMat0, Mat0, St0) ->
+    UsedMat = sofs:from_external(gb_sets:to_list(UsedMat0), [name]),
+    Mat1 = sofs:relation(Mat0, [{name,data}]),
+    Mat2 = sofs:restriction(Mat1, UsedMat),
+    NotDefined0 = sofs:difference(UsedMat, sofs:domain(Mat2)),
+    DummyData = sofs:from_term([], data),
+    NotDefined = sofs:constant_function(NotDefined0, DummyData),
+    Mat = sofs:to_external(sofs:union(Mat2, NotDefined)),
+    wings_material:add_materials(Mat, St0).
+
+%% rename_materials(NameMap, We0) -> We
+rename_materials([], We) -> We;
+rename_materials([_|_]=NameMap0, We) ->
+    NameMap = gb_trees:from_orddict(sort(NameMap0)),
+    rename_materials(NameMap, We);
+rename_materials(NameMap, #we{fs=Ftab0}=We) ->
+    Ftab1 = foldl(fun({Face,#face{mat=Mat0}=Rec}=Pair, A) ->
+			  case gb_trees:lookup(Mat0, NameMap) of
+			      none -> [Pair|A];
+			      {value,Mat} -> [{Face,Rec#face{mat=Mat}}|A]
+			  end
+		  end, [], gb_trees:to_list(Ftab0)),
+    Ftab = gb_trees:from_orddict(reverse(Ftab1)),
+    We#we{fs=Ftab}.
 
 -ifndef(DUMP).
 dump(_) -> ok.
