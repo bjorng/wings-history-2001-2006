@@ -8,24 +8,26 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.23 2001/12/30 22:18:45 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.24 2002/01/04 09:28:04 bjorng Exp $
 %%
 
 -module(wings_pick).
--export([pick/3]).
+-export([event/2]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
 -include("wings.hrl").
 
 -import(lists, [foreach/2,last/1,reverse/1,reverse/2,
-		sort/1,foldl/3,map/2,min/1]).
+		sort/1,foldl/3,map/2,min/1,keysearch/3]).
 
+%% For ordinary picking.
 -record(pick,
 	{st,					%Saved state.
-	 op					%add/delete
+	 op					%Operation: add/delete
 	}).
 
+%% For marque picking.
 -record(marque,
 	{ox,oy,					%Original X,Y.
 	 cx,cy,					%Current X,Y.
@@ -34,6 +36,18 @@
 	 op=add,				%add/delete
 	 st
 	}).
+
+%% For highlighting.
+-record(hl,
+	{st,					%Saved state.
+	 prev=none				%Previous hit ({Id,Item}).
+	}).
+
+event(#mousemotion{}=Mm, St) ->
+    {seq,{push,dummy},handle_hilite_event(Mm, #hl{st=St})};
+event(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED}, St) ->
+    pick(X, Y, St);
+event(Ev, St) -> next.
 
 pick(X, Y, St0) ->
     {Inside,Marque,MarqueOp} =
@@ -64,6 +78,68 @@ pick(X, Y, St0) ->
 		    {seq,{push,dummy},get_pick_event(Pick)}
 	    end
     end.
+
+%%
+%% Highlighting on mouse move.
+%%
+
+get_hilite_event(HL) ->
+    fun(Ev) -> handle_hilite_event(Ev, HL) end.
+
+handle_hilite_event(#mousemotion{x=X,y=Y}=Mm, #hl{prev=PrevHit,st=St}=HL) ->
+    case do_pick_1(X, Y, St) of
+	PrevHit ->
+	    get_hilite_event(HL);
+	none ->
+	    wings:redraw(St),
+	    get_hilite_event(HL#hl{prev=none});
+	Hit ->
+	    DrawFun = hilite_draw_sel_fun(Hit, St),
+	    wings:redraw(St#st{hilite=DrawFun}),
+	    get_hilite_event(HL#hl{prev=Hit})
+    end;
+handle_hilite_event(Ev, St) -> next.
+
+hilite_draw_sel_fun(Hit, St) ->
+    fun() ->
+	    hilite_color(Hit, St),
+	    #st{selmode=Mode,shapes=Shs} = St,
+	    {Id,Item} = Hit,
+	    We = gb_trees:get(Id, Shs),
+	    hilit_draw_sel(Mode, Item, We)
+    end.
+
+hilite_color({Id,Item}, #st{sel=Sel}) ->
+    case keysearch(Id, 1, Sel) of
+	false -> gl:color3fv({0.0,0.65,0.0});
+	{value,{Id,Items}} ->
+	    case gb_sets:is_member(Item, Items) of
+		false -> gl:color3fv({0.0,0.65,0.0});
+		true -> gl:color3fv({0.70,0.70,0.0})
+	    end
+    end.
+
+hilit_draw_sel(vertex, V, #we{vs=Vtab}) ->
+    gl:pointSize(wings_pref:get_value(selected_vertex_size)),
+    gl:'begin'(?GL_POINTS),
+    #vtx{pos=Pos} = gb_trees:get(V, Vtab),
+    gl:vertex3fv(Pos),
+    gl:'end'();
+hilit_draw_sel(edge, Edge, #we{es=Etab,vs=Vtab}) ->
+    #edge{vs=Va,ve=Vb} = gb_trees:get(Edge, Etab),
+    gl:lineWidth(wings_pref:get_value(selected_edge_width)),
+    gl:'begin'(?GL_LINES),
+    gl:vertex3fv(pos(Va, Vtab)),
+    gl:vertex3fv(pos(Vb, Vtab)),
+    gl:'end'();
+hilit_draw_sel(face, Face, We) ->
+    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
+    wings_draw_util:face(Face, We);
+hilit_draw_sel(body, _, #we{fs=Ftab}=We) ->
+    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
+    foreach(fun({Face,#face{edge=Edge}}) ->
+		    wings_draw_util:face(Face, Edge, We)
+	    end, gb_trees:to_list(Ftab)).
 
 %%
 %% Marque picking.
@@ -242,7 +318,13 @@ pick_event(#mousebutton{button=1,state=?SDL_RELEASED}, #pick{st=St}) ->
     pop;
 pick_event(Event, Pick) -> keep.
 
-do_pick(X0, Y0, #st{hit_buf=HitBuf,shapes=Shapes,selmode=Mode}=St0) ->
+do_pick(X, Y, St) ->
+    case do_pick_1(X, Y, St) of
+	none -> none;
+	Hit -> update_selection(Hit, St)
+    end.
+
+do_pick_1(X0, Y0, #st{hit_buf=HitBuf,shapes=Shapes,selmode=Mode}=St) ->
     gl:selectBuffer(?HIT_BUF_SIZE, HitBuf),
     gl:renderMode(?GL_SELECT),
     gl:initNames(),
@@ -256,7 +338,7 @@ do_pick(X0, Y0, #st{hit_buf=HitBuf,shapes=Shapes,selmode=Mode}=St0) ->
     glu:pickMatrix(X, Y, S, S, [0,0,W,H]),
     wings_view:perspective(),
     wings_view:model_transformations(),
-    St = select_draw(St0),
+    select_draw(St),
     gl:flush(),
     case gl:renderMode(?GL_RENDER) of
 	0 -> none;
@@ -265,7 +347,7 @@ do_pick(X0, Y0, #st{hit_buf=HitBuf,shapes=Shapes,selmode=Mode}=St0) ->
 	    Hits = get_hits(NumHits, HitData, []),
 	    case filter_hits(Hits, X, Y, St) of
 		none -> none;
-		Hit -> update_selection(Hit, St)
+		Hit -> Hit
 	    end
     end.
 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.43 2002/01/02 12:26:28 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.44 2002/01/04 09:28:04 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -124,9 +124,14 @@ draw_plain_shapes(#st{selmode=SelMode}=St) ->
     gl:disable(?GL_POLYGON_OFFSET_FILL),
 
     ?CHECK_ERROR(),
+    draw_hilite(St),
+    ?CHECK_ERROR(),
     draw_sel(St),
     ?CHECK_ERROR(),
     draw_hard_edges(St).
+
+draw_hilite(#st{hilite=none}) -> ok;
+draw_hilite(#st{hilite=Hilite}) -> Hilite().
 
 sel_color() ->
     gl:color3fv(wings_pref:get_value(selected_color)).

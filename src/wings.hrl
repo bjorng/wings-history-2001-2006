@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.36 2001/12/30 22:18:45 bjorng Exp $
+%%     $Id: wings.hrl,v 1.37 2002/01/04 09:28:04 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -89,6 +89,7 @@
 	 inf_r,					%Radius of influence (for magnet).
 	 bb=none,				%Saved bounding box.
 	 edge_loop=none,			%Previous edge loop.
+    	 hilite=none,				%Highlight fun.
 
 	 %% Previous commands.
 	 repeatable,				%Last repeatable command.

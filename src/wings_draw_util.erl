@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.7 2002/01/02 12:26:28 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.8 2002/01/04 09:28:04 bjorng Exp $
 %%
 
 -module(wings_draw_util).
--export([init/0,tess/0,sel_face/2,face/3,flat_face/3]).
+-export([init/0,tess/0,sel_face/2,face/2,face/3,flat_face/3]).
 
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
@@ -64,6 +64,10 @@ sel_face_1([], Vtab) -> ok.
 %%
 %% Draw a face. Tesselate polygons (>4 edges).
 %%
+
+face(Face, #we{fs=Ftab}=We) ->
+    #face{edge=Edge} = gb_trees:get(Face, Ftab),
+    face(Face, Edge, We).
 
 face(Face, Edge, #we{mode=vertex}=We) ->
     case wings_face:draw_info(Face, Edge, We) of

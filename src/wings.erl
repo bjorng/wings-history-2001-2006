@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.81 2001/12/31 17:59:00 bjorng Exp $
+%%     $Id: wings.erl,v 1.82 2002/01/04 09:28:03 bjorng Exp $
 %%
 
 -module(wings).
@@ -160,27 +160,32 @@ handle_event(Event, St) ->
     end.
 
 handle_event_0(Event, St) ->
-    case wings_camera:event(Event, fun() -> redraw(St) end) of
+    Redraw = fun() -> redraw(St) end,
+    case wings_camera:event(Event, Redraw) of
 	next -> handle_event_1(Event, St);
 	Other -> Other
     end.
 
-handle_event_1(drag_aborted, St) ->
+handle_event_1(Event, St) ->
+    case wings_pick:event(Event, St) of
+	next -> handle_event_2(Event, St);
+	Other -> Other
+    end.
+
+handle_event_2(drag_aborted, St) ->
     wings_io:clear_message(),
     main_loop(model_changed(St));
-handle_event_1({drag_ended,St}, St0) ->
+handle_event_2({drag_ended,St}, St0) ->
     wings_io:clear_message(),
     save_state(St0, St);
-handle_event_1({new_selection,St}, St0) ->
+handle_event_2({new_selection,St}, St0) ->
     save_state(St0, St);
-handle_event_1(Event, St0) ->
+handle_event_2(Event, St0) ->
     case translate_event(Event, St0) of
 	ignore -> keep;
 	redraw ->
 	    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
 	    main_loop(St0);
- 	{left_click,X,Y} ->
-	    wings_pick:pick(X, Y, St0);
  	{right_click,X,Y} ->
 	    popup_menu(X, Y, St0);
  	{resize,W,H} ->
@@ -728,17 +733,9 @@ translate_event(#keyboard{}=Event, St) ->
     translate_key(Event, St);
 translate_event(quit, St) -> {file,quit};
 translate_event(ignore, St) -> ignore;
-translate_event(#mousebutton{button=1,x=X,y=Y,state=?SDL_RELEASED}, St) ->
-    ignore;
-translate_event(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED}=Mb, St) ->
-    {left_click,X,Y};
 translate_event(#mousebutton{button=3,x=X,y=Y,state=?SDL_PRESSED}, St) ->
     {right_click,X,Y};
-translate_event(#mousebutton{button=3,x=X,y=Y,state=?SDL_RELEASED}, St) ->
-    ignore;
-translate_event(#mousebutton{}, St) ->
-    %% Some mouse drivers map the scroll wheel to button 4 and 5.
-    ignore;
+translate_event(#mousebutton{}, St) -> ignore;
 translate_event(#mousemotion{x=X,y=Y}, St) -> ignore;
 translate_event(#resize{w=W,h=H}, St) -> {resize,W,H};
 translate_event(#expose{}, St) -> redraw;
