@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.193 2003/01/10 19:27:13 bjorng Exp $
+%%     $Id: wings.erl,v 1.194 2003/01/10 20:52:09 bjorng Exp $
 %%
 
 -module(wings).
@@ -138,7 +138,8 @@ init(File, Root) ->
 						%with this handler.
     {{X,Y},{W,H}} = wings_wm:win_rect(desktop),
     wings_wm:toplevel(geom, "Geometry", {X,Y,?Z_GEOM}, {W,H-20},
-		      [resizable,{anchor,nw}], Op),
+		      [resizable,{anchor,nw},{toolbar,fun create_toolbar/3}],
+		      Op),
     open_file(File),
 
     case catch wings_wm:enter_event_loop() of
@@ -764,3 +765,190 @@ wings() -> "Wings 3D [debug]".
 -else.
 wings() -> "Wings 3D".
 -endif.
+
+
+%%
+%% The toolbar window with buttons.
+%%
+
+-define(BUTTON_WIDTH, 44).
+-define(BUTTON_HEIGHT, 32).
+
+-record(but,
+	{mode,
+	 buttons,
+	 all_buttons,
+	 restr=none
+	}).
+
+create_toolbar(Name, Pos, W) ->
+    ButtonH = ?BUTTON_HEIGHT+6,
+    wings_wm:new(Name, Pos, {W,ButtonH}, init_button()).
+
+init_button() ->
+    {seq,push,get_button_event(#but{mode=face})}.
+
+get_button_event(But) ->
+    {replace,fun(Ev) -> button_event(Ev, But) end}.
+
+button_event({client_resized,_}, But) ->
+    get_button_event(button_resized(But));
+button_event(redraw, #but{buttons=undefined}=But0) ->
+    But = button_resized(But0),
+    button_redraw(But),
+    get_button_event(But);
+button_event(redraw, But) ->
+    button_redraw(But),
+    keep;
+button_event(#mousebutton{button=1,x=X,state=?SDL_PRESSED}, But) ->
+    button_was_hit(X, But),
+    keep;
+button_event(#mousebutton{button=1,x=X,state=?SDL_RELEASED}, But) ->
+    button_help(X, But),
+    keep;
+button_event(#mousemotion{x=X}, But) ->
+    button_help(X, But),
+    keep;
+button_event({action,_}=Action, _) ->
+    wings_wm:send(geom, Action);
+button_event({current_state,#st{selmode=Mode}}, #but{mode=Mode}) ->
+    keep;
+button_event({current_state,#st{selmode=Mode}}, But) ->
+    wings_wm:dirty(),
+    get_button_event(But#but{mode=Mode});
+button_event({mode_restriction,Restr}, #but{restr=Restr}) ->
+    keep;
+button_event({mode_restriction,Restr}, #but{all_buttons=AllButtons}=But) ->
+    Buttons = button_restrict(AllButtons, Restr),
+    wings_wm:dirty(),
+    get_button_event(But#but{buttons=Buttons,restr=Restr});
+button_event(#keyboard{}=Ev, _) ->
+    wings_wm:send(geom, Ev);
+button_event(_, _) -> keep.
+
+button_resized(#but{restr=Restr}=But) ->
+    {toolbar,Client} = Self = wings_wm:active_window(),
+    {W,_} = wings_wm:win_size(Client),
+    wings_wm:update_window(Self, [{w,W}]),
+    AllButtons = buttons_place(W),
+    Buttons = button_restrict(AllButtons, Restr),
+    But#but{buttons=Buttons,all_buttons=AllButtons}.
+
+button_redraw(#but{mode=Mode,buttons=Buttons}) ->
+    wings_io:ortho_setup(),
+    {W,H} = wings_wm:win_size(),
+    wings_io:border(0, 0.5, W-0.5, H-1.5, ?PANE_COLOR),
+    gl:color3f(0.20, 0.20, 0.20),
+    gl:'begin'(?GL_LINES),
+    gl:vertex2f(0.5, 0.5),
+    gl:vertex2f(W, 0.5),
+    gl:'end'(),
+    gl:color3f(0, 0, 0),
+    gl:enable(?GL_TEXTURE_2D),
+    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
+    foreach(fun({X,Name}) ->
+		    wings_io:draw_icon(X, 3, button_value(Name, Mode))
+	    end, Buttons),
+    gl:bindTexture(?GL_TEXTURE_2D, 0),
+    gl:disable(?GL_TEXTURE_2D).
+
+buttons_place(W) when W < 300 ->
+    [{0,vertex},{?BUTTON_WIDTH,edge},
+     {2*?BUTTON_WIDTH,face},{3*?BUTTON_WIDTH,body}];
+buttons_place(W) when W < 490 ->
+    Rmarg = 5,
+    [{0,vertex},{?BUTTON_WIDTH,edge},
+     {2*?BUTTON_WIDTH,face},{3*?BUTTON_WIDTH,body},
+     {W-2*?BUTTON_WIDTH-Rmarg,groundplane},
+     {W-?BUTTON_WIDTH-Rmarg,axes}];
+buttons_place(W) ->
+    Mid = (W - ?BUTTON_WIDTH) div 2,
+    Lmarg = 5,
+    Rmarg = 5,
+    [{Lmarg,flatshade},{Lmarg+?BUTTON_WIDTH,smooth},
+     {Mid-2*?BUTTON_WIDTH,vertex},{Mid-?BUTTON_WIDTH,edge},
+     {Mid,face},{Mid+?BUTTON_WIDTH,body},
+     {W-3*?BUTTON_WIDTH-Rmarg,perspective},
+     {W-2*?BUTTON_WIDTH-Rmarg,groundplane},
+     {W-?BUTTON_WIDTH-Rmarg,axes}].
+
+button_value(groundplane=Name, _) ->
+    button_value(Name, show_groundplane, true);
+button_value(axes=Name, _) ->
+    button_value(Name, show_axes, true);
+button_value(flatshade=Name, _) ->
+    button_value(Name, workmode, true);
+button_value(smooth=Name, _) ->
+    button_value(Name, workmode, false);
+button_value(perspective=Name, _) ->
+    button_value(Name, orthogonal_view, true);
+button_value(Mode, Mode) -> {Mode,down};
+button_value(Name, _St) -> {Name,up}.
+
+button_value(Name, Key, Val) ->
+    case wings_pref:get_value(Key) of
+	Val -> {Name,down};
+	_ -> {Name,up}
+    end.
+
+button_was_hit(X, #but{buttons=Buttons}) ->
+    button_was_hit_1(X, Buttons).
+
+button_was_hit_1(X, [{Pos,Name}|_]) when Pos =< X, X < Pos+?BUTTON_WIDTH ->
+    Action = case Name of
+		 groundplane -> {view,show_groundplane};
+		 axes -> {view,show_axes};
+		 flatshade -> {view,flatshade};
+		 smooth -> {view,smoothshade};
+		 perspective -> {view,orthogonal_view};
+		 Other -> {select,Other}
+	     end,
+    wings_wm:send(geom, {action,Action});
+button_was_hit_1(X, [_|Is]) ->
+    button_was_hit_1(X, Is);
+button_was_hit_1(_X, []) ->
+    wings_wm:send(geom, {action,{select,deselect}}).
+
+button_help(X, #but{mode=Mode,buttons=Buttons}) ->
+    wings_wm:message(button_help_1(X, Buttons, Mode)).
+
+button_help_1(X, [{Pos,Name}|_], Mode) when Pos =< X, X < Pos+?BUTTON_WIDTH ->
+    button_help_2(Name, Mode);
+button_help_1(X, [_|Is], Mode) ->
+    button_help_1(X, Is, Mode);
+button_help_1(_, [], _) ->
+    "Deselect".
+
+button_help_2(vertex, vertex) -> "Select adjacent vertices";
+button_help_2(vertex, _) -> "Change to vertex selection mode";
+button_help_2(edge, edge) -> "Select adjcacent edges";
+button_help_2(edge, _) -> "Change to edge selection mode";
+button_help_2(face, face) -> "Select adjacent faces";
+button_help_2(face, _) -> "Change to face selection mode";
+button_help_2(body, body) -> "";
+button_help_2(body, _) -> "Change to body selection mode";
+button_help_2(Button, _) -> button_help_3(Button).
+
+button_help_3(groundplane) ->
+    [choose(show_groundplane, true, "Hide", "Show")|" ground plane"];
+button_help_3(axes) ->
+    [choose(show_axes, true, "Hide", "Show")|" axes"];
+button_help_3(perspective) ->
+    ["Change to ",choose(orthogonal_view, false,
+			 "orthogonal", "perspective")|" view"];
+button_help_3(smooth) ->
+    choose(workmode, true, "Show objects with smooth shading", "");
+button_help_3(flatshade) ->
+    choose(workmode, false, "Show objects with flat shading", "").
+
+button_restrict(Buttons, none) -> Buttons;
+button_restrict(Buttons0, Restr) ->
+    Buttons1 = sofs:from_external(Buttons0, [{atom,atom}]),
+    Buttons = sofs:restriction(2, Buttons1, sofs:set(Restr)),
+    sofs:to_external(Buttons).
+
+choose(Key, Val, First, Second) ->
+    case wings_pref:get_value(Key) of
+	Val -> First;
+	_ -> Second
+    end.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.56 2003/01/10 19:14:56 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.57 2003/01/10 20:52:12 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -33,9 +33,6 @@
 -import(lists, [map/2,last/1,sort/1,keysort/2,keysearch/3,
 		reverse/1,foreach/2,member/2]).
 -compile(inline).
-
--define(BUTTON_WIDTH, 44).
--define(BUTTON_HEIGHT, 32).
 
 -record(win,
 	{z,					%Z order.
@@ -79,8 +76,6 @@ init() ->
     put(wm_windows, gb_trees:empty()),
     new(desktop, {0,0,?Z_DESKTOP}, {0,0}, {push,fun(_) -> keep end}),
     new(message, {0,0,?Z_MESSAGE}, {0,0}, {push,fun message_event/1}),
-    ButtonH = ?BUTTON_HEIGHT+4,
-    new(buttons, {0,0,?Z_BUTTONS}, {W,ButtonH}, init_button()),
     new(menubar, {0,0,?Z_MENUBAR}, {0,0}, init_menubar()),
     put(wm_main, geom),
     init_opengl(),
@@ -361,31 +356,16 @@ resize_windows(W, H) ->
     put_window_data(menubar, MenubarData),
 
     MsgData0 = get_window_data(message),
-    MsgH = ?CHAR_HEIGHT+8,
+    MsgH = ?CHAR_HEIGHT+7,
     MsgY = H-MsgH,
     MsgData1 = MsgData0#win{x=0,y=MsgY,w=W,h=MsgH},
     put_window_data(message, MsgData1),
     MsgData = send_event(MsgData1, Event#resize{w=W}),
     put_window_data(message, MsgData),
 
-    #win{h=ButtonH} = ButtonData0 = get_window_data(buttons),
-    ButtonY = MsgY-ButtonH,
-    ButtonData1 = ButtonData0#win{x=0,y=ButtonY,w=W},
-    put_window_data(buttons, ButtonData1),
-    ButtonData = send_event(ButtonData1, Event#resize{w=W}),
-    put_window_data(buttons, ButtonData),
-
     DesktopData0 = get_window_data(desktop),
-    DesktopData = DesktopData0#win{x=0,y=MenubarH,w=W,h=H-MsgH-ButtonH-MenubarH},
-    put_window_data(desktop, DesktopData),
-
-    case is_window(autouv) of
-	false -> ok;
-	true ->
-	    AutoUVData0 = get_window_data(autouv),
-	    AutoUVData = send_event(AutoUVData0, Event),
-	    put_window_data(autouv, AutoUVData)
-    end.
+    DesktopData = DesktopData0#win{x=0,y=MenubarH,w=W,h=H-MsgH-MenubarH},
+    put_window_data(desktop, DesktopData).
 
 do_dispatch(Active, Ev) ->
     case gb_trees:lookup(Active, get(wm_windows)) of
@@ -727,11 +707,11 @@ draw_resizer(X, Y) ->
 
 message_setup() ->
     wings_io:ortho_setup(),
-    {_,_,W,H} = viewport(),
+    {W,H} = win_size(),
     wings_io:set_color(?PANE_COLOR),
     gl:recti(0, 0, W, H),
-    wings_io:border(6, 0, W-20, H-2, ?PANE_COLOR),
-    gl:translatef(10, H-6.5, 0),
+    gl:color3i(0, 0, 0),
+    gl:translatef(10, H-5.5, 0),
     {W,H}.
 
 %% Dirty hack to draw in the front buffer.
@@ -786,166 +766,6 @@ draw_completions(F) ->
     gl:popAttrib(),
 
     Res.
-
-%%
-%% The button window.
-%%
--record(but,
-	{mode,
-	 buttons,
-	 all_buttons,
-	 restr=none
-	}).
-
-init_button() ->
-    {seq,push,get_button_event(#but{mode=face})}.
-
-get_button_event(But) ->
-    {replace,fun(Ev) -> button_event(Ev, But) end}.
-		     
-button_event(#resize{w=W}, #but{restr=Restr}=But) ->
-    AllButtons = buttons_place(W),
-    Buttons = button_restrict(AllButtons, Restr),
-    get_button_event(But#but{buttons=Buttons,all_buttons=AllButtons});
-button_event(redraw, But) ->
-    button_redraw(But),
-    keep;
-button_event(#mousebutton{button=1,x=X,state=?SDL_PRESSED}, But) ->
-    button_was_hit(X, But),
-    keep;
-button_event(#mousebutton{button=1,x=X,state=?SDL_RELEASED}, But) ->
-    button_help(X, But),
-    keep;
-button_event(#mousemotion{x=X}, But) ->
-    button_help(X, But),
-    keep;
-button_event({action,_}=Action, _) ->
-    send(geom, Action);
-button_event({current_state,#st{selmode=Mode}}, #but{mode=Mode}) ->
-    keep;
-button_event({current_state,#st{selmode=Mode}}, But) ->
-    dirty(),
-    get_button_event(But#but{mode=Mode});
-button_event({mode_restriction,Restr}, #but{restr=Restr}) ->
-    keep;
-button_event({mode_restriction,Restr}, #but{all_buttons=AllButtons}=But) ->
-    Buttons = button_restrict(AllButtons, Restr),
-    dirty(),
-    get_button_event(But#but{buttons=Buttons,restr=Restr});
-button_event(#keyboard{}=Ev, _) ->
-    send(geom, Ev);
-button_event(_, _) -> keep.
-
-button_redraw(#but{mode=Mode,buttons=Buttons}) ->
-    {_,_,W,H} = viewport(),
-    wings_io:ortho_setup(),
-    wings_io:set_color(?PANE_COLOR),
-    gl:rectf(0, 0, W, H),
-    gl:color3f(0.20, 0.20, 0.20),
-    gl:'begin'(?GL_LINES),
-    gl:vertex2f(0.5, 0.5),
-    gl:vertex2f(W, 0.5),
-    gl:'end'(),
-    gl:color3f(0, 0, 0),
-    gl:enable(?GL_TEXTURE_2D),
-    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
-    foreach(fun({X,Name}) ->
-		    wings_io:draw_icon(X, 3, button_value(Name, Mode))
-	    end, Buttons),
-    gl:bindTexture(?GL_TEXTURE_2D, 0),
-    gl:disable(?GL_TEXTURE_2D).
-
-buttons_place(W) ->
-    Mid = W div 2,
-    Lmarg = 5,
-    Rmarg = 20,
-    [{Lmarg,flatshade},{Lmarg+?BUTTON_WIDTH,smooth},
-     {Mid-2*?BUTTON_WIDTH,vertex},{Mid-?BUTTON_WIDTH,edge},
-     {Mid,face},{Mid+?BUTTON_WIDTH,body},
-     {W-3*?BUTTON_WIDTH-Rmarg,perspective},
-     {W-2*?BUTTON_WIDTH-Rmarg,groundplane},
-     {W-?BUTTON_WIDTH-Rmarg,axes}].
-
-button_value(groundplane=Name, _) ->
-    button_value(Name, show_groundplane, true);
-button_value(axes=Name, _) ->
-    button_value(Name, show_axes, true);
-button_value(flatshade=Name, _) ->
-    button_value(Name, workmode, true);
-button_value(smooth=Name, _) ->
-    button_value(Name, workmode, false);
-button_value(perspective=Name, _) ->
-    button_value(Name, orthogonal_view, true);
-button_value(Mode, Mode) -> {Mode,down};
-button_value(Name, _St) -> {Name,up}.
-
-button_value(Name, Key, Val) ->
-    case wings_pref:get_value(Key) of
-	Val -> {Name,down};
-	_ -> {Name,up}
-    end.
-
-button_was_hit(X, #but{buttons=Buttons}) ->
-    button_was_hit_1(X, Buttons).
-
-button_was_hit_1(X, [{Pos,Name}|_]) when Pos =< X, X < Pos+?BUTTON_WIDTH ->
-    Action = case Name of
-		 groundplane -> {view,show_groundplane};
-		 axes -> {view,show_axes};
-		 flatshade -> {view,flatshade};
-		 smooth -> {view,smoothshade};
-		 perspective -> {view,orthogonal_view};
-		 Other -> {select,Other}
-	     end,
-    send(geom, {action,Action});
-button_was_hit_1(X, [_|Is]) ->
-    button_was_hit_1(X, Is);
-button_was_hit_1(_X, []) ->
-    send(geom, {action,{select,deselect}}).
-
-button_help(X, #but{mode=Mode,buttons=Buttons}) ->
-    message(button_help_1(X, Buttons, Mode)).
-
-button_help_1(X, [{Pos,Name}|_], Mode) when Pos =< X, X < Pos+?BUTTON_WIDTH ->
-    button_help_2(Name, Mode);
-button_help_1(X, [_|Is], Mode) ->
-    button_help_1(X, Is, Mode);
-button_help_1(_, [], _) ->
-    "Deselect".
-
-button_help_2(vertex, vertex) -> "Select adjacent vertices";
-button_help_2(vertex, _) -> "Change to vertex selection mode";
-button_help_2(edge, edge) -> "Select adjcacent edges";
-button_help_2(edge, _) -> "Change to edge selection mode";
-button_help_2(face, face) -> "Select adjacent faces";
-button_help_2(face, _) -> "Change to face selection mode";
-button_help_2(body, body) -> "";
-button_help_2(body, _) -> "Change to body selection mode";
-button_help_2(Button, _) -> button_help_3(Button).
-
-button_help_3(groundplane) ->
-    [choose(show_groundplane, true, "Hide", "Show")|" ground plane"];
-button_help_3(axes) ->
-    [choose(show_axes, true, "Hide", "Show")|" axes"];
-button_help_3(perspective) ->
-    ["Change to ",choose(orthogonal_view, false,
-			 "orthogonal", "perspective")|" view"];
-button_help_3(smooth) ->
-    choose(workmode, true, "Show objects with smooth shading", "");
-button_help_3(flatshade) ->
-    choose(workmode, false, "Show objects with flat shading", "").
-
-button_restrict(Buttons, none) -> Buttons;
-button_restrict(Buttons0, Restr) ->
-    Buttons1 = sofs:from_external(Buttons0, [{atom,atom}]),
-    Buttons = sofs:restriction(2, Buttons1, sofs:set(Restr)),
-    sofs:to_external(Buttons).
-
-choose(Key, Val, First, Second) ->
-    case wings_pref:get_value(Key) of
-	Val -> First;
-	_ -> Second
-    end.
 
 %%
 %% The menubar window.
@@ -1093,6 +913,12 @@ new_controller(Client, Title, Flags) ->
 ctrl_create_windows([vscroller|Flags], Client, #win{x=X,y=Y,z=Z,w=W}=Win) ->
     Name = wings_win_scroller:vscroller(Client, {X+W,Y,Z+0.1}),
     [Name|ctrl_create_windows(Flags, Client, Win)];
+ctrl_create_windows([{toolbar,Create}|Flags], Client, #win{x=X,y=Y,z=Z,w=W}=Win) ->
+    Toolbar = {toolbar,Client},
+    Create(Toolbar, {X,Y,Z+0.1}, W),
+    {_,H} = win_size(Toolbar),
+    update_window(Client, [{dy,H},{dh,-H}]),
+    [Toolbar|ctrl_create_windows(Flags, Client, Win)];
 ctrl_create_windows([resizable|Flags], Client, Win) ->
     Name = ctrl_new_resizer(Client),
     [Name|ctrl_create_windows(Flags, Client, Win)];
@@ -1240,6 +1066,7 @@ resize_event(#mousemotion{x=X0,y=Y0,state=?SDL_PRESSED},
     move(Self, NewPos),
     ResizeMsg = {client_resized,Client},
     send({controller,Client}, ResizeMsg),
+    send({toolbar,Client}, ResizeMsg),
     send({vscroller,Client}, ResizeMsg),
     keep;
 resize_event(#mousemotion{state=?SDL_RELEASED},
@@ -1271,4 +1098,3 @@ resize_constrain(Dx0, Dy0) ->
 		 Dy0
 	 end,
     {Dx,Dy}.
-

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.41 2003/01/10 19:27:13 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.42 2003/01/10 20:52:10 bjorng Exp $
 %%
 
 -module(wings_shape).
@@ -78,7 +78,7 @@ window(St) ->
 	    Ost = #ost{first=0,eye=eye_bitmap(),lock=lock_bitmap(),lh=18,active=-1},
 	    Current = {current_state,St},
 	    Op = {seq,push,event(Current, Ost)},
-	    Pos = {DeskW-5,DeskY+5,?Z_OBJECTS},
+	    Pos = {DeskW-5,DeskY+55,?Z_OBJECTS},
 	    Size = {W,DeskH div 2},
 	    wings_wm:toplevel(object, "Objects", Pos, Size,
 			      [resizable,vscroller,{anchor,ne}], Op),
