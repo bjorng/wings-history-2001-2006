@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.108 2003/04/17 10:53:23 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.109 2003/04/17 10:56:48 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -309,7 +309,7 @@ split(#dlo{mirror=M,src_sel=Sel,src_we=#we{fs=Ftab0}=We,smoothed=Sm}=D,
 	    end,
     AllVs = sofs:image(F2V, Faces),
     
-    {DynVs,VsDlist} = split_vs_dlist(sofs:to_external(AllVs), Sel, We),
+    {DynVs,VsDlist} = split_vs_dlist(AllVs, Sel, We),
 
     FtabDyn0 = sofs:restriction(Ftab, Faces),
     FtabDyn = sofs:to_external(FtabDyn0),
@@ -362,8 +362,7 @@ insert_vtx_data([V|Vs], Vtab, Acc) ->
     insert_vtx_data(Vs, Vtab, [{V,gb_trees:get(V, Vtab)}|Acc]);
 insert_vtx_data([], _, Acc) -> Acc.
 
-split_vs_dlist(DynVs0, {vertex,SelVs0}, #we{vp=Vtab}) ->
-    DynVs = sofs:from_external(DynVs0, [vertex]),
+split_vs_dlist(DynVs, {vertex,SelVs0}, #we{vp=Vtab}) ->
     SelVs = sofs:from_external(gb_sets:to_list(SelVs0), [vertex]),
     UnselDyn0 = sofs:difference(DynVs, SelVs),
     UnselDyn = sofs:to_external(UnselDyn0),
