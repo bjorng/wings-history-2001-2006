@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.38 2002/07/13 10:10:39 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.39 2002/07/14 09:27:40 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -151,10 +151,18 @@ load_map(MapName) ->
     end.
 
 load_map_1(none) -> none;
-load_map_1(File) ->
-    Image = e3d_image:load(File, [{type,r8g8b8},{order,lower_left}]),
-    #e3d_image{width=W,height=H,image=Pixels} = Image,
-    {W,H,Pixels}.
+load_map_1(File0) ->
+    File = filename:absname(File0, wings_pref:get_value(current_directory)),
+    case e3d_image:load(File, [{type,r8g8b8},{order,lower_left}]) of
+	#e3d_image{width=W,height=H,image=Pixels} ->
+	    {W,H,Pixels};
+	{error,Error} when is_atom(error) ->
+	    io:format("Failed to load \"~s\": ~s\n", [File,file:format_error(Error)]),
+	    none;
+	{error,Error} ->
+	    io:format("Failed to load \"~s\": ~p\n", [File,Error]),
+	    none
+    end.
     
 add('_hole_'=Name, Mat, #st{mat=MatTab}=St) ->
     case gb_trees:is_defined(Name, MatTab) of

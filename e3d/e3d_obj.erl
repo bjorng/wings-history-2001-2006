@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_obj.erl,v 1.26 2002/07/12 07:39:52 bjorng Exp $
+%%     $Id: e3d_obj.erl,v 1.27 2002/07/14 09:27:40 bjorng Exp $
 %%
 
 -module(e3d_obj).
@@ -434,14 +434,13 @@ face_uv(_, [], [], [], _, _, _) -> ok.
 materials(Name0, Mats, Creator) ->
     Root = filename:rootname(Name0, ".obj"),
     Name = Root ++ ".mtl",
-    Base = filename:basename(Root),
     {ok,F} = file:open(Name, [write]),
     label(F, Creator),
-    foreach(fun(M) -> material(F, Base, M) end, Mats),
+    foreach(fun(M) -> material(F, Root, M) end, Mats),
     file:close(F),
     {ok,filename:basename(Name)}.
 
-material(F, Base, {Name,Mat}) ->
+material(F, Root, {Name,Mat}) ->
     OpenGL = property_lists:get_value(opengl, Mat),
     {_,_,_,Opacity} = property_lists:get_value(diffuse, OpenGL),
     Shininess = property_lists:get_value(shininess, OpenGL),
@@ -453,7 +452,7 @@ material(F, Base, {Name,Mat}) ->
     mat_color(F, "Ka", ambient, OpenGL),
     mat_color(F, "Ks", specular, OpenGL),
     Maps = property_lists:get_value(maps, Mat),
-    export_maps(F, Maps, Base, Name),
+    export_maps(F, Maps, Root, Name),
     io:nl(F).
 
 mat_color(F, Label, Key, Mat) ->
@@ -474,10 +473,10 @@ export_maps(F, [_|T], Base, Name) ->
 export_maps(_, [], _, _) -> ok.
 
 export_map(_, _, none, _, _) -> ok;
-export_map(F, Label0, {W,H,Map}, Base, Name) ->
+export_map(F, Label0, {W,H,Map}, Root, Name) ->
     Label = "map_" ++ Label0,
-    MapFile = Base ++ "_" ++ atom_to_list(Name) ++ "_" ++ Label ++ ".tga",
-    io:format(F, "~s ~s\n", [Label,MapFile]),
+    MapFile = Root ++ "_" ++ atom_to_list(Name) ++ "_" ++ Label ++ ".tga",
+    io:format(F, "~s ~s\n", [Label,filename:basename(MapFile)]),
     Image = #e3d_image{image=Map,width=W,height=H},
     ok = e3d_image:save(Image, MapFile).
 

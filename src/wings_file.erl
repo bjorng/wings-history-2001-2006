@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.71 2002/07/12 07:40:53 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.72 2002/07/14 09:27:40 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -164,15 +164,14 @@ read(St0) ->
 	    case wings_plugin:call_ui({file,open,wings_prop()}) of
 		aborted -> St0;
 		Name ->
-		    add_recent(Name),
+		    set_cwd(dirname(Name)),
 		    File = use_autosave(Name),
 		    case ?SLOW(wings_ff_wings:import(File, St1)) of
 			#st{}=St ->
-			    set_cwd(dirname(Name)),
+			    add_recent(Name),
 			    wings:caption(St#st{saved=true,file=Name});
 			{error,Reason} ->
-			    wings_util:error("Read failed: " ++ Reason),
-			    St0
+			    wings_util:error("Read failed: " ++ Reason)
 		    end
 	    end
     end.
@@ -386,16 +385,14 @@ import(Prop, Importer, St0) ->
     case wings_plugin:call_ui({file,import,Prop}) of
 	aborted -> St0;
 	Name ->
+	    set_cwd(dirname(Name)),
 	    case ?SLOW(do_import(Importer, Name, St0)) of
-		#st{}=St ->
-		    set_cwd(dirname(Name)),
-		    St;
+		#st{}=St -> St;
 		{warning,Warn,St} ->
 		    wings_util:message(Warn, St),
 		    St;
 	    	{error,Reason} ->
-		    wings_util:error("Import failed: " ++ Reason),
-		    St0
+		    wings_util:error("Import failed: " ++ Reason)
 	    end
     end.
 
