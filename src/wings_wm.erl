@@ -8,23 +8,23 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.4 2002/07/12 07:31:27 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.5 2002/07/12 17:44:53 bjorng Exp $
 %%
 
 -module(wings_wm).
--export([init/0,top_window/1,dirty/0]).
+-export([init/0,top_window/1,dirty/0,new/4,delete/1,
+	 set_active/1,top_size/0]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
 -include("wings.hrl").
--import(lists, [map/2,last/1]).
+-import(lists, [map/2,last/1,sort/1,keysort/2]).
 
 -record(win,
 	{z,					%Z order.
 	 x,y,					%Position.
 	 w,h,					%Size.
-	 parent=none,				%Parent window.
-	 children=[],				%Child windows.
+	 name,					%Name of window.
 	 stk					%Event handler stack.
 	}).
 
@@ -42,7 +42,7 @@ init() ->
     wings_pref:set_default(window_size, {780,570}),
     {W,H} = wings_pref:get_value(window_size),
     set_video_mode(W, H),			%Needed on Solaris/Sparc.
-    Win = #win{x=0,y=0,w=W,h=H,z=0,stk=[crash_handler()]},
+    Win = #win{x=0,y=0,w=W,h=H,z=0,name=top,stk=[crash_handler()]},
     put(wings_windows, gb_trees:from_orddict([{top,Win}])),
     put(wings_active, top),
     ok.
@@ -50,8 +50,31 @@ init() ->
 dirty() ->
     put(wings_dirty, dirty).
 
+new(Name, {X,Y,Z}, {W,H}, Op) when is_integer(X), is_integer(Y),
+				   is_integer(W), is_integer(H) ->
+    Stk = handle_response(Op, dummy_event, [crash_handler()]),
+    Win = #win{x=X,y=Y,z=Z,w=W,h=H,name=Name,stk=Stk},
+    put(wings_windows, gb_trees:insert(Name, Win, get(wings_windows))),
+    keep.
+
+delete(Name) ->
+    case get(wings_active) of
+	Name -> put(wings_active, top);
+	_ -> ok
+    end,
+    dirty(),
+    put(wings_windows, gb_trees:delete(Name, get(wings_windows))),
+    keep.
+	    
+set_active(Name) ->
+    put(wings_active, Name).
+
+top_size() ->
+    #win{w=W,h=H} = get_window_data(top),
+    {W,H}.
+
 top_window(Op) ->
-    #win{w=W,h=H} = Win0 = get_window_data(top),
+    #win{z=0,w=W,h=H} = Win0 = get_window_data(top),
     Stk = handle_response(Op, dummy_event, [crash_handler()]),
     Win = Win0#win{stk=Stk},
     put_window_data(top, Win),
@@ -66,13 +89,15 @@ event_loop() ->
 	    Active = get(wings_active),
 	    Win0 = get_window_data(Active),
 	    case send_event(Win0, Event) of
+		#win{name=Name,stk=delete} ->
+		    delete(Name),
+		    event_loop();
 		#win{stk=[]} -> ok;
 		Win ->
 		    put_window_data(Active, Win),
 		    event_loop()
 	    end;
-	_ ->
-	    redraw_all()
+	_ -> redraw_all()
     end.
 
 redraw_all() ->
@@ -80,8 +105,8 @@ redraw_all() ->
     maybe_clear(late, EarlyBC),			%Clear right before drawing (late).
     Ws = map(fun({Name,Win}) ->
 		     {Name,send_event(Win, redraw)}
-	     end, gb_trees:to_list(get(wings_windows))),
-    put(wings_windows, gb_trees:from_orddict(Ws)),
+	     end, keysort(2, gb_trees:to_list(get(wings_windows)))),
+    put(wings_windows, gb_trees:from_orddict(sort(Ws))),
     gl:swapBuffers(),
     maybe_clear(early, EarlyBC),		%Clear immediately after buffer swap (early).
     wings_io:arrow(),
@@ -132,6 +157,7 @@ handle_response(Res, Event, Stk0) ->
 	keep -> Stk0;
 	next -> next_handler(Event, Stk0);
 	pop -> pop(Stk0);
+	delete -> delete;
 	{push,Top} -> [Top|Stk0];
 	{seq,First,Then} ->
 	    Stk = handle_response(First, Event, Stk0),
@@ -165,4 +191,3 @@ put_window_data(Name, Data) ->
 
 set_video_mode(W, H) ->
     sdl_video:setVideoMode(W, H, 0, ?SDL_OPENGL bor ?SDL_RESIZABLE).
-
