@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings__du.erl,v 1.15 2004/04/13 04:05:18 bjorng Exp $
+%%     $Id: wings__du.erl,v 1.16 2004/04/13 04:31:34 bjorng Exp $
 %%
 
 -module(wings__du).
@@ -93,15 +93,15 @@ uv_face_vtx(Pos, _) ->
 %%  vertex colors, (1.0, 1.0, 1.0) will be used.
 vcol_face([A,B,C], [Ca,Cb,Cc]) ->
     vcol_face_vtx(A, Ca),
-    vcol_face_vtx(B, Cb),
-    vcol_face_vtx(C, Cc);
+    vcol_face_vtx(B, Cb, Ca),
+    vcol_face_vtx(C, Cc, Cb);
 vcol_face([A,B,C,D], [Ca,Cb,Cc,Cd]) ->
     vcol_face_vtx(A, Ca),
-    vcol_face_vtx(B, Cb),
-    vcol_face_vtx(C, Cc),
+    vcol_face_vtx(B, Cb, Ca),
+    vcol_face_vtx(C, Cc, Cb),
     gl:vertex3fv(C),
-    vcol_face_vtx(D, Cd),
-    vcol_face_vtx(A, Ca).
+    vcol_face_vtx(D, Cd, Cc),
+    vcol_face_vtx(A, Ca, Cd).
 
 %% vcol_face([{VertexA,VertexB,VertexC}], [Position], [Color]) -> ok
 %%  Draw a face with vertex colors. For vertices without
@@ -110,16 +110,22 @@ vcol_face(Fs, VsPos, Cols) ->
     vcol_face_1(Fs, none, list_to_tuple(Cols), list_to_tuple(VsPos)).
 
 vcol_face_1([{A,B,C}|Fs], Prev, Ctab, Vtab) ->
+    Acol = element(A, Ctab),
     if
 	A =:= Prev ->
 	    gl:vertex3fv(element(A, Vtab));
 	true ->
-	    vcol_face_vtx(element(A, Vtab), element(A, Ctab))
+	    vcol_face_vtx(element(A, Vtab), Acol)
     end,
-    vcol_face_vtx(element(B, Vtab), element(B, Ctab)),
-    vcol_face_vtx(element(C, Vtab), element(C, Ctab)),
+    vcol_face_vtx(element(B, Vtab), Bcol=element(B, Ctab), Acol),
+    vcol_face_vtx(element(C, Vtab), element(C, Ctab), Bcol),
     vcol_face_1(Fs, C, Ctab, Vtab);
 vcol_face_1([], _, _, _) -> ok.
+
+vcol_face_vtx(Pos, Prev, Prev) ->
+    gl:vertex3fv(Pos);
+vcol_face_vtx(Pos, Col, _) ->
+    vcol_face_vtx(Pos, Col).
 
 vcol_face_vtx(Pos, {R,G,B}) ->
     gl:color3f(R, G, B),
@@ -216,15 +222,15 @@ smooth_uv_face_vtx(P, [_|N]) ->
 %%  vertex colors, (1.0, 1.0, 1.0) will be used.
 smooth_vcol_face([A,B,C], [Ai,Bi,Ci]) ->
     smooth_vcol_face_vtx(A, Ai),
-    smooth_vcol_face_vtx(B, Bi),
-    smooth_vcol_face_vtx(C, Ci);
+    smooth_vcol_face_vtx(B, Bi, Ai),
+    smooth_vcol_face_vtx(C, Ci, Bi);
 smooth_vcol_face([A,B,C,D], [Ai,Bi,Ci,Di]) ->
     smooth_vcol_face_vtx(A, Ai),
-    smooth_vcol_face_vtx(B, Bi),
-    smooth_vcol_face_vtx(C, Ci),
+    smooth_vcol_face_vtx(B, Bi, Ai),
+    smooth_vcol_face_vtx(C, Ci, Bi),
     gl:vertex3fv(C),
-    smooth_vcol_face_vtx(D, Di),
-    smooth_vcol_face_vtx(A, Ai).
+    smooth_vcol_face_vtx(D, Di, Ci),
+    smooth_vcol_face_vtx(A, Ai, Di).
 
 %% smooth_vcol_face([{VertexA,VertexB,VertexC}],
 %%                  [Position], [[Color|VertexNormal]]) -> ok
@@ -234,16 +240,23 @@ smooth_vcol_face(Fs, VsPos, Cols) ->
     smooth_vcol_face_1(Fs, none, list_to_tuple(VsPos), list_to_tuple(Cols)).
 
 smooth_vcol_face_1([{A,B,C}|Fs], Prev, Vtab, Ctab) ->
+    Ai = element(A, Ctab),
     if
 	A =:= Prev ->
 	    gl:vertex3fv(element(A, Vtab));
 	true ->
-	    smooth_vcol_face_vtx(element(A, Vtab), element(A, Ctab))
+	    smooth_vcol_face_vtx(element(A, Vtab), Ai)
     end,
-    smooth_vcol_face_vtx(element(B, Vtab), element(B, Ctab)),
-    smooth_vcol_face_vtx(element(C, Vtab), element(C, Ctab)),
+    smooth_vcol_face_vtx(element(B, Vtab), Bi=element(B, Ctab), Ai),
+    smooth_vcol_face_vtx(element(C, Vtab), element(C, Ctab), Bi),
     smooth_vcol_face_1(Fs, C, Vtab, Ctab);
 smooth_vcol_face_1([], _, _, _) -> ok.
+
+smooth_vcol_face_vtx(P, [Col|N], [Col|_]) ->
+    gl:normal3fv(N),
+    gl:vertex3fv(P);
+smooth_vcol_face_vtx(P, Attr, _) ->
+    smooth_vcol_face_vtx(P, Attr).
 
 smooth_vcol_face_vtx(P, [{R,G,B}|N]) ->
     gl:color3f(R, G, B),
