@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.43 2002/11/22 10:08:51 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.44 2002/11/22 12:09:18 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -111,7 +111,7 @@ pick_init_1(#dlo{orig_sel=none,sel=SelDlist}=D, Mode) ->
     D#dlo{orig_sel=SelDlist,orig_mode=Mode};
 pick_init_1(D, _) -> D.
 
-clear_orig_sel() ->
+pick_finish() ->
     wings_draw_util:map(fun clear_orig_sel/2, []).
 
 clear_orig_sel(D, _) -> D#dlo{orig_sel=none,orig_mode=none}.
@@ -165,15 +165,9 @@ handle_event_3(Event, Ss, St) ->
 handle_event_4(Event, Ss, St0) ->
     case wings_hotkey:event(Event, St0) of
 	next -> handle_event_5(Event, Ss, St0);
-	{view,Cmd} ->
-	    St = wings_view:command(Cmd, St0),
-	    get_event(Ss, St);
-	{select,Cmd} ->
-	    case wings_sel_cmd:command(Cmd, St0) of
-		St0 -> keep;
-		{save_state,St} -> filter_sel_command(Ss, St);
-		St -> filter_sel_command(Ss, St)
-	    end;
+	{Menu,_}=Act when Menu == view; Menu == select->
+	    wings_io:putback_event({action,Act}),
+	    keep;
 	_Other -> keep
     end.
 
@@ -191,11 +185,19 @@ handle_event_5({action,{select,Cmd}}, Ss, St0) ->
 	{save_state,St} -> filter_sel_command(Ss, St);
 	St -> filter_sel_command(Ss, St)
     end;
+handle_event_5({action,{view,auto_rotate}}, _, _) ->
+    keep;
 handle_event_5({action,{view,Cmd}}, Ss, St0) ->
     St = wings_view:command(Cmd, St0),
     get_event(Ss, St);
 handle_event_5({action,{secondary_selection,Cmd}}, Ss, St) ->
     secondary_selection(Cmd, Ss, St);
+handle_event_5({action,{menu,view,X,Y}}, _, St) ->
+    wings_view:menu(X, Y, St);
+handle_event_5({action,{menu,select,X,Y}}, _, St) ->
+    wings_sel_cmd:menu(X, Y, St);
+handle_event_5({action,{menu,_,_,_}}, _, _) ->
+    keep;
 handle_event_5({action,Cmd}, Ss, St) ->
     set_last_axis(Ss, St),
     wings_io:putback_event({action,Cmd}),
@@ -210,7 +212,7 @@ handle_event_5(_Event, Ss, St) ->
     get_event(Ss, St).
 
 secondary_selection(abort, _Ss, _St) ->
-    clear_orig_sel(),
+    pick_finish(),
     wings_io:clear_message(),
     wings_wm:dirty(),
     pop.
@@ -245,7 +247,7 @@ translate_key(#keyboard{keysym=KeySym}) ->
 translate_key(_Event) -> next.
 
 translate_key_1(#keysym{sym=27}) ->		%Escape
-    clear_orig_sel(),
+    pick_finish(),
     wings_io:clear_message(),
     wings_io:message("Command aborted"),
     wings_wm:dirty(),
@@ -271,7 +273,7 @@ execute(MenuEntry) ->
 		     Fun(1, dummy)
 	     end,
     wings_io:putback_event({action,Action}),
-    clear_orig_sel(),
+    pick_finish(),
     wings_io:clear_message(),
     wings_wm:dirty(),
     pop.
