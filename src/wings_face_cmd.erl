@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.119 2004/12/23 06:39:05 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.120 2004/12/23 06:52:39 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -1283,23 +1283,27 @@ outer_edge_loop(Faces, We) ->
     case any_duplicates(Es0, Key) of
 	false ->
 	    Es = gb_trees:from_orddict(Es0),
-	    outer_edge_loop_1(Key, Val, Es, []);
+	    case outer_edge_loop_1(Val, Es, []) of
+		error -> error;
+		{Key,Loop} -> Loop;
+		{_,_} -> error
+	    end;
 	true -> error
     end.
 
-outer_edge_loop_1(Va, {Edge,Va,Vb}, Es0, Acc0) ->
+outer_edge_loop_1({Edge,Vb}, Es0, Acc0) ->
     Acc = [Edge|Acc0],
     case gb_trees:lookup(Vb, Es0) of
 	none ->
 	    %% This loop is finished. We'll succeed only if
 	    %% there are no more edges left.
 	    case gb_trees:is_empty(Es0) of
-		true -> Acc;
+		true -> {Vb,Acc};
 		false -> error
 	    end;
 	{value,Val} ->
 	    Es = gb_trees:delete(Vb, Es0),
-	    outer_edge_loop_1(Vb, Val, Es, Acc)
+	    outer_edge_loop_1(Val, Es, Acc)
     end.
 
 any_duplicates([{V,_}|_], V) -> true;
@@ -1339,12 +1343,12 @@ collect_outer_edges_1(Fs0, Faces0, #we{fs=Ftab}=We) ->
 collect_outer_edges_a(Faces) ->
     fun(Face, _, Edge, #edge{ve=V,vs=OtherV,lf=Face,rf=Other}, Acc) ->
 	    case gb_sets:is_member(Other, Faces) of
-		false -> [{V,{Edge,V,OtherV}}|Acc];
+		false -> [{V,{Edge,OtherV}}|Acc];
 		true -> Acc
 	    end;
        (Face, _, Edge, #edge{ve=OtherV,vs=V,rf=Face,lf=Other}, Acc) ->
 	    case gb_sets:is_member(Other, Faces) of
-		false -> [{V,{Edge,V,OtherV}}|Acc];
+		false -> [{V,{Edge,OtherV}}|Acc];
 		true -> Acc
 	    end
     end.
@@ -1352,12 +1356,12 @@ collect_outer_edges_a(Faces) ->
 collect_outer_edges_b(Faces) ->
     fun(Face, _, Edge, #edge{vs=V,ve=OtherV,lf=Face,rf=Other}, Acc) ->
 	    case gb_sets:is_member(Other, Faces) of
-		false -> [{V,{Edge,V,OtherV}}|Acc];
+		false -> [{V,{Edge,OtherV}}|Acc];
 		true -> Acc
 	    end;
        (Face, _, Edge, #edge{vs=OtherV,ve=V,rf=Face,lf=Other}, Acc) ->
 	    case gb_sets:is_member(Other, Faces) of
-		false -> [{V,{Edge,V,OtherV}}|Acc];
+		false -> [{V,{Edge,OtherV}}|Acc];
 		true -> Acc
 	    end
     end.
@@ -1383,7 +1387,7 @@ part_collect_cycle(_, repeated, _, _) ->
     %% Can only happen if we were called recursively because
     %% a fork was encountered.
     none;
-part_collect_cycle(Va, [{Edge,Va,Vb}], Es0, Acc0) ->
+part_collect_cycle(_Va, [{Edge,Vb}], Es0, Acc0) ->
     %% Basic case. Only one way to go.
     Acc = [Edge|Acc0],
     case gb_trees:lookup(Vb, Es0) of
