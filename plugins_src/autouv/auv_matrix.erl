@@ -9,11 +9,12 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_matrix.erl,v 1.6 2002/10/18 10:07:32 bjorng Exp $
+%%
+%%     $Id: auv_matrix.erl,v 1.7 2002/10/18 22:25:38 raimo_niskanen Exp $
 
 -module(auv_matrix).
 
--export([size/1]).
+-export([dim/1]).
 -export([vector/1, vector/2]).
 -export([rows/1, rows/2, cols/1, cols/2]).
 -export([cat_cols/2, cat_rows/2]).
@@ -31,13 +32,13 @@
 
 %% Exported
 %%
-size({?TAG,N,M,_}) ->
+dim({?TAG,N,M,_}) ->
     {N,M};
-size({?TAG,N,_}) ->
+dim({?TAG,N,_}) ->
     {N,1};
-size(V) when number(V) ->
+dim(V) when number(V) ->
     {1,1};
-size(A) ->
+dim(A) ->
     erlang:fault(badarg, [A]).
 
 
@@ -241,8 +242,8 @@ trans_mk_col_r([[] | A], B, C) ->
 
 %% Exported
 %%
-mult({?TAG,_N,_} = A, {?TAG,1,M,[B]}) ->
-    mult_trans(A, {?TAG,M,B});
+mult({?TAG,K,_M} = A, {?TAG,1,K,[B]}) ->
+    mult_trans(A, {?TAG,K,B});
 mult({?TAG,_,K,_} = A, {?TAG,K,_,_} = B) ->
     mult_trans(A, trans(B));
 mult({?TAG,1,M,[A]}, {?TAG,M,B}) ->
@@ -397,7 +398,9 @@ reduce_zap([Z, _, V | Row] = R, [[Z, _, Va | RowA] | A], C)
 		    [Zc | [Vc | _] = RowC] when float(Vc) ->
 			[Z+1+Zc, 1.0/abs(Vc) | RowC];
 		    [Zc] ->
-			[Z+1+Zc, infinity]
+			[Z+1+Zc, infinity];
+		    [] ->
+			[Z+1, infinity]
 	       end | C]);
 reduce_zap(_, [], C) ->
     lists:sort(C);
@@ -550,29 +553,35 @@ vec_mult_const(F, [Z | B], C) ->
 vec_mult_const(_, [], C) ->
     lists:reverse(C).
 
-vec_mult([Va | A], BB, S) when integer(Va) ->
-    vec_mult_pop(Va, A, BB, S);
-vec_mult([_ | _] = AA, [Vb | B], S) when integer(Vb) ->
-    vec_mult_pop(Vb, B, AA, S);
-vec_mult([Va | A], [Vb | B], S) when float(Va) ->
-    vec_mult(A, B, Va*Vb+S);
+vec_mult([Za | A], B, S) when integer(Za) ->
+    vec_mult_pop(Za, A, B, S);
+vec_mult(A, [Zb | B], S) when integer(Zb) ->
+    vec_mult_pop(Zb, B, A, S);
+vec_mult([Va | A], [Vb | B], S) when float(Va), float(Vb), float(S) ->
+    vec_mult(A, B, Va*Vb + S);
 vec_mult([], _, S) ->
     S;
 vec_mult(_, [], S) ->
     S.
 
-vec_mult_pop(0, AA, BB, S) ->
-    vec_mult(AA, BB, S);
-vec_mult_pop(N, AA, [Vb | B], S) when float(Vb) ->
-    vec_mult_pop(N-1, AA, B, S);
-vec_mult_pop(N, AA, [Vb | B], S) when N < Vb ->
-    vec_mult_pop(Vb-N, B, AA, S);
-vec_mult_pop(N, AA, [Vb | B], S) when Vb < N ->
-    vec_mult_pop(N-Vb, AA, B, S);
-vec_mult_pop(_, AA, [_Vb | B], S) -> %% N == Vb
-    vec_mult(AA, B, S);
+vec_mult_pop(_, [], _, S) ->
+    S;
+vec_mult_pop(0, A, B, S) ->
+    vec_mult(A, B, S);
+vec_mult_pop(Za, A, [Vb | B], S) when float(Vb) ->
+    vec_mult_pop(Za-1, A, B, S);
+vec_mult_pop(_, _, [_], S) -> % when integer(Zb)
+    S;
+vec_mult_pop(Za, A, [Zb | B], S) when Za < Zb ->
+    vec_mult_pop(Zb-Za, B, A, S);
+vec_mult_pop(Za, A, [Zb | B], S) when Zb < Za ->
+    vec_mult_pop(Za-Zb, A, B, S);
+vec_mult_pop(_, A, [_ | B], S) -> % when Za == Zb
+    vec_mult(A, B, S);
 vec_mult_pop(_, _, [], S) ->
     S.
+
+
 
 %% Push value; zeros or float
 push_v(0.0, C) ->

@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.13 2002/10/18 21:57:29 dgud Exp $
+%%     $Id: auv_mapping.erl,v 1.14 2002/10/18 22:25:39 raimo_niskanen Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -263,7 +263,7 @@ lsq_int(L, {P1,{U1,V1}} = PUV1, {P2,{U2,V2}} = PUV2, Method) ->
     %% Compose the matrix and vector to solve
     %% for a Least SQares solution.
     {Af,B} = 
-	?TC(build_matrixes(N,M,Mf1c,Mp1c,Mf2c,Mp2c,Mf2nc,Mp2nc,UVa,UVb)),
+	?TC(build_matrixes(N,Mf1c,Mp1c,Mf2c,Mp2c,Mf2nc,Mp2nc,UVa,UVb)),
     ?DBG("Solving matrixes~n", []),
     X = case Method of
 	    cg ->
@@ -301,11 +301,10 @@ build_cols(M1,M2,M2n,Q1uv,Q2uv) ->
     {Mf2nc,Mp2nc} = pick(M2nc, QaQb),
     {{Mf1c,Mp1c},{Mf2c,Mp2c},{Mf2nc,Mp2nc},UVa,UVb}.
 
-build_matrixes(N,_M,Mf1c,Mp1c,Mf2c,Mp2c,Mf2nc,Mp2nc,{Ua,Va},{Ub,Vb}) ->
+build_matrixes(N,Mf1c,Mp1c,Mf2c,Mp2c,Mf2nc,Mp2nc,{Ua,Va},{Ub,Vb}) ->
     %% Build the matrixes Af and Ap, and vector B
     %% A = [ M1 -M2 ],  B = Ap U, U is vector of pinned points
     %%     [ M2  M1 ]
-%    MM = 2*(M-2),
     Afu = auv_matrix:cols(N, Mf1c++Mf2nc),
     Afl = auv_matrix:cols(N, Mf2c++Mf1c),
     Af = auv_matrix:cat_rows(Afu, Afl),
@@ -327,6 +326,7 @@ build_matrixes(N,_M,Mf1c,Mp1c,Mf2c,Mp2c,Mf2nc,Mp2nc,{Ua,Va},{Ub,Vb}) ->
 minimize(A,B) ->
     AA = ?TC(mk_solve_matrix(A, B)),
     AAA = ?TC(auv_matrix:reduce(AA)),
+%%    ?DBG("Reduced: ~p~n", [AAA]),
     X   = ?TC(auv_matrix:backsubst(AAA)),
     ?DBG("Solved~n",[]),
     X.    
@@ -347,9 +347,9 @@ mk_solve_matrix(Af,B) ->
 %% iteration start vector.
 %%
 minimize_cg(A, X0, B) ->
-    {N,M} = auv_matrix:size(A),
-    {M,1} = auv_matrix:size(X0),
-    {N,1} = auv_matrix:size(B),
+    {N,M} = auv_matrix:dim(A),
+    {M,1} = auv_matrix:dim(X0),
+    {N,1} = auv_matrix:dim(B),
     I = M,
     Epsilon = 1.0e-3,
     At = auv_matrix:trans(A),
@@ -364,12 +364,12 @@ minimize_cg(A, X0, B) ->
 minimize_cg(At, A, _, _, 
 	    _, 0, D, _, X) ->
     ?DBG("minimize_cg() sizes were ~p ~p ~p~n", 
-	 [auv_matrix:size(At), auv_matrix:size(A), auv_matrix:size(D)]),
+	 [auv_matrix:dim(At), auv_matrix:dim(A), auv_matrix:dim(D)]),
     {stopped, X};
 minimize_cg(At, A, _, Delta_max, 
 	    Delta, _, D, _, X) when Delta < Delta_max ->
     ?DBG("minimize_cg() sizes were ~p ~p ~p~n", 
-	 [auv_matrix:size(At), auv_matrix:size(A), auv_matrix:size(D)]),
+	 [auv_matrix:dim(At), auv_matrix:dim(A), auv_matrix:dim(D)]),
     {ok, X};
 minimize_cg(At, A, AtB, Delta_max, 
 	    Delta, I, D, R, X) ->
@@ -462,7 +462,7 @@ lsq_triangles(L, Dict, M) ->
 %% pinned points. Re-translate the point identities.
 %%
 lsq_result(X, QUV1, QUV2, Rdict) ->
-    {MM,1} = auv_matrix:size(X),
+    {MM,1} = auv_matrix:dim(X),
 %     {_,UlistVlistR} =
 % 	lists:foldl(
 % 	  fun ({J,UV}, {J,R}) ->
