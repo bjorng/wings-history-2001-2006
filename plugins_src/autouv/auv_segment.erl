@@ -9,12 +9,11 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.26 2002/10/26 19:08:35 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.27 2002/10/27 06:53:13 bjorng Exp $
 
 -module(auv_segment).
 
--export([create/2, segment_by_material/1, cleanup_bounds/3,
-	 cut_model/3, map_vertex/2]).
+-export([create/2, segment_by_material/1, cut_model/3, map_vertex/2]).
 -export([degrees/0]). %% Debug
 -include("wings.hrl").
 -include("auv.hrl").
@@ -27,19 +26,10 @@ create(Mode, We0) ->
 	feature ->
 	    {_Distances,Charts0,Cuts0,_Feats} = segment_by_feature(We0),
 	    {Charts0, Cuts0};
-%	    DbgCh = sofs:to_external(sofs:relation_to_family(sofs:relation(_Distances))),
-%	    DbgCu = gb_sets:from_list(_Feats),
-%	    {DbgCh, DbgCu};
 	autouvmap ->
 	    Charts0 = segment_by_direction(We0),
-	    {Charts0, gb_sets:empty()};
-	mat_uvmap ->
-	    Charts0 = segment_by_material(We0),
-	    {Charts0, gb_sets:empty()};
-	one ->
-	    {[{0, gb_trees:keys(We0#we.fs)}], gb_sets:empty()}
+	    {Charts0, gb_sets:empty()}
     end.
-
 
 %% Removes all boundary edges, i.e. only keeps edges that cut 
 %% a cluster. 
@@ -318,17 +308,12 @@ build_charts(Features0, VEG, EWs, We0) ->
     {DistTree,LocalMaxs} = find_local_max(Distances, Features0, FaceGraph, We0),
     ?DBG("local max ~p ~p ~n", [length(LocalMaxs), LocalMaxs]),
     {Charts0,Bounds0} = expand_charts(LocalMaxs, Max + 1, DistTree, VEG,EWs, We0),
-    Charts1 = fix_charts(lists:keysort(2,gb_trees:to_list(Charts0)), undefined, -1, []),
-    %%    ?DBG("Charts ~p ~p ~n", [Charts1,Bounds]),
-    Bounds1 = cleanup_bounds(Bounds0, Charts0, We0),
-    {Distances, Charts1, Bounds1}.
-
-fix_charts([{Face,Chart}|Rest], Chart, G, [{G,Old}|Acc]) -> 
-    fix_charts(Rest, Chart, G, [{G,[Face|Old]}|Acc]);
-fix_charts([{Face,Chart}|Rest], _Old, G, Acc) ->
-    fix_charts(Rest, Chart, G+1, [{G+1,[Face]}|Acc]);
-fix_charts([],_,_,Acc) ->
-    Acc.
+    Charts1 = sofs:from_external(gb_trees:to_list(Charts0), [{atom,atom}]),
+    Charts2 = sofs:converse(Charts1),
+    Charts3 = sofs:relation_to_family(Charts2),
+    Charts = sofs:to_external(sofs:range(Charts3)),
+    Bounds = cleanup_bounds(Bounds0, Charts0, We0),
+    {Distances, Charts, Bounds}.
     
 add_face_edges_to_heap(Face, FaceDist, ChartBds, Heap, EWs, We) ->
     Find = fun(_V, Edge, #edge{lf=LF,rf=RF}, Heap0) ->		   
@@ -572,11 +557,9 @@ segment_by_cluster(Rel0, We) ->
     Groups0 = sofs:range(Clustered),
     Groups = sofs:to_external(Groups0),
     Neigh = [wings_sel:face_regions(Group, We) || Group <- Groups],
-    Mod = fun(List, {N,Acc}) ->
-		  {N+1,[{N,gb_sets:to_list(L)} || L <- List]++Acc}
-	  end,
-    {_,Charts0} = lists:foldl(Mod, {0,[]}, Neigh),
-    Charts0.
+    foldl(fun(List, Acc) ->
+		  [gb_sets:to_list(L) || L <- List]++Acc
+	  end, [], Neigh).
 
 %%%
 %%% Map back to the original vertex.

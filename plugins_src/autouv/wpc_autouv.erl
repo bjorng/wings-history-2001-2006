@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.27 2002/10/26 20:47:26 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.28 2002/10/27 06:53:13 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -95,13 +95,13 @@ start_uvmap_1(#st{sel=[{Id,_}],shapes=Shs}=St0) ->
     {seq,{push,dummy},get_seg_event(#seg{selmodes=Modes,st=St})}.
 
 get_seg_event(Ss) ->
-    Message = ["[L] Select  [R] Show menu  "|wings_camera:help()],
-    wings_io:message(Message),
-    wings_io:message_right("Segmenting"),
     wings_wm:dirty(),
     {replace,fun(Ev) -> seg_event(Ev, Ss) end}.
 
 seg_event(redraw, #seg{st=St}) ->
+    Message = ["[L] Select  [R] Show menu  "|wings_camera:help()],
+    wings_io:message(Message),
+    wings_io:message_right("Segmenting"),
     wings:redraw(St),
     keep;
 seg_event(Ev, Ss) ->
@@ -304,9 +304,9 @@ segment(Mode, #st{shapes=Shs}=St) ->
 
     %% Use materials to mark different charts
     Template = list_to_tuple([make_mat(Diff) || {_,Diff} <- seg_materials()]),
-    assign_materials(Charts, We1, Template, St).
+    assign_materials(Charts, We1, Template, 0, St).
 
-assign_materials([{I0,Faces}|T], #we{fs=Ftab0}=We0, Template, #st{mat=Mat0}=St0) ->
+assign_materials([Faces|T], #we{fs=Ftab0}=We0, Template, I0, #st{mat=Mat0}=St0) ->
     I = I0 + 1,
     MatName = list_to_atom("AuvChart" ++ integer_to_list(I)),
     Ftab = foldl(fun(F, A) ->
@@ -316,27 +316,25 @@ assign_materials([{I0,Faces}|T], #we{fs=Ftab0}=We0, Template, #st{mat=Mat0}=St0)
     We = We0#we{fs=Ftab},
     case gb_trees:is_defined(MatName, Mat0) of
 	true ->
-	    assign_materials(T, We, Template, St0);
+	    assign_materials(T, We, Template, I, St0);
 	false ->
 	    MatDef = element(I0 rem size(Template) + 1, Template),
 	    {St,[]} = wings_material:add_materials([{MatName,MatDef}], St0),
-	    assign_materials(T, We, Template, St)
+	    assign_materials(T, We, Template, I, St)
     end;
-assign_materials([], #we{id=Id}=We, _, #st{shapes=Shs0}=St) ->
+assign_materials([], #we{id=Id}=We, _, _, #st{shapes=Shs0}=St) ->
     Shs = gb_trees:update(Id, We, Shs0),
     St#st{shapes=Shs}.
 
 %%%%%%
 
-init_uvmap(Method, #we{id=Id,name=Name}=We0, St0) ->
+init_uvmap(Method, #we{id=Id,name=Name,he=Cuts}=We0, St0) ->
     Charts = auv_segment:segment_by_material(We0),
     ?DBG("Found ~p charts~n", [length(Charts)]),
-    Cuts = auv_segment:cleanup_bounds(We0#we.he, Charts, We0),
     We1 = gb_trees:get(Id, St0#st.shapes),
-    ChartsWithoutIds = [L || {_,L} <- Charts],
-    {We,ChangedByCut} = auv_segment:cut_model(Cuts, ChartsWithoutIds, We1),
+    {We,ChangedByCut} = auv_segment:cut_model(Cuts, Charts, We1),
     ?DBG("Vertex map: ~p\n", [gb_trees:to_list(ChangedByCut)]),
-    Areas0 = init_areas(Charts, [], Method, We),
+    Areas0 = init_charts(Charts, Method, We, []),
 
     %% Place the cluster on the texturemap
     Map = auv_placement:place_areas(Areas0, We),
@@ -351,18 +349,15 @@ init_uvmap(Method, #we{id=Id,name=Name}=We0, St0) ->
 		   geom=Geom},
     {seq,{push,dummy},get_event(Uvs)}.
 
-init_areas([Chart={_,Fs}|R], A, Type, We) ->
-    MappedVs = 
-	case Type of 
-	    project -> 
-		auv_mapping:projectFromChartNormal(Chart, We);
-	    lsqcm ->
-		auv_mapping:lsqcm(Chart, We)
-	end,
-    New = #a{fs = Fs, vpos = MappedVs},
-    init_areas(R, [New|A], Type, We);
-init_areas([], A, _Type, _We) ->
-    A.
+init_charts([C|Cs], Type, We, A) ->
+    Vs = case Type of 
+	     project -> 
+		 auv_mapping:projectFromChartNormal(C, We);
+	     lsqcm ->
+		 auv_mapping:lsqcm(C, We)
+	 end,
+    init_charts(Cs, Type, We, [#a{fs=C,vpos=Vs}|A]);
+init_charts([], _, _, A) -> A.
    
 insert_uvcoords(#areas{orig_we=We0,we=WorkWe,as=UV,matname=MatName,vmap=Vmap}) ->
     UVpos = gen_uv_pos(gb_trees:values(UV), WorkWe, []),

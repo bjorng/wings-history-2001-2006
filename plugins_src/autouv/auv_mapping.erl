@@ -5,11 +5,11 @@
 %%%
 %%% Created :  4 Oct 2002 by Dan Gudmundsson <dgud@erix.ericsson.se>
 %%%-------------------------------------------------------------------
-%%  Copyright (c) 2001-2002 Dan Gudmundsson, Raimo Niskanen
+%%  Copyright (c) 2001-2002 Dan Gudmundsson, Raimo Niskanen, Bjorn Gustavsson.
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.18 2002/10/25 10:19:28 dgud Exp $
+%%     $Id: auv_mapping.erl,v 1.19 2002/10/27 06:53:13 bjorng Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -65,7 +65,7 @@ tc(Module, Line, Fun) ->
 %    %%		?DBG("Projected by ~p using camera ~p ~n", [N2, _CI]),
 %    [create_area(Clustered, N2, We0)];
 
-projectFromChartNormal({_Id,Chart},We) ->
+projectFromChartNormal(Chart, We) ->
     CalcNormal = fun(Face, Sum) ->
 			 Normal = wings_face:normal(Face, We),
 			 Vs0 = wpa:face_vertices(Face, We),
@@ -76,15 +76,11 @@ projectFromChartNormal({_Id,Chart},We) ->
     N0 = lists:foldl(CalcNormal, e3d_vec:zero(), Chart),
     Normal = e3d_vec:norm(N0),
     Vs0 = wings_face:to_vertices(Chart, We),
-    Vs2 = project2d(Vs0, Normal, We),
-    Vs2.
+    project2d(Vs0, Normal, We).
 
 project2d(Vs, Normal, We) ->
     Rot = e3d_mat:rotate_s_to_t(Normal,{0.0,0.0,1.0}),
-    Res = [{V,e3d_mat:mul_point(Rot, wings_vertex:pos(V, We))} || 
-	      V <- Vs],
-    Res.
-
+    [{V,e3d_mat:mul_point(Rot, wings_vertex:pos(V, We))} || V <- Vs].
 
 %% Alg. found in comp.graphics.algorithms faq
 %% To be correct it needs the polygons to flat but we
@@ -133,10 +129,10 @@ get_verts([#e3d_face{vs = Vs}|Fs],I,Coords,Acc) ->
 get_verts([],I,_,Acc) ->
     {Acc, I}.
 
-lsqcm(C = {_Id, Fs}, We) ->
+lsqcm(Fs, We) ->
     ?DBG("Project and tri ~n", []),
     {Vs1,Area} = ?TC(project_and_triangulate(Fs,We,-1,[],0.0)),    
-    {V1, V2} = ?TC(find_pinned(C, We)),
+    {V1, V2} = ?TC(find_pinned(Fs, We)),
     ?DBG("LSQ ~p ~p~n", [V1,V2]),
 %    Idstr = lists:flatten(io_lib:format("~p", [Id])),
 %    {ok, Fd} = file:open("raimo_" ++ Idstr, [write]),
@@ -169,11 +165,11 @@ calc_2dface_area([Face|Rest],We,Area) ->
 calc_2dface_area([],_,Area) ->
     Area.
 
-find_pinned(C = {_Id, Faces}, We) ->
+find_pinned(Faces, We) ->
     {Circumference, BorderEdges} = 
 	case auv_placement:group_edge_loops(Faces, We, false) of
 	    [] -> 
-		exit({invalid_chart, {C, is_closed_surface}});
+		exit({invalid_chart, {Faces, is_closed_surface}});
 	    [Best|_] ->
 		Best
 	end,
