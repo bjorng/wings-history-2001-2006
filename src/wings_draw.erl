@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.128 2003/06/12 04:40:14 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.129 2003/06/28 18:10:49 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -401,7 +401,12 @@ update_dynamic(#dlo{work=[Work|_],vs=VsList0,
     We = We0#we{vp=Vtab},
     Dl = draw_faces(DynPlan, We),
     VsList = update_dynamic_vs(VsList0, DynVs, We),
-    D#dlo{work=[Work,Dl],vs=VsList,src_we=We}.
+    update_dynamic_1(D#dlo{work=[Work,Dl],vs=VsList,src_we=We}).
+
+update_dynamic_1(#dlo{work=Faces,src_we=#we{mode=vertex}}=D) ->
+    Dl = wings_draw_util:force_flat_color(Faces, wings_pref:get_value(edge_color)),
+    D#dlo{edges=Dl};
+update_dynamic_1(D) -> D.
 
 update_dynamic_vs(VsList, none, _) -> VsList;
 update_dynamic_vs([Static|_], DynVs, #we{vp=Vtab}) ->
