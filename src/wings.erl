@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.16 2001/10/11 13:18:40 bjorng Exp $
+%%     $Id: wings.erl,v 1.17 2001/10/17 07:48:25 bjorng Exp $
 %%
 
 -module(wings).
@@ -43,6 +43,7 @@ init() ->
     end.
 
 init_1() ->
+    wings_plugin:init(),
     sdl:init(?SDL_INIT_VIDEO bor ?SDL_INIT_ERLDRIVER),
     catch sdl_video:wm_setIcon(sdl_video:loadBMP(locate("wings.icon")), null),
     sdl_video:gl_setAttribute(?SDL_GL_DOUBLEBUFFER, 1),
@@ -218,14 +219,8 @@ do_command(Cmd, St0) ->
 	{new,#st{}}=Res -> Res
     end.
 
-% do_command_1({C,_}=Cmd, St) when C =:= vertex; C =:= edge;
-% 				 C =:= face; C =:= body ->
-%     {Time,Res} = timer:tc(erlang, apply, [fun command/2,[Cmd,St]]),
-%     io:format("~w: ~s\n", [Time,command_name(St)]),
-%     Res;
 do_command_1(Cmd, St) ->
     command(Cmd, St).
-    
 
 remember_command({C,_}=Cmd, St) when C =:= vertex; C =:= edge;
 				     C =:= face; C =:= body ->
@@ -234,16 +229,26 @@ remember_command(Cmd, St) -> St.
 
 command(ignore, St) ->
     St;
+command({_,{[_|_]}=Plugin}, St0) ->
+    case wings_plugin:command(Plugin, St0) of
+	St0 -> St0;
+	St -> {save_state,model_changed(St)}
+    end;
+command({_,[_|_]=Plugin}, St0) ->
+    case wings_plugin:command(Plugin, St0) of
+	St0 -> St0;
+	St -> {save_state,model_changed(St)}
+    end;
 command({menu,Menu,X,Y}, St) ->
     menu(X, Y, Menu, St),
     St;
 command({shape,{Shape}}, St0) ->
-    case wings_shapes:Shape(dummy, St0) of
+    case wings_shapes:Shape(true, St0) of
 	aborted -> St0;
 	St -> {save_state,model_changed(St)}
     end;
 command({shape,Shape}, St) ->
-    {save_state,model_changed(wings_shapes:Shape(St))};
+    {save_state,model_changed(wings_shapes:Shape(false, St))};
 command({help,What}, St) ->
     wings_help:What(St);
 

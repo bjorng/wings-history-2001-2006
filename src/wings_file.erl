@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.15 2001/10/03 09:24:11 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.16 2001/10/17 07:48:25 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -187,16 +187,16 @@ translate_objects([#e3d_object{name=Name,obj=Obj0}|Os], UsedMat0, St0) ->
 		 none -> identity;
 		 _ -> Matrix0
 	     end,
-    {Fs,UsedMat,GoodTx} = translate_faces(Fs0, [], UsedMat0, true),
+    {Fs,UsedMat} = translate_faces(Fs0, [], UsedMat0),
     St = build_object(Name, Matrix, Fs, Vs, He, St0),
     translate_objects(Os, UsedMat, St);
 translate_objects([], UsedMat, St) -> {UsedMat,St}.
 
-translate_faces([#e3d_face{vs=Vs,tx=Tx,mat=Mat0}|Fs], Acc, UsedMat0, GoodTx) ->
+translate_faces([#e3d_face{vs=Vs,tx=Tx,mat=Mat0}|Fs], Acc, UsedMat0) ->
     UsedMat = add_used_mat(Mat0, UsedMat0),
     Mat = translate_mat(Mat0),
-    translate_faces(Fs, [{Mat,Vs}|Acc], UsedMat, tx_flag(GoodTx, Vs, Tx));
-translate_faces([], Acc, UsedMat, GoodTx) -> {Acc,UsedMat,GoodTx}.
+    translate_faces(Fs, [{Mat,Vs}|Acc], UsedMat);
+translate_faces([], Acc, UsedMat) -> {Acc,UsedMat}.
 
 add_used_mat([], UsedMat) -> UsedMat;
 add_used_mat([M|Ms], UsedMat) -> add_used_mat(Ms, gb_sets:add(M, UsedMat)).
@@ -205,12 +205,11 @@ translate_mat([]) -> default;
 translate_mat([Mat]) -> Mat;
 translate_mat([_|_]=List) -> List.
 
-tx_flag(true, Vs, Vs) -> true;
-tx_flag(_, _, _) -> false.
-    
 build_object(Name, Matrix0, Fs, Vs, He, St) ->
     Matrix = identity,
-    case catch wings_we:build(Matrix, Fs, Vs, He) of
+    case
+	%%catch
+	wings_we:build(Matrix, Fs, Vs, He) of
 	{'EXIT',Reason} ->
 	    io:format("Conversion failed\n"),
 	    St;

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_face.erl,v 1.6 2001/10/03 09:24:11 bjorng Exp $
+%%     $Id: wings_extrude_face.erl,v 1.7 2001/10/17 07:48:25 bjorng Exp $
 %%
 
 -module(wings_extrude_face).
@@ -181,27 +181,13 @@ connect(C, We0, Acc) ->
 	    {connect_inner(Va, Path, We0),Acc}
     end.
 
-% get_edge_chains(G) ->
-%% XXX Not yet.
-%     Vs = digraph:source_vertices(G),
-%     get_edge_chains(G, Vs, []).
-
-% get_edge_chains(G, [V|Vs], Acc) ->
-%     Chain = collect_chain(G, V, []),
-%     get_edge_chains(G, Vs, [Chain|Acc]);
-% get_edge_chains(G, [], Acc) -> Acc.
-
 get_edge_chains(G) ->
-    Vs = digraph:vertices(G),
+    Vs = digraph:source_vertices(G),
     get_edge_chains(G, Vs, []).
 
 get_edge_chains(G, [V|Vs], Acc) ->
-    case digraph:in_degree(G, V) of
-	0 ->
-	    Chain = collect_chain(G, V, []),
-	    get_edge_chains(G, Vs, [Chain|Acc]);
-	Other -> get_edge_chains(G, Vs, Acc)
-    end;
+    Chain = collect_chain(G, V, []),
+    get_edge_chains(G, Vs, [Chain|Acc]);
 get_edge_chains(G, [], Acc) -> Acc.
 
 collect_chain(G, {V,_}=Va, Acc) ->

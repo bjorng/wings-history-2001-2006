@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.6 2001/09/18 12:02:54 bjorng Exp $
+#     $Id: Makefile,v 1.7 2001/10/17 07:48:25 bjorng Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -48,6 +48,7 @@ MODULES= \
 	wings_material \
 	wings_menu \
 	wings_move \
+	wings_plugin \
 	wings_rotate \
 	wings_sel \
 	wings_scale \
@@ -60,7 +61,8 @@ MODULES= \
 	wings_vertex \
 	wings_vertex_cmd \
 	wings_we \
-	wings_view
+	wings_view \
+	wpa
 
 TARGET_FILES= $(MODULES:%=$(EBIN)/%.beam)
 

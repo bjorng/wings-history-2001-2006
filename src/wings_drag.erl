@@ -4,12 +4,12 @@
 %%     This module handles interactive commands and the "camera mode"
 %%     (rotation, zooming, and panning using the middle mouse button).
 %%
-%%  Copyright (c) 2001 Jakob Cederlund, Bjorn Gustavsson
+%%  Copyright (c) 2001 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.12 2001/10/03 09:24:11 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.13 2001/10/17 07:48:25 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -60,12 +60,12 @@ stop_camera(#st{camera=#camera{ox=OX,oy=OY}}=St0) ->
 stop_camera(St) -> St.
 
 init_drag(Tvs0, Constraint, #st{shapes=OldShapes}=St0) ->
+    Tvs = combine(Tvs0),
+    Faces = faces(Tvs, St0),
     sdl_mouse:showCursor(false),
     sdl_video:wm_grabInput(?SDL_GRAB_ON),
-    Tvs = combine(Tvs0),
     {_,X,Y} = sdl_mouse:getMouseState(),
     Drag = #drag{x=X,y=Y,tvs=Tvs,constraint=Constraint,shapes=OldShapes},
-    Faces = faces(Tvs, St0),
     St = St0#st{saved=false,drag=Drag,dl=#dl{drag_faces=Faces}},
     motion(X, Y, St).
 
@@ -78,12 +78,14 @@ view_changed(St) -> St.
 combine(Tvs) ->
     S = sofs:relation(Tvs),
     F = sofs:relation_to_family(S),
+    %% The rest of this function is an optimisation.
     map(fun({Id,[Fun]}) when function(Fun) -> {Id,Fun};
 	   ({Id,L}) ->
-		RR = sofs:relation(lists:append(L)),
-		FF = sofs:relation_to_family(RR),
- 		EF = sofs:to_external(FF),
- 		{Id,map(fun({Vec,Vs}) -> {Vec,lists:append(Vs)} end, EF)}
+		SS = sofs:from_term(L, [[{vec,[vertex]}]]),
+		RR = sofs:union(SS),
+ 		FF = sofs:relation_to_family(RR),
+  		FU = sofs:family_union(FF),
+		{Id,sofs:to_external(FU)}
 	end, sofs:to_external(F)).
 
 abort_drag(#st{drag=undefined}=St) -> no_drag;
@@ -182,7 +184,7 @@ camera_warp(X, Y, XsInc, YsInc, #camera{xs=Xs,ys=Ys}=Camera) ->
 warp_mouse(X, Y) ->
     %% Strangely enough, on Solaris the warp doesn't seem to
     %% work unless the mouse cursor is visible.
-    %% On Windows, the mouse cursor must no be visible.
+    %% On Windows, the mouse cursor must not be visible.
     case os:type() of
 	{unix,solaris} ->
 	    sdl_mouse:showCursor(true),
@@ -287,7 +289,6 @@ faces(Tvs, #st{shapes=Shapes}) ->
 
 faces_1(Tr, #shape{sh=#we{fs=Ftab}=We}) when function(Tr) ->
     gb_sets:from_list(gb_trees:keys(Ftab));
-faces_1(Tr, #shape{}) when function(Tr) -> gb_sets:empty();
 faces_1(Vs0, #shape{sh=#we{}=We}) ->
     foldl(fun ({_,Vs}, Acc) ->
 		  faces_2(Vs, We, Acc)

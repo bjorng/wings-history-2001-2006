@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.9 2001/10/03 09:24:11 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.10 2001/10/17 07:48:25 bjorng Exp $
 %%
 
 -module(wings_shape).
@@ -17,8 +17,8 @@
 -include("wings.hrl").
 -import(lists, [reverse/1,reverse/2]).
 
-new(Prefix, Data, #st{shapes=Shapes0,onext=Oid}=St) ->
-    Sh = #shape{name=Prefix++integer_to_list(Oid),id=Oid,sh=Data},
+new(Name, Data, #st{shapes=Shapes0,onext=Oid}=St) ->
+    Sh = #shape{name=Name,id=Oid,sh=Data},
     Shapes = gb_trees:insert(Oid, Sh, Shapes0),
     St#st{shapes=Shapes,onext=Oid+1}.
 

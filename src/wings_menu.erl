@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.5 2001/10/03 09:24:11 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.6 2001/10/17 07:48:25 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -30,7 +30,8 @@
 	 menu,					%Original menu term
 	 prev=none}).				%Previous mi record or `none'.
 
-menu(X, Y, Name, Menu) ->
+menu(X, Y, Name, Menu0) ->
+    Menu = wings_plugin:menu(Name, Menu0),
     Mi = menu_setup(X, Y, Name, Menu, #mi{}),
     top_level(Mi).
 
@@ -172,7 +173,8 @@ select_item(X0, Y0, #mi{menu=Menu,xleft=Xleft,w=W}=Mi) ->
 		    menu(SubX, SubY, What, SubMenu, Mi#mi{prev=Mi});
 		{Act} when Xleft =< X0, X0 < Xleft+W-2*?CHAR_WIDTH ->
 		    Act;
-		Act when atom(Act); integer(Act); tuple(Act) -> Act
+		Act when atom(Act); integer(Act);
+			 tuple(Act); list(Act) -> Act
 	    end
     end.
 
@@ -235,7 +237,7 @@ menu_draw(X, Y, Shortcut, Mw, I, Menu) ->
 draw_submenu({Item}, X, Y) ->
     wings_io:beveled_rect(X, Y-3, ?CHAR_WIDTH, ?CHAR_WIDTH),
     ?CHECK_ERROR();
-draw_submenu(Item, X, Y) when atom(Item); integer(Item) -> ok;
+draw_submenu(Item, X, Y) when atom(Item);integer(Item); list(Item) -> ok;
 draw_submenu(Item, X, Y) ->
     ?CHECK_ERROR(),
     gl:color3f(0.0, 0.0, 0.0),

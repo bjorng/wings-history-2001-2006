@@ -8,13 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.12 2001/10/03 09:24:11 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.13 2001/10/17 07:48:25 bjorng Exp $
 %%
 
 -module(wings_util).
--export([share/1,share/3,make_vector/1,
-	 fold_shape/3,fold_shape_all/3,
-	 fold_face/3,fold_vertex/3,fold_edge/3,
+-export([share/1,share/3,make_vector/1,ask/3,
+	 fold_shape/3,fold_face/3,fold_vertex/3,fold_edge/3,
 	 foreach_shape/2,foreach_face/2,foreach_edge/2,
 	 average_normals/1,
 	 tc/1,crasch_log/1,validate/1]).
@@ -43,6 +42,26 @@ make_vector(free) -> free;
 make_vector(normal) -> normal;
 make_vector(intrude) -> normal.
 
+ask(false, Qs, Fun) ->
+    Ns = [Def || {_,Def,_,_} <- Qs],
+    Fun(Ns);
+ask(true, Qs, Fun) ->
+    case ask(Qs) of
+	aborted -> aborted;
+	Ns -> Fun(Ns)
+    end.
+
+ask([{Prompt,Default,Min,Max}|T]=T0) ->
+    case wings_getline:number(Prompt ++ ": ", Default) of
+	aborted -> aborted;
+	N ->
+	    case ask(T) of
+		aborted -> ask(T0);
+		Ns -> [N|Ns]
+	    end
+    end;
+ask([]) -> [].
+
 %%%
 %%% `fold' functions.
 %%%
@@ -57,12 +76,6 @@ fold_shape_1(F, Acc, Iter0) ->
 	{Id,Shape,Iter} ->
 	    fold_shape_1(F, F(Shape, Acc), Iter)
     end.
-
-%% Folds over all objects (including hidden). Use for save.
-fold_shape_all(F, Acc, #st{shapes=Shapes,hidden=Hidden}) ->
-    foldl(fun({Id,Shape}, A) ->
-		  F(Shape, A)
-	  end, Acc, gb_trees:to_list(Hidden) ++ gb_trees:to_list(Shapes)).
 
 fold_face(F, Acc, #we{fs=Ftab}) ->
     fold_face_1(F, Acc, gb_trees:iterator(Ftab));

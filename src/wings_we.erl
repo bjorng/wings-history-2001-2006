@@ -10,11 +10,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.15 2001/10/03 09:24:11 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.16 2001/10/17 07:48:25 bjorng Exp $
 %%
 
 -module(wings_we).
--export([build/4,
+-export([build/2,build/3,build/4,
+	 build_edges_only/1,build_rest/4,vpairs_to_edges/2,
 	 new_wrap_range/3,id/2,bump_id/1,
 	 new_id/1,new_ids/2,
 	 invert_normals/1,
@@ -31,7 +32,16 @@
 %%% Build Winged-Edges.
 %%%
 
-build(Matrix, Fs0, Vs, HardEdges) ->
+build(Fs, Vs) ->
+    build(Fs, Vs, []).
+
+build(identity, Fs, Vs, He) ->
+    build(Fs, Vs, He);
+build(Matrix, Fs, Vs0, He) ->
+    Vs = [e3d_mat:mul_point(Matrix, P) || P <- Vs0],
+    build(Fs, Vs, He).
+
+build(Fs0, Vs, HardEdges) ->
     {Good0,Bad0} = build_edges(Fs0),
     {Es0,Fs} = if
 		   Bad0 =:= [] -> {Good0,Fs0};
@@ -42,10 +52,17 @@ build(Matrix, Fs0, Vs, HardEdges) ->
 		       {Good,Fs1}
 	       end,
     Es = number_edges(Es0),
-    Htab = hard_edges(HardEdges, Es),
+    build_rest(Es, Fs, Vs, HardEdges).
+
+build_edges_only(Faces) ->
+    {Good,[]} = build_edges(Faces),
+    number_edges(Good).
+
+build_rest(Es, Fs, Vs, HardEdges) ->
+    Htab = vpairs_to_edges(HardEdges, Es),
     {Vtab0,Etab,Ftab0} = build_tables(Es),
     Ftab = build_faces(Ftab0, Fs),
-    Vtab = fill_in_vertices(Vs, Matrix, Vtab0),
+    Vtab = fill_in_vertices(Vs, Vtab0),
     NextId = 2+last(sort([gb_trees:size(Etab),
 			  gb_trees:size(Ftab),
 			  gb_trees:size(Vtab)])),
@@ -109,14 +126,14 @@ combine_half_edges(HalfEdges) ->
     
 combine_half_edges([{Name,[{left,Ldata},{right,Rdata}]}|Hes], Good, Bad) ->
     combine_half_edges(Hes, [{Name,{Ldata,Rdata}}|Good], Bad);
-combine_half_edges([{Name,Other}|Hes], Good0, Bad) ->
+combine_half_edges([{Name,Other}=BadEdge|Hes], Good0, Bad) ->
     Left = filter(fun({Side,_}) -> Side =:= left end, Other),
     Right = filter(fun({Side,_}) -> Side =:= right end, Other),
     case length(Left) =:= length(Right) of
 	true ->
 	    Good = combine_half_edges_1(Name, Left, Right, Good0),
 	    combine_half_edges(Hes, Good, Bad);
-	false -> combine_half_edges(Hes, Good0, [Other|Bad])
+	false -> combine_half_edges(Hes, Good0, [BadEdge|Bad])
     end;
 combine_half_edges([], Good, Bad) ->
     {reverse(Good),reverse(Bad)}.
@@ -134,8 +151,8 @@ number_edges([{Name,{Ldata,Rdata}=Data}|Es], Edge, Tab0) ->
     number_edges(Es, Edge+1, Tab);
 number_edges([], Edge, Tab) -> reverse(Tab).
 
-hard_edges([], Es) -> gb_sets:empty();
-hard_edges(HardNames0, Es) ->
+vpairs_to_edges([], Es) -> gb_sets:empty();
+vpairs_to_edges(HardNames0, Es) ->
     HardNames = sofs:set([edge_name(He) || He <- HardNames0], [name]),
     SofsEdges = sofs:from_external(Es, [{name,{edge,info}}]),
     SofsHard = sofs:image(SofsEdges, HardNames),
@@ -173,20 +190,16 @@ make_edge_map([], Acc) -> gb_trees:from_orddict(sort(Acc)).
 edge_num(Face, Name, Emap) ->
     gb_trees:get({Face,Name}, Emap).
 
-fill_in_vertices(Ps, Matrix, Vtab0) ->
+fill_in_vertices(Ps, Vtab0) ->
     Vtab1 = sofs:relation(Vtab0),
     Vtab2 = sofs:relation_to_family(Vtab1),
     Vtab = sofs:to_external(Vtab2),
-    fill_in_vertice_pos_1(Vtab, Ps, Matrix, []).
+    fill_in_vertice_pos_1(Vtab, Ps, []).
     
-fill_in_vertice_pos_1([{V,[Edge|_]}|Vs], [Pos|Ps], identity, Vtab0) ->
+fill_in_vertice_pos_1([{V,[Edge|_]}|Vs], [Pos|Ps], Vtab0) ->
     Vtab = [{V,#vtx{edge=Edge,pos=Pos}}|Vtab0],
-    fill_in_vertice_pos_1(Vs, Ps, identity, Vtab);
-fill_in_vertice_pos_1([{V,[Edge|_]}|Vs], [Pos0|Ps], Matrix, Vtab0) ->
-    Pos = e3d_mat:mul_point(Matrix, Pos0),
-    Vtab = [{V,#vtx{edge=Edge,pos=Pos}}|Vtab0],
-    fill_in_vertice_pos_1(Vs, Ps, Matrix, Vtab);
-fill_in_vertice_pos_1([], [], Matrix, Vtab) ->
+    fill_in_vertice_pos_1(Vs, Ps, Vtab);
+fill_in_vertice_pos_1([], [], Vtab) ->
     gb_trees:from_orddict(reverse(Vtab)).
 
 build_faces(Ftab0, Fs) ->
@@ -257,7 +270,6 @@ invert_normals(#we{es=Etab0}=We) ->
 
 invert_dir({N,#edge{vs=Vs,ve=Ve,ltpr=Ltpr,ltsu=Ltsu,rtpr=Rtpr,rtsu=Rtsu}=E}) ->
     {N,E#edge{vs=Ve,ve=Vs,ltpr=Ltsu,ltsu=Ltpr,rtpr=Rtsu,rtsu=Rtpr}}.
-
 
 %%% Merge two winged-edge structures.
 merge(We0, We1) ->
@@ -347,13 +359,24 @@ renumber(#we{vs=Vtab0,es=Etab0,fs=Ftab0,he=Htab0}, Id, RootSet0) ->
     We = #we{vs=Vtab,es=Etab,fs=Ftab,he=Htab,first_id=Id,next_id=NextId},
     {We,RootSet}.
 
-map_rootset([{face,Face}|T], Emap, Vmap, Fmap) ->
-    [{face,gb_trees:get(Face, Fmap)}|map_rootset(T, Emap, Vmap, Fmap)];
+map_rootset([{vertex,Vs}|T], Emap, Vmap, Fmap) when list(Vs) ->
+    [map_all(vertex, Vs, Vmap)|map_rootset(T, Emap, Vmap, Fmap)];
 map_rootset([{vertex,V}|T], Emap, Vmap, Fmap) ->
     [{vertex,gb_trees:get(V, Vmap)}|map_rootset(T, Emap, Vmap, Fmap)];
+map_rootset([{edge,Edges}|T], Emap, Vmap, Fmap) when list(Edges) ->
+    [map_all(edge, Edges, Emap)|map_rootset(T, Emap, Vmap, Fmap)];
 map_rootset([{edge,Edge}|T], Emap, Vmap, Fmap) ->
     [{edge,gb_trees:get(Edge, Emap)}|map_rootset(T, Emap, Vmap, Fmap)];
+map_rootset([{face,Faces}|T], Emap, Vmap, Fmap) when list(Faces)  ->
+    [map_all(face, Faces, Fmap)|map_rootset(T, Emap, Vmap, Fmap)];
+map_rootset([{face,Face}|T], Emap, Vmap, Fmap) ->
+    [{face,gb_trees:get(Face, Fmap)}|map_rootset(T, Emap, Vmap, Fmap)];
+map_rootset([{body,Empty}|T], Emap, Vmap, Fmap) ->
+    [{body,Empty}|map_rootset(T, Emap, Vmap, Fmap)];
 map_rootset([], _, _, _) -> [].
+
+map_all(What, Items, Map) ->
+    {What,[gb_trees:get(Key, Map) || Key <- Items]}.
 
 make_map(Tab, Id0) ->
     make_map(Tab, Id0, []).
