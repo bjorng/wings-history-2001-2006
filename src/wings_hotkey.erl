@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_hotkey.erl,v 1.42 2003/07/28 17:38:48 bjorng Exp $
+%%     $Id: wings_hotkey.erl,v 1.43 2003/08/06 13:52:11 bjorng Exp $
 %%
 
 -module(wings_hotkey).
@@ -238,6 +238,7 @@ modname(Mods) ->
 modname_1([ctrl|T]) -> "Ctrl+"++modname_1(T);
 modname_1([shift|T]) -> "Shift+"++modname_1(T);
 modname_1([alt|T]) -> "Alt+"++modname_1(T);
+modname_1([command|T]) -> "Meta+"++modname_1(T);
 modname_1([]) -> [].
 
 mac_modname([ctrl|T], Acc) ->
