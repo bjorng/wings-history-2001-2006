@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_getline.erl,v 1.19 2003/07/13 18:56:03 bjorng Exp $
+%%     $Id: wings_getline.erl,v 1.20 2003/11/13 05:56:57 bjorng Exp $
 %%
 
 -module(wings_getline).
@@ -57,7 +57,7 @@ readline(Prompt, #text{bef=Bef}=Ts0) ->
     wings_wm:draw_message(
       fun() ->
 	      wings_io:text_at(0, Prompt),
-	      X = ?CHAR_WIDTH * length(Prompt),
+	      X = wings_text:width(Prompt),
 	      Ts = Ts0#text{x=X,y=0},
 	      wings_io:text_at(X, reverse(Bef)),
 	      toggle_cursor(Ts),
@@ -153,25 +153,25 @@ update(#text{bef=BefC,aft=AftC,x=X,y=Y}, #text{bef=BefP,aft=AftP}) ->
     update(reverse(BefC, AftC), reverse(BefP, AftP), X, Y).
 
 update([C|Curr], [C|Prev], X, Y) ->
-    update(Curr, Prev, X+?CHAR_WIDTH, Y);
+    update(Curr, Prev, X+wings_text:width(), Y);
 update([C|Curr], [_|Prev], X, Y) ->
     wings_io:space_at(X, 0),
     wings_io:text_at(X, [C]),
-    update(Curr, Prev, X+?CHAR_WIDTH, Y);
+    update(Curr, Prev, X+wings_text:width(), Y);
 update([_|_]=Curr, [], X, _) ->
     wings_io:text_at(X, Curr);
 update([], [_|Prev], X, Y) ->
     wings_io:space_at(X, Y),
-    update([], Prev, X+?CHAR_WIDTH, Y);
+    update([], Prev, X+wings_text:width(), Y);
 update([], [], _, _) -> ok.
     
 toggle_cursor(#text{bef=Bef,x=X0,y=Y}) ->
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
-    X = X0 + length(Bef) * ?CHAR_WIDTH,
+    X = X0 + wings_text:width(Bef),
     gl:color3f(0.75, 0.75, 0.75),
     gl:enable(?GL_COLOR_LOGIC_OP),
     gl:logicOp(?GL_XOR),
-    gl:recti(X, Y-?LINE_HEIGHT+3, X+?CHAR_WIDTH, Y+3),
+    gl:recti(X, Y-?LINE_HEIGHT+3, X+wings_text:width(), Y+3),
     gl:flush(),
     gl:popAttrib().
 
@@ -221,7 +221,7 @@ col_print(L)  ->
 col_print(Any, Width, Len, X, Y) when Width + Len > 79 ->
     col_print(Any, Width, 0, X, Y+?LINE_HEIGHT);
 col_print([H|T], Width, Len, X, Y) ->
-    wings_io:text_at(X+Len*?CHAR_WIDTH, Y, filename:basename(H)),
+    wings_io:text_at(X+Len*wings_text:width(), Y, filename:basename(H)),
     col_print(T, Width, Len+Width, X, Y);
 col_print([], _, _, _, _) -> ok.
 
