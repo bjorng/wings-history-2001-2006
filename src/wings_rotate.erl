@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_rotate.erl,v 1.14 2001/11/26 08:37:45 bjorng Exp $
+%%     $Id: wings_rotate.erl,v 1.15 2001/12/16 21:30:08 bjorng Exp $
 %%
 
 -module(wings_rotate).
@@ -120,10 +120,10 @@ rotate_fun(We, Vec) ->
 
 rotate(Vs, We, free) when list(Vs) ->
     Center = wings_vertex:center(Vs, We),
-    fun(Sh, Dx, Dy, St) ->
+    {Vs,fun(Sh, Dx, Dy, St) ->
 	    Vec = view_vector(),
 	    {tvs,[{{rot,Center,Vec},Vs}]}
-    end;
+	end};
 rotate(Vs, We, Vec) when list(Vs) ->
     Center = wings_vertex:center(Vs, We),
     [{{rot,Center,Vec},Vs}].

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_move.erl,v 1.16 2001/12/03 07:33:06 bjorng Exp $
+%%     $Id: wings_move.erl,v 1.17 2001/12/16 21:30:08 bjorng Exp $
 %%
 
 -module(wings_move).
@@ -223,10 +223,10 @@ translate_fun({Xt0,Yt0,Zt0}) ->
 %%%
 
 make_tvs(Vs, free) ->
-    fun(Sh, Dx, Dy, St) ->
-	    Matrix = free_translation(Dx, Dy, St),
-	    {tvs,[{{free,Matrix},Vs}]}
-    end;
+    {Vs,fun(Sh, Dx, Dy, St) ->
+	     Matrix = free_translation(Dx, Dy, St),
+	     {tvs,[{{free,Matrix},Vs}]}
+	end};
 make_tvs(Vs, Vec) -> [{Vec,Vs}].
 
 free_translation(Dx, Dy, St) ->

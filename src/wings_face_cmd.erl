@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.19 2001/12/13 19:40:50 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.20 2001/12/16 21:30:08 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -76,10 +76,14 @@ extrude_region_2([], We, Sel) ->
 %%%
 
 bevel_faces(St0) ->
-    {St,OrigVs} = wings_sel:mapfold_region(fun bevel_faces/4, [], St0),
+    {St,OrigVs} = wings_sel:mapfold_shape(fun bevel_faces/4, [], St0),
     wings_scale:bevel_face(sort(OrigVs), St).
 
-bevel_faces(ShId, Faces, We0, Acc) ->
+bevel_faces(Id, Faces, We, Acc) ->
+    Rs = wings_sel:find_face_regions(Faces, We),
+    bevel_faces_1(Rs, Id, We, Acc).
+
+bevel_faces_1([Faces|T], Id, We0, Acc) ->
     DisEdges = wings_face:inner_edges(Faces, We0),
     OrigVs = wings_face:to_vertices(Faces, We0),
     MoveEdges = bevel_move_edges(Faces, We0),
@@ -88,7 +92,8 @@ bevel_faces(ShId, Faces, We0, Acc) ->
     We2 = dissolve_edges(DisEdges, We1),
     We3 = bevel_connect(OrigVs, NewVs, We2),
     We = dissolve_more_edges(OrigVs, NewVs, We3),
-    {We,[{ShId,MoveEdges}|Acc]}.
+    bevel_faces_1(T, Id, We, [{Id,MoveEdges}|Acc]);
+bevel_faces_1([], Id, We, Acc) -> {We,Acc}.
 
 bevel_connect(Vs, NewVs, We) ->
     foldl(fun(V, A) -> bevel_connect_1(V, NewVs, A) end, We, Vs).
@@ -475,9 +480,10 @@ replace_vertex(Old, New, We, Etab0) ->
 
 flatten(Plane0, St) ->
     Plane = wings_util:make_vector(Plane0),
-    wings_sel:map_region(
+    wings_sel:map_shape(
       fun(Faces, We) ->
-	      flatten(Faces, Plane, We)
+	      Rs = wings_sel:find_face_regions(Faces, We),
+	      foldl(fun(Fs, W) -> flatten(Fs, Plane, W) end, We, Rs)
       end, St).
 
 flatten(Faces, normal, We) ->

@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel.erl,v 1.18 2001/12/12 11:28:14 bjorng Exp $
+%%     $Id: wings_sel.erl,v 1.19 2001/12/16 21:30:08 bjorng Exp $
 %%
 
 -module(wings_sel).
@@ -18,8 +18,8 @@
 %% Utilities.
 -export([convert/3,convert_shape/3,convert_selection/2,
 	 fold/3,fold_shape/3,fold_region/3,
-	 map/2,map_shape/2,map_region/2,
-	 mapfold/3,mapfold_shape/3,mapfold_region/3,
+	 map/2,map_shape/2,
+	 mapfold/3,mapfold_shape/3,
 	 foreach/2,make/3,valid_sel/1,
 	 centers/1,bounding_box/1,
 	 find_face_regions/2,validate_items/3,inverse_items/3,
@@ -182,24 +182,6 @@ map_shape_nonbody(F, [{Id,Items}|T], Shapes0) ->
     map_shape_nonbody(F, T, Shapes);
 map_shape_nonbody(F, [], Shapes) -> Shapes.
 
-map_region(F, #st{selmode=body}=St) -> erlang:fault(badarg, [F,St]);
-map_region(F, #st{selmode=vertex}=St) -> map(F, St);
-map_region(F, #st{selmode=edge}=St) -> map(F, St);
-map_region(F, #st{shapes=Shapes0,sel=Sel}=St) ->
-    Shapes = map_region_nonbody(F, Sel, Shapes0),
-    St#st{shapes=Shapes}.
-
-map_region_nonbody(F, [{Id,Faces}|T], Shapes0) ->
-    #shape{sh=#we{}=We0} = Sh = gb_trees:get(Id, Shapes0),
-    Rs = find_face_regions(Faces, We0),
-    #we{es=Etab} = We = foldl(F, We0, Rs),
-    Shapes = case gb_trees:is_empty(Etab) of
-		 true -> gb_trees:delete(Id, Shapes0);
-		 false -> gb_trees:update(Id, Sh#shape{sh=We}, Shapes0)
-	     end,
-    map_region_nonbody(F, T, Shapes);
-map_region_nonbody(F, [], Shapes) -> Shapes.
-
 %%%
 %%% mapfold functions.
 %%%
@@ -246,20 +228,6 @@ mapfold_shape(F, Acc0, [{Id,Items}|T], Shapes0) ->
     Shapes = gb_trees:update(Id, Sh#shape{sh=We}, Shapes0),
     mapfold_shape(F, Acc, T, Shapes);
 mapfold_shape(F, Acc, [], Shapes) -> {Shapes,Acc}.
-
-mapfold_region(F, Acc0, #st{selmode=face,shapes=Shapes0,sel=Sel}=St) ->
-    {Shapes,Acc} = mapfold_region_nonbody(F, Acc0, Sel, Shapes0),
-    {St#st{shapes=Shapes},Acc};
-mapfold_region(F, Acc, St) -> erlang:fault(badarg, [F,Acc,St]).
-
-mapfold_region_nonbody(F, Acc0, [{Id,Faces}|T], Shapes0) ->
-    #shape{sh=#we{}=We0} = Sh = gb_trees:get(Id, Shapes0),
-    Rs = find_face_regions(Faces, We0),
-    {We,Acc} = foldl(fun(R, {W,A}) -> F(Id, R, W, A) end, {We0,Acc0}, Rs),
-    Shapes = gb_trees:update(Id, Sh#shape{sh=We}, Shapes0),
-    mapfold_region_nonbody(F, Acc, T, Shapes);
-mapfold_region_nonbody(F, Acc, [], Shapes) -> {Shapes,Acc}.
-
 
 %%%
 %%% foreach functions (for drawing)

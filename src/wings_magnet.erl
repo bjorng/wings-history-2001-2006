@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_magnet.erl,v 1.15 2001/12/13 19:41:27 bjorng Exp $
+%%     $Id: wings_magnet.erl,v 1.16 2001/12/16 21:30:08 bjorng Exp $
 %%
 
 -module(wings_magnet).
@@ -19,7 +19,7 @@
 	 list_user_exprs/0,delete_user_expr/1]).
 
 -include("wings.hrl").
--import(lists, [map/2,foldr/3,foldl/3]).
+-import(lists, [map/2,foldr/3,foldl/3,sort/1,concat/1]).
 
 sub_menu(St) ->
     Dirs = directions(),
@@ -118,8 +118,9 @@ wrap_body(Name, Body0) ->
 %%
 
 vertices_to_vertices(Vs, We, Type, normal) ->
-    make_tvs(Type, vertex_normals(We, Vs));
-vertices_to_vertices(Vs, We, Type, Vec) -> make_tvs(Type, Vs, Vec).
+    make_tvs(Type, vertex_normals(We, Vs), We);
+vertices_to_vertices(Vs, We, Type, Vec) ->
+    make_tvs(Type, [{Vec,Vs}], We).
 
 vertex_normals(We, Vs) ->
     foldl(fun(V, Acc) ->
@@ -127,16 +128,14 @@ vertex_normals(We, Vs) ->
 		  [{Vec,[V]}|Acc]
 	  end, [], Vs).
 
-make_tvs(Type, Vs, Vec) ->
-    make_tvs(Type, [{Vec,Vs}]).
-
-make_tvs(Type, Tvs) ->
+make_tvs(Type, Tvs, #we{vs=Vt}) ->
     DF = distance_fun(Type),
-    fun(#shape{sh=#we{vs=Vtab0}=We0}=Sh, Dx, Dy, #st{inf_r=IR}=St) ->
-	    Vtab = magnet_move(Tvs, Dx, Dy, {DF,IR}, St, Vtab0, Vtab0),
-	    We = We0#we{vs=Vtab},
-	    {shape,Sh#shape{sh=We}}
-    end.
+    All = gb_trees:keys(Vt),
+    {All,fun(#shape{sh=#we{vs=Vtab0}=We0}=Sh, Dx, Dy, #st{inf_r=IR}=St) ->
+		 Vtab = magnet_move(Tvs, Dx, Dy, {DF,IR}, St, Vtab0, Vtab0),
+		 We = We0#we{vs=Vtab},
+		 {shape,Sh#shape{sh=We}}
+	 end}.
 
 distance_fun(linear) ->
     fun(Dist0, Radius) ->

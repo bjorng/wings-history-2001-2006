@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.38 2001/12/14 05:51:44 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.39 2001/12/16 21:30:08 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -24,7 +24,7 @@
 
 -define(DL_DYNAMIC, (?DL_DRAW_BASE+3)).
 
--import(lists, [foreach/2,map/2,foldl/3,sort/1,reverse/1]).
+-import(lists, [foreach/2,map/2,foldl/3,sort/1,reverse/1,concat/1]).
 
 -record(drag,
 	{x,					%Original 2D position
@@ -71,7 +71,10 @@ combine(Tvs) ->
     S = sofs:relation(Tvs),
     F = sofs:relation_to_family(S),
     %% The rest of this function is an optimisation.
-    map(fun({Id,[Fun|_]}=Tv) when is_function(Fun) -> Tv;
+    map(fun({Id,[{_,Fun0}|_]=Tv0}) when is_function(Fun0) ->
+		Tv = [Fun || {_,Fun} <- Tv0],
+		Vs = sort(concat([Vs || {Vs,_} <- Tv0])),
+		{Id,{Vs,Tv}};
 	   ({Id,L}) ->
 		SS = sofs:from_term(L, [[{vec,[vertex]}]]),
 		RR = sofs:union(SS),
@@ -236,7 +239,7 @@ motion_update({matrix,Tvs}, Dx, Dy, #st{drag=Drag,shapes=Shapes}=St) ->
     St#st{drag=Drag#drag{matrices=Mtxs}};
 motion_update(Tvs, Dx, Dy, #st{shapes=Shapes0}=St0) ->
     Shapes =
-	foldl(fun({Id,[F0|_]=Trs}, Shs0) when is_function(F0) ->
+	foldl(fun({Id,{_,[F0|_]=Trs}}, Shs0) when is_function(F0) ->
 		      Sh = foldl(fun(Tr, Sh0) ->
 					 case Tr(Sh0, Dx, Dy, St0) of
 					     {shape,Sh} ->
@@ -328,7 +331,8 @@ faces({matrix,Tvs}, St) ->
 faces(Tvs, #st{shapes=Shapes}) ->
     [{Id,faces_1(Vs, gb_trees:get(Id, Shapes))} || {Id,Vs} <- Tvs].
 
-faces_1([Fun|_]=Tr, Sh) when is_function(Fun) -> all_faces;
+faces_1({Vs,[Fun|_]}, #shape{sh=#we{}=We}) ->
+    faces_2(Vs, We, gb_sets:empty());
 faces_1(Vs0, #shape{sh=#we{}=We}) ->
     foldl(fun ({_,Vs}, Acc) ->
 		  faces_2(Vs, We, Acc)
@@ -490,14 +494,6 @@ make_dlist_1([{Id,Shape}|Shs], [{Id,matrix}|Fs], true) ->
     mkdl_draw_faces(Shape, Draw),
     gl:endList(),
     make_dlist_1(Shs, Fs, true);
-make_dlist_1([{Id,Shape}|Shs], [{Id,all_faces}|Fs], false) ->
-    make_dlist_1(Shs, Fs, false);
-make_dlist_1([{Id,Shape}|Shs], [{Id,all_faces}|Fs], true) ->
-    Draw = fun(Face, Edge, We) ->
-		   wings_draw_util:face(Face, Edge, We)
-	   end,
-    mkdl_draw_faces(Shape, Draw),
-    make_dlist_1(Shs, Fs, false);
 make_dlist_1([{Id,Shape}|Shs], [{Id,Faces}|Fs], false) ->
     Draw = fun(F, Fs0, Edge, We) ->
 		   case gb_sets:is_member(F, Fs0) of
