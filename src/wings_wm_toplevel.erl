@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.47 2003/12/28 10:20:16 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.48 2004/03/25 05:30:38 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -774,7 +774,7 @@ menubar_event(#mousebutton{button=1,x=X0,state=?SDL_PRESSED},
 	      #mb{sel=Sel}=Mb) ->
     case menubar_hit(X0, Mb) of
 	none -> keep;
-	{_,Sel,_} -> keep;
+	{_,Sel,_} -> wings_menu:kill_menus();
 	{X,Name,Fun} -> menu_open(X, Name, Fun, Mb)
     end;
 menubar_event(#mousemotion{x=X0}, #mb{sel=Sel}=Mb) ->

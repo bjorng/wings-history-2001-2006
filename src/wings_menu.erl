@@ -8,11 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.125 2004/02/27 20:40:31 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.126 2004/03/25 05:30:38 bjorng Exp $
 %%
 
 -module(wings_menu).
--export([is_popup_event/1,menu/5,popup_menu/4,build_command/2]).
+-export([is_popup_event/1,menu/5,popup_menu/4,build_command/2,
+	 kill_menus/0]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -576,11 +577,14 @@ set_submenu_timer(#mi{sel=Sel}=Mi, OldMi, X0, Y0) ->
 
 delete_all(Mi) ->
     clear_timer(Mi),
+    kill_menus(),
+    delete.
+
+kill_menus() ->
     case wings_wm:is_window(menu_killer) of
 	true -> wings_wm:send(menu_killer, kill_menus);
 	false -> ok
-    end,
-    delete.
+    end.
 
 redraw(Mi) ->
     wings_io:ortho_setup(),
