@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.31 2002/10/28 19:39:22 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.32 2002/10/30 09:12:11 bjorng Exp $
 
 -module(auv_segment).
 
@@ -355,7 +355,7 @@ build_charts(LocalMaxs, {DistTree,Max,Distances}, VEG, EWs, We) ->
     {Distances,Charts,Bounds}.
 
 add_face_edges_to_heap(Face, FaceDist, ChartBds, Heap, EWs, We) ->
-    Find = fun(_V, Edge, #edge{lf=LF,rf=RF}, Heap0) ->		   
+    Find = fun(_, Edge, #edge{lf=LF,rf=RF}, Heap0) ->
 		   case gb_sets:is_member(Edge, ChartBds) of
 		       true ->
 			   Fopp = if LF == Face -> RF; RF == Face ->LF end,
@@ -367,6 +367,14 @@ add_face_edges_to_heap(Face, FaceDist, ChartBds, Heap, EWs, We) ->
 	   end,
     wings_face:fold(Find, Heap, Face, We).
 
+delete_inner_edges(Face, VEG, We, Boundaries) ->
+    wings_face:fold(fun(_, Edge, _, A) ->
+			    case is_extremity(Edge, Boundaries, VEG, We) of
+				false -> A;
+				true -> gb_sets:delete_any(Edge, A)
+			    end
+		    end, Boundaries, Face, We).
+			    
 expand_charts(LocalMaxs, Max, Dt, VEG,EWs, We0) ->
     ChartsE = gb_trees:empty(),
     HeapE = gb_trees:empty(),
@@ -381,60 +389,49 @@ expand_charts(LocalMaxs, Max, Dt, VEG,EWs, We0) ->
     
 expand_charts(Heap0, Charts0, ChartBds0, Max, Dt, VEG,EWs, We) ->
     case gb_trees:is_empty(Heap0) of
-	true ->  
-	    {Charts0, ChartBds0};
+	true ->
+	    {Charts0,ChartBds0};
 	false ->	    
 	    {{_Dist,_,Edge},{Face,Fopp},Heap1} = gb_trees:take_smallest(Heap0),
-	    Chart0 = gb_trees:get(Face, Charts0),
+	    ChartNum = gb_trees:get(Face, Charts0),
 	    case gb_trees:lookup(Fopp, Charts0) of
 		none ->
-		    Charts1 = gb_trees:insert(Fopp, Chart0, Charts0),
+		    Charts = gb_trees:insert(Fopp, ChartNum, Charts0),
 		    ChartBds1 = gb_sets:delete(Edge, ChartBds0),
+		    ChartBds = delete_inner_edges(Fopp, VEG, We, ChartBds1),
 		    DistFopp = gb_trees:get(Fopp, Dt),
-		    Heap2 = add_face_edges_to_heap(Fopp,Max-DistFopp,
-						   ChartBds1,Heap1,EWs,We),
-		    expand_charts(Heap2, Charts1, ChartBds1, Max, Dt, VEG,EWs, We);
-		{value, Chart0} ->  %% Fopp and Face is in same chart
-		    ChartBds1 = case is_extremity(Edge, ChartBds0, VEG,We) of
-				    true -> 
-					gb_sets:delete_any(Edge,ChartBds0);
-				    false -> ChartBds0
-				end,
-		    expand_charts(Heap1, Charts0, ChartBds1, Max, Dt, VEG,EWs, We);
-		{value, Chart2} ->
-		    MaxDistChartFace = gb_trees:get(Chart0, Dt),
-		    MaxDistChartFopp = gb_trees:get(Chart2, Dt),
+		    Heap = add_face_edges_to_heap(Fopp, Max-DistFopp,
+						  ChartBds, Heap1, EWs, We),
+		    expand_charts(Heap, Charts, ChartBds, Max, Dt, VEG,EWs, We);
+		{value,ChartNum} ->  %% Fopp and Face are in same chart
+ 		    expand_charts(Heap1, Charts0, ChartBds0, Max, Dt, VEG,EWs, We);
+		{value,OtherChartNum} ->
+		    MaxDistChartFace = gb_trees:get(ChartNum, Dt),
+		    MaxDistChartFopp = gb_trees:get(OtherChartNum, Dt),
 		    DistFace = gb_trees:get(Face, Dt),
 		    DistFopp = gb_trees:get(Fopp, Dt),
 		    Const = Max/4,
 		    if ((MaxDistChartFace - DistFace) < Const) and
 		       ((MaxDistChartFopp - DistFopp) < Const) ->
 			    {Charts1,ChartBds1} = 
-				merge_charts(Chart0,Chart2,Charts0,Dt,ChartBds0,We),
-			    expand_charts(Heap1, Charts1, ChartBds1, Max, Dt, VEG,EWs, We);
+				merge_charts(ChartNum,OtherChartNum,
+					     Charts0,Dt,ChartBds0,We),
+			    expand_charts(Heap1, Charts1, ChartBds1, Max,
+					  Dt, VEG,EWs, We);
 		       true ->
 			    expand_charts(Heap1, Charts0, ChartBds0, Max, Dt, VEG,EWs, We)
 		    end
 	    end
     end.
 
-is_extremity(Edge,ChartBds0,VEG,We) ->
-    #edge{vs=Vs,ve=Ve} = gb_trees:get(Edge, We#we.es),
-    Next = fun() -> gb_trees:get({Edge,Ve},VEG) end,
-    is_extremity(gb_trees:get({Edge,Vs},VEG),Next,ChartBds0).
-is_extremity([Edge|Rest], Next, ChartBds0) ->
-    case gb_sets:is_member(Edge, ChartBds0) of
-	true ->
-	    if Next == nomore -> 
-		    false;
-	       true ->
-		    is_extremity(Next(), nomore, ChartBds0)
-	    end;
-	false ->
-	    is_extremity(Rest, Next, ChartBds0)
-    end;
-is_extremity([], _, _) ->
-    true.
+is_extremity(Edge, ChartBds, VEG, #we{es=Etab}) ->
+    #edge{vs=Va,ve=Vb} = gb_trees:get(Edge, Etab),
+    not (is_connected(gb_trees:get({Edge,Va}, VEG), ChartBds) andalso
+	 is_connected(gb_trees:get({Edge,Vb}, VEG), ChartBds)).
+
+is_connected([E|Es], ChartBds) ->
+    gb_sets:is_member(E, ChartBds) orelse is_connected(Es, ChartBds);
+is_connected([], _) -> false.
 
 merge_charts(Ch1,Ch2, Charts0, Dt, ChartBds0,We) ->    
     {C1,C2} =  
@@ -446,23 +443,23 @@ merge_charts(Ch1,Ch2, Charts0, Dt, ChartBds0,We) ->
 	end,
     List = gb_trees:to_list(Charts0),
     {Merged, ChartBds1} = 
-	lists:mapfoldl(fun({Face, Chart}, ChB) when Chart == C2 ->	      
-			       %% Removed Merged Charts borders from
-			       %% BorderEdges.
-			       DelCommonEdge = 
-				   fun(_V,Edge,#edge{lf=LF,rf=RF},Acc) ->
-					   Test = if LF==Face -> RF; true -> LF end,
-					   case gb_trees:lookup(Test,Charts0) of
-					       {value, C1} ->
-						   gb_sets:delete(Edge,Acc);
-					       _ ->
-						   Acc
-					   end
-				   end,
-			       {{Face, C1}, wings_face:fold(DelCommonEdge, ChB, Face, We)};
-			  (Else,ChB) -> 
-			       {Else,ChB} end, 
-		       ChartBds0, List),
+	mapfoldl(fun({Face, Chart}, ChB) when Chart == C2 ->	      
+			 %% Removed Merged Charts borders from
+			 %% BorderEdges.
+			 DelCommonEdge = 
+			     fun(_V,Edge,#edge{lf=LF,rf=RF},Acc) ->
+				     Test = if LF==Face -> RF; true -> LF end,
+				     case gb_trees:lookup(Test, Charts0) of
+					 {value, C1} ->
+					     gb_sets:delete(Edge,Acc);
+					 _ ->
+					     Acc
+				     end
+			     end,
+			 {{Face, C1}, wings_face:fold(DelCommonEdge, ChB, Face, We)};
+		    (Else,ChB) -> 
+			 {Else,ChB} end, 
+		 ChartBds0, List),
     {gb_trees:from_orddict(Merged), ChartBds1}.   
 
 find_local_max(Distances, DTree, Features, FaceGraph, #we{es = Es}) ->
@@ -646,7 +643,6 @@ cut_shared_vertices(Faces, #we{es=Etab}=We0, InvVmap0) ->
 						   length(L) > 2
 					   end}, F),
     Shared = sofs:to_external(sofs:domain(Shared0)),
-    ?DBG("Shared: ~w\n", [Shared]),
     foldl(fun(V, A) ->
 		  do_cut_shared(V, Faces, A)
 	  end, {We0,InvVmap0}, Shared).
