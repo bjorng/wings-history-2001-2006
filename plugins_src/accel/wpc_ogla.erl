@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_ogla.erl,v 1.4 2004/04/21 11:29:33 bjorng Exp $
+%%     $Id: wpc_ogla.erl,v 1.5 2004/12/30 09:35:00 bjorng Exp $
 %%
 
 -module(wpc_ogla).
@@ -83,9 +83,17 @@ triangulate(N, Ps) ->
     %% Vs = lists:seq(0, length(Ps)-1),
     %% Fs0 = e3d_mesh:triangulate_face(#e3d_face{vs=Vs}, N, Ps),
     %% [{A+1,B+1,C+1} || #e3d_face{vs=[A,B,C]} <- Fs0].
-    Bin = vs_to_bin([N|Ps], []),
-    {Tris,MorePs} = triangulate_1(erlang:port_control(wings_ogla_port, 4, Bin), []),
-    {Tris,Ps++MorePs}.
+    case N of
+	{0.0,0.0,0.0} ->
+	    %% Undefined normal - something is seriously wrong
+	    %% with this polygon. Return a fake triangulation.
+	    {[{1,2,3}],Ps};
+	_ ->
+	    Bin = vs_to_bin([N|Ps], []),
+	    BinRes = erlang:port_control(wings_ogla_port, 4, Bin),
+	    {Tris,MorePs} = triangulate_1(BinRes, []),
+	    {Tris,Ps++MorePs}
+    end.
     
 triangulate_1(<<0:32/native,T/binary>>, Acc) ->
     {reverse(Acc),triangulate_2(T, [])};
