@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shapes.erl,v 1.35 2004/11/09 07:23:25 bjorng Exp $
+%%     $Id: wings_shapes.erl,v 1.36 2004/11/09 07:25:47 bjorng Exp $
 %%
 
 -module(wings_shapes).
@@ -37,7 +37,8 @@ menu(X, Y, _) ->
 	     separator,
 	     {grid,Opt},
 	     separator,
-	     {prim_name(light),{light,wings_light:light_types()}},
+	     {prim_name(light),{light,wings_light:light_types()},
+	      prim_help(light)},
 	     material,
 	     image,
 	     separator,
