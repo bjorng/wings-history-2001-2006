@@ -1,5 +1,5 @@
 %%%-------------------------------------------------------------------
-%%% File    : auv_snap.erl
+%%% File    : wpc_snap.erl
 %%% Author  :  <dgud@erix.ericsson.se>
 %%% Description : Snapp texture (image) to model
 %%%
@@ -9,9 +9,9 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_snap.erl,v 1.7 2004/01/23 15:04:38 dgud Exp $
+%%     $Id: wpc_snap.erl,v 1.1 2004/02/11 11:33:16 dgud Exp $
 
--module(auv_snap).
+-module(wpc_snap).
 
 -define(NEED_OPENGL, 1).
 
@@ -20,18 +20,72 @@
 
 -define(HUGE, 1.0E307).
 
--export([active/0, 
-	 select_image/1, 
-	 scale/2,
-	 move/2,
-	 cancel/1, 
-	 complete/1]).
+-export([init/0,menu/2,command/2,active/0]).
 
 -record(s, {reply,name,w,h,sx=1.0,sy=1.0,tx=0.0,ty=0.0}).
 
+init() ->
+    true.
+
+menu({tools}, Menu) ->
+    Menu ++ [separator,
+	     {"Snap Image", {auv_snap, [{"Start Snap Mode", auv_snap_image, 
+					 "Snap image to selected faces"}, 
+					{"Quit Snap Mode", auv_cancel_snap, 
+					 "Quit Snap Image Mode"}]}}];
+menu({body}, Menu) ->
+    case active() of
+	true ->
+	    snap_menu() ++ Menu;
+	false ->
+	    Menu
+    end;
+menu({face}, Menu) ->
+    case active() of
+	false ->
+	    Menu;
+	true ->
+	    [{"Snap Image", auv_complete_snap, "Put Image on select faces"}|
+	     snap_menu()] ++ Menu    
+    end;
+menu({Type}, Menu) when Type == vertex; Type == shape -> 
+    case active() of
+	false ->
+	    Menu;
+	true ->	    
+	    snap_menu() ++ Menu    
+    end;
+menu(_Dbg, Menu) ->
+    Menu.
+
+snap_menu() ->
+    ScaleMenu = [{"Horizontal", x, "Scale SnapImage horizontally"},
+		 {"Vertical",   y, "Scale SnapImage vertically"},
+		 {"Free", free,    "Scale SnapImage free"},
+		 {"Uniform", uniform, "Scale SnapImage uniform"}],
+    MoveMenu = [{"Horizontal", x, "Move SnapImage horizontally"},
+		{"Vertical",   y, "Move SnapImage vertically"},
+		{"Free", free,    "Move SnapImage free"}], 
+
+    [{"Scale Snap Image", {auv_snap_scale, ScaleMenu}, "Scale SnapImage"},
+     {"Move Snap Image",  {auv_snap_move,  MoveMenu}, "Move SnapImage"},
+     separator].
+
+command({face, auv_complete_snap}, St) ->
+    complete(St);
+command({_, {auv_snap_scale,Op}}, St) ->
+    scale(Op,St);
+command({_, {auv_snap_move,Op}}, St) ->
+    move(Op,St);
+command({tools, {auv_snap, auv_snap_image}}, St) ->
+    select_image(St);
+command({_, {auv_snap,auv_cancel_snap}}, St) ->
+    cancel(St);
+command(_, _) -> next.
+
 active() ->
     case get(?MODULE) of
-	undefined -> false;	    
+	undefined -> false;
 	_Else -> true
     end.
 

@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.179 2004/01/25 13:34:27 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.180 2004/02/11 11:33:16 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -28,16 +28,10 @@
 init() ->
     true.
 
-menu({tools}, Menu) ->
-    Menu ++ [separator,
-	     {"Snap Image", {auv_snap, [{"Start Snap Mode", auv_snap_image, 
-					 "Snap image to selected faces"}, 
-					{"Quit Snap Mode", auv_cancel_snap, 
-					 "Quit Snap Image Mode"}]}}];
 menu({body}, Menu) ->
     case auv_snap:active() of
 	true ->
-	    snap_menu() ++ Menu;
+	    Menu;
 	false ->
 	    Menu ++ [separator,
 		     {"UV Mapping", ?MODULE,
@@ -45,51 +39,8 @@ menu({body}, Menu) ->
 		    ]
     end;
 
-menu({face}, Menu) ->
-    case auv_snap:active() of
-	false ->
-	    Menu;
-	true ->
-	    [{"Snap Image", auv_complete_snap, "Put Image on select faces"}|
-	     snap_menu()] ++ Menu    
-    end;
-
-menu({Type}, Menu) when Type == vertex; Type == shape -> 
-    case auv_snap:active() of
-	false ->
-	    Menu;
-	true ->	    
-	    snap_menu() ++ Menu    
-    end;
 menu(_Dbg, Menu) ->
     Menu.
-
-snap_menu() ->
-    ScaleMenu = [{"Horizontal", x, "Scale SnapImage horizontally"},
-		 {"Vertical",   y, "Scale SnapImage vertically"},
-		 {"Free", free,    "Scale SnapImage free"},
-		 {"Uniform", uniform, "Scale SnapImage uniform"}],
-    MoveMenu = [{"Horizontal", x, "Move SnapImage horizontally"},
-		{"Vertical",   y, "Move SnapImage vertically"},
-		{"Free", free,    "Move SnapImage free"}], 
-
-    [{"Scale Snap Image", {auv_snap_scale, ScaleMenu}, "Scale SnapImage"},
-     {"Move Snap Image",  {auv_snap_move,  MoveMenu}, "Move SnapImage"},
-     separator].
-
-
-%% SNAP
-command({face, auv_complete_snap}, St) ->
-    auv_snap:complete(St);
-command({_, {auv_snap_scale,Op}}, St) ->
-    auv_snap:scale(Op,St);
-command({_, {auv_snap_move,Op}}, St) ->
-    auv_snap:move(Op,St);
-command({tools, {auv_snap, auv_snap_image}}, St) ->
-    auv_snap:select_image(St);
-command({_, {auv_snap,auv_cancel_snap}}, St) ->
-    auv_snap:cancel(St);
-%%SNAP
 
 command({body,?MODULE}, St) ->
     ?DBG("Start shapes ~p~n",[gb_trees:keys(St#st.shapes)]), 
