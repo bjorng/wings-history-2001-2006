@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.17 2005/03/12 06:37:35 bjorng Exp $
+#     $Id: Makefile,v 1.18 2005/03/12 09:28:50 bjorng Exp $
 #
 include vsn.mk
 
@@ -39,6 +39,7 @@ lang:
 win32: all lang
 	(cd plugins_src/win32_file; $(MAKE))
 	(cd plugins_src/jpeg; $(MAKE))
+	(cd plugins_src/fbx; $(MAKE))
 	(cd win32; $(MAKE))
 	win32/make_installer
 

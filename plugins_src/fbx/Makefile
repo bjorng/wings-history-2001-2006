@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.3 2005/03/11 16:06:12 bjorng Exp $
+#     $Id: Makefile,v 1.4 2005/03/12 09:28:51 bjorng Exp $
 #
 FBXSDK = FBXSDK60
 LIBDIR=../../plugins/fbx
@@ -95,7 +95,7 @@ wings_fbx_driver.$(OBJ): wings_fbx_driver.c fbx_ops.h
 
 
 clean: clean_temp
-	-rm -rf fbx *.beam *.so *.dll
+	-rm -rf fbx *.beam $(LIBDIR)/*.so $(LIBDIR)/*.dll
 
 clean_temp:
 	-rm -rf *.o *.obj *.exp *.lib fbx_ops.h fbx_ops.hrl
