@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.1 2005/03/11 05:55:47 bjorng Exp $
+#     $Id: Makefile,v 1.2 2005/03/11 05:58:48 bjorng Exp $
 #
 FBXSDK = FBXSDK60
 LIBDIR=../../plugins/fbx
@@ -77,6 +77,8 @@ fbx_ops.h: fbx.ops
 
 fbx_ops.hrl: fbx.ops
 	perl op_to_hrl.pl fbx.ops > fbx_ops.hrl
+
+$(LIBDIR)/wpc_fbx.beam: fbx_ops.hrl
 
 $(LIBDIR)/%.beam: %.erl
 	install -d $(LIBDIR)
