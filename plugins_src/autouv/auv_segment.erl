@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.74 2004/12/27 16:40:21 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.75 2004/12/27 21:26:51 bjorng Exp $
 
 -module(auv_segment).
 
@@ -698,7 +698,7 @@ cut_model(Charts, Cuts0, #we{es=Etab0}=We0) ->
     Etab = wings_util:gb_trees_map(fun(_, Rec) ->
 					   Rec#edge{a=none,b=none}
 				   end, Etab0),
-    We = We0#we{es=Etab},
+    We = We0#we{mode=material,es=Etab},
     Cuts = gb_sets:to_list(Cuts0),
     cut_model_1(Charts, Cuts, We#we{mirror=none}, length(Charts), []).
 
