@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.69 2003/03/12 08:33:24 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.70 2003/04/10 05:47:57 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -251,12 +251,7 @@ nendo_event(#keyboard{keysym=#keysym{unicode=$q}}, Camera, Redraw, MR0) ->
 nendo_event(#keyboard{keysym=#keysym{sym=Sym}}=Event, _Camera, Redraw, _) ->
     case nendo_pan(Sym) of
 	keep -> keep;
-	next ->
-	    case wings_hotkey:event(Event) of
-		{view,smooth_preview} -> ok;
-		{view,Cmd} -> wings_view:command(Cmd, get_st(Redraw));
-		_Other -> ok
-	    end
+	next -> view_hotkey(Event, Redraw)
     end,
     keep;
 nendo_event(Event, Camera, Redraw, _) ->
@@ -348,12 +343,7 @@ mirai_event(#keyboard{keysym=#keysym{unicode=$q}}, Camera, Redraw, MR0, View) ->
 mirai_event(#keyboard{keysym=#keysym{sym=Sym}}=Event, _Camera, Redraw, _, _) ->
     case mirai_pan(Sym) of
 	keep -> keep;
-	next ->
-	    case wings_hotkey:event(Event) of
-		{view,smooth_preview} -> ok;
-		{view,Cmd} -> wings_view:command(Cmd, get_st(Redraw));
-		_Other -> ok
-	    end
+	next -> view_hotkey(Event, Redraw)
     end,
     keep;
 mirai_event(Event, Camera, Redraw, _, _) ->
@@ -550,6 +540,14 @@ camera_mouse_range(X0, Y0, #camera{x=OX,y=OY, xt=Xt0, yt=Yt0}=Camera) ->
        true ->
 	    wings_io:warp(OX, OY),
 	    {XD/?CAMDIV, YD/?CAMDIV, Camera#camera{xt=XD0, yt=YD0}}
+    end.
+
+view_hotkey(Ev, Redraw) ->
+    case wings_hotkey:event(Ev) of
+	{view,smooth_preview} -> ok;
+	{view,smoothed_preview} -> ok;
+	{view,Cmd} -> wings_view:command(Cmd, get_st(Redraw));
+	_ -> ok
     end.
 
 message(Message) ->
