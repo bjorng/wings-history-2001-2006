@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.289 2005/03/02 22:42:31 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.290 2005/03/03 18:41:18 dgud Exp $
 %%
 
 -module(wpc_autouv).
@@ -331,8 +331,11 @@ command_menu(body, X, Y) ->
 	    {"Move", move, "Move selected charts"},
 	    {"Scale", {scale, scale_directions()}, "Scale selected charts"},
 	    {"Rotate", {rotate, rotate_directions()}, "Rotate selected charts"},
-	    {"Center", {center, center_directions()}, "Center selected charts"},
 	    separator,
+	    {"Center", {center, xy_directions("Center")}, 
+	     "Center selected charts"},
+	    {"Stretch", {stretch, xy_directions("Stretch")},
+	     "Maximize the selected charts size"},
 	    {"Flip",{flip,
 		     [{"Horizontal",horizontal,"Flip selection horizontally"},
 		      {"Vertical",vertical,"Flip selection vertically"}]},
@@ -371,10 +374,11 @@ command_menu(edge, X, Y) ->
 	    {"Scale",{scale,Scale},"Scale selected edges"},
 	    {"Rotate",{rotate,Rotate},"Rotate selected edges"},
 	    separator,
-	    {"Align chart", {align,			
-			     [{"X", x, "Align horizontally"},
-			      {"Y", y, "Align vertically"}]}, 
-	     "Rotate chart so that selected vertices lies on axis"},
+	    {"Rotate Chart to axis", 
+	     {align,			
+	      [{"X", x, "Align horizontally"},
+	       {"Y", y, "Align vertically"}]}, 
+	     "Rotate chart so selected edge is parallel to  axis"},
 	    separator,
 	    {"Stitch", stitch, "Stitch edges/charts"},
 	    {"Cut", cut_edges, "Cut selected edges"}
@@ -397,10 +401,11 @@ command_menu(vertex, X, Y) ->
 	     "Move UV coordinates towards average midpoint",
 	     [magnet]},
 	    separator, 
-	    {"Align chart", {align,			
-			      [{"X", x, "Align horizontally"},
-			       {"Y", y, "Align vertically"}]}, 
-	     "Rotate chart so that selected vertices lies on axis"},
+	    {"Rotate Chart to axis", 
+	     {align,			
+	      [{"X", x, "Align horizontally"},
+	       {"Y", y, "Align vertically"}]}, 
+	     "Rotate chart so selected axis is parallel to X|Y axis"},
 	    {"Unfold",lsqcm,"Unfold the chart (without moving the selected vertices)"}
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu);
@@ -408,10 +413,10 @@ command_menu(_, X, Y) ->
     [_|Menu] = option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu).
 
-center_directions() ->
-    [{"Both",    both, "Center both horizontally and vertically"},
-     {"Horizontal", x,  "Center horizontally (X dir)"},
-     {"Vertical",   y,  "Center vertically (Y dir)"}].
+xy_directions(Str) ->
+    [{"Both",    both, Str ++ " both horizontally and vertically"},
+     {"Horizontal", x, Str ++ " horizontally (X dir)"},
+     {"Vertical",   y, Str ++ " vertically (Y dir)"}].
 
 scale_directions() ->
     [{"Uniform",    scale_uniform, "Scale in both directions"},
@@ -603,6 +608,10 @@ handle_command({rotate,free}, St) ->
     drag(wings_rotate:setup({free,center}, St));
 handle_command({center,Dir}, St0) ->
     St1 = wpa:sel_map(fun(_, We) -> center(Dir,We) end, St0),
+    St = update_selected_uvcoords(St1),
+    get_event(St);
+handle_command({stretch,Dir}, St0) ->
+    St1 = wpa:sel_map(fun(_, We) -> stretch(Dir,We) end, St0),
     St = update_selected_uvcoords(St1),
     get_event(St);
 handle_command({align,Dir}, St0) ->
@@ -1066,6 +1075,25 @@ center(Dir,We) ->
     T = e3d_mat:translate(e3d_vec:sub(Pos, ChartCenter)),
     wings_we:transform_vs(T, We).
 
+stretch(Dir,We) ->
+    [{X1,Y1,_},{X2,Y2,_}] = wings_vertex:bounding_box(We),
+    Center = {CX,CY,CZ} = {X1+(X2-X1)/2, Y1+(Y2-Y1)/2, 0.0},
+    T0 = e3d_mat:translate(e3d_vec:neg(Center)),
+    {SX,SY} = case Dir of
+		  x -> {1.0/(X2-X1), 1.0};
+		  y -> {1.0, 1.0/(Y2-Y1)};
+		  both -> {1.0/(X2-X1), 1.0/(Y2-Y1)}
+	      end,
+    Stretch = e3d_mat:scale(SX, SY, 1.0),
+    T1 = e3d_mat:mul(Stretch, T0),
+    Pos = case Dir of
+	      both -> {0.5,0.5,CZ};
+	      x -> {0.5,CY,CZ};
+	      y -> {CX,0.5,CZ}
+	  end,    
+    T = e3d_mat:mul(e3d_mat:translate(Pos), T1),
+    wings_we:transform_vs(T, We).
+    
 reunfold(#st{sel=Sel,selmode=vertex}=St0) ->
     %% Check correct pinning.
     Ch = fun(Vs, _, _) ->
