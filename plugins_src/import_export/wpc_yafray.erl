@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.90 2004/06/17 09:57:05 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.91 2004/06/22 10:21:33 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -23,6 +23,7 @@
 
 -include("e3d.hrl").
 -include("e3d_image.hrl").
+-include("wings.hrl").
 
 -import(lists, [reverse/1,reverse/2,sort/1,keysearch/3,keydelete/3,
 		foreach/2,foldl/3,foldr/3]).
@@ -333,9 +334,7 @@ command_file(render, Attr, St) when is_list(Attr) ->
     set_pref(Attr),
     case get_var(rendering) of
 	false ->
-	    SubDiv = get_pref(subdivisions, ?DEF_SUBDIVISIONS),
-	    wpa:export(props(render, SubDiv),
-		       fun_export_2(attr(St, [{?TAG_RENDER,true}|Attr])), St);
+	    do_export(export, props(render), [{?TAG_RENDER,true}|Attr], St);
        _RenderFile ->
 	    wpa:error("Already rendering.")
     end;
@@ -361,40 +360,43 @@ command_file(?TAG_RENDER, Result, _St) ->
 	    end
     end;
 command_file(Op, Attr, St) when is_list(Attr) ->
+    %% when Op =:= export; Op =:= export_selected
     set_pref(Attr),
-    SubDiv = get_pref(subdivisions, ?DEF_SUBDIVISIONS),
-    wpa:Op(props(Op, SubDiv), fun_export_2(attr(St, Attr)), St);
+    do_export(Op, props(Op), Attr, St);
 command_file(Op, Ask, _St) when is_atom(Ask) ->
     wpa:dialog(Ask, "YafRay Export Options", export_dialog(Op),
 	       fun(Attr) -> {file,{Op,{?TAG,Attr}}} end).
 
-props(render, SubDiv) ->
-    [{title,"Render"},{ext,".tga"},{ext_desc,"Targa File"},
-     {subdivisions,SubDiv}];
-props(export, SubDiv) ->
-    [{title,"Export"},{ext,".xml"},{ext_desc,"YafRay File"},
-     {subdivisions,SubDiv}];
-props(export_selected, SubDiv) ->
-    [{title,"Export Selected"},{ext,".xml"},{ext_desc,"YafRay File"},
-     {subdivisions,SubDiv}].
-
 -record(camera_info, {pos,dir,up,fov}).
 
-attr(St, Attr) ->
+do_export(Op, Props0, Attr0, St0) ->
+    SubDiv = proplists:get_value(subdivisions, Attr0, ?DEF_SUBDIVISIONS),
+    Props = [{subdivisions,SubDiv}|Props0],
     [{Pos,Dir,Up},Fov] = wpa:camera_info([pos_dir_up,fov]),
     CameraInfo = #camera_info{pos=Pos,dir=Dir,up=Up,fov=Fov},
-    [CameraInfo,{lights,wpa:lights(St)}|Attr].
+    Attr = [CameraInfo,{lights,wpa:lights(St0)}|Attr0],
+    ExportFun = 
+	fun (Filename, Contents) ->
+		case catch export(Attr, Filename, Contents) of
+		    ok ->
+			ok;
+		    Error ->
+			io:format("ERROR: Failed to export:~n~p~n", [Error]),
+			{error,"Failed to export"}
+		end
+	end,
+    %% Freeze virtual mirrors.
+    Shapes0 = gb_trees:to_list(St0#st.shapes),
+    Shapes = [{Id,wpa:vm_freeze(We)} || {Id,We} <- Shapes0],
+    St = St0#st{shapes=gb_trees:from_orddict(Shapes)},
+    wpa:Op(Props, ExportFun, St).
 
-fun_export_2(Attr) ->
-    fun (Filename, Contents) ->
-	    case catch export(Attr, Filename, Contents) of
-		ok ->
-		    ok;
-		Error ->
-		    io:format("ERROR: Failed to export:~n~p~n", [Error]),
-		    {error,"Failed to export"}
-	    end
-    end.
+props(render) ->
+    [{title,"Render"},{ext,".tga"},{ext_desc,"Targa File"}];
+props(export) ->
+    [{title,"Export"},{ext,".xml"},{ext_desc,"YafRay File"}];
+props(export_selected) ->
+    [{title,"Export Selected"},{ext,".xml"},{ext_desc,"YafRay File"}].
 
 load_image(Filename) ->
     case wpa:image_read([{filename,Filename},
