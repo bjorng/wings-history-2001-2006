@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings__du.erl,v 1.17 2004/04/19 04:33:59 bjorng Exp $
+%%     $Id: wings__du.erl,v 1.18 2004/04/20 17:49:17 bjorng Exp $
 %%
 
 -module(wings__du).
@@ -57,8 +57,13 @@ uv_face([A,B,C,D], [UVa,UVb,UVc,UVd]) ->
 %% uv_face([{VertexA,VertexB,VertexC}], [Position], [UV]) -> ok
 %%  Draw a face with UV coordinates. For vertices without
 %%  UV coordinates, (0, 0) will be used.
-uv_face(Fs, VsPos, UVs) ->
-    uv_face_1(Fs, none, list_to_tuple(VsPos), list_to_tuple(UVs)).
+uv_face(Fs, VsPos0, UVs0) ->
+    case {list_to_tuple(VsPos0),list_to_tuple(UVs0)} of
+	{VsPos,UVs} when size(VsPos) =:= size(UVs) ->
+	    uv_face_1(Fs, none, VsPos, UVs);
+	{VsPos,_} ->
+	    plain_face_1(Fs, VsPos)
+    end.
 
 uv_face_1([{A,B,C}|Fs], Prev, Vtab, UVtab) ->
     if
@@ -97,10 +102,15 @@ vcol_face([A,B,C,D], [Ca,Cb,Cc,Cd]) ->
 %% vcol_face([{VertexA,VertexB,VertexC}], [Position], [Color]) -> ok
 %%  Draw a face with vertex colors. For vertices without
 %%  vertex colors, (1.0, 1.0, 1.0) will be used.
-vcol_face(Fs, VsPos, Cols) ->
-    vcol_face_1(Fs, none, list_to_tuple(Cols), list_to_tuple(VsPos)).
+vcol_face(Fs, VsPos0, Cols0) ->
+    case {list_to_tuple(VsPos0),list_to_tuple(Cols0)} of
+	{VsPos,Cols} when size(VsPos) =:= size(Cols) ->
+	    vcol_face_1(Fs, none, VsPos, Cols);
+	{VsPos,_} ->
+	    plain_face_1(Fs, VsPos)
+    end.
 
-vcol_face_1([{A,B,C}|Fs], Prev, Ctab, Vtab) ->
+vcol_face_1([{A,B,C}|Fs], Prev, Vtab, Ctab) ->
     Acol = element(A, Ctab),
     if
 	A =:= Prev ->
@@ -110,7 +120,7 @@ vcol_face_1([{A,B,C}|Fs], Prev, Ctab, Vtab) ->
     end,
     vcol_face_vtx(element(B, Vtab), Bcol=element(B, Ctab), Acol),
     vcol_face_vtx(element(C, Vtab), element(C, Ctab), Bcol),
-    vcol_face_1(Fs, C, Ctab, Vtab);
+    vcol_face_1(Fs, C, Vtab, Ctab);
 vcol_face_1([], _, _, _) -> ok.
 
 vcol_face_vtx(Pos, Prev, Prev) ->
@@ -146,8 +156,13 @@ smooth_plain_face([A,B,C,D], [Na,Nb,Nc,Nd]) ->
 %% smooth_plain_face([{VertexA,VertexB,VertexC}],
 %%                   [Position], [[_|VertexNormal]]) -> ok
 %%  Draw a smooth face with neither UV coordinates nor vertex colors.
-smooth_plain_face(Fs, VsPos, Ns) ->
-    smooth_plain_face_1(Fs, none, list_to_tuple(VsPos), list_to_tuple(Ns)).
+smooth_plain_face(Fs, VsPos0, Ns0) ->
+    case {list_to_tuple(VsPos0),list_to_tuple(Ns0)} of
+	{VsPos,Ns} when size(VsPos) =:= size(Ns) ->
+	    smooth_plain_face_1(Fs, none, VsPos, Ns);
+	{VsPos,_} ->
+	    plain_face_1(Fs, VsPos)
+    end.
 
 smooth_plain_face_1([{A,B,C}|Fs], Prev, Vtab, Ntab) ->
     if
@@ -184,8 +199,13 @@ smooth_uv_face([A,B,C,D], [Ai,Bi,Ci,Di]) ->
 %%                [Position], [[UV|VertexNormal]]) -> ok
 %%  Draw a smoth face with UV coordinates. For vertices without
 %%  UV coordinates, (0, 0) will be used.
-smooth_uv_face(Fs, VsPos, UVs) ->
-    smooth_uv_face_1(Fs, none, list_to_tuple(VsPos), list_to_tuple(UVs)).
+smooth_uv_face(Fs, VsPos0, UVs0) ->
+    case {list_to_tuple(VsPos0),list_to_tuple(UVs0)} of
+	{VsPos,UVs} when size(VsPos) =:= size(UVs) ->
+	    smooth_uv_face_1(Fs, none, VsPos, UVs);
+	{VsPos,_} ->
+	    plain_face_1(Fs, VsPos)
+    end.
 
 smooth_uv_face_1([{A,B,C}|Fs], Prev, Vtab, UVtab) ->
     if
@@ -227,8 +247,13 @@ smooth_vcol_face([A,B,C,D], [Ai,Bi,Ci,Di]) ->
 %%                  [Position], [[Color|VertexNormal]]) -> ok
 %%  Draw a smooth face with vertex colors. For vertices without
 %%  vertex colors, (1.0, 1.0, 1.0) will be used.
-smooth_vcol_face(Fs, VsPos, Cols) ->
-    smooth_vcol_face_1(Fs, none, list_to_tuple(VsPos), list_to_tuple(Cols)).
+smooth_vcol_face(Fs, VsPos0, Cols0) ->
+    case {list_to_tuple(VsPos0),list_to_tuple(Cols0)} of
+	{VsPos,Cols} when size(VsPos) =:= size(Cols) ->
+	    smooth_vcol_face_1(Fs, none, VsPos, Cols);
+	{VsPos,_} ->
+	    plain_face_1(Fs, VsPos)
+    end.
 
 smooth_vcol_face_1([{A,B,C}|Fs], Prev, Vtab, Ctab) ->
     Ai = element(A, Ctab),

@@ -8,9 +8,10 @@
  *  See the file "license.terms" for information on usage and redistribution
  *  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
  *
- *     $Id: wings_ogla_drv.c,v 1.1 2004/04/19 04:33:59 bjorng Exp $
+ *     $Id: wings_ogla_drv.c,v 1.2 2004/04/20 17:49:13 bjorng Exp $
  */
 
+#include <stdio.h>
 #include "erl_driver.h"
 
 #ifdef __WIN32__
@@ -20,8 +21,14 @@
 
 #if defined(__APPLE__) && defined(__MACH__)
 # include <OpenGL/gl.h>	/* Header File For The OpenGL Library */
+# include <OpenGL/glu.h>	/* Header File For The OpenGL Library */
 #else
 # include <GL/gl.h>	/* Header File For The OpenGL Library */
+# include <GL/glu.h>	/* Header File For The OpenGL Library */
+#endif
+
+#ifndef CALLBACK
+# define CALLBACK
 #endif
 
 /*
@@ -32,10 +39,7 @@ static void wings_file_stop(ErlDrvData handle);
 static int control(ErlDrvData handle, unsigned int command, 
                    char* buff, int count, 
                    char** res, int res_size);
-
-int fbx_control(unsigned int command, 
-                char* buff, int count, 
-                char** res, int res_size);
+static int triangulate(char* buff, int count, char** res);
 
 /*
  * Internal routines
@@ -61,6 +65,60 @@ ErlDrvEntry wings_file_driver_entry = {
     NULL                   /* F_PTR outputv, reserved */
 };
 
+static GLUtesselator* tess;
+static GLdouble* tess_coords;
+static GLdouble* tess_alloc_vertex;
+static int* tess_vertices;
+
+void CALLBACK
+wings_ogla_vertex(GLdouble* coords)
+{
+  /* fprintf(stderr, "%d\r\n", (int) (coords - tess_coords) / 3); */
+
+  *tess_vertices++ = (int) (coords - tess_coords) / 3;
+}
+
+void CALLBACK
+wings_ogla_edge_flag(GLboolean flag)
+{
+}
+
+void CALLBACK
+wings_ogla_error(GLenum errorCode)
+{
+   const GLubyte *err;
+   err = gluErrorString(errorCode);
+   fprintf(stderr, "Tesselation error: %d: %s\r\n", (int)errorCode, err);
+}
+
+void CALLBACK
+wings_ogla_combine(GLdouble coords[3],
+		   void* vertex_data[4],
+		   GLfloat w[4], 
+		   void **dataOut)
+{
+  GLdouble* vertex = tess_alloc_vertex;
+  int i;
+
+  tess_alloc_vertex += 3;
+
+#if 0
+  fprintf(stderr, "combine: ");
+  for (i = 0; i < 4; i++) {
+    if (w[i] > 0.0) {
+      fprintf(stderr, "%d(%g) ", (int) vertex_data[i], w[i]);
+    }
+  }
+  fprintf(stderr, "\r\n");
+  fprintf(stderr, "%g %g %g\r\n", vertex[0], vertex[1], vertex[2]);
+#endif
+
+  vertex[0] = coords[0];
+  vertex[1] = coords[1];
+  vertex[2] = coords[2];
+  *dataOut = vertex;
+}
+
 /*
  * Driver initialization routine
  */
@@ -78,6 +136,11 @@ DRIVER_INIT(wings_file_drv)
  */
 static ErlDrvData wings_file_start(ErlDrvPort port, char *buff)
 {
+  tess = gluNewTess();
+  gluTessCallback(tess, GLU_TESS_VERTEX, wings_ogla_vertex);
+  gluTessCallback(tess, GLU_TESS_EDGE_FLAG, wings_ogla_edge_flag);
+  gluTessCallback(tess, GLU_TESS_COMBINE, wings_ogla_combine);
+  gluTessCallback(tess, GLU_TESS_ERROR, wings_ogla_error);
   set_port_control_flags(port, PORT_CONTROL_FLAG_BINARY);
   return (ErlDrvData) 0;
 }
@@ -87,6 +150,7 @@ static ErlDrvData wings_file_start(ErlDrvPort port, char *buff)
  */
 static void wings_file_stop(ErlDrvData handle)
 {
+  gluDeleteTess(tess);
 }
 
 static int
@@ -130,12 +194,62 @@ control(ErlDrvData handle, unsigned int command,
     *res = 0;
     return 0;
   }
+  case 4: {
+    GLfloat* f = (GLfloat *) buff;
+    return triangulate(buff, count, res);
+  }
   default:
     return -1;
   }
 }
 
-void
+static int
+triangulate(char* buff, int count, char** res)
+{
+  ErlDrvBinary* bin;
+  int i;
+  int new_sz;
+  int bin_sz;
+  GLdouble n[3];
+  GLdouble* new_vertices;
+  int num_vertices = count/sizeof(GLdouble)/3 - 1;
+
+  tess_coords = malloc(6*count);
+  tess_alloc_vertex = new_vertices = tess_coords + count/sizeof(GLdouble);
+
+#if 0
+  fprintf(stderr, "n=%d\r\n", num_vertices);
+#endif
+  bin = driver_alloc_binary(16*num_vertices*sizeof(int));
+  *res = (char *) bin;
+  tess_vertices = (int *) bin->orig_bytes;
+
+  memcpy(n, buff, 3*sizeof(GLdouble));
+  memcpy(tess_coords, buff, count);
+
+  gluTessNormal(tess, n[0], n[1], n[2]);
+  gluTessBeginPolygon(tess, 0);
+  gluTessBeginContour(tess);
+  for (i = 1; i <= num_vertices; i++) {
+    gluTessVertex(tess, tess_coords+3*i, tess_coords+3*i);
+  }
+  gluTessEndContour(tess);
+  gluTessEndPolygon(tess);
+  *tess_vertices++ = 0;
+
+  new_sz = (tess_alloc_vertex-new_vertices)*sizeof(GLdouble);
+  bin_sz = (((char *)tess_vertices) - bin->orig_bytes) + new_sz;
+  driver_realloc_binary(bin, bin_sz);
+
+  if (new_sz != 0) {
+    memcpy(tess_vertices, new_vertices, new_sz);
+  }
+
+  free(tess_coords);
+  return 0;
+}
+
+static void
 send_response(char** res, char* s, int len)
 {
    ErlDrvBinary* bin;

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.191 2004/04/20 06:22:19 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.192 2004/04/20 17:49:23 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -171,12 +171,10 @@ face_ns_data([A,B,C,D]=Ps) ->
 	false -> {N,[{1,2,4},{4,2,3}],Ps};
 	true -> [N|Ps]
     end;
-face_ns_data(Ps) ->
-    Vs = seq(0, length(Ps)-1),
-    N = e3d_vec:normal(Ps),
-    Fs0 = e3d_mesh:triangulate_face(#e3d_face{vs=Vs}, N, Ps),
-    Fs1 = [{A+1,B+1,C+1} || #e3d_face{vs=[A,B,C]} <- Fs0],
-    Fs = face_ns_data_1(Fs1, []),
+face_ns_data(Ps0) ->
+    N = e3d_vec:normal(Ps0),
+    {Fs0,Ps} = wpc_ogla:triangulate(N, Ps0),
+    Fs = face_ns_data_1(Fs0, []),
     {N,Fs,Ps}.
 
 %% "Chain" vertices if possible so that the last vertex in

@@ -8,14 +8,17 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_ogla.erl,v 1.1 2004/04/19 04:33:59 bjorng Exp $
+%%     $Id: wpc_ogla.erl,v 1.2 2004/04/20 17:49:13 bjorng Exp $
 %%
 
 -module(wpc_ogla).
 -export([init/0]).
--export([two/2,tri/3,quad_tri/4,quad/4]).
+-export([two/2,tri/3,quad_tri/4,quad/4,triangulate/2]).
 
 -define(FL32, :32/native-float).
+
+-include("/Users/bjorng/wings/e3d/e3d.hrl").
+-import(lists, [reverse/1]).
 
 init() ->
     Dir = filename:dirname(code:which(?MODULE)),
@@ -76,3 +79,28 @@ two({Ax,Ay,Az}, {Bx,By,Bz}) ->
     Bin = <<Ax?FL32,Ay?FL32,Az?FL32,
 	   Bx?FL32,By?FL32,Bz?FL32>>,
     erlang:port_control(wings_ogla_port, 3, Bin).
+
+triangulate(N, Ps) ->
+    %% Vs = lists:seq(0, length(Ps)-1),
+    %% Fs0 = e3d_mesh:triangulate_face(#e3d_face{vs=Vs}, N, Ps),
+    %% [{A+1,B+1,C+1} || #e3d_face{vs=[A,B,C]} <- Fs0].
+    Bin = vs_to_bin([N|Ps], []),
+    {Tris,MorePs} = triangulate_1(erlang:port_control(wings_ogla_port, 4, Bin), []),
+    {Tris,Ps++MorePs}.
+
+good(V, N) -> 1 =< V andalso V =< N.
+    
+triangulate_1(<<0:32/native,T/binary>>, Acc) ->
+    {reverse(Acc),triangulate_2(T, [])};
+triangulate_1(<<Va:32/native,Vb:32/native,Vc:32/native,T/binary>>, Acc) ->
+    triangulate_1(T, [{Va,Vb,Vc}|Acc]).
+
+triangulate_2(<<X:64/native-float,Y:64/native-float,Z:64/native-float,
+	       T/binary>>, Acc) ->
+    triangulate_2(T, [{X,Y,Z}|Acc]);
+triangulate_2(<<>>, Acc) ->
+    reverse(Acc).
+
+vs_to_bin([{X,Y,Z}|Vs], Acc) ->
+    vs_to_bin(Vs, [<<X:64/native-float,Y:64/native-float,Z:64/native-float>>|Acc]);
+vs_to_bin([], Acc) -> reverse(Acc).
