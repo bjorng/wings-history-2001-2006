@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.243 2003/05/25 19:00:48 bjorng Exp $
+%%     $Id: wings.erl,v 1.244 2003/05/26 16:38:05 bjorng Exp $
 %%
 
 -module(wings).
@@ -278,19 +278,16 @@ handle_event(Ev, St) ->
 	Other -> Other
     end.
 
-handle_event_0(#mousebutton{button=But,state=ButSt}=Ev, St) ->
+handle_event_0(#mousebutton{button=But,state=ButSt,mod=Mod}=Ev, St)
+  when But < 3, Mod band ?CTRL_BITS =/= 0 ->
     case wings_pref:get_value(default_commands) of
 	false -> handle_event_1(Ev, St);
 	true ->
-	    Mod = wings_wm:me_modifiers(),
-	    case But of
-		But when But < 3, Mod band ?CTRL_BITS =/= 0,
-			 Mod band ?SHIFT_BITS =/= 0 ->
+	    if
+		Mod band ?SHIFT_BITS =/= 0 ->
 		    define_command(ButSt, But, St);
-		But when But < 3, Mod band ?CTRL_BITS =/= 0 ->
-		    use_command(ButSt, But, St);
-		_ ->
-		    handle_event_1(Ev, St)
+		true ->
+		    use_command(ButSt, But, St)
 	    end
     end;
 handle_event_0(Ev, St) -> handle_event_1(Ev, St).

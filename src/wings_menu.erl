@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.98 2003/05/20 05:09:47 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.99 2003/05/26 16:37:50 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -53,13 +53,13 @@
 %%%   {Text,Name,Hotkey,Help,Properties}
 %%%
 
-is_popup_event(#mousebutton{button=3,x=X0,y=Y0,state=State}) ->
+is_popup_event(#mousebutton{button=3,x=X0,y=Y0,state=State,mod=Mod}) ->
     {X,Y} = wings_wm:local2global(X0, Y0),
     case wings_pref:get_value(advanced_menus) of
 	true when State =:= ?SDL_RELEASED ->
-	    {yes,X,Y,wings_wm:me_modifiers()};
+	    {yes,X,Y,Mod};
 	false when State =:= ?SDL_PRESSED  ->
-	    {yes,X,Y,wings_wm:me_modifiers()};
+	    {yes,X,Y,Mod};
 	_Other -> no
     end;
 is_popup_event(_Event) -> no.
