@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.110 2003/11/10 19:53:21 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.111 2003/11/10 20:12:17 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -938,8 +938,8 @@ frame_event({redraw,Active}, Fi=#fi{key=Key,hook=Hook,
     DisEnable = hook(Hook, is_disabled, [key(Key, I), I, Store]),
     frame_redraw(Active, Fi, DisEnable, Minimized);
 frame_event(#mousebutton{x=Xb,y=Yb,button=1,state=?SDL_RELEASED}, 
-	    Fi=#fi{x=X0,y=Y0,w=W0}, I, Store) ->
-    X = X0+W0-10,
+	    Fi=#fi{x=X0,y=Y0}, I, Store) ->
+    X = X0,
     Y = Y0+3,
     case inside(Xb, Yb, X, Y, 10, ?CHAR_HEIGHT) of
 	true -> frame_event({key,$\s,0,$\s}, Fi, I, Store);
@@ -956,82 +956,74 @@ frame_event({key,_,_,$\s}, #fi{key=Key,
     end;
 frame_event(_, _, _, _) -> keep.
 
-frame_redraw(Active, #fi{x=X0,y=Y0,w=W0,h=H0,flags=Flags}, 
-	     DisEnable, Minimized) ->
+frame_redraw(Active, #fi{flags=Flags}=Fi, DisEnable, Minimized) ->
     Title = proplists:get_value(title, Flags),
     case {Title,Minimized} of
 	{undefined,undefined} -> keep;
-	_ ->
-	    Y = Y0 + ?CHAR_HEIGHT div 2 + 3,
-	    H = H0 - (Y-Y0) - 4,
-	    ColLow = color4_lowlight(),
-	    ColHigh = color4_highlight(),
-	    TextPos = X0 + 10 + 2*?CHAR_WIDTH,
+	_ -> frame_redraw_1(Active, Title, Fi, DisEnable, Minimized)
+    end.
+
+frame_redraw_1(Active, Title, #fi{x=X0,y=Y0,w=W0,h=H0}, 
+	       DisEnable, Minimized) ->
+    Cw = wings_text:width(),
+    Ch = wings_text:height(),
+    Y = Y0 + Ch div 2 + 3,
+    H = H0 - (Y-Y0) - 4,
+    ColLow = color4_lowlight(),
+    ColHigh = color4_highlight(),
+    TextPos = X0 + 10 + 2*Cw,
+    blend(fun(Col) ->
+		  gl:'begin'(?GL_LINES),
+		  hline(X0, Y, W0, ColLow, ColHigh),
+		  if  Minimized =/= true ->
+			  hline(X0, Y+H-1, W0-1, ColLow, ColHigh),
+			  vline(X0+W0-2, Y, H, ColLow, ColHigh),
+			  vline(X0, Y+1, H-2, ColLow, ColHigh);
+		      true -> ok
+		  end,
+		  gl:'end'(),
+		  if  Title =/= undefined ->
+			  gl:color4fv(Col),
+			  gl:rectf(TextPos-Cw, 
+				   Y-1,
+				   TextPos+wings_text:width(Title)+Cw,
+				   Y+2);
+		      true -> ok
+		  end
+	  end),
+						%	    Col = color3(),
+    ColFg = color3_text(),
+    if  Title =/= undefined ->
+	    gl:color3fv(ColFg),
+	    wings_io:text_at(TextPos, Y0+Ch, Title);
+	true -> ok
+    end,
+    if  Minimized =/= undefined ->
+	    %% Draw button
 	    blend(fun(Col) ->
-			  gl:'begin'(?GL_LINES),
-			  hline(X0, Y, W0, ColLow, ColHigh),
-			  if  Minimized =/= true ->
-				  hline(X0, Y+H-1, W0-1, ColLow, ColHigh),
-				  vline(X0+W0-2, Y, H, ColLow, ColHigh),
-				  vline(X0, Y+1, H-2, ColLow, ColHigh);
-			      true -> ok
-			  end,
-			  gl:'end'(),
-			  if  Title =/= undefined ->
-				  gl:color4fv(Col),
-				  gl:rectf(TextPos-?CHAR_WIDTH, 
-					   Y-1,
-					   (TextPos+
-					    (length(Title)+1)*?CHAR_WIDTH), 
-					   Y+2);
-			      true -> ok
+			  case DisEnable of
+			      disable ->
+				  wings_io:border(
+				    X0, Y0+3, 
+				    10, Ch,
+				    Col, ColFg);
+			      _ ->
+				  wings_io:gradient_border(
+				    X0, Y0+3,
+				    10, Ch,
+				    Col, ColFg, Active)
 			  end
 		  end),
-%	    Col = color3(),
-	    ColFg = color3_text(),
-	    if  Title =/= undefined ->
-		    gl:color3fv(ColFg),
-		    wings_io:text_at(TextPos, Y0+?CHAR_HEIGHT, Title);
-		true -> ok
-	    end,
-	    if  Minimized =/= undefined ->
-		    %% Draw button
-		    blend(fun(Col) ->
-				  case DisEnable of
-				      disable ->
-					  wings_io:border(
-					    X0+W0-10, Y0+3, 
-					    10, ?CHAR_HEIGHT,
-					    Col, ColFg);
-				      _ ->
-					  wings_io:gradient_border(
-					    X0+W0-10, Y0+3, 
-					    10, ?CHAR_HEIGHT,
-					    Col, ColFg, Active)
-				  end
-			  end),
-% 		    case {Active,DisEnable} of
-% 			{false,_} ->
-% 			    gl:color3fv(Col),
-% 			    gl:rectf(X0+W0-10, Y0+3, X0+W0, Y0+3+?CHAR_HEIGHT);
-% 			{true,disable} ->
-% 			    wings_io:raised_rect(X0+W0-10, Y0+3, 
-% 						 10, ?CHAR_HEIGHT, Col, Col);
-% 			{true,_} ->
-% 			    wings_io:sunken_rect(X0+W0-10, Y0+3, 
-% 						 10, ?CHAR_HEIGHT, Col, Col)
-% 		    end,
-		    %% Draw +/- symbol
-		    gl:color3fv(ColFg),
-		    gl:rectf(X0+W0-8, Y, X0+W0-1, Y+2),
-		    case Minimized of
-			true -> gl:rectf(X0+W0-6, Y-2, X0+W0-3, Y+4);
-			false -> ok
-		    end;
-		true -> ok
-	    end,
-	    keep
-    end.
+	    %% Draw +/- symbol
+	    gl:color3fv(ColFg),
+	    gl:rectf(X0+2, Y, X0+9, Y+2),
+	    case Minimized of
+		true -> gl:rectf(X0+4, Y-2, X0+6, Y+4);
+		false -> ok
+	    end;
+	true -> ok
+    end,
+    keep.
 
 hline(X0, Y0, W, ColLow, ColHigh) ->
     X = X0 + 0.5,
