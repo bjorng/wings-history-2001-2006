@@ -30,9 +30,9 @@
 {
     NSMutableDictionary *env = [[NSMutableDictionary alloc] init];
     NSString *appDir = [[NSBundle mainBundle] bundlePath];
-    NSString *erlangDir = [appDir stringByAppendingString:@"/Contents/Resources/erlang"];
-    NSString *execFile = [erlangDir stringByAppendingString:@"/erts-5.3/bin/erlexec"];
-    NSString *binDir = [erlangDir stringByAppendingString:@"/erts-5.3/bin"];
+    NSString *erlangDir = [appDir stringByAppendingString:@"/Contents/Resources"];
+    NSString *execFile = [erlangDir stringByAppendingString:@"/bin/erlexec"];
+    NSString *binDir = [erlangDir stringByAppendingString:@"/bin"];
     NSArray *args;
     UInt32 version;
 
@@ -49,14 +49,13 @@
     [env setObject:@"Wings3d" forKey:@"PROGNAME"];
     [env setObject:NSHomeDirectory() forKey:@"HOME"];
 
-    args = [NSArray arrayWithObjects: @"-oldshell", @"-run", @"wings_start", @"start_halt", wingsFile, nil];
+    args = [NSArray arrayWithObjects: @"-run", @"wings_start", @"start_halt", wingsFile, nil];
     [aTask setStandardOutput: inPipe];
     [aTask setStandardInput: outPipe];
     [aTask setArguments: args];
     [aTask setEnvironment: env];
     [aTask setLaunchPath: execFile];
 
-      
     // Set up async monitoring for activity on stdout
     [[NSNotificationCenter defaultCenter] addObserver:self
                                              selector:@selector(textFromErlang:)

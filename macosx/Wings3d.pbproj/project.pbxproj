@@ -545,7 +545,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Copy the Wings application.\nINSTALL=/usr/bin/install\nlatest_wings=`(cd ..; pwd)`\n\ndest=$SYMROOT/$TARGETNAME.app/Contents/Resources/erlang/lib/`basename $latest_wings`\n\n$INSTALL -d $dest $dest/ebin $dest/patches\n\ncd $latest_wings\n\n$INSTALL -c -m 644 README AUTHORS license.terms $dest\n$INSTALL -c -m 644 ebin/* $dest/ebin\n\n$INSTALL -d $dest/plugins/fonts $dest/plugins/import_export \\\n $dest/plugins/commands \\\n $dest/plugins/primitives $dest/plugins/mac_file \\\n $dest/plugins/autouv \\\n $dest/plugins/default\n$INSTALL -c -m 644 plugins/default/* $dest/plugins/default\n$INSTALL -c -m 644 plugins/fonts/* $dest/plugins/fonts\n$INSTALL -c -m 644 plugins/import_export/* $dest/plugins/import_export\n$INSTALL -c -m 644 plugins/commands/* $dest/plugins/commands\n$INSTALL -c -m 644 plugins/primitives/* $dest/plugins/primitives\n$INSTALL -c -m 644 plugins/mac_file/* $dest/plugins/mac_file\n$INSTALL -c -m 644 plugins/autouv/* $dest/plugins/autouv\n";
+			shellScript = "# Copy the Wings application.\nINSTALL=/usr/bin/install\nlatest_wings=`(cd ..; pwd)`\n\ndest=$SYMROOT/$TARGETNAME.app/Contents/Resources/lib/`basename $latest_wings`\n\n$INSTALL -d $dest $dest/ebin $dest/patches\n\ncd $latest_wings\n\n$INSTALL -c -m 644 README AUTHORS license.terms $dest\n$INSTALL -c -m 644 ebin/* $dest/ebin\n\n$INSTALL -d $dest/plugins/fonts $dest/plugins/import_export \\\n $dest/plugins/commands \\\n $dest/plugins/primitives $dest/plugins/mac_file \\\n $dest/plugins/autouv \\\n $dest/plugins/default\n$INSTALL -c -m 644 plugins/default/* $dest/plugins/default\n$INSTALL -c -m 644 plugins/fonts/* $dest/plugins/fonts\n$INSTALL -c -m 644 plugins/import_export/* $dest/plugins/import_export\n$INSTALL -c -m 644 plugins/commands/* $dest/plugins/commands\n$INSTALL -c -m 644 plugins/primitives/* $dest/plugins/primitives\n$INSTALL -c -m 644 plugins/mac_file/* $dest/plugins/mac_file\n$INSTALL -c -m 644 plugins/autouv/* $dest/plugins/autouv\n";
 		};
 		F52CB4DB02E8450A01A8000A = {
 			buildActionMask = 2147483647;
@@ -558,7 +558,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Copy the relevant parts of Erlang/OTP\n# into the application.\nINSTALL=/usr/bin/install\nsrc=$ERLANG_PATH\ndest=$SYMROOT/$TARGETNAME.app/Contents/Resources/erlang\nerts_src=$src/erts-*\nerts=`basename $erts_src`\nstdlib=`basename $src/lib/stdlib-*`\nkernel=`basename $src/lib/kernel-*`\n\n$INSTALL -d $dest/bin $dest/$erts/bin $dest/lib/$stdlib/ebin $dest/lib/$kernel/ebin\n$INSTALL -c -m 644 $src/lib/kernel-*/ebin/* $dest/lib/$kernel/ebin\n$INSTALL -c -m 644 $src/lib/stdlib-*/ebin/* $dest/lib/$stdlib/ebin\n\n../tools/wings_reduce_otp $dest\n\n$INSTALL -c -s $erts_src/bin/erlexec $dest/$erts/bin\n$INSTALL -c $erts_src/bin/beam $dest/$erts/bin\n$INSTALL -c -m 644 $src/bin/start.boot $dest/bin\n\nstrip -x $dest/$erts/bin/beam\nstrip $dest/$erts/bin/erlexec\n";
+			shellScript = "# Copy the relevant parts of Erlang/OTP\n# into the application.\nINSTALL=/usr/bin/install\nsrc=$ERLANG_PATH\ndest=$SYMROOT/$TARGETNAME.app/Contents/Resources\nerts_src=$src/erts-*\nerts=`basename $erts_src`\nstdlib=`basename $src/lib/stdlib-*`\nkernel=`basename $src/lib/kernel-*`\n\n$INSTALL -d $dest/bin $dest/lib/$stdlib/ebin $dest/lib/$kernel/ebin\n$INSTALL -c -m 644 $src/lib/kernel-*/ebin/* $dest/lib/$kernel/ebin\n$INSTALL -c -m 644 $src/lib/stdlib-*/ebin/* $dest/lib/$stdlib/ebin\n\n../tools/wings_reduce_otp $dest\n\n$INSTALL -c -s $erts_src/bin/erlexec $dest/bin\n$INSTALL -c $erts_src/bin/beam $dest/bin\n$INSTALL -c -m 644 $src/bin/start.boot $dest/bin\n\nstrip -x $dest/bin/beam\nstrip $dest/bin/erlexec\n";
 		};
 		F52CB4DC02E84BC201A8000A = {
 			buildActionMask = 2147483647;
@@ -571,7 +571,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Copy the relevant parts of ESDL into the application.\nINSTALL=/usr/bin/install\nsrc=$ERLANG_PATH\ndest=$SYMROOT/$TARGETNAME.app/Contents/Resources/erlang/lib/`basename $ESDL_PATH`\n\n$INSTALL -d $dest/ebin $dest/priv\n$INSTALL -c -m 644  $ESDL_PATH/ebin/* $dest/ebin\n$INSTALL -c -m 644  $ESDL_PATH/priv/sdl_driver.so $dest/priv\n";
+			shellScript = "# Copy the relevant parts of ESDL into the application.\nINSTALL=/usr/bin/install\nsrc=$ERLANG_PATH\ndest=$SYMROOT/$TARGETNAME.app/Contents/Resources/lib/`basename $ESDL_PATH`\n\n$INSTALL -d $dest/ebin $dest/priv\n$INSTALL -c -m 644  $ESDL_PATH/ebin/* $dest/ebin\n$INSTALL -c -m 644  $ESDL_PATH/priv/sdl_driver.so $dest/priv\n";
 		};
 		F52CB4DD02E84D7E01A8000A = {
 			buildActionMask = 2147483647;
@@ -584,7 +584,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Copy the SDL framework.\nINSTALL=/usr/bin/install\nerts=`basename $ERLANG_PATH/erts-*`\ndest=$SYMROOT/$TARGETNAME.app/Contents/Resources/erlang/$erts/Frameworks\n\n$INSTALL -d $dest\n\nfor i in \"/Library/Frameworks\" \"$HOME/Library/Frameworks\"; do\n    if [ -d $i/SDL.framework ]; then\n        sdl_framework=$i/SDL.framework\n    fi\ndone\nif [ -d $dest/SDL.framework ]; then\n    rm -rf $dest/SDL.framework\nfi\ncp -r $sdl_framework $dest/SDL.framework\nif [ -d $dest/SDL.framework/Headers ]; then\n    rm -rf $dest/SDL.framework/Headers\nfi\nfor i in $dest/SDL.framework/Versions/*; do\n    if [ -d $i/Headers ]; then\n        rm -rf $i/Headers\n    fi\ndone\n";
+			shellScript = "# Copy the SDL framework.\nINSTALL=/usr/bin/install\ndest=$SYMROOT/$TARGETNAME.app/Contents/Resources/bin/Frameworks\n\n$INSTALL -d $dest\n\nfor i in \"/Library/Frameworks\" \"$HOME/Library/Frameworks\"; do\n    if [ -d $i/SDL.framework ]; then\n        sdl_framework=$i/SDL.framework\n    fi\ndone\nif [ -d $dest/SDL.framework ]; then\n    rm -rf $dest/SDL.framework\nfi\ncp -r $sdl_framework $dest/SDL.framework\nif [ -d $dest/SDL.framework/Headers ]; then\n    rm -rf $dest/SDL.framework/Headers\nfi\nfor i in $dest/SDL.framework/Versions/*; do\n    if [ -d $i/Headers ]; then\n        rm -rf $i/Headers\n    fi\ndone\n";
 		};
 		F52CB4DE02E864E601A8000A = {
 			buildActionMask = 2147483647;
@@ -597,7 +597,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Strip debug information from all beam files.\ntemp=$OBJROOT\ndest=$SYMROOT/$TARGETNAME.app/Contents/Resources/erlang\n\nerlc -o $temp ../tools/strip.erl\n(cd $dest; erl -noshell -pa $temp -run strip strip)\n";
+			shellScript = "# Strip debug information from all beam files.\ntemp=$OBJROOT\ndest=$SYMROOT/$TARGETNAME.app/Contents/Resources\n\nerlc -o $temp ../tools/strip.erl\n(cd $dest; erl -noshell -pa $temp -run strip strip)\n";
 		};
 		F5B807F10227DA2101000102 = {
 			fileEncoding = 30;
