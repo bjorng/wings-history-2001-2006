@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.100 2004/11/21 10:19:34 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.101 2004/12/14 20:27:50 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -445,10 +445,10 @@ win_crash(Reason) ->
     wings_wm:send(geom, {crash_in_other_window,LogName}).
 
 crash_log(WinName, Reason) ->
+    StackTrace = erlang:get_stacktrace(),
     wings_pb:cancel(),
     LogFileDir = log_file_dir(),
     LogName = filename:absname("wings_crash.dump", LogFileDir),
-    StackTrace = erlang:get_stacktrace(),
     F = open_log_file(LogName),
     io:format(F, "Window: ~p\n", [WinName]),
     io:format(F, "Reason: ~p\n\n", [Reason]),
