@@ -8,16 +8,69 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.22 2002/02/22 11:14:16 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.23 2002/03/03 16:59:26 bjorng Exp $
 %%
 
 -module(wings_body).
--export([convert_selection/1,cleanup/1,
-	 invert_normals/1,flip/2,duplicate/2,delete/1,
-	 tighten/1,smooth/1,combine/1,separate/1,auto_smooth/1]).
+-export([menu/3,command/2,convert_selection/1,auto_smooth/1]).
 
 -include("wings.hrl").
+-import(wings_draw, [model_changed/1]).
 -import(lists, [map/2,foldl/3,reverse/1,reverse/2,sort/1,seq/2]).
+
+menu(X, Y, St) ->
+    Dir = wings_menu_util:directions(St),
+    XYZ = wings_menu_util:xyz(),
+    Menu = [{"Object operations",ignore},
+	    separator,
+	    {"Move",{move,Dir}},
+	    {"Rotate",{rotate,Dir}},
+	    wings_menu_util:scale(),
+	    separator,
+	    {"Flip",{flip,XYZ}},
+	    separator,
+	    {"Invert",invert},
+	    separator,
+	    {"Tighten",tighten},
+	    {"Smooth",smooth},
+	    {"Combine",combine},
+	    {"Separate",separate},
+	    separator,
+	    {"Cleanup",cleanup,[option]},
+	    {"Auto-Smooth",auto_smooth,[option]},
+	    separator,
+	    {"Duplicate",{duplicate,Dir}},
+	    {"Delete",delete}|wings_vec:menu(St)],
+    wings_menu:popup_menu(X, Y, body, Menu, St).
+
+command(invert, St) ->
+    {save_state,model_changed(invert_normals(St))};
+command({duplicate,Dir}, St) ->
+    duplicate(Dir, St);
+command(delete, St) ->
+    {save_state,model_changed(delete(St))};
+command(tighten, St) ->
+    tighten(St);
+command(smooth, St) ->
+    ?SLOW({save_state,model_changed(smooth(St))});
+command(combine, St) ->
+    {save_state,model_changed(combine(St))};
+command(separate, St) ->
+    {save_state,model_changed(separate(St))};
+command({auto_smooth,Ask}, St) ->
+    auto_smooth(Ask, St);
+command({flip,Plane}, St) ->
+    {save_state,model_changed(flip(Plane, St))};
+command({cleanup,Ask}, St) ->
+    cleanup(Ask, St);
+command(collapse, St) ->
+    {save_state,model_changed(wings_collapse:collapse(St))};
+command({move,Type}, St) ->
+    wings_move:setup(Type, St);
+command({rotate,Type}, St) ->
+    wings_rotate:setup(Type, St);
+command({scale,Type}, St) ->
+    wings_scale:setup(Type, St).
 
 %%
 %% Convert the current selection to a body selection.
@@ -31,12 +84,28 @@ convert_selection(#st{sel=Sel0}=St) ->
 %%% The Cleanup command.
 %%%
 
-cleanup(St) ->
-    wings_sel:map(fun cleanup_1/2, St).
+cleanup(Ask, St) when is_atom(Ask) ->
+    Qs = [{"Short edges",true,[{key,short_edges}]},
+	  {"Length tolerance",1.0E-3,[{range,{1.0E-5,10.0}}]},
+	  {"Winged Vertices",true,[{key,winged_vs}]}],
+    wings_ask:ask(Ask,
+		  {vframe, Qs, [{title,"Remove"}]}, St,
+		  fun(Res) -> {body,{cleanup,Res}} end);
+cleanup(Opts, St0) ->
+    St = wings_sel:map(fun(_, We) -> cleanup_1(Opts, We) end, St0),
+    {save_state,model_changed(St)}.
 
-cleanup_1(_, We0) ->
-    We = clean_winged_vertices(We0),
-    clean_short_edges(We).
+cleanup_1([{short_edges,Flag},Tolerance|Opts], We0) ->
+    We = case Flag of
+	     true -> clean_short_edges(Tolerance, We0);
+	     false -> We0
+	 end,
+    cleanup_1(Opts, We);
+cleanup_1([{winged_vs,true}|Opts], We) ->
+    cleanup_1(Opts, clean_winged_vertices(We));
+cleanup_1([_|Opts], We) ->
+    cleanup_1(Opts, We);
+cleanup_1([], We) -> We.
 
 clean_winged_vertices(#we{vs=Vtab}=We) ->
     foldl(fun(V, W) ->
@@ -46,13 +115,13 @@ clean_winged_vertices(#we{vs=Vtab}=We) ->
 		  end
 	  end, We, gb_trees:keys(Vtab)).
 
-clean_short_edges(#we{es=Etab,vs=Vtab}=We) ->
+clean_short_edges(Tolerance, #we{es=Etab,vs=Vtab}=We) ->
     Short = foldl(
 	      fun({Edge,#edge{vs=Va,ve=Vb}}, A) ->
 		      VaPos = wings_vertex:pos(Va, Vtab),
 		      VbPos = wings_vertex:pos(Vb, Vtab),
 		      case abs(e3d_vec:dist(VaPos, VbPos)) of
-			  Dist when Dist < 1.0E-3 -> [Edge|A];
+			  Dist when Dist < Tolerance -> [Edge|A];
 			  Dist -> A
 		      end
 	      end, [], gb_trees:to_list(Etab)),
@@ -194,23 +263,33 @@ separate(St) ->
 %%% The Auto-Smooth command.
 %%%
 
-auto_smooth(St) ->
-    wings_sel:map(fun auto_smooth_1/2, St).
+auto_smooth(Ask, St) when is_atom(Ask) ->
+    wings_ask:ask(Ask, [{"Crease Angle",60,[{range,{0,180}}]}], St,
+		  fun(Res) -> {body,{auto_smooth,Res}} end);
+auto_smooth([Angle], St) ->
+    {save_state,model_changed(do_auto_smooth(Angle, St))}.
 
-auto_smooth_1(_, #we{es=Etab,he=Htab0}=We) ->
+auto_smooth(St) ->
+    do_auto_smooth(60, St).
+
+do_auto_smooth(Angle, St) ->
+    Cos = math:cos(Angle*math:pi()/180),
+    wings_sel:map(fun(_, We) -> auto_smooth_1(Cos, We) end, St).
+
+auto_smooth_1(Cos, #we{es=Etab,he=Htab0}=We) ->
     Htab = foldl(fun({E,R}, A) ->
-			 auto_smooth(E, R, A, We)
+			 auto_smooth(E, R, Cos, A, We)
 		 end, Htab0, gb_trees:to_list(Etab)),
     We#we{he=Htab}.
 
-auto_smooth(Edge, #edge{lf=Lf,rf=Rf}, H0, We) ->
+auto_smooth(Edge, #edge{lf=Lf,rf=Rf}, Cos, H0, We) ->
     Ln = wings_face:normal(Lf, We),
     Lr = wings_face:normal(Rf, We),
     case e3d_vec:is_zero(Ln) orelse e3d_vec:is_zero(Lr) of
 	true -> H0;				%Ignore this edge.
 	false ->
 	    case e3d_vec:dot(Ln, Lr) of
-		P when P < 0.5 ->		%cos(60), i.e. angle > 60
+		P when P < Cos ->
 		    wings_edge:hardness(Edge, hard, H0);
 		P ->				%angle =< 60
 		    wings_edge:hardness(Edge, soft, H0)

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.9 2002/03/02 21:28:53 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.10 2002/03/03 16:59:26 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -50,24 +50,27 @@
 	 ipadx=0,ipady=0			%Internal padding.
 	}).
 
-ask(false, Qs, _St, Fun) ->
-    Res = [element(2, Q) || Q <- Qs],
-    wings_io:putback_event({action,Fun(Res)}),
+ask(false, Qs, St, Fun) ->
+    S = setup_ask(Qs, St, Fun),
+    return_result(S),
     keep;
 ask(true, Qs, St, Fun) -> ask(Qs, St, Fun).
 
-ask(Qs0, Redraw, Fun) ->
+ask(Qs, Redraw, Fun) ->
+    S0 = setup_ask(Qs, Redraw, Fun),
+    S1 = init_origin(S0),
+    S = next_focus(S1, 1),
+    {seq,{push,dummy},get_event(S)}.
+
+setup_ask(Qs0, Redraw, Fun) ->
     Qs1 = normalize(Qs0),
     Qs = propagate_sizes(Qs1),
     {Fis0,Priv0} = flatten_fields(Qs),
     Fis = list_to_tuple(Fis0),
     Priv = list_to_tuple(Priv0),
     {#fi{w=W,h=H},_} = Qs,
-    S0 = #s{w=W,h=H,call=Fun,fi=Fis,priv=Priv,focus=size(Fis),redraw=Redraw},
-    S1 = init_origin(S0),
-    S = next_focus(S1, 1),
-    {seq,{push,dummy},get_event(S)}.
-
+    #s{w=W,h=H,call=Fun,fi=Fis,priv=Priv,focus=size(Fis),redraw=Redraw}.
+		   
 init_origin(#s{w=Xs,h=Ys}=S) ->
     [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
     Tx = case (W-Xs)/2 of
