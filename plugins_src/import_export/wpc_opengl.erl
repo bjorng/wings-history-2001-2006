@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.49 2003/10/27 21:04:28 dgud Exp $
+%%     $Id: wpc_opengl.erl,v 1.50 2003/11/17 20:26:57 dgud Exp $
 
 -module(wpc_opengl).
 
@@ -224,7 +224,8 @@ prepare_mesh(We0=#we{light=none}, SubDiv, RenderAlpha, Wes, St) ->
     Fast = dlist_mask(RenderAlpha, We),
     FN0      = [{Face,wings_face:normal(Face, We)} || Face <- gb_trees:keys(We#we.fs)],
     FVN      = wings_we:normals(FN0, We),  %% gb_tree of {Face, [VInfo|Normal]}
-    MatFs    = wings_material:mat_faces(FVN, We), %% sorted by mat..
+    MatFs0   = wings_material:mat_faces(FVN, We), %% sorted by mat..
+    MatFs    = patch_tangent_space(MatFs0, We, []),
     HasBumps = lists:any(fun({Mat, _}) -> 
 				 get_bump(gb_trees:get(Mat,St#st.mat)) /= false 
 			 end, MatFs),
@@ -307,6 +308,23 @@ dlist_mask_2([{Face,Edge}|Fs], We) ->
     wings_draw_util:unlit_face(Face, Edge, We),
     dlist_mask_2(Fs, We);
 dlist_mask_2([], _We) -> ok.
+
+patch_tangent_space(Acc, #we{mode=vertex}, []) ->
+    Acc;
+patch_tangent_space([{Mat,Fs} | R], We, Acc) ->
+    Patched = foldl(fun({Face, [[UV1|N1],[UV2|N2],[UV3|N3]|_BUG]},Res) ->
+			    [V1,V2,V3|_] = wings_face:vertex_positions(Face, We),
+			    TBN1 = calcTS(V3,V1,V2,UV3,UV1,UV2,N1),
+			    TBN2 = calcTS(V1,V2,V3,UV1,UV2,UV3,N2),
+			    TBN3 = calcTS(V2,V3,V1,UV2,UV3,UV1,N3),
+			    [{Face, [[UV1|TBN1],[UV2|TBN2],[UV3|TBN3]]}|Res];
+		       (_,Res) -> %% Horribly triangulated faces skipped
+			    Res
+		    end, [], Fs),
+    patch_tangent_space(R, We, [{Mat,Patched}|Acc]);
+patch_tangent_space([], _, Acc) ->
+    Acc.
+
 
 %% Make the hole material a true hole (entirely invisible).
 invisible_holes(#st{mat=Mat}=St) ->
@@ -724,8 +742,15 @@ setup_projection_matrix() ->
     gl:matrixMode(?GL_MODELVIEW).
 
 %% All vertices must be backfacing for the face to be backfaced.
-frontfacing([],[]) ->  false;
-frontfacing([N1|RN],[L1|RL]) ->
+frontfacing(_,[]) ->  false;
+frontfacing([[_|{_,_,N1}]|RN],[L1|RL]) when tuple(N1) ->
+    case e3d_vec:dot(N1, L1) >= 0 of
+	true -> % Backfacing
+	    frontfacing(RN,RL);
+	false ->
+	    true
+    end;
+frontfacing([[_|N1]|RN],[L1|RL]) ->
     case e3d_vec:dot(N1, L1) >= 0 of
 	true -> % Backfacing
 	    frontfacing(RN,RL);
@@ -733,31 +758,35 @@ frontfacing([N1|RN],[L1|RL]) ->
 	    true
     end.
 
+
 %% Returns {FacesFacingLigth,FacesAwayFromLigth,CW_VsLoops}
 partition_model(We, Matfs, LPos, DirOrPos) ->
-    Sort = fun({_Mat,List}, A0) ->
-		   G=fun({Face, [[_|N1],[_|N2],[_|N3]]}, {FF,BF,EL}) ->
-			     IsFF = case DirOrPos of
-				      dir ->
-					  frontfacing([N1,N2,N3],[LPos,LPos,LPos]);
-				      _ ->
-					  VPs = wings_face:vertex_positions(Face,We),
-					  LDs = [e3d_vec:norm(e3d_vec:sub(VP,LPos))|| VP <- VPs],
-					  frontfacing([N1,N2,N3],LDs)
-				  end,
-			     case IsFF of
-				 false -> %% BackFacing
-				     {FF,[Face|BF],EL};
-				 true -> %% FrontFacing
-				     Es = wings_face:fold(fun(_V,Edge,_E,Es) ->
-								  [{Edge,Face}|Es]
-							  end, EL, Face, We),
-				     {[Face|FF],BF,Es}
-			     end
-		     end,
-		   foldl(G, A0, List)
-	   end,    
-    {FF,BF,EL} = foldl(Sort, {[],[],[]}, Matfs),
+    Partition=
+	fun({Face, Ns}, {FF,BF,EL}) ->
+		IsFF = case DirOrPos of
+			   dir ->
+			       LL = lists:duplicate(length(Ns),LPos),
+			       frontfacing(Ns,LL);
+			   _ ->
+			       VPs = wings_face:vertex_positions(Face,We),
+			       LDs = [e3d_vec:norm(e3d_vec:sub(VP,LPos))
+				      || VP <- VPs],
+			       frontfacing(Ns,LDs)
+		       end,
+		case IsFF of
+		    false -> %% BackFacing
+			{FF,[Face|BF],EL};
+		    true -> %% FrontFacing
+			Es = wings_face:fold(fun(_V,Edge,_E,Es) ->
+						     [{Edge,Face}|Es]
+					     end, EL, Face, We),
+			{[Face|FF],BF,Es}
+		end
+      end,
+    Cluster = fun({_Mat,List}, A0) ->
+		      foldl(Partition, A0, List)
+	      end,
+    {FF,BF,EL} = foldl(Cluster, {[],[],[]}, Matfs),
     Eds   = outer_edges_1(lists:sort(EL), []),   
     Loops = case wings_edge_loop:edge_loop_vertices(Eds,We) of
 		none -> [];
@@ -1001,42 +1030,40 @@ draw_vtx_color([{Face,[[Col1|N1],[Col2|N2],[Col3|N3]|_BUG]}|Faces], We) ->
     draw_vtx_color(Faces,We).
 
 do_draw_faces([],_,_) -> ok;
-do_draw_faces([{Face, [[UV1|N1],[UV2|N2],[UV3|N3]|_BUG]}|Fs],Tex, We) ->
+do_draw_faces([{Face, [[UV1|TBN1],[UV2|TBN2],[UV3|TBN3]|_BUG]}|Fs],Tex, We) ->
     [V1,V2,V3|_] = wings_face:vertex_positions(Face, We),
-    gl:normal3fv(N1),
+    gl:normal3fv(element(3, TBN1)),
     texCoord(UV1, Tex),
     gl:vertex3fv(V1),
     
-    gl:normal3fv(N2),
+    gl:normal3fv(element(3, TBN2)),
     texCoord(UV2,Tex),
     gl:vertex3fv(V2),
     
-    gl:normal3fv(N3),
+    gl:normal3fv(element(3, TBN3)),
     texCoord(UV3,Tex),
     gl:vertex3fv(V3),
     do_draw_faces(Fs, Tex, We).
     
 do_draw_bumped([], _,_,_) -> ok;
-do_draw_bumped([{Face, [[UV1|N1],[UV2|N2],[UV3|N3]|_BUG]}|Fs], Txt, We, L) ->
+do_draw_bumped([{Face, [[UV1|TBN1],[UV2|TBN2],[UV3|TBN3]|_BUG]}|Fs], 
+	       Txt, We, L) ->
     [V1,V2,V3|_] = wings_face:vertex_positions(Face, We),
-    TBN1 = calcTS(V3,V1,V2,UV3,UV1,UV2,N1),
-    gl:normal3fv(N1),
+    gl:normal3fv(element(3, TBN1)),
     texCoord(UV1, true, ?GL_TEXTURE1),
 %    io:format("V=~p.~p~n",[V1,[UV1|N1]]),
     bumpCoord(TBN1, V1, L),
     texCoord(UV1, Txt,  ?GL_TEXTURE3),
     gl:vertex3fv(V1),
 
-    TBN2 = calcTS(V1,V2,V3,UV1,UV2,UV3,N2),
-    gl:normal3fv(N2),
+    gl:normal3fv(element(3, TBN2)),
     texCoord(UV2, true, ?GL_TEXTURE1),
 %    io:format("V=~p.~p~n",[V2,[UV2|N2]]),
     bumpCoord(TBN2, V2, L),
     texCoord(UV2, Txt,  ?GL_TEXTURE3),
     gl:vertex3fv(V2),
 
-    TBN3 = calcTS(V2,V3,V1,UV2,UV3,UV1,N3),
-    gl:normal3fv(N3),
+    gl:normal3fv(element(3, TBN3)),
     texCoord(UV3, true, ?GL_TEXTURE1),
 %    io:format("V=~p.~p~n",[V3,[UV3|N3]]),
     bumpCoord(TBN3, V3, L),
@@ -1061,13 +1088,25 @@ texCoord(_, true, Unit) ->
 texCoord(_, false, _) ->
     ok.
 
-calcTS(V1,V2,V3,{_S1,T1},{_S2,T2},{_S3,T3},N) ->
+default_uv(UV = {_,_}) -> UV;    
+default_uv(none) -> {0.0,0.0}.
+
+calcTS(V1,V2,V3,UV1,UV2,UV3,N) ->
+    {_S1,T1} = default_uv(UV1),
+    {_S2,T2} = default_uv(UV2),
+    {_S3,T3} = default_uv(UV3),
     Side1 = e3d_vec:sub(V1,V2),
     Side2 = e3d_vec:sub(V3,V2),
     DT1 = T1-T2,
     DT2 = T3-T2,
-    Stan1 = e3d_vec:norm(e3d_vec:sub(e3d_vec:mul(Side1,DT2),
-				    e3d_vec:mul(Side2,DT1))),
+    Stan1 = 
+	if (DT1 == {0.0,0.0}) or (DT2 == {0.0,0.0}) -> 
+		%% if no uv-coords..
+		e3d_vec:norm(e3d_vec:sub(Side1,Side2));
+	   true ->
+		e3d_vec:norm(e3d_vec:sub(e3d_vec:mul(Side1,DT2),
+					 e3d_vec:mul(Side2,DT1)))
+	end,
 
 %    DS1 = S1-S2,
 %    DS2 = S3-S2,
@@ -1098,7 +1137,6 @@ bumpCoord({Vx,Vy,Vn}, Vpos, {Type,InvLight0}) ->
 	   end,
     InvLight = e3d_vec:norm(LDir),
     %% Calc orthonormal space per vertex.
-    
     %% Norm RGB could (should) be done with a normal-cube map
     X = e3d_vec:dot(Vx,InvLight),
     Y = e3d_vec:dot(Vy,InvLight),
