@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.131 2003/03/01 06:37:41 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.132 2003/03/04 19:11:03 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -328,8 +328,7 @@ handle_drag_event_1(#mousemotion{}=Ev, Drag0) ->
     {_,Drag} = motion(Ev, Drag0),
     get_drag_event(Drag);
 handle_drag_event_1(#mousebutton{button=1,x=X,y=Y,state=?SDL_RELEASED}, Drag0) ->
-    wings_wm:release_focus(),
-    wings_io:ungrab(),
+    ungrab(Drag0),
     Ev = #mousemotion{x=X,y=Y,state=0},
     {Move,Drag} = ?SLOW(motion(Ev, Drag0)),
     St = normalize(Drag),
@@ -337,17 +336,15 @@ handle_drag_event_1(#mousebutton{button=1,x=X,y=Y,state=?SDL_RELEASED}, Drag0) -
     wings_wm:later(DragEnded),
     pop;
 handle_drag_event_1({drag_arguments,Move}, Drag0) ->
-    wings_wm:release_focus(),
-    wings_io:ungrab(),
+    ungrab(Drag0),
     Drag = ?SLOW(motion_update(Move, Drag0)),
     St = normalize(Drag),
     DragEnded = {new_state,St#st{args=Move}},
     wings_wm:later(DragEnded),
     pop;
-handle_drag_event_1(#mousebutton{button=3,state=?SDL_RELEASED}, _Drag) ->
+handle_drag_event_1(#mousebutton{button=3,state=?SDL_RELEASED}, Drag) ->
     wings_draw_util:map(fun invalidate_fun/2, []),
-    wings_wm:release_focus(),
-    wings_io:ungrab(),
+    ungrab(Drag),
     wings_wm:later(revert_state),
     pop;
 handle_drag_event_1(view_changed, Drag) ->
@@ -368,6 +365,11 @@ handle_drag_event_1(Event, #drag{st=St}=Drag0) ->
 	       _Other -> Drag0
 	   end,
     get_drag_event(Drag).
+
+ungrab(#drag{x=Ox,y=Oy}) ->
+    wings_wm:release_focus(),
+    wings_io:ungrab(),
+    sdl_mouse:warpMouse(Ox, Oy).
 
 invalidate_fun(#dlo{drag=none}=D, _) -> D;
 invalidate_fun(#dlo{src_we=We}=D, _) -> D#dlo{src_we=We#we{es=none}}.
