@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.132 2003/11/29 07:19:09 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.133 2003/11/30 09:15:12 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -103,6 +103,7 @@ init() ->
     new(message, {0,0,?Z_LOWEST_DYNAMIC-1}, {0,0},
 	{push,fun message_event/1}),
     init_opengl(),
+    dirty_mode(back),
     resize_windows(W, H).
 
 desktop_event(got_focus) ->
@@ -171,8 +172,12 @@ notify(Note) ->
 dirty_mode(front=Mode) ->
     put(wm_dirty_mode, Mode);
 dirty_mode(back=Mode) ->
-    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
-    put(wm_dirty_mode, Mode).
+    case get(wings_os_type) of
+	{unix,darwin} -> ok;
+	_ ->
+	    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
+	    put(wm_dirty_mode, Mode)
+    end.
 
 dirty() ->
     put(wm_dirty, dirty),
