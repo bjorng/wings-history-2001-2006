@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.4 2001/11/19 05:46:31 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.5 2001/11/19 07:16:35 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -128,28 +128,19 @@ nendo_event(#mousemotion{x=X,y=Y,state=Buttons}, Camera0, Redraw) ->
     end,
     Redraw(),
     get_nendo_event(Camera, Redraw);
-nendo_event(Event, Camera, Redraw) ->
-    case wings_hotkey:event(Event) of
-	{view,{along,Axis}} ->
-	    wings_view:along(Axis, dummy),
-	    Redraw(),
-	    get_nendo_event(Camera, Redraw);
-	{view,reset} ->
-	    wings_view:reset(),
-	    Redraw(),
-	    get_nendo_event(Camera, Redraw);
-	{view,orthogonal_view} ->
-	    wings_view:command(orthogonal_view, Redraw),
-	    Redraw(),
-	    get_nendo_event(Camera, Redraw);
+nendo_event(#keyboard{keysym=#keysym{sym=Sym}}=Event, Camera, Redraw) ->
+    case nendo_pan(Sym, Redraw) of
+	keep -> keep;
 	next ->
-	    case Event of
-		#keyboard{keysym=#keysym{sym=Sym}} ->
-		    nendo_pan(Sym, Redraw);
-		Other -> keep
-	    end;
-	Other -> keep
-    end.
+	    case wings_hotkey:event(Event) of
+		{view,Cmd} ->
+		    wings_view:command(Cmd, #st{}),
+		    Redraw();
+		Other -> ok
+	    end
+    end,
+    keep;
+nendo_event(Event, Camera, Redraw) -> keep.
     
 nendo_pan(?SDLK_LEFT, Redraw) ->
     nendo_pan(0.1, 0.0, Redraw);
@@ -159,7 +150,7 @@ nendo_pan(?SDLK_UP, Redraw) ->
     nendo_pan(0.0, 0.1, Redraw);
 nendo_pan(?SDLK_DOWN, Redraw) ->
     nendo_pan(0.0, -0.1, Redraw);
-nendo_pan(_, _) -> keep.
+nendo_pan(_, _) -> next.
 
 nendo_pan(Dx, Dy, Redraw) ->
     pan(Dx, Dy),

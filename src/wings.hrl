@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.20 2001/11/17 18:25:11 bjorng Exp $
+%%     $Id: wings.hrl,v 1.21 2001/11/19 07:16:35 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -70,7 +70,7 @@
 	 hidden,				%Hidden shapes
 	 selmode,				%Selection mode:
 						% vertex, edge, face, body
-	 sel,					%Current sel: [{Id,GbSet}]
+	 sel=[],				%Current sel: [{Id,GbSet}]
 	 hsel,					%Hidden sel: GbSet
 	 ssel,					%Saved selection.
 	 mat,					%Defined materials (GbTree).
