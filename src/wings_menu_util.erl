@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu_util.erl,v 1.32 2003/10/12 05:55:53 bjorng Exp $
+%%     $Id: wings_menu_util.erl,v 1.33 2003/10/13 05:34:37 bjorng Exp $
 %%
 
 -module(wings_menu_util).
@@ -148,7 +148,7 @@ rotate(_) ->
 
 rotate(help, _) ->
     {"Rotate around std. axis",
-     "Pick axis and point to rotate through",
+     "Pick axis and ref point",
      "Pick axis to rotate around"};
 rotate(1, [rotate,Mode]=Ns) when Mode == vertex; Mode == body ->
     [rotate_fun(free, Ns),
@@ -174,7 +174,7 @@ rotate_fun(Dir, Names) ->
     DirString = wings_util:stringify(Dir),
     F = magnet_scale_rot_fun(Dir, center),
     Help0 = dir_help(Dir, Names),
-    Help = {Help0,[],"Pick point to rotate through"},
+    Help = {Help0,[],"Pick point that axis will pass through"},
     Ps = magnet_props(Dir, Names),
     {DirString,F,Help,Ps}.
 
@@ -183,7 +183,7 @@ rotate_axis_fun(Axis, Names) ->
     DirString = stringify_dir(Axis),
     F = magnet_scale_rot_fun(Vec, Point),
     Help0 = dir_help(Axis, Names),
-    Help = {Help0,[],"Pick point to rotate through"},
+    Help = {Help0,[],"Pick point that axis will pass through"},
     {advanced,{DirString,F,Help,magnet_props(Axis, Names)}}.
 
 magnet_scale_rot_fun(Vec, Point) ->
