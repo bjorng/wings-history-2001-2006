@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.37 2004/03/17 17:47:51 bjorng Exp $
+%%     $Id: wings_image.erl,v 1.38 2004/03/17 18:06:10 bjorng Exp $
 %%
 
 -module(wings_image).
@@ -550,7 +550,7 @@ command(Percent, Id) when is_integer(Percent) ->
     View = wings_view:current(),
     #e3d_image{height=Ih} = info(Id),
     {W,H} = wings_wm:win_size(),
-    Dist = 100*H/Ih/2/Percent,
+    Dist = 100/2*H/Ih/Percent,
     wings_view:set_current(View#view{distance=Dist,pan_x=-W/H/2,pan_y=-0.5}),
     wings_wm:dirty(),
     keep.
@@ -579,10 +579,12 @@ redraw_1(Id, #e3d_image{width=Iw,height=Ih}) ->
 
     %% Draw window border.
     wings_io:ortho_setup(),
-    gl:color3i(0, 0, 0),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
     {W,H} = wings_wm:win_size(),
     gl:rectf(0.5, 0.5, W-0.5, H-0.5),
+    #view{distance=Dist} = wings_view:current(),
+    Percent = 100/2*H/Ih/Dist,
+    wings_io:info(io_lib:format("~.2f%  ", [Percent])),
     gl:popAttrib().
 
 % draw_background(X, Y, W, H) ->
