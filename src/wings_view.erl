@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.57 2002/05/13 07:59:34 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.58 2002/05/15 07:15:04 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -352,29 +352,40 @@ smooth_dlist(#dlo{smoothed=none,src_we=We0}=D, St) ->
     {D#dlo{smoothed=List},[]};
 smooth_dlist(D, _) -> {D,[]}.
 
-smooth_redraw(Sm) ->
-    wings_draw_util:fold(fun smooth_redraw/2, Sm).
-
-smooth_redraw(#dlo{smoothed=Dlist}=D, #sm{st=St}=Sm) ->
-    ?CHECK_ERROR(),
+smooth_redraw(#sm{st=St}=Sm) ->
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     gl:enable(?GL_DEPTH_TEST),
+    gl:cullFace(?GL_BACK),
     wings_view:projection(),
     wings_view:model_transformations(),
-    gl:enable(?GL_CULL_FACE),
+    wings_draw_util:fold(fun(D, _) -> smooth_redraw(D, Sm) end, []),
+    gl:popAttrib(),
+    wings_io:update(St).
+
+smooth_redraw(#dlo{mirror=none}=D, Sm) ->
+    smooth_redraw_1(D, Sm);
+smooth_redraw(#dlo{mirror=Matrix}=D, Sm) ->
     gl:cullFace(?GL_BACK),
-    gl:shadeModel(?GL_SMOOTH),
-    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
+    smooth_redraw_1(D, Sm),
+    gl:cullFace(?GL_FRONT),
+    gl:pushMatrix(),
+    gl:multMatrixf(Matrix),
+    smooth_redraw_1(D, Sm),
+    gl:popMatrix(),
+    gl:cullFace(?GL_BACK).
+
+smooth_redraw_1(#dlo{smoothed=Dlist}=D, Sm) ->
     ?CHECK_ERROR(),
+    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
+    gl:shadeModel(?GL_SMOOTH),
     gl:enable(?GL_LIGHTING),
     gl:enable(?GL_POLYGON_OFFSET_FILL),
     gl:enable(?GL_BLEND),
     gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
+    gl:enable(?GL_CULL_FACE),
     gl:callList(Dlist),
-    wireframe(D, Sm),
-    gl:popAttrib(),
-    wings_io:update(St),
-    Sm.
+    ?CHECK_ERROR(),
+    wireframe(D, Sm).
 
 wireframe(_, #sm{wire=false}) -> ok;
 wireframe(#dlo{work=Work}, #sm{wire=true}) ->

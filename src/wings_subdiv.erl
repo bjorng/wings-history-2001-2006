@@ -8,26 +8,33 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.20 2002/04/23 05:31:06 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.21 2002/05/15 07:15:04 bjorng Exp $
 %%
 
 -module(wings_subdiv).
--export([smooth/1,smooth/6]).
+-export([smooth/1,smooth/5]).
 -include("wings.hrl").
 -import(lists, [map/2,foldl/3,reverse/1,reverse/2,sort/1,merge/1]).
 
 %%% The Catmull-Clark subdivision algorithm is used, with
 %%% Tony DeRose's extensions for creases.
 
-smooth(#we{vs=Vtab,es=Etab,fs=Ftab,he=Htab}=We) ->
+smooth(#we{mirror=none,vs=Vtab,es=Etab,fs=Ftab,he=Htab}=We) ->
     Faces = gb_trees:keys(Ftab),
     Vs = gb_trees:keys(Vtab),
     Es = gb_trees:keys(Etab),
-    smooth(Faces, Faces, Vs, Es, Htab, We).
+    smooth(Faces, Vs, Es, Htab, We);
+smooth(#we{mirror=Face,vs=Vtab,es=Etab,fs=Ftab,he=Htab}=We) ->
+    Faces = gb_trees:keys(gb_trees:delete(Face, Ftab)),
+    Vs = gb_trees:keys(Vtab),
+    Es = gb_trees:keys(Etab),
+    He0 = wings_face:outer_edges([Face], We),
+    He = gb_sets:union(gb_sets:from_list(He0), Htab),
+    smooth(Faces, Vs, Es, He, We).
 
-smooth(AllFs, Fs, Vs, Es, Htab, #we{next_id=Id}=We0) ->
+smooth(Fs, Vs, Es, Htab, #we{next_id=Id}=We0) ->
     wings_io:progress_tick(),
-    FacePos0 = face_centers(AllFs, We0),
+    FacePos0 = face_centers(Fs, We0),
     FacePos = gb_trees:from_orddict(reverse(FacePos0)),
     wings_io:progress_tick(),
     We1 = cut_edges(Es, FacePos, Htab, We0),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.50 2002/05/12 05:00:53 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.51 2002/05/15 07:15:04 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -541,7 +541,7 @@ smooth_regions([Faces0|Rs], #we{he=Htab}=We0) ->
     HardEdges = gb_sets:union(gb_sets:from_list(HardEdges0), Htab),
     Faces = gb_sets:to_list(Faces0),
     {Vs,Es} = all_edges(Faces0, We0),
-    We = wings_subdiv:smooth(Faces, Faces, Vs, Es, HardEdges, We0),
+    We = wings_subdiv:smooth(Faces, Vs, Es, HardEdges, We0),
     smooth_regions(Rs, We);
 smooth_regions([], We) -> We.
 
