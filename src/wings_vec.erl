@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.104 2004/03/27 06:41:38 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.105 2004/04/17 06:33:04 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -162,13 +162,13 @@ handle_event_1(Event, Ss, St) ->
 handle_event_2(#mousebutton{x=X,y=Y}=Ev0, Ss, St0) ->
     case wings_menu:is_popup_event(Ev0) of
 	{yes,Xglobal,Yglobal,Mod} ->
-	    case wings_pick:do_pick(X, Y, St0) of
-		{add,_,St} ->
+	    case temp_selection(X, Y, St0) of
+		none ->
+		    exit_menu(Xglobal, Yglobal, Mod, Ss, St0);
+		#st{}=St ->
 		    Ev = wings_wm:local2global(Ev0),
 		    wings_io:putback_event(Ev),
-		    wings_wm:later({new_state,St});
-		_ ->
-		    exit_menu(Xglobal, Yglobal, Mod, Ss, St0)
+		    wings_wm:later({new_state,St})
 	    end;
 	no -> handle_event_3(Ev0, Ss, St0)
     end;
@@ -223,6 +223,22 @@ handle_event_4(init_opengl, _, St) ->
     wings:init_opengl(St);
 handle_event_4(_Event, Ss, St) ->
     get_event(Ss, St).
+
+temp_selection(X, Y, St0) ->
+    case wings_pref:get_value(use_temp_sel) of
+	false ->
+	    none;
+	true ->
+	    case wings_pick:do_pick(X, Y, St0) of
+		{add,_,#st{sel=[{_,Sel}]}=St} ->
+		    case gb_sets:size(Sel) < 2 orelse
+			wings_pref:get_value(use_super_temp_sel) of
+			true -> St;
+			false -> none
+		    end;
+		_ -> none
+	    end
+    end.
 
 pick_next(Do, Done, #ss{is_axis=true,vec={{_,_,_},{_,_,_}}=Vec}=Ss, St) ->
     wings_pref:set_value(last_axis, Vec),
@@ -376,7 +392,7 @@ get_vec(edge, [Edge], #we{es=Etab,vp=Vtab}=We) ->
     #edge{vs=Va,ve=Vb,lf=Lf,rf=Rf} = gb_trees:get(Edge, Etab),
     VaPos = gb_trees:get(Va, Vtab),
     VbPos = gb_trees:get(Vb, Vtab),
-    Vec = e3d_vec:norm(e3d_vec:sub(VbPos, VaPos)),
+    Vec = e3d_vec:norm_sub(VbPos, VaPos),
     Center = wings_vertex:center([Va,Vb], We),
     Ln = wings_face:normal(Lf, We),
     Rn = wings_face:normal(Rf, We),
@@ -395,7 +411,7 @@ get_vec(edge, [Edge1,Edge2], #we{es=Etab,vp=Vtab}) ->
     Center1 = e3d_vec:average([Va1Pos,Vb1Pos]),
     Center2 = e3d_vec:average([Va2Pos,Vb2Pos]),
     Center = e3d_vec:average([Center1,Center2]),
-    Vec = e3d_vec:norm(e3d_vec:sub(Center1, Center2)),
+    Vec = e3d_vec:norm_sub(Center1, Center2),
     [{{Center,Vec},"Direction between edges saved as axis."}];
 %% Use edge-loop normal.
 get_vec(edge, Edges, #we{vp=Vtab}=We) ->
@@ -417,7 +433,7 @@ get_vec(vertex, [V], We) ->
 get_vec(vertex, [Va,Vb]=Vs, We) ->
     VaPos = wings_vertex:pos(Va, We),
     VbPos = wings_vertex:pos(Vb, We),
-    Vec = e3d_vec:norm(e3d_vec:sub(VaPos, VbPos)),
+    Vec = e3d_vec:norm_sub(VaPos, VbPos),
     Center = wings_vertex:center(Vs, We),
     Normal = e3d_vec:norm(e3d_vec:add(wings_vertex:normal(Va, We),
 				      wings_vertex:normal(Vb, We))),
@@ -454,7 +470,7 @@ get_vec(face, [Face1,Face2], We) ->
     Center1 = wings_face:center(Face1, We),
     Center2 = wings_face:center(Face2, We),
     Center = e3d_vec:average([Center1,Center2]),
-    Vec = e3d_vec:norm(e3d_vec:sub(Center1, Center2)),
+    Vec = e3d_vec:norm_sub(Center1, Center2),
     Face1n = wings_face:normal(Face1, We),
     Face2n = wings_face:normal(Face2, We),
     Normal = e3d_vec:norm(e3d_vec:add(Face1n, Face2n)),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.118 2004/04/15 20:35:55 raimo_niskanen Exp $
+%%     $Id: wings_pref.erl,v 1.119 2004/04/17 06:33:04 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -166,9 +166,29 @@ advanced_prefs() ->
 			  not gb_trees:get(advanced_menus, Store);
 		      (_, _) ->	void
 		  end,
+    SuperDisable = fun (is_disabled, {_Var,_I,Store}) ->
+			   not gb_trees:get(advanced_menus, Store) orelse
+			       not gb_trees:get(use_temp_sel, Store);
+		       (_, _) ->	void
+		  end,
     Flags = [{hook,DisableHook}],
+
     {vframe,
-     [{"Advanced Menus",advanced_menus,"More commands and more options, such as magnets"},
+     [{"Default Commands",default_commands,
+       [{info,"Allow defining commands that can be invoked by Ctrl+L or Ctrl+M"}]},
+      {"Use Highlight as Temporary Selection",use_temp_sel,
+       [{info,"If there is no selection, "
+	 "allow commands to act on the highlighted element"}]},
+      {"Hide Selection While Dragging",hide_sel_while_dragging,
+       [{info,"Don't show the selection in any interactive command"}]},
+      {"Hide Selection While Moving Camera",hide_sel_in_camera_moves,
+       [{info,"Don't show the selection when the camera is being moved"}]},
+      panel,
+      {"Advanced Menus",advanced_menus,
+       [{info,"More commands and more options, such as magnets"}]},
+      {"Power-user temporary selections",use_super_temp_sel,
+       [{info,"In the secondary selection mode, "
+	 "RMB-clicking always add to the selection"},{hook,SuperDisable}]},
       {vframe,
        [{label_column,
 	 [{"Length",active_vector_size,
@@ -177,15 +197,7 @@ advanced_prefs() ->
 	   [{info,"Width of vector (in pixels)"},{range,{1.0,10.0}}|Flags]},
 	  {color,"Color",active_vector_color,
 	   [{info,"Color of vector"}|Flags]}]}],
-	[{title,"Vector Display"}]},
-      {"Default Commands",default_commands,
-       [{info,"Allow defining commands that can be invoked by Ctrl+L or Ctrl+M"}]},
-      {"Use Highlight as Temporary Selection",use_temp_sel,
-       [{info,"If there is no selection, allow commands to act on the highlighted element"}]},
-      {"Hide Selection While Dragging",hide_sel_while_dragging,
-       [{info,"Don't show the selection in any interactive command"}]},
-      {"Hide Selection While Moving Camera",hide_sel_in_camera_moves,
-       [{info,"Don't show the selection when the camera is being moved"}]}
+	[{title,"Vector Display"}]}
      ]}.
 
 ui_prefs() ->
@@ -660,6 +672,7 @@ defaults() ->
      {advanced_menus,false},
      {default_commands,false},
      {use_temp_sel,false},
+     {use_super_temp_sel,false},
 
      %% Proxy preferences.
      {proxy_shaded_edge_style,some},
