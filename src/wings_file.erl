@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.145 2004/01/01 15:01:14 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.146 2004/01/16 09:25:42 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -134,10 +134,21 @@ command(quit, _) ->
 			     fun() -> {file,confirmed_quit} end);
 command(confirmed_quit, _) ->
     quit;
-command(Key, St) when is_integer(Key) ->
-    Recent = wings_pref:get_value(recent_files, []),
-    {_,File} = lists:nth(Key, Recent),
-    named_open(File, St).
+command(Key, St) when is_integer(Key), 1 =< Key ->
+    Recent0 = wings_pref:get_value(recent_files, []),
+    {_,File} = lists:nth(Key, Recent0),
+    case filelib:is_file(File) of
+	true ->
+	    named_open(File, St);
+	false ->
+	    Recent = delete_nth(Recent0, Key),
+	    wings_pref:set_value(recent_files, Recent),
+	    wings_util:error("This file has been moved or deleted.")
+    end.
+
+delete_nth([_|T], 1) -> T;
+delete_nth([H|T], N) -> [H|delete_nth(T, N-1)];
+delete_nth([], _) -> [].
 
 confirmed_new(#st{file=File}=St) ->
     %% Remove autosaved file; user has explicitly said so.
