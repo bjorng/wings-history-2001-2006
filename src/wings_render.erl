@@ -9,11 +9,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_render.erl,v 1.3 2004/05/14 05:45:25 bjorng Exp $
+%%     $Id: wings_render.erl,v 1.4 2004/05/15 07:25:58 bjorng Exp $
 %%
 
 -module(wings_render).
--export([render/1,call/1]).
+-export([render/1]).
 
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
@@ -21,7 +21,7 @@
 %% render(St)
 %%  Render the entire contents of a Geometry or AutoUV window,
 %%  including groundplane and axes. Use the contents of the display
-%%  lists maintained by wings_draw_util. All display lists must
+%%  lists maintained by wings_dl. All display lists must
 %%  already exist; no display lists are created by this function.
 
 render(#st{selmode=Mode}=St) ->
@@ -44,27 +44,12 @@ render(#st{selmode=Mode}=St) ->
     gl:rectf(W-0.5, 0.5, 0.5, H-0.5),
     gl:popAttrib().
 
-%% call(DisplayListTerm)
-%%  Call the OpenGL display list using gl:callList/1 for
-%%  the display lists embedded in the display list term.
-
-call(none) -> none;
-call({call,Dl,_}) -> call(Dl);
-call({call_in_this_win,Win,Dl}) ->
-    case wings_wm:this() of
-	Win -> call(Dl);
-	_ -> ok
-    end;
-call([H|T]) -> call(H), call(T);
-call([]) -> ok;
-call(Dl) when is_integer(Dl) -> gl:callList(Dl).
-
 %%%
 %%% Internal functions follow.
 %%%
 
 render_objects(Mode) ->
-    Dls = wings_draw_util:display_lists(),
+    Dls = wings_dl:display_lists(),
     case wings_wm:get_prop(workmode) of
 	false ->
 	    render_smooth_objects(Dls, Mode, false),
@@ -129,10 +114,10 @@ render_plain(#dlo{work=Faces,edges=Edges,src_we=We,proxy_data=none}=D, SelMode) 
 	    gl:enable(?GL_LIGHTING),
 	    case wings_we:any_hidden(We) of
 		false ->
-		    call(Faces);
+		    wings_dl:call(Faces);
 		true ->
 		    gl:disable(?GL_CULL_FACE),
-		    call(Faces),
+		    wings_dl:call(Faces),
 		    gl:enable(?GL_CULL_FACE)
 	    end,
 	    gl:disable(?GL_LIGHTING),
@@ -157,10 +142,10 @@ render_plain(#dlo{work=Faces,edges=Edges,src_we=We,proxy_data=none}=D, SelMode) 
 	    case Wire andalso wings_wm:get_prop(show_wire_backfaces) of
 		true ->
 		    gl:disable(?GL_CULL_FACE),
-		    call(Edges),
+		    wings_dl:call(Edges),
 		    gl:enable(?GL_CULL_FACE);
 		false ->
-		    call(Edges)
+		    wings_dl:call(Edges)
 	    end
     end,
     render_plain_rest(D, Wire, SelMode);
@@ -221,12 +206,12 @@ render_smooth(#dlo{work=Work,edges=Edges,smooth=Smooth,transparent=Trans,
 	{none,false} ->
 	    if
 		Pd =:= none ->
-		    call(Work);
+		    wings_dl:call(Work);
 		true ->
 		    wings_subdiv:draw(D, wire(We))
 	    end;
-	{[Op,_],false} -> call(Op);
-	{[_,Tr],true} -> call(Tr);
+	{[Op,_],false} -> wings_dl:call(Op);
+	{[_,Tr],true} -> wings_dl:call(Tr);
 	{_,_} -> ok
     end,
     gl:enable(?GL_CULL_FACE),
@@ -242,7 +227,7 @@ render_smooth(#dlo{work=Work,edges=Edges,smooth=Smooth,transparent=Trans,
 	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
 	    gl:enable(?GL_POLYGON_OFFSET_LINE),
 	    gl:polygonOffset(1, 1),
-	    call(Edges);
+	    wings_dl:call(Edges);
 	true ->
 	    wings_subdiv:draw_smooth_edges(D);
 	false -> ok
@@ -258,11 +243,11 @@ wire(#we{id=Id}) ->
 draw_sel(#dlo{sel=SelDlist,src_sel={edge,_}}) ->
     gl:lineWidth(wings_pref:get_value(selected_edge_width)),
     sel_color(),
-    call(SelDlist);
+    wings_dl:call(SelDlist);
 draw_sel(#dlo{sel=SelDlist,src_sel={vertex,_}}) ->
     gl:pointSize(wings_pref:get_value(selected_vertex_size)),
     sel_color(),
-    call(SelDlist);
+    wings_dl:call(SelDlist);
 draw_sel(#dlo{orig_sel=OrigSel,sel=SelDlist}) ->
     sel_color(),
     gl:enable(?GL_POLYGON_OFFSET_FILL),
@@ -270,10 +255,10 @@ draw_sel(#dlo{orig_sel=OrigSel,sel=SelDlist}) ->
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
     case OrigSel =/= none orelse wings_pref:get_value(selection_style) =:= solid of
 	true ->					%Solid selection style.
-	    call(SelDlist);
+	    wings_dl:call(SelDlist);
 	false ->				%Stippled selection style.
 	    gl:enable(?GL_POLYGON_STIPPLE),
-	    call(SelDlist),
+	    wings_dl:call(SelDlist),
 	    gl:disable(?GL_POLYGON_STIPPLE)
     end.
 
@@ -281,10 +266,10 @@ sel_color() ->
     gl:color3fv(wings_pref:get_value(selected_color)).
 
 draw_vertices(#dlo{src_we=#we{perm=P},vs=VsDlist}, vertex) when ?IS_SELECTABLE(P) ->
-    call(VsDlist);
+    wings_dl:call(VsDlist);
 draw_vertices(_, _) -> ok.
 
-draw_hilite(#dlo{hilite=DL}) -> call(DL).
+draw_hilite(#dlo{hilite=DL}) -> wings_dl:call(DL).
 
 draw_orig_sel(#dlo{orig_sel=none}) -> ok;
 draw_orig_sel(#dlo{orig_sel=Dlist,orig_mode=Mode}) ->
@@ -296,7 +281,7 @@ draw_orig_sel_1(vertex, DlistSel) ->
     gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
     {R0,G0,B0} = wings_pref:get_value(selected_color),
     gl:color4f(R0, G0, B0, 0.5),
-    call(DlistSel),
+    wings_dl:call(DlistSel),
     gl:disable(?GL_BLEND);
 draw_orig_sel_1(edge, DlistSel) ->
     gl:lineWidth(wings_pref:get_value(selected_edge_width)*2),
@@ -304,7 +289,7 @@ draw_orig_sel_1(edge, DlistSel) ->
     gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
     {R0,G0,B0} = wings_pref:get_value(selected_color),
     gl:color4f(R0, G0, B0, 0.5),
-    call(DlistSel),
+    wings_dl:call(DlistSel),
     gl:disable(?GL_BLEND);
 draw_orig_sel_1(_, DlistSel) ->
     sel_color(),
@@ -312,20 +297,20 @@ draw_orig_sel_1(_, DlistSel) ->
     gl:enable(?GL_POLYGON_OFFSET_FILL),
     gl:polygonOffset(1, 1),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
-    call(DlistSel),
+    wings_dl:call(DlistSel),
     gl:disable(?GL_POLYGON_STIPPLE).
 
 draw_hard_edges(#dlo{hard=none}, _) -> ok;
 draw_hard_edges(#dlo{hard=Hard}, SelMode) ->
     gl:lineWidth(edge_width(SelMode)),
     gl:color3fv(wings_pref:get_value(hard_edge_color)),
-    call(Hard).
+    wings_dl:call(Hard).
 
 draw_normals(#dlo{normals=none}) -> ok;
 draw_normals(#dlo{normals=Ns}) ->
     gl:color3f(0, 0, 1),
     gl:lineWidth(2),
-    call(Ns).
+    wings_dl:call(Ns).
 
 edge_width(edge) -> wings_pref:get_value(edge_width);
 edge_width(_) -> 1.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.203 2004/05/02 09:49:38 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.204 2004/05/15 07:25:58 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -48,20 +48,20 @@ refresh_dlists(St) ->
 
 invalidate_dlists(#st{selmode=Mode,sel=Sel}=St) ->
     prepare_dlists(St),
-    case wings_draw_util:changed_materials(St) of
+    case wings_dl:changed_materials(St) of
 	[] -> ok;
 	ChangedMat -> invalidate_by_mat(ChangedMat)
     end,
-    wings_draw_util:map(fun(D0, Data) ->
-				D = update_mirror(D0),
-				invalidate_sel(D, Data, Mode)
-			end, Sel),
+    wings_dl:map(fun(D0, Data) ->
+			 D = update_mirror(D0),
+			 invalidate_sel(D, Data, Mode)
+		 end, Sel),
     update_needed(St).
 
 prepare_dlists(#st{shapes=Shs}) ->
-    wings_draw_util:update(fun(D, A) ->
-				   prepare_fun(D, A)
-			   end, gb_trees:values(Shs)).
+    wings_dl:update(fun(D, A) ->
+			    prepare_fun(D, A)
+		    end, gb_trees:values(Shs)).
 
 prepare_fun(eol, [#we{perm=Perm}|Wes]) when ?IS_NOT_VISIBLE(Perm) ->
     prepare_fun(eol, Wes);
@@ -105,7 +105,7 @@ only_permissions_changed(We0, We1) -> We0#we{perm=0} =:= We1#we{perm=0}.
     
 invalidate_by_mat(Changed0) ->
     Changed = gb_sets:from_list(Changed0),
-    wings_draw_util:map(fun(D, _) -> invalidate_by_mat(D, Changed) end, []).
+    wings_dl:map(fun(D, _) -> invalidate_by_mat(D, Changed) end, []).
 
 invalidate_by_mat(#dlo{work=none,vs=none,smooth=none,proxy_faces=none}=D, _) ->
     %% Nothing to do.
@@ -231,9 +231,9 @@ update_needed_1(Need, St) ->
 
 update_needed_2(CommonNeed, St) ->
     Wins = wins_of_same_class(),
-    wings_draw_util:map(fun(D, _) ->
-				update_needed_fun(D, CommonNeed, Wins, St)
-			end, []).
+    wings_dl:map(fun(D, _) ->
+			 update_needed_fun(D, CommonNeed, Wins, St)
+		 end, []).
 
 update_needed_fun(#dlo{src_we=#we{perm=Perm}=We}=D, _, _, _)
   when ?IS_LIGHT(We), ?IS_VISIBLE(Perm) ->
@@ -283,11 +283,11 @@ wins_of_same_class() ->
 %%
 
 build_dlists(St) ->
-    wings_draw_util:map(fun(#dlo{needed=Needed}=D0, S0) ->
-				D = update_normals(D0),
-				S = update_materials(D, S0),
-				update_fun(D, Needed, S)
-			end, St).
+    wings_dl:map(fun(#dlo{needed=Needed}=D0, S0) ->
+			 D = update_normals(D0),
+			 S = update_materials(D, S0),
+			 update_fun(D, Needed, S)
+		 end, St).
 
 update_fun(D0, [H|T], St) ->
     D = update_fun_2(H, D0, St),
@@ -403,9 +403,9 @@ force_flat(_, _) -> none.
 %%%
 
 update_sel_dlist() ->
-    wings_draw_util:map(fun(D, _) ->
-				update_sel(D)
-			end, []).
+    wings_dl:map(fun(D, _) ->
+			 update_sel(D)
+		 end, []).
 
 update_sel(#dlo{src_we=We}=D) when ?IS_LIGHT(We) -> {D,[]};
 update_sel(#dlo{sel=none,src_sel={body,_}}=D) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.305 2004/05/14 05:29:49 bjorng Exp $
+%%     $Id: wings.erl,v 1.306 2004/05/15 07:25:57 bjorng Exp $
 %%
 
 -module(wings).
@@ -190,6 +190,7 @@ open_file(Name) -> wings_wm:send(geom, {open_file,Name}).
 
 init_opengl(St) ->
     wings_draw_util:init(),
+    wings_dl:init(),
     wings_draw:refresh_dlists(St),
     keep.
 

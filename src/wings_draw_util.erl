@@ -8,41 +8,25 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.137 2004/05/14 05:29:49 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.138 2004/05/15 07:25:58 bjorng Exp $
 %%
 
 -module(wings_draw_util).
--export([init/0,delete_dlists/0,
-	 update/2,map/2,fold/2,changed_materials/1,
-	 display_lists/0,
-	 call/1,
-	 prepare/3,
+-export([init/0,prepare/3,
 	 plain_face/2,uv_face/3,vcol_face/2,vcol_face/3,
 	 smooth_plain_faces/2,smooth_uv_faces/2,smooth_vcol_faces/2,
 	 unlit_face/2,unlit_face/3,
 	 force_flat_color/2,force_flat_color/3,good_triangulation/5,
 	 subtract_mirror_face/2]).
 
+%% Legacy exports.
+-export([delete_dlists/0,update/2,map/2,fold/2,call/1]).
+
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
 -import(lists, [reverse/1,foreach/2,foldl/3]).
 
--record(du,
-	{dl=[],					%Display list records.
-	 mat=gb_trees:empty(),			%Materials.
-	 used=[]				%Display lists in use.
-	 }).
-
 init() ->
-    Dl = case get_dl_data() of
-	     undefined -> [];
-	     #du{dl=Dl0,used=Used} ->
-		 ?CHECK_ERROR(),
-		 foreach(fun(DL) -> gl:deleteLists(DL, 1) end, Used),
-		 gl:getError(),			%Clear error.
-		 clear_old_dl(Dl0)
-	 end,
-    put_dl_data(#du{dl=Dl}),
     P = <<16#AA,16#AA,16#AA,16#AA,16#55,16#55,16#55,16#55,
 	 16#AA,16#AA,16#AA,16#AA,16#55,16#55,16#55,16#55,
 	 16#AA,16#AA,16#AA,16#AA,16#55,16#55,16#55,16#55,
@@ -61,151 +45,24 @@ init() ->
 	 16#AA,16#AA,16#AA,16#AA,16#55,16#55,16#55,16#55>>,
     gl:polygonStipple(P).
 
-display_lists() ->
-    #du{dl=Dls} = get_dl_data(),
-    Dls.
+%%%
+%%% The display list API has moved to wings_dl.
+%%% 
+
+call(Dl) ->
+    wings_dl:call(Dl).
 
 delete_dlists() ->
-    case erase(wings_wm:get_prop(display_lists)) of
-	#du{used=Used} ->
-	    foreach(fun(DL) -> gl:deleteLists(DL, 1) end, Used),
-	    gl:getError();			%Clear error.
-	_ ->
-	    ok
-    end.
-
-clear_old_dl([#dlo{src_we=We,proxy_data=Pd0,ns=Ns}|T]) ->
-    Pd = wings_subdiv:clean(Pd0),
-    [#dlo{src_we=We,mirror=none,proxy_data=Pd,ns=Ns}|clear_old_dl(T)];
-clear_old_dl([]) -> [].
-
-get_dl_data() ->
-    case wings_wm:lookup_prop(display_lists) of
-	none -> undefined;
-	{value,DlName} -> get(DlName)
-    end.
-
-put_dl_data(Data) ->
-    put(wings_wm:get_prop(display_lists), Data).
-
-%%
-%% Get a list of all materials that were changed since the last time
-%% the display lists were updated. (The list does not include materials
-%% that were deleted or added.)
-%%
-
-changed_materials(#st{mat=NewMat}) ->
-    case get_dl_data() of
-	#du{mat=NewMat} -> [];
-	#du{mat=OldMat}=Du ->
-	    put_dl_data(Du#du{mat=NewMat}),
-	    changed_materials_1(gb_trees:to_list(OldMat), NewMat, [])
-    end.
-
-changed_materials_1([{Name,Val}|T], New, Acc) ->
-    case gb_trees:lookup(Name, New) of
-	none -> changed_materials_1(T, New, Acc);
-	{value,Val} -> changed_materials_1(T, New, Acc);
-	{value,_} -> changed_materials_1(T, New, [Name|Acc])
-    end;
-changed_materials_1([], _, Acc) -> Acc.
-
-%%
-%% Update allows addition of new objects at the end.
-%%
+    wings_dl:delete_dlists().
 
 update(Fun, Data) ->
-    #du{dl=Dlists} = get_dl_data(),
-    update_1(Fun, Dlists, Data, [], []).
-
-update_1(Fun, [D0|Dlists], Data0, Seen0, Acc) ->
-    case Fun(D0, Data0) of
-	#dlo{}=D ->
-	    Seen = update_seen(D, Seen0),
-	    update_1(Fun, Dlists, Data0, Seen, [D|Acc]);
-	deleted ->
-	    update_1(Fun, Dlists, Data0, Seen0, Acc);
-	{deleted,Data} ->
-	    update_1(Fun, Dlists, Data, Seen0, Acc);
-	{D,Data} ->
-	    Seen = update_seen(D, Seen0),
-	    update_1(Fun, Dlists, Data, Seen, [D|Acc])
-    end;
-update_1(Fun, [], Data0, Seen0, Acc) ->
-    case Fun(eol, Data0) of
-	{D,Data} ->
-	    Seen = update_seen(D, Seen0),
-	    update_1(Fun, [], Data, Seen, [D|Acc]);
-	eol ->
-	    update_last(Data0, Seen0, Acc)
-    end.
-
-%%
-%% Only allows updating of existing entries.
-%%
+    wings_dl:update(Fun, Data).
 
 map(Fun, Data) ->
-    case get_dl_data() of
-	undefined -> ok;
-	#du{dl=Dlists} ->
-	    map_1(Fun, Dlists, Data, [], [])
-    end.
-
-map_1(Fun, [D0|Dlists], Data0, Seen0, Acc) ->
-    case Fun(D0, Data0) of
-	#dlo{}=D ->
-	    Seen = update_seen(D, Seen0),
-	    map_1(Fun, Dlists, Data0, Seen, [D|Acc]);
-	{D,Data} ->
-	    Seen = update_seen(D, Seen0),
-	    map_1(Fun, Dlists, Data, Seen, [D|Acc])
-    end;
-map_1(_Fun, [], Data, Seen, Acc) ->
-    update_last(Data, Seen, Acc).
-
-update_last(Data, Seen, Acc) ->
-    #du{used=Used0} = Du = get_dl_data(),
-    Used = ordsets:from_list(Seen),
-    put_dl_data(Du#du{used=Used,dl=reverse(Acc)}),
-    NotUsed = ordsets:subtract(Used0, Used),
-    delete_lists(NotUsed),
-    Data.
-
-delete_lists([]) -> ok;
-delete_lists([D1,D2|Dls]) when D1+1 =:= D2 ->
-    gl:deleteLists(D1, 2),
-    delete_lists(Dls);
-delete_lists([Dl|Dls]) ->
-    gl:deleteLists(Dl, 1),
-    delete_lists(Dls).
-    
-update_seen(D, Seen) ->
-    update_seen_0(size(D), D, Seen).
-
-update_seen_0(0, _, Seen) -> Seen;
-update_seen_0(I, D, Seen0) ->
-    Seen = update_seen_1(element(I, D), Seen0),
-    update_seen_0(I-1, D, Seen).
-    
-update_seen_1([H|T], Seen) ->
-    update_seen_1(T, update_seen_1(H, Seen));
-update_seen_1([], Seen) -> Seen;
-update_seen_1(none, Seen) -> Seen;
-update_seen_1({call,Dl1,Dl2}, Seen) ->
-    update_seen_1(Dl1, update_seen_1(Dl2, Seen));
-update_seen_1({matrix,_,Dl}, Seen) ->
-    update_seen_1(Dl, Seen);
-update_seen_1(Dl, Seen) when is_integer(Dl) ->
-    [Dl|Seen];
-update_seen_1(_, Seen) -> Seen.
-
-%%
-%% Fold over dlo list.
-%%
+    wings_dl:map(Fun, Data).
 
 fold(Fun, Acc) ->
-    #du{dl=Dlists} = get_dl_data(),
-    foldl(Fun, Acc, Dlists).
+    wings_dl:fold(Fun, Acc).
 
 %%%
 %%% Set material and draw faces.
@@ -466,10 +323,3 @@ unlit_face(Face, Edge, We) ->
 	[_|VsPos] -> wings__du:plain_face(VsPos);
 	{_,Fs,VsPos} -> wings__du:plain_face(Fs, VsPos)
     end.
-
-%%
-%% Utilities.
-%%
-
-call(Dl) ->
-    wings_render:call(Dl).
