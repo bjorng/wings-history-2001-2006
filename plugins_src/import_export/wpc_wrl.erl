@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_wrl.erl,v 1.17 2005/02/19 09:29:05 bjorng Exp $
+%%     $Id: wpc_wrl.erl,v 1.18 2005/02/20 05:45:21 bjorng Exp $
 %%
 
 -module(wpc_wrl).
@@ -57,7 +57,10 @@ do_export(Attr, _Op, Exporter, _St) when is_list(Attr) ->
     set_pref(Attr),
     SubDivs = proplists:get_value(subdivisions, Attr, 0),
     Tesselation = proplists:get_value(tesselation, Attr, none),
-    Ps = [{tesselation,Tesselation},{subdivisions,SubDivs}|props()],
+    ExportUV = proplists:get_value(include_uvs, Attr, true),
+    ExportVC = proplists:get_value(include_colors, Attr, true),
+    Ps = [{tesselation,Tesselation},{subdivisions,SubDivs},
+	  {include_uvs,ExportUV},{include_colors,ExportVC}|props()],
     Exporter(Ps, export_fun(Attr)).
 
 export_fun(Attr) ->
@@ -80,8 +83,6 @@ export(File_name, Export0, Attr) ->
     %%io:format("~p~n~p~n",[Objs, Mat]),
     Filetype = proplists:get_value(default_filetype, Attr, ".jpg"),
     ExportN  = proplists:get_value(include_normals, Attr, true),
-    ExportUV = proplists:get_value(include_uvs, Attr, true),
-    ExportVC = proplists:get_value(include_colors, Attr, true),
     Export1 = wpa:save_images(Export0, filename:dirname(File_name), Filetype),
     Export = export_transform(Export1, Attr),
     #e3d_file{objs=Objs,mat=Mat,creator=Creator} = Export,
@@ -96,8 +97,6 @@ export(File_name, Export0, Attr) ->
 		      Used_mats = all(fun(Mesh,UsedMats) -> 
 					      export_object(F, Mesh, Mat, 
 							    ExportN,
-							    ExportUV,
-							    ExportVC,
 							    UsedMats)
 				      end, F, Used_mats0, Meshes),
 		      io:put_chars(F, "\n  ]\n"),
@@ -114,8 +113,7 @@ export_transform(Contents, Attr) ->
     e3d_file:transform(Contents, Mat).
 
 export_object(F, #e3d_mesh{fs=Fs0,ns=NTab,vs=VTab,tx=UVTab,vc=ColTab}, 
-	      Mat_defs, ExportN, ExportUV, ExportVC, Used_mats0) ->
-    %% We can use the indicies, vertex table, and color table directly.
+	      Mat_defs, ExportN, Used_mats0) ->
     io:format(F, "    Shape {\n",[]),
     Fs = reorder(Fs0),
     [#e3d_face{mat=[Material|_]}|_] = Fs,
@@ -127,8 +125,9 @@ export_object(F, #e3d_mesh{fs=Fs0,ns=NTab,vs=VTab,tx=UVTab,vc=ColTab},
        true -> ignore
     end,
     
-    if (ColTab == []) or (ExportVC == false) -> ignore;
-       true -> %% Use vertex colors
+    if
+	(ColTab == []) -> ignore;
+	true -> %% Use vertex colors
 	    io:format(F, "        colorPerVertex TRUE\n",[])
     end,
     
@@ -157,14 +156,14 @@ export_object(F, #e3d_mesh{fs=Fs0,ns=NTab,vs=VTab,tx=UVTab,vc=ColTab},
     end,
 
     if 
-	ColTab /= [], ExportVC -> %% Use vertex colors
+	ColTab /= []->				% Use vertex colors
 	    io:format(F, "        color Color { color [\n",[]),
 	    all(W3,F,ColTab),
 	    io:format(F, " ] }\n",[]),   
 	    io:put_chars(F, "        colorIndex [\n"),
 	    all(fun(#e3d_face{vc=Vc}) -> print_face(F, Vc) end,F,Fs),
 	    io:put_chars(F, " ]\n");
-	UVTab /= [], ExportUV -> %% Use UV-coords
+	UVTab /= [] ->				% Use UV-coords
 	    io:format(F, "        texCoord TextureCoordinate { point [\n",[]),
 	    all(W2,F,UVTab),
 	    io:format(F, " ] }\n",[]),   
