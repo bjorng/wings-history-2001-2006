@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.105 2003/07/20 21:33:08 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.106 2003/07/21 05:47:36 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -318,7 +318,7 @@ button_pressed(Button, Mod, X, Y, #mi{ns=Names,menu=Menu,adv=Adv}=Mi0) ->
 	    case element(Item, Menu) of
 		{_,{'VALUE',Act0},_,_,Ps} ->
 		    Act = check_option_box(Act0, X, Ps, Mi),
-		    do_action(build_command(Act, Names), Mi);
+		    do_action(Act, Names, Mod, Ps, Mi);
 		{_,{Name,Submenu},_,_,_} when Adv == true ->
 		    popup_submenu(Button, Mod, X, Y, Name, Submenu, Mi);
 		{_,{Name,Submenu},_,_,_} when Adv == false ->
@@ -327,34 +327,41 @@ button_pressed(Button, Mod, X, Y, #mi{ns=Names,menu=Menu,adv=Adv}=Mi0) ->
 		    call_action(Act0, Button, Mod, Names, Ps, Mi);
 		{_,Act0,_,_,Ps} when is_atom(Act0); is_integer(Act0) ->
 		    Act = check_option_box(Act0, X, Ps, Mi),
-		    do_action(build_command(Act, Names), Mi)
+		    do_action(Act, Names, Mod, Ps, Mi)
 	    end
     end.
 
-call_action(Act, Button, Mod, Ns, Ps, #mi{flags=Flags}=Mi) ->
-    Mag = case have_magnet(Ps) of
-	      false -> button;
-	      true ->
-		  case wings_camera:free_rmb_modifier() of
-		      RmbMod when Mod band RmbMod =/= 0 ->
-			  {magnet,1};
-		      _ ->
-			  case proplists:is_defined(magnet, Flags) of
-			      true -> {magnet,1};
-			      false -> Button
-			  end
-		  end
+call_action(Act, Button, Mod, Ns, Ps, Mi) ->
+    Mag = case is_magnet_active(Mod, Ps, Mi) of
+	      true -> {magnet,1};
+	      false -> Button
 	  end,
     case Act(Mag, Ns) of
 	ignore -> keep;
 	Cmd when is_tuple(Cmd) ->
-	    do_action(Cmd, Mi)
+	    send_action(Cmd, Mi)
     end.
 
-do_action(Action, #mi{owner=Owner}=Mi) ->
+do_action(Act0, Ns, Mod, Ps, Mi) ->
+    Act1 = build_command(Act0, Ns),
+    Act = case is_magnet_active(Mod, Ps, Mi) of
+	      false -> Act1;
+	      true -> {vector,{pick,[magnet],[Act0],Ns}}
+	  end,
+    send_action(Act, Mi).
+
+send_action(Action, #mi{owner=Owner}=Mi) ->
     clear_menu_selection(Mi),
     wings_wm:send_after_redraw(Owner, {action,Action}),
     delete_all(Mi).
+
+is_magnet_active(Mod, Ps, #mi{flags=Flags}) ->
+    case have_magnet(Ps) of
+	false -> false;
+	true ->
+	    RmbMod = wings_camera:free_rmb_modifier(),
+	    Mod band RmbMod =/= 0 orelse have_magnet(Flags)
+    end.
 
 handle_key(Ev, Mi) ->
     handle_key_1(key(Ev), Mi).
@@ -721,49 +728,50 @@ help_text(#mi{sel=none}) ->
     wings_wm:message("");
 help_text(#mi{menu=Menu,sel=Sel}=Mi) ->
     Elem = element(Sel, Menu),
-    case is_magnet_active(Elem, Mi) of
-	true -> wings_magnet:menu_help();
-	false -> plain_help(Elem, Mi)
-    end.
+    help_text_1(Elem, Mi).
 
-is_magnet_active({_,_,_,_,Ps}, Mi) ->
-    case have_magnet(Ps) of
-	false -> false;
-	true ->
-	    {_,X,_} = wings_wm:local_mouse_state(),
-	    hit_right(X, Mi)
-    end.
-
-plain_help({Text,{Sub,_},_,_,_}, #mi{adv=false}) when Sub =/= 'VALUE' ->
+help_text_1({Text,{Sub,_},_,_,_}, #mi{adv=false}) when Sub =/= 'VALUE' ->
     %% No specific help text for submenus in basic mode.
     Help = [Text|" submenu"],
     wings_wm:message(Help, "");
-plain_help({_,{Name,Fun},_,_,_}, #mi{ns=Ns,adv=Adv}) when is_function(Fun) ->
+help_text_1({_,{Name,Fun},_,_,Ps}, #mi{ns=Ns,adv=Adv}) when is_function(Fun) ->
     %% "Submenu" in advanced mode.
     Help0 = Fun(help, [Name|Ns]),
-    Help = help_text_1(Help0, Adv),
-    wings_wm:message(Help, "");
-plain_help({_,_,_,Help0,_}, #mi{adv=Adv}) ->
+    Help = help_text_2(Help0, Adv),
+    magnet_help(Help, Ps);
+help_text_1({_,_,_,Help0,Ps}, #mi{adv=Adv}) ->
     %% Plain entry - not submenu.
-    Help = help_text_1(Help0, Adv),
-    wings_wm:message(Help, "");
-plain_help(separator, _) -> ok.
+    Help = help_text_2(Help0, Adv),
+    magnet_help(Help, Ps);
+help_text_1(separator, _) -> ok.
 
-help_text_1([_|_]=S, false) -> S;
-help_text_1({[_|_]=S,_}, false) -> S;
-help_text_1({[_|_]=S,_,_}, false) -> S;
-help_text_1([_|_]=S, true) ->
+help_text_2([_|_]=S, false) -> S;
+help_text_2({[_|_]=S,_}, false) -> S;
+help_text_2({[_|_]=S,_,_}, false) -> S;
+help_text_2([_|_]=S, true) ->
     ["[L] "|S];
-help_text_1({S1,S2}, true) ->
-    {_,M,_} = wings_camera:button_names(),
-    ["[L] ",S1,"  ",M," "|S2];
-help_text_1({S1,[],S2}, true) ->
-    {_,_,R} = wings_camera:button_names(),
-    ["[L] ",S1,"  ",R," "|S2];
-help_text_1({S1,S2,S3}, true) ->
-    {_,M,R} = wings_camera:button_names(),
-    ["[L] ",S1,"  ",M," ",S2,"  ",R," "|S3];
-help_text_1([]=S, _) -> S.
+help_text_2({S1,S2}, true) ->
+    {L,M,_} = wings_camera:button_names(),
+    [L," ",S1,"  ",M," "|S2];
+help_text_2({S1,[],S2}, true) ->
+    {L,_,R} = wings_camera:button_names(),
+    [L," ",S1,"  ",R," "|S2];
+help_text_2({S1,S2,S3}, true) ->
+    {L,M,R} = wings_camera:button_names(),
+    [L," ",S1,"  ",M," ",S2,"  ",R," "|S3];
+help_text_2([]=S, _) -> S.
+
+magnet_help(Msg, Ps) ->
+    case have_magnet(Ps) of
+	false ->
+	    wings_wm:message(Msg);
+	true ->
+	    ModName = case wings_camera:free_rmb_modifier() of
+			  ?ALT_BITS -> "Alt";
+			  ?CTRL_BITS -> "Ctrl"
+		      end,
+	    wings_wm:message([Msg,"  [",ModName,"] Magnet"], "")
+    end.
 
 draw_right(X, Y, Ps) ->
     case have_option_box(Ps) of

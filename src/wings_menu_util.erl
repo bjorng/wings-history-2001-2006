@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu_util.erl,v 1.17 2003/01/20 20:47:40 bjorng Exp $
+%%     $Id: wings_menu_util.erl,v 1.18 2003/07/21 05:47:36 bjorng Exp $
 %%
 
 -module(wings_menu_util).
@@ -228,35 +228,15 @@ directions([], Ns) ->
 direction(Dir, Ns) ->
     Str = wings_util:stringify(Dir),
     Help = dir_help(Dir, Ns),
-    case magnet_props(Dir, Ns) of
-	[] -> {Str,Dir,Help,[]};
-	Ps ->
-	    F = move_magnet_fun(Dir, Ns),
-	    {Str,F,Help,Ps}
-    end.
+    Ps = magnet_props(Dir, Ns),
+    {Str,Dir,Help,Ps}.
 
 move_axis_fun(Axis, Ns) ->
     {_,Vec} = wings_pref:get_value(Axis),
     Help = dir_help(Axis, Ns),
     Str = wings_util:stringify(Axis),
-    case magnet_props(Axis, Ns) of
-	[] ->
-	    {Str,{'VALUE',Vec},Help,[]};
-	Ps ->
-	    F = move_magnet_fun(Vec, Ns),
-	    {Str,F,Help,Ps}
-    end.
-
-move_magnet_fun(Vec, Ns) ->
-    fun(1, _) -> wings_menu:build_command(Vec, Ns);
-       (2, _) -> ignore;
-       (3, _) -> ignore;
-       ({magnet,1}, _) -> {vector,{pick,[magnet],[Vec],Ns}};
-       ({magnet,2}, _) -> {vector,{pick,[magnet_options],[Vec],Ns}};
-       ({magnet,3}, _) ->
-	    Magnet = magnet_data(),
-	    wings_menu:build_command({Vec,Magnet}, Ns)
-    end.
+    Ps =  magnet_props(Axis, Ns),
+    {Str,{'VALUE',Vec},Help,Ps}.
 
 magnet_props(normal, [rotate|_]) -> [];
 magnet_props(_, [_,body]) -> [];

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.39 2003/05/10 06:34:14 bjorng Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.40 2003/07/21 05:47:36 bjorng Exp $
 %%
 
 -module(wings_vertex_cmd).
@@ -32,7 +32,7 @@ menu(X, Y, St) ->
 	    separator,
 	    {"Connect",connect,
 	     "Create a new edge by connecting selected vertices"},
-	    {"Tighten",tighten_fun([tighten,vertex]),
+	    {"Tighten",tighten,
 	     "Move selected vertices towards average "
 	     "midpoint",[magnet]},
 	    {"Bevel",bevel,"Create faces of selected vertices"},
@@ -43,22 +43,6 @@ menu(X, Y, St) ->
 	    separator,
 	    {"Deform",wings_deform:sub_menu(St)}],
     wings_menu:popup_menu(X, Y, vertex, Menu).
-
-tighten_fun(Ns) ->
-    fun(1, _) -> {vertex,tighten};
-       (2, _) -> ignore;
-       (3, _) -> ignore;
-       ({magnet,1}, _) -> {vector,{pick,[magnet],[],Ns}};
-       ({magnet,2}, _) -> {vector,{pick,[magnet_options],[],Ns}};
-       ({magnet,3}, _) ->
-	    Magnet = magnet_data(),
-	    wings_menu:build_command(Magnet, Ns)
-    end.
-
-magnet_data() ->
-    {magnet,wings_pref:get_value(magnet_type),
-     wings_pref:get_value(magnet_distance_route),
-     wings_pref:get_value(magnet_radius)}.
 
 %% Vertex menu.
 command({flatten,Plane}, St) ->
