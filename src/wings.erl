@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.213 2003/02/17 20:56:00 bjorng Exp $
+%%     $Id: wings.erl,v 1.214 2003/02/19 20:49:51 bjorng Exp $
 %%
 
 -module(wings).
@@ -151,11 +151,12 @@ init(File, Root) ->
     {{X,Y},{W,H}} = wings_wm:win_rect(desktop),
     wings_wm:toplevel(geom, "Geometry", {X,Y,1}, {W,H-20},
 		      [resizable,{anchor,nw},{toolbar,fun create_toolbar/3},
-		      {properties,Props}],
+		       {properties,Props}],
 		      Op),
     open_file(File),
 
     restore_windows(St),
+    wings_wm:current_state(St),
     case catch wings_wm:enter_event_loop() of
 	{'EXIT',normal} ->
 	    wings_file:finish(),
