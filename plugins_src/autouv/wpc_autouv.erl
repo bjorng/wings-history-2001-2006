@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.174 2003/12/02 19:10:56 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.175 2003/12/02 20:14:18 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -754,8 +754,8 @@ handle_event_1({action, {auv,quit,QuitOp}}, St) ->
     delete;
 handle_event_1({callback,Fun}, _) when is_function(Fun) ->
     Fun();
-handle_event_1({action,{auv,Cmd}}, #st{selmode=Mode,sel=Sel,shapes=Shs,bb=Uvs}) ->
-    handle_command(Cmd, Uvs#uvstate{mode=Mode,sel=Sel,areas=Shs});
+handle_event_1({action,{auv,Cmd}}, St) ->
+    handle_command(Cmd, St);
 handle_event_1(_Event, St) ->
     ?DBG("Got unhandled Event ~p ~n", [_Event]),
     get_event(St).
@@ -763,26 +763,28 @@ handle_event_1(_Event, St) ->
 update_geom(#st{bb=Uvs}=St, Geom) ->
     St#st{bb=Uvs#uvstate{geom=Geom}}.
 
-% handle_command(rescale_all, Uvs0) ->
+handle_command({rotate,free}, St) ->
+    handle_command(rotate, St);
+handle_command({rotate,flip_horizontal}, St0) ->
+    St = wpa:sel_map(fun(_, We) -> flip_horizontal(We) end, St0),
+    get_event(St);
+handle_command({rotate,flip_vertical}, St0) ->
+    St = wpa:sel_map(fun(_, We) -> flip_vertical(We) end, St0),
+    get_event(St);
+handle_command({rotate,Deg}, St0) ->
+    St = wpa:sel_map(fun(_, We) -> rotate_chart(Deg, We) end, St0),
+    get_event(St);
+handle_command(_, #st{sel=[]}) ->
+    keep;
+handle_command(Cmd, #st{selmode=Mode,sel=Sel,shapes=Shs,bb=Uvs0}) ->
+    Uvs = Uvs0#uvstate{mode=Mode,sel=Sel,areas=Shs},
+    {_,X,Y} = wings_wm:local_mouse_state(),
+    {seq,push,get_cmd_event(Cmd, X, Y, Uvs)}.
+
+% handle_command_1(rescale_all, Uvs0) ->
 %     Uvs = clear_selection(Uvs0),
 %     RscAreas = rescale_all(all_charts(Uvs)),
 %     get_event(reset_dl(Uvs0#uvstate{areas=RscAreas}));
-handle_command({rotate,free}, Uvs) ->
-    handle_command(rotate, Uvs);
-handle_command({rotate,flip_horizontal}, Uvs0) ->
-    Uvs = sel_map(fun(_, We) -> flip_horizontal(We) end, Uvs0),
-    get_event(Uvs);
-handle_command({rotate,flip_vertical}, Uvs0) ->
-    Uvs = sel_map(fun(_, We) -> flip_vertical(We) end, Uvs0),
-    get_event(Uvs);
-handle_command({rotate,Deg}, Uvs0) ->
-    Uvs = sel_map(fun(_, We) -> rotate_chart(Deg, We) end, Uvs0),
-    get_event(Uvs);
-handle_command(_, #uvstate{sel=[]}) ->
-    keep;
-handle_command(NewOp, Uvs) ->
-    {_,X,Y} = wings_wm:local_mouse_state(),
-    {seq,push,get_cmd_event(NewOp, X, Y, Uvs)}.
 
 %%%
 %%% Command handling (temporary version).
@@ -849,7 +851,7 @@ update_selection(#st{selmode=Mode,sel=Sel}=St,
     get_event_nodraw(Uvs#uvstate{st=St});
 update_selection(#st{selmode=Mode,sel=Sel}=St,
 		 #uvstate{orig_we=#we{id=Id}}=Uvs0) ->
-    Uvs = reset_dl(Uvs0),
+    Uvs = reset_dl(Uvs0#uvstate{sel=[]}),
     case keysearch(Id, 1, Sel) of
 	false ->
 	    get_event(Uvs);
