@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.110 2004/12/25 19:12:06 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.111 2004/12/26 08:11:12 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -19,7 +19,7 @@
 	 from_vs/2,
 	 select_region/1,
 	 select_edge_ring/1,select_edge_ring_incr/1,select_edge_ring_decr/1,
-	 cut/3,fast_cut/3,
+	 cut/3,fast_cut/3,screaming_cut/3,
 	 dissolve_edges/2,dissolve_edge/2,
 	 hardness/2,hardness/3,
 	 adjacent_edges/2,
@@ -219,6 +219,32 @@ get_vtx_color(Edge, Face, Etab) ->
 	#edge{lf=Face,a=Col} -> Col;
 	#edge{rf=Face,b=Col} -> Col
     end.
+
+%% screaming_cut(Edge, Position, We0) -> {We,NewVertex,NewEdge}
+%%  Cut an edge in two parts screamlingly fast. Does not handle
+%%  vertex colors or UV coordinates are distorted.
+
+screaming_cut(Edge, NewVPos, We0) ->
+    {NewEdge=NewV,We} = wings_we:new_ids(1, We0),
+    #we{es=Etab0,vc=Vct0,vp=Vtab0,he=Htab0} = We,
+    Template = gb_trees:get(Edge, Etab0),
+    #edge{ve=Vend,ltpr=EdgeA,rtsu=EdgeB} = Template,
+    Vct1 = gb_trees:update(Vend, NewEdge, Vct0),
+    Vct = gb_trees:insert(NewV, NewEdge, Vct1),
+    Vtab = gb_trees:insert(NewV, NewVPos, Vtab0),
+
+    NewEdgeRec = Template#edge{vs=NewV,ltsu=Edge,rtpr=Edge},
+    Etab1 = gb_trees:insert(NewEdge, NewEdgeRec, Etab0),
+    Etab2 = patch_edge(EdgeA, NewEdge, Edge, Etab1),
+    Etab3 = patch_edge(EdgeB, NewEdge, Edge, Etab2),
+    EdgeRec = Template#edge{ve=NewV,rtsu=NewEdge,ltpr=NewEdge},
+    Etab = gb_trees:update(Edge, EdgeRec, Etab3),
+
+    Htab = case gb_sets:is_member(Edge, Htab0) of
+	       false -> Htab0;
+	       true -> gb_sets:insert(NewEdge, Htab0)
+	   end,
+    {We#we{es=Etab,vc=Vct,vp=Vtab,he=Htab},NewV}.
 
 %%%
 %%% Dissolve.
