@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.73 2002/12/26 09:47:08 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.74 2003/01/04 20:03:42 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -49,8 +49,7 @@ event(Ev, St) ->
 event(#mousemotion{}=Mm, #st{selmode=Mode}=St, Redraw) ->
     case hilite_enabled(Mode) of
 	false -> next;
-	true ->
-	    {seq,push,handle_hilite_event(Mm, #hl{st=St,redraw=Redraw})}
+	true -> {seq,push,handle_hilite_event(Mm, #hl{st=St,redraw=Redraw})}
     end;
 event(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED}, St, _) ->
     pick(X, Y, St);
@@ -84,7 +83,7 @@ pick(X, Y, St0) ->
 		{PickOp,_,St} ->
 		    wings_wm:dirty(),
 		    Pick = #pick{st=St,op=PickOp},
-		    {seq,{push,dummy},get_pick_event(Pick)}
+		    {seq,push,get_pick_event(Pick)}
 	    end
     end.
 
@@ -185,10 +184,10 @@ clear_hilite_marquee_mode(#marquee{st=St}=Pick) ->
     Message = "[Ctrl] Deselect  "
 	"[Shift] (De)select only elements wholly inside marquee",
     wings_wm:message(Message),
-    {seq,{push,dummy},
+    {seq,push,
      fun(redraw) ->
 	     wings:redraw(St),
-	     wings_io:putback_event(now_enter_marquee_mode),
+	     wings_wm:send(geom, now_enter_marquee_mode),
 	     keep;
 	(now_enter_marquee_mode) ->
 	     wings_wm:grab_focus(geom),
@@ -239,7 +238,7 @@ marquee_event(#mousebutton{x=X0,y=Y0,button=1,state=?SDL_RELEASED}, M) ->
 	{none,_} -> ok;
 	{Hits,_} ->
 	    St = marquee_update_sel(Op, Hits, St0),
-	    wings_io:putback_event({new_state,St})
+	    wings_wm:send(geom, {new_state,St})
     end,
     wings_wm:release_focus(),
     wings_wm:dirty(),
@@ -430,7 +429,7 @@ pick_event(#mousemotion{x=X,y=Y}, #pick{op=Op,st=St0}=Pick) ->
 	{_,_,_} -> keep
     end;
 pick_event(#mousebutton{button=1,state=?SDL_RELEASED}, #pick{st=St}) ->
-    wings_io:putback_event({new_state,St}),
+    wings_wm:send(geom, {new_state,St}),
     pop;
 pick_event(_, _) -> keep.
 
