@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.22 2001/12/11 10:26:08 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.23 2001/12/11 10:29:39 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -504,8 +504,8 @@ loop_cut_1(#shape{id=Id,name=Name,sh=We0}=Sh0, Edges, {Sel0,#st{onext=NewId}=St0
     case gb_sets:is_subset(LeftFaces, RightFaces) or
 	gb_sets:is_subset(RightFaces, LeftFaces) of
 	true ->
-	    Error = "Edge loop doesn't divide \"" ++
-		Name ++ "\" into two parts.",
+	    Error = "Edge loop doesn't divide \"" ++ Name ++
+		"\" into two (or more) parts.",
 	    throw({command_error,Error});
 	false ->
 	    WeCopy = wings_we:get_sub_object(AnEdge, We0),
