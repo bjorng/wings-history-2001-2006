@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.111 2003/12/05 19:50:34 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.112 2003/12/06 08:35:02 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -81,13 +81,15 @@ command(prefs, St) ->
     PrefQs0 = [{"General",gen_prefs()},
 	       {"Camera",{'VALUE',wings_camera:prefs()}},
 	       {"Advanced",advanced_prefs()},
- 	       {"Compatibility",compatibility_prefs()},
+ 	       {"Workarounds",workaround_prefs()},
 	       {"User Interface",ui_prefs()},
 	       {"Misc",misc_prefs()}],
     PrefQs = [{Lbl,make_query(Ps)} || {Lbl,Ps} <- PrefQs0],
     Qs = [{oframe,PrefQs,1,[{style,buttons}]}],
     wings_ask:dialog("Preferences", Qs,
 		     fun([_|Res]) ->
+			     Dl = wings_wm:get_prop(geom, display_lists),
+			     wings_wm:set_prop(wings_wm:this(), display_lists, Dl),
 			     set_values(Res, St)
 		     end).
 
@@ -160,17 +162,37 @@ gen_prefs() ->
 	 [{title,"Axes"}]}
        ]}]}.
 
-compatibility_prefs() ->
-    {vframe,
-     [{"Optimized Display-List Use",display_list_opt,
-       [{info,"Try turning this preference off if get strange display artifacts such as missing edges"}]},
-      {"Use Display Lists for Text",text_display_lists,
-       [{info,"Try turning this preference off if there are problems displaying text"}]},
-      {"Broken glEdgeFlag",broken_gl_edge_flag,
-       [{info,"If faces are shown triangulated, try turning on this preference"}]},
-      {"Show Dummy Axis Letter",dummy_axis_letter,
-       [{info,"Showing a dummy axis letter can prevent a crash with some Matrox graphics cards/drivers"}]}
-     ]}.
+workaround_prefs() ->
+    %% Note: display_list_opt and text_display_lists are specially handled
+    %% in make_query/1 and smart_set_value/3 to have their value inverted
+    %% to keep preference files backward compatible.
+    L = [{display_list_opt,
+	  "Some edges not shown (e.g. in a sphere)",
+	  "Problem occurs on (for instance) Nvidia TNT Riva-2"},
+	 {broken_gl_edge_flag,
+	  "Faces are shown triangulated",
+	  "Problem occurs on (for instance) ATI Radeon 9800/Mac OS 10.3"},
+	 {text_display_lists,
+	  "Text in menus and dialogs disappear",
+	  "Problem occurs on some Matrox cards"},
+	 {dummy_axis_letter,
+	  "Wings crashes if axes are turned off",
+	  "Problem occurs on some Matrox cards"}],
+    workaround(L).
+
+workaround(L) ->
+    workaround_1(L, [], []).
+
+workaround_1([{Key,Str,BadGuy}|T], A0, B0) ->
+    Bl = " ",
+    Info = [{info,BadGuy}],
+    A = [{label,Str,Info}|A0],
+    B = [{Bl,Key,Info}|B0],
+    workaround_1(T, A, B);
+workaround_1([], A, B) ->
+    {hframe,
+     [{vframe,[{label,"Problem"},separator|reverse(A)]},
+      {vframe,[{label,"Use Workaround?"},separator|reverse(B)]}]}.
 
 advanced_prefs() ->
     DisableHook = fun (is_disabled, {_Var,_I,Store}) ->
@@ -179,17 +201,24 @@ advanced_prefs() ->
 		  end,
     Flags = [{hook,DisableHook}],
     {vframe,
-     [{"Advanced Menus",advanced_menus},
+     [{"Advanced Menus",advanced_menus,"More commands and more options, such as magnets"},
       {vframe,
        [{label_column,
-	 [{"Length",active_vector_size,[{range,{0.1,10.0}}|Flags]},
-	  {"Width",active_vector_width,[{range,{1.0,10.0}}|Flags]},
-	  {color,"Color",active_vector_color,Flags}]}],
-       [{title,"Vector Display"}]},
-      {"Default Commands",default_commands},
-      {"Use Highlight as Temporary Selection",use_temp_sel},
-      {"Hide Selection While Dragging",hide_sel_while_dragging},
-      {"Hide Selection While Moving Camera",hide_sel_in_camera_moves}
+	 [{"Length",active_vector_size,
+	   [{info,"Length of vector in secondary selections"},{range,{0.1,10.0}}|Flags]},
+	  {"Width",active_vector_width,
+	   [{info,"Width of vector (in pixels)"},{range,{1.0,10.0}}|Flags]},
+	  {color,"Color",active_vector_color,
+	   [{info,"Color of vector"}|Flags]}]}],
+	[{title,"Vector Display"}]},
+      {"Default Commands",default_commands,
+       [{info,"Allow defining commands that can be invoked by Ctrl+L or Ctrl+M"}]},
+      {"Use Highlight as Temporary Selection",use_temp_sel,
+       [{info,"If there is no selection, allow commands to act on the highlighted element"}]},
+      {"Hide Selection While Dragging",hide_sel_while_dragging,
+       [{info,"Don't show the selection in any interactive command"}]},
+      {"Hide Selection While Moving Camera",hide_sel_in_camera_moves,
+       [{info,"Don't show the selection when the camera is being moved"}]}
      ]}.
 
 ui_prefs() ->
@@ -264,7 +293,14 @@ misc_prefs() ->
        [{title,"Proxy Mode"}]}
      ]}.
 
+smart_set_value(Key, Val, St) when Key == display_list_opt;
+				    Key == text_display_lists ->
+    %% Reverse sense to keep backwards comptibility of preferences.
+    smart_set_value_1(Key, not Val, St);
 smart_set_value(Key, Val, St) ->
+    smart_set_value_1(Key, Val, St).
+
+smart_set_value_1(Key, Val, St) ->
     case ets:lookup(wings_state, Key) of
 	[] -> set_value(Key, Val);
 	[{Key,Val}] -> ok;
@@ -281,6 +317,8 @@ smart_set_value(Key, Val, St) ->
 		proxy_shaded_edge_style ->
 		    clear_proxy_edges(St);
 		display_list_opt ->
+		    wings_draw_util:init();
+		broken_gl_edge_flag ->
 		    wings_draw_util:init();
 		system_font ->
 		    wings_wm:reinit_opengl(),
@@ -317,6 +355,14 @@ make_query({color,[_|_]=Str,Key}) ->
 make_query({color,[_|_]=Str,Key,Flags}) ->
     Def = get_value(Key),
     {Str,{color,Def,[{key,Key}|Flags]}};
+make_query({[_|_]=Str,Key}) when Key == display_list_opt;
+				 Key == text_display_lists ->
+    %% Reverse sense to keep backwards comptibility of preferences.
+    {Str,not get_value(Key),[{key,Key}]};
+make_query({[_|_]=Str,Key,Flags}) when Key == display_list_opt;
+				       Key == text_display_lists ->
+    %% Reverse sense to keep backwards comptibility of preferences.
+    {Str,not get_value(Key),[{key,Key}|Flags]};
 make_query({[_|_]=Str,Key}) ->
     case get_value(Key) of
 	Def when Def == true; Def == false ->
