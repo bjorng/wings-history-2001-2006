@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.86 2003/01/29 23:10:20 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.87 2003/01/30 09:53:47 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -1289,8 +1289,8 @@ update_selection_1(face, Faces, #uvstate{sel=Sel,areas=As0}=Uvs) ->
 update_selection_1(_, _, Uvs) ->
     get_event_nodraw(Uvs).
 
-update_selection_2([{K,#ch{we=#we{fs=FTab}}=C}|Cs],Faces,Uvs,NonSel,Sel) ->
-    case ordsets:intersection(gb_trees:keys(FTab), Faces) of
+update_selection_2([{K,#ch{fs=Fs}=C}|Cs],Faces,Uvs,NonSel,Sel) ->
+    case ordsets:intersection(sort(Fs), Faces) of
 	[] -> update_selection_2(Cs, Faces, Uvs, [{K,C}|NonSel], Sel);
 	_ -> update_selection_2(Cs, Faces, Uvs, NonSel, [{[K],C}|Sel])
     end;
