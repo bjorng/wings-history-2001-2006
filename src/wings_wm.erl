@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.96 2003/04/18 07:33:31 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.97 2003/04/23 17:51:02 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -48,9 +48,6 @@
 %% Window property mangagement.
 -export([get_props/1,get_prop/1,get_prop/2,lookup_prop/1,lookup_prop/2,
 	 set_prop/2,set_prop/3,erase_prop/1,erase_prop/2]).
-
-%% Obsolete.
--export([active_window/0]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -267,9 +264,6 @@ is_hidden(Name) ->
 	#win{z=Z} when Z < 0 -> true;
 	_ -> false
     end.
-
-active_window() ->
-    this().
 
 this() ->
     case get(wm_active) of
