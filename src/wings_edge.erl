@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.35 2002/02/14 17:50:18 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.36 2002/02/23 22:41:58 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -110,7 +110,7 @@ to_vertices(Edges, #we{es=Etab}) ->
 to_vertices([E|Es], Etab, Acc) ->
     #edge{vs=Va,ve=Vb} = gb_trees:get(E, Etab),
     to_vertices(Es, Etab, [Va,Vb|Acc]);
-to_vertices([], Etab, Acc) -> ordsets:from_list(Acc).
+to_vertices([], _Etab, Acc) -> ordsets:from_list(Acc).
 
 %% from_faces(FaceSet, We) -> EdgeSet
 %%  Convert faces to edges.
@@ -147,7 +147,7 @@ cut(N, #st{selmode=edge}=St0) when N > 1 ->
 			 {We,[{Id,S}|Acc]}
 		 end, [], St0),
     wings_sel:set(vertex, Sel, St);
-cut(N, St) -> St.
+cut(_, St) -> St.
 
 cut_edges(Edges, N, We0) ->
     gb_sets:fold(fun(Edge, W0) ->
@@ -179,7 +179,7 @@ cut(Edge, N, We0) ->
     Htab = case gb_sets:is_member(Edge, Htab0) of
 	       false -> Htab0;
 	       true ->
-		   Hard = gb_sets:from_list(seq(BaseId, BaseId+NumIds)),
+		   Hard = gb_sets:from_list(seq(BaseId, BaseId+NumIds-1)),
 		   gb_sets:union(Hard, Htab0)
 	   end,
     {We#we{es=Etab,vs=Vtab,he=Htab},BaseId}.
@@ -201,7 +201,7 @@ make_vertices(N, Id, Vstart, Vend, Vtab) ->
     Dir = e3d_vec:divide(e3d_vec:sub(Vb, Va), float(N)),
     make_vertices_1(N, Id, Va, Dir, Vtab).
     
-make_vertices_1(1, Id, Va, Dir, Vtab) -> Vtab;
+make_vertices_1(1, _Id, _Va, _Dir, Vtab) -> Vtab;
 make_vertices_1(N, Id, Va, Dir, Vtab0) ->
     NextPos = wings_util:share(e3d_vec:add(Va, Dir)),
     Vtx = #vtx{pos=NextPos,edge=Id},
