@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.22 2002/01/27 11:50:28 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.23 2002/01/27 15:50:18 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -20,6 +20,7 @@
 -import(lists, [foldl/3,reverse/1,keysearch/3,duplicate/2]).
 
 -define(SUB_MENU_TIME, 150).
+-define(SEPARATOR_HEIGHT, 10).
 
 %% Menu information kept for a popup menu.
 -record(mi,
@@ -29,6 +30,7 @@
 	 shortcut,				%Position for shortcut (chars)
 	 w,					%Width of menu (pixels)
 	 h,					%Height of menu (pixels)
+	 hs,					%Tuple: height of each entry.
 	 sel=none,				%Selected item (1..size(Menu))
 	 ns=[],					%Name stack.
 	 menu,					%Original menu term
@@ -86,9 +88,9 @@ menu_setup(Type, X0, Y0, Name, Menu0, #mi{ns=Names0}=Mi) when is_list(Menu0) ->
     Menu1 = wings_plugin:menu(list_to_tuple(reverse(Names)), Menu0),
     Hotkeys = hotkeys(Names),
     Menu = normalize_menu(Menu1, Hotkeys, Adv),
-    {MwL,MwR} = menu_width(Menu),
+    {MwL,MwR,Hs} = menu_dims(Menu),
     TotalW = (MwL+MwR) * ?CHAR_WIDTH + 9*?CHAR_WIDTH,
-    Mh = size(Menu) * ?LINE_HEIGHT,
+    Mh = lists:sum(Hs),
     Margin = 3,
     {X1,Y1} = case Type of
 		  plain ->
@@ -96,18 +98,18 @@ menu_setup(Type, X0, Y0, Name, Menu0, #mi{ns=Names0}=Mi) when is_list(Menu0) ->
 		  popup when Adv == false ->
 		      {X0-TotalW div 2,Y0 - Margin div 2};
 		  popup ->
-		      {X0-TotalW div 2,(Y0 - Margin div 2)-(Mh div 4)}
+		      {X0-TotalW div 2,Y0 - Margin - ?CHAR_HEIGHT}
 	      end,
     {X,Y} = move_if_outside(X1, Y1, TotalW, Mh+2*Margin, Mi),
     Mi#mi{xleft=X,ytop=Y,ymarg=Margin,
-	  shortcut=MwL+2,w=TotalW-10,h=Mh,
+	  shortcut=MwL+2,w=TotalW-10,h=Mh,hs=Hs,
 	  sel=none,ns=Names,menu=Menu,adv=Adv}.
 
 menu_show(#mi{xleft=X,ytop=Y,ymarg=Margin,shortcut=Shortcut,w=Mw,h=Mh}=Mi) ->
     wings_io:raised_rect(X, Y, Mw, Mh + 2*Margin+3, ?MENU_COLOR),
-    gl:color3f(0.0, 0.0, 0.0),
+    gl:color3f(0, 0, 0),
     menu_draw(X+3*?CHAR_WIDTH, Y+Margin+?CHAR_HEIGHT,
-	      Shortcut, Mw, 1, Mi).
+	      Shortcut, Mw, 1, Mi#mi.hs, Mi).
 
 normalize_menu(Menu, Hotkeys, Adv) ->
     normalize_menu(Menu, Hotkeys, Adv, []).
@@ -139,21 +141,26 @@ normalize_menu([Elem0|Els], Hotkeys, Adv, Acc) ->
     normalize_menu(Els, Hotkeys, Adv, [Elem|Acc]);
 normalize_menu([], Hotkeys, Adv, Acc) -> list_to_tuple(reverse(Acc)).
 
-menu_width(Menu) ->
-    menu_width(Menu, 1, 0, 0).
-menu_width(Menu, Last, MaxA, MaxB) when Last > size(Menu) -> {MaxA,MaxB};
-menu_width(Menu, I, MaxA0, MaxB0) ->
-    {Wa,Wb} = case element(I, Menu) of
-		  {S,_,Hotkey,_,Ps} ->
-		      case property_lists:is_defined(hotbox, Ps) of
-			  false -> {length(S),length(Hotkey)};
-			  true -> {length(S)+1,length(Hotkey)}
-		      end;
-		  {S,Sub} when is_tuple(Sub) ->
-		      {length(S)+1,0};
-		  separator -> {0,0}
-	      end,
-    menu_width(Menu, I+1, max(Wa, MaxA0), max(Wb, MaxB0)).
+menu_dims(Menu) ->
+    menu_dims(Menu, 1, 0, 0, []).
+
+menu_dims(Menu, Last, MaxA, MaxB, H) when Last > size(Menu) ->
+    {MaxA,MaxB,reverse(H)};
+menu_dims(Menu, I, MaxA0, MaxB0, Hacc) ->
+    {Wa,Wb,H} =
+	case element(I, Menu) of
+	    {S,{_,_},Hotkey,_,Ps} ->
+		{length(S)+1,length(Hotkey),?LINE_HEIGHT};
+	    {S,_,Hotkey,_,Ps} ->
+		case property_lists:is_defined(hotbox, Ps) of
+		    false ->
+			{length(S),length(Hotkey),?LINE_HEIGHT};
+		    true ->
+			{length(S)+1,length(Hotkey),?LINE_HEIGHT}
+		end;
+	    separator -> {0,0,?SEPARATOR_HEIGHT}
+	end,
+    menu_dims(Menu, I+1, max(Wa, MaxA0), max(Wb, MaxB0), [H|Hacc]).
 
 max(A, B) when A > B -> A;
 max(A, B) -> B.
@@ -183,27 +190,8 @@ handle_menu_event(Event, #mi{new=New}=Mi0) ->
 		    get_menu_event(Mi#mi{new=false});
 		Other -> Other
 	    end;
-	#mousebutton{button=B0,x=X,y=Y,state=?SDL_RELEASED}
-	when not New and (B0 =< 3) ->
-	    B = virtual_button(B0),
-	    clear_timer(Mi0),
-	    Mi1 = update_highlight(X, Y, Mi0),
-	    case select_item(B, X, Y, Mi1) of
-		{popup,{Name,SubMenu}} ->
-		    popup_submenu(B, X, Y, Name, SubMenu, Mi1);
-		{submenu,{Name,SubMenu,Pos}} ->
-		    submenu(Name, SubMenu, Pos, Mi1);
-		{seq,_,_}=Seq -> Seq;
-		#mi{}=Mi -> get_menu_event(Mi);
-		outside -> button_outside(Event, Mi1);
-		{action,ignore} -> keep;
-		{action,_}=Action when is_tuple(Action) ->
-		    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
-		    wings_io:clear_menu_sel(),
-		    wings_io:putback_event(Action),
-		    wings_io:putback_event(redraw),
-		    pop
-	    end;
+	#mousebutton{} ->
+	    button_pressed(Event, Mi0);
 	{go_back,NewEvent} ->
 	    Mi1 = Mi0#mi.prev,
 	    Mi = Mi1#mi{timer=short,num_redraws=0,new=false,sel=none},
@@ -222,11 +210,50 @@ handle_menu_event(Event, #mi{new=New}=Mi0) ->
 	    get_menu_event(Mi0#mi{new=false})
     end.
 
+button_pressed(#mousebutton{button=B0,x=X,y=Y,state=?SDL_RELEASED}=Event,
+	       #mi{new=New}=Mi) when not New and (B0 =< 3) ->
+    B = virtual_button(B0),
+    button_pressed(Event, B, X, Y, Mi);
+button_pressed(Other, Mi) ->
+    get_menu_event(Mi#mi{new=false}).
+
+button_pressed(Event, Button, X, Y, #mi{ns=Names,menu=Menu,adv=Adv}=Mi0) ->
+    clear_timer(Mi0),
+    Mi = update_highlight(X, Y, Mi0),
+    case selected_item(X, Y, Mi) of
+	outside -> button_outside(Event, Mi);
+	none -> get_menu_event(Mi);
+	Item when integer(Item) ->
+	    case element(Item, Menu) of
+		{_,{Name,Submenu},_,_,_} when Adv == true ->
+		    popup_submenu(Button, X, Y, Name, Submenu, Mi);
+		{_,{Name,Submenu},_,_,_} when Adv == false ->
+		    submenu(Item, Name, Submenu, Mi);
+		{_,Act0,_,_,_} when is_function(Act0) ->
+		    case Act0(Button, Names) of
+			ignore -> keep;
+			Act when is_tuple(Act) ->
+			    do_action(Act)
+		    end;
+		{_,Act0,_,_,Ps} when is_atom(Act0); is_integer(Act0) ->
+		    Act = check_hotbox(Act0, X, Ps, Mi),
+		    do_action(build_command(Act, Names))
+	    end
+    end.
+
+do_action(Action) ->
+    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
+    wings_io:clear_menu_sel(),
+    wings_io:putback_event({action,Action}),
+    wings_io:putback_event(redraw),
+    pop.
+
 handle_key(#keysym{sym=27}, Mi) ->		%Escape.
     wings_io:clear_menu_sel(),
     wings_io:putback_event(redraw),
     pop;
 handle_key(#keysym{sym=?SDLK_DELETE}, Mi0) ->
+    %% Delete hotkey bound to this entry.
     case current_command(Mi0) of
 	none -> keep;
 	Cmd ->
@@ -235,6 +262,7 @@ handle_key(#keysym{sym=?SDLK_DELETE}, Mi0) ->
 	    get_menu_event(Mi)
     end;
 handle_key(#keysym{sym=?SDLK_INSERT}, Mi) ->
+    %% Define new hotkey for this entry.
     case current_command(Mi) of
 	none -> keep;
 	Cmd -> get_hotkey(Cmd, Mi)
@@ -283,15 +311,18 @@ popup_submenu(Button, X, Y, SubName, SubMenu0, #mi{ns=Ns}=Mi0) ->
 	    handle_menu_event(redraw, Mi)
     end.
 
-submenu(Name, Menu0, SelPos, Mi0) ->
+submenu(I, Name, Menu0, Mi0) ->
     Menu = expand_submenu(1, Name, Menu0, Mi0),
-    #mi{xleft=Xleft,ytop=Ytop,ymarg=Margin,w=W,h=H}=Mi0,
-    X = Xleft+W,
-    Y = Ytop+(SelPos-1)*?LINE_HEIGHT+Margin,
+    #mi{xleft=Xleft,ytop=Ytop,w=W,h=H,hs=Hs}=Mi0,
+    X = Xleft+W-?CHAR_WIDTH,
+    Y = get_item_pos(I, Hs, Ytop-?LINE_HEIGHT),
     Redraw = new_redraw_fun(Mi0),
     Mi1 = Mi0#mi{prev=Mi0,redraw=Redraw},
     Mi = menu_setup(plain, X, Y, Name, Menu, Mi1),
     get_menu_event(Mi).
+
+get_item_pos(0, Hs, Pos) -> Pos;
+get_item_pos(I, [H|Hs], Pos) -> get_item_pos(I-1, Hs, Pos+H).
 
 expand_submenu(B, Name, Submenu0, #mi{ns=Ns}) when is_function(Submenu0) ->
     Submenu0(B, [Name|Ns]);
@@ -390,30 +421,6 @@ update_highlight(X, Y, Mi) ->
 	    Mi#mi{sel=Item}
     end.
 
-select_item(Button, X0, Y0,
-	    #mi{ns=Names,menu=Menu,adv=Adv}=Mi) ->
-    case selected_item(X0, Y0, Mi) of
-	outside -> outside;
-	none -> Mi;
-	Item when integer(Item) ->
-	    {Action,Ps} =
-		case element(Item, Menu) of
-		    {_,A0,_,_,Ps0} -> {A0,Ps0};
-		    {_,A0} -> {A0,[]}
-		end,
-	    case Action of
-		{_,_}=SubMenu when Adv == true ->
-		    {popup,SubMenu};
-		{Name,SubMenu} when Adv == false ->
-		    {submenu,{Name,SubMenu,Item}};
-		Act when is_function(Act) ->
-		    {action,Act(Button, Names)};
-		Act0 when is_atom(Act0); is_integer(Act0) ->
-		    Act = check_hotbox(Act0, X0, Ps, Mi),
-		    {action,foldl(fun(N, A) -> {N,A} end, Act, Names)}
-	    end
-    end.
-
 check_hotbox(Act, X, Ps, #mi{xleft=Xleft,w=W})
   when Xleft =< X, X < Xleft+W-2*?CHAR_WIDTH -> Act;
 check_hotbox(Act, X, Ps, Mi) ->
@@ -434,30 +441,25 @@ selected_item(X0, Y0, #mi{xleft=Xleft,ytop=Ytop,ymarg=Margin,w=W,h=H}=Mi) ->
     if
 	Xleft =< X0, X0 < Xleft+W,
 	Ytop+Margin =< Y0, Y0 < Ytop+H+Margin ->
-	    Item = ((Y0-Ytop-Margin) div ?LINE_HEIGHT) + 1,
-	    case selectable(Item, Mi) of
-		true -> Item;
-		false -> none
-	    end;
+	    selected_item_1(Y0-Ytop-Margin, Mi);
 	Xleft =< X0, X0 < Xleft+W,
 	Ytop-2 =< Y0,  Y0 < Ytop+H+2*Margin -> none;
 	true -> outside
     end.
 
-selectable(Item, #mi{menu=Menu}) ->
-    case element(Item, Menu) of
-	separator -> false;
-	{Text,ignore,_,_,_} -> false;
-	Other -> true
+selected_item_1(Y, #mi{hs=Hs,menu=Menu}) ->
+    selected_item_1(Y, 1, Hs, Menu).
+selected_item_1(Y0, I, [H|Hs], Menu) ->
+    case Y0 - H of
+	Y when Y =< 0 ->
+	    case element(I, Menu) of
+		separator -> none;
+		{Text,ignore,_,_,_} -> none;
+		Other -> I
+	    end;
+	Y -> selected_item_1(Y, I+1, Hs, Menu)
     end.
 	    
-have_hotbox(Item, Menu) ->
-    case element(Item, Menu) of
-	{_,_,_,_,Ps} when is_list(Ps) ->
-	    property_lists:is_defined(hotbox, Ps);
-	Other -> false
-    end.
-
 is_submenu(I, #mi{menu=Menu,adv=true}) -> false;
 is_submenu(I, #mi{menu=Menu}) when is_integer(I) ->
     case element(I, Menu) of
@@ -470,23 +472,24 @@ is_submenu(I, Mi) -> false.
 build_command(Name, Names) ->
     foldl(fun(N, A) -> {N,A} end, Name, Names).
 	    
-menu_draw(X, Y, Shortcut, Mw, I, #mi{menu=Menu}=Mi) when I > size(Menu) -> ok;
-menu_draw(X, Y, Shortcut, Mw, I, #mi{menu=Menu}=Mi) ->
+menu_draw(X, Y, Shortcut, Mw, I, [], Mi) -> ok;
+menu_draw(X, Y, Shortcut, Mw, I, [H|Hs], #mi{menu=Menu}=Mi) ->
     ?CHECK_ERROR(),
     case element(I, Menu) of
 	separator -> draw_separator(X, Y, Mw);
 	{Text,{_,_}=Item,Hotkey,Help,Ps} ->
-	    item_colors(I, Mi),
+	    item_colors(Y, Ps, I, Mi),
 	    wings_io:menu_text(X, Y, Text),
 	    draw_submenu(Item, X+Mw-5*?CHAR_WIDTH, Y-?CHAR_HEIGHT div 3);
 	{Text,Item,Hotkey,Help,Ps} ->
 	    Str = Text ++ duplicate(Shortcut-length(Text), $\s) ++ Hotkey,
-	    item_colors(I, Mi),
+	    item_colors(Y, Ps, I, Mi),
 	    draw_menu_text(X, Y, Str, Ps),
-	    draw_hotbox(Item, X+Mw-5*?CHAR_WIDTH, Y-?CHAR_HEIGHT div 3, Ps)
+	    draw_hotbox(Item, X+Mw-5*?CHAR_WIDTH,
+			Y-?CHAR_HEIGHT div 3, Ps)
     end,
     ?CHECK_ERROR(),
-    menu_draw(X, Y+?LINE_HEIGHT, Shortcut, Mw, I+1, Mi).
+    menu_draw(X, Y+H, Shortcut, Mw, I+1, Hs, Mi).
 
 draw_menu_text(X, Y, Text, Props) ->
     case property_lists:is_defined(crossmark, Props) of
@@ -495,6 +498,17 @@ draw_menu_text(X, Y, Text, Props) ->
 	true ->
 	    wings_io:menu_text(X-2*?CHAR_WIDTH, Y, [crossmark,$\s|Text])
     end.
+
+item_colors(Y, Ps, Sel, #mi{sel=Sel,xleft=Xleft,w=W,menu=Menu}) ->
+    %% Draw blue background for highlighted item.
+    gl:color3f(0, 0, 0.5),
+    Right = case property_lists:is_defined(hotbox, Ps) of
+		true -> Xleft+W-3*?CHAR_WIDTH;
+		false -> Xleft+W-?CHAR_WIDTH
+	    end,
+    gl:recti(Xleft+?CHAR_WIDTH, Y-?CHAR_HEIGHT, Right, Y+3),
+    gl:color3f(1, 1, 1);			%White text
+item_colors(Y, Ps, I, Mi) -> gl:color3f(0, 0, 0). %Black text
 
 help_text(#mi{sel=none}) ->
     %% We don't want info display as wings_io:clear_message() would give.
@@ -530,21 +544,6 @@ help_text_1({S1,S2,S3}, true) ->
     [lmb|" " ++ S1 ++ [$\s,mmb,$\s] ++ S2 ++ [$\s,rmb,$\s] ++ S3];
 help_text_1([]=S, _) -> S.
 
-item_colors(Sel, #mi{sel=Sel}=Mi) ->
-    draw_blue_rect(Sel, Mi),
-    gl:color3f(1.0, 1.0, 1.0);
-item_colors(I, Mi) -> gl:color3f(0.0, 0.0, 0.0).
-
-draw_blue_rect(Item, #mi{xleft=Xleft,ytop=Ytop,
-			 ymarg=Margin,w=W,menu=Menu}) ->
-    gl:color3f(0.0, 0.0, 0.5),
-    Right = case have_hotbox(Item, Menu) of
-		true -> Xleft+W-3*?CHAR_WIDTH;
-		false -> Xleft+W-?CHAR_WIDTH
-	    end,
-    gl:recti(Xleft+?CHAR_WIDTH, Ytop+Margin+(Item-1)*?LINE_HEIGHT,
-	     Right, Ytop+Margin+Item*?LINE_HEIGHT).
-
 draw_hotbox(Item, X, Y, Ps) ->
     case property_lists:is_defined(hotbox, Ps) of
 	false ->
@@ -574,7 +573,7 @@ draw_separator(X, Y, Mw) ->
     ?CHECK_ERROR(),
     LeftX = X-2*?CHAR_WIDTH,
     RightX = X+Mw-4*?CHAR_WIDTH,
-    UpperY = Y-?CHAR_HEIGHT div 2 + 2,
+    UpperY = Y - ?SEPARATOR_HEIGHT + 1,
     LowerY = UpperY + 1,
     gl:lineWidth(1.0),
     gl:'begin'(?GL_LINES),
@@ -585,7 +584,7 @@ draw_separator(X, Y, Mw) ->
     gl:vertex2f(LeftX+1.5, LowerY+0.5),
     gl:vertex2f(RightX+0.5, LowerY+0.5),
     gl:'end'(),
-    gl:color3f(0.0, 0.0, 0.0),
+    gl:color3f(0, 0, 0),
     ?CHECK_ERROR().
 
 move_if_outside(X, Y, Mw, Mh, Mi) ->
