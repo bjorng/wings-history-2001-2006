@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.110 2002/02/11 12:27:01 bjorng Exp $
+%%     $Id: wings.erl,v 1.111 2002/02/26 20:39:17 bjorng Exp $
 %%
 
 -module(wings).
@@ -488,6 +488,8 @@ command({vertex,{deform,Deform}}, St0) ->
     ?SLOW(wings_deform:command(Deform, St0));
 command({vertex,auto_smooth}, St) ->
     {save_state,model_changed(wings_body:auto_smooth(St))};
+command({vertex,dissolve}, St) ->
+    {save_state,model_changed(wings_vertex_cmd:dissolve(St))};
 
 %% Magnetic commands.
 command({vertex,{magnet,Magnet}}, St) ->
@@ -592,6 +594,7 @@ vertex_menu(X, Y, St) ->
 	    {"Tighten",tighten},
 	    {"Bevel",bevel,"Create faces of selected vertices"},
 	    {"Collapse",collapse,"Delete selected vertices"},
+	    {"Dissolve",dissolve,"Delete selected vertices"},
 	    separator,
 	    wings_magnet:sub_menu(St),
 	    {"Deform",wings_deform:sub_menu(St)}|wings_vec:menu(St)],

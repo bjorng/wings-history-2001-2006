@@ -8,13 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.21 2002/02/12 19:46:19 bjorng Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.22 2002/02/26 20:39:17 bjorng Exp $
 %%
 
 -module(wings_vertex_cmd).
 
 -export([flatten/2,flatten_move/2,extrude/2,bevel/1,
-	 connect/1,connect/2,tighten/1,tighten/3]).
+	 connect/1,connect/2,tighten/1,tighten/3,dissolve/1]).
 
 -include("wings.hrl").
 
@@ -271,3 +271,11 @@ tighten_vec(V, Vs, #we{vs=Vtab}=We) ->
     Center = wings_vertex:center(Nbs, Vtab),
     e3d_vec:sub(Center, wings_vertex:pos(V, Vtab)).
     
+%%%
+%%% The Dissolve command. Like Collapse, but stays in vertex mode
+%%% (without any selection).
+%%%
+
+dissolve(St0) ->
+    St = wings_collapse:collapse(St0),
+    St#st{selmode=vertex,sel=[]}.
