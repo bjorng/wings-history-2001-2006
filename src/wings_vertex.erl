@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex.erl,v 1.16 2002/01/27 11:48:30 bjorng Exp $
+%%     $Id: wings_vertex.erl,v 1.17 2002/02/14 17:50:18 bjorng Exp $
 %%
 
 -module(wings_vertex).
@@ -278,15 +278,8 @@ flatten_move(V, PlaneNormal, Center, Tab0) ->
 
 %% dissolve(Vertex, We) -> We|error
 %%  Remove a "winged vertex" - a vertex with exactly two edges.
-dissolve(V, #we{es=Etab,vs=Vtab}=We) ->
-    #vtx{edge=Edge} = gb_trees:get(V, Vtab),
-    case gb_trees:get(Edge, Etab) of
-	#edge{vs=V,ltsu=AnEdge,rtpr=AnEdge}=Rec ->
-	    wings_edge:dissolve_edge(Edge, We);
-	#edge{ve=V,rtsu=AnEdge,ltpr=AnEdge}=Rec ->
-	    wings_edge:dissolve_edge(Edge, We);
-	Other -> error
-    end.
+dissolve(V, We) ->
+    wings_edge:dissolve_vertex(V, We).
 
 %% Connect vertices (which must share a face).
 

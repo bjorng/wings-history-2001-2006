@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.34 2002/02/08 21:01:44 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.35 2002/02/14 17:50:18 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -26,6 +26,8 @@
 	 to_vertices/2,from_faces/2,extend_sel/2,
 	 connect/2,
 	 patch_edge/4,patch_edge/5]).
+
+-export([dissolve_vertex/2]).
 
 -include("wings.hrl").
 -import(lists, [foldl/3,last/1,member/2,reverse/1,reverse/2,
@@ -285,11 +287,12 @@ cut_edges(Es, We) ->
 
 remove_winged_vs(Vs, We) ->
     foldl(fun(V, W0) ->
-		  case wings_vertex:dissolve(V, W0) of
+		  case dissolve_vertex(V, W0) of
 		      error -> W0;
 		      W -> W
 		  end
 	  end, We, Vs).
+
 
 %%%
 %%% The Dissolve command.
@@ -384,6 +387,18 @@ dissolve_edge(Edge, FaceRemove, FaceKeep, Rec,
 	#edge{rf=FaceKeep,rtpr=Same,rtsu=Same} ->
 	    dissolve_edge(AnEdge, We);
 	Other -> We
+    end.
+
+%% dissolve(Vertex, We) -> We|error
+%%  Remove a "winged vertex" - a vertex with exactly two edges.
+dissolve_vertex(V, #we{es=Etab,vs=Vtab}=We0) ->
+    #vtx{edge=Edge} = gb_trees:get(V, Vtab),
+    case gb_trees:lookup(Edge, Etab) of
+	{value,#edge{vs=V,ltsu=AnEdge,rtpr=AnEdge}=Rec} ->
+	    merge_edges(backward, Edge, Rec, We0);
+	{value,#edge{ve=V,rtsu=AnEdge,ltpr=AnEdge}=Rec} ->
+	    merge_edges(forward, Edge, Rec, We0);
+	Other -> error
     end.
 
 %%
