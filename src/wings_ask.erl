@@ -9,11 +9,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.167 2004/02/09 15:53:00 dgud Exp $
+%%     $Id: wings_ask.erl,v 1.168 2004/02/10 23:21:35 dgud Exp $
 %%
 
 -module(wings_ask).
--export([ask/3,ask/4,dialog/3,dialog/4,
+-export([init/0,ask/3,ask/4,dialog/3,dialog/4,
 	 hsv_to_rgb/1,hsv_to_rgb/3,rgb_to_hsv/1,rgb_to_hsv/3]).
 
 %% Debug exports
@@ -111,6 +111,10 @@
 	{w,h				%Natural (min) size
 	}).
 
+init() ->
+    init_history(),
+    ok.
+    
 ask(Title, Qs, Fun) ->
     ask(true, Title, Qs, Fun).
 
@@ -2414,8 +2418,6 @@ mktree_panel(Sto, I, Flags) ->
 
 -record(eyepicker, {}).
 
-
-
 mktree_eyepicker(Sto0, I, Flags) ->
     Fi = #fi{key=Key} = 
 	mktree_leaf(fun eyepicker_event/3, inert, undefined, 0, 0, I, Flags),
@@ -2744,40 +2746,40 @@ validator(Val, _Flags) when is_list(Val) ->
 
 integer_validator(Flags) ->
     case proplists:get_value(range, Flags) of
-	undefined -> {8,fun accept_all/1,integer_chars()};
+	undefined -> {8,fun accept_all/1,fun all_chars/1};
 	{Min,Max} when is_integer(Min), is_integer(Max), Min =< Max ->
 	    Digits = trunc(math:log(Max-Min+1)/math:log(10))+2,
-	    {Digits,integer_range(Min, Max),integer_chars(Min, Max)}
+	    {Digits,integer_range(Min, Max),fun all_chars/1}
     end.
 
 float_validator(Flags) ->
     case proplists:get_value(range, Flags) of
-	undefined -> {12,fun accept_all/1,float_chars()};
+	undefined -> {12,fun accept_all/1,fun all_chars/1};
 	{Min,Max} when is_float(Min), is_float(Max), Min =< Max ->
 	    Digits = min(trunc(math:log(Max-Min+1)/math:log(10))+8, 20),
-	    {Digits,float_range(Min, Max),float_chars(Min, Max)}
+	    {Digits,float_range(Min, Max),fun all_chars/1}
     end.
 
 string_validator() -> {30,fun accept_all/1,fun all_chars/1}.
 
-integer_chars() -> integer_chars(-1, 1).
+%integer_chars() -> integer_chars(-1, 1).
 
-integer_chars(Min, Max) ->
-    fun ($-) when Min < 0 -> true;
-	($+) when Max > 0 -> true;
-	(C) when $0 =< C, C =< $9 -> true;
-	(_) -> false
-    end.
+% integer_chars(Min, Max) ->
+%     fun ($-) when Min < 0 -> true;
+% 	($+) when Max > 0 -> true;
+% 	(C) when $0 =< C, C =< $9 -> true;
+% 	(_) -> false
+%     end.
 
-float_chars() -> float_chars(-1.0, +1.0).
+%float_chars() -> float_chars(-1.0, +1.0).
 
-float_chars(Min, Max) ->
-    fun ($-) when Min < 0.0 -> true;
-	($+) when Max > 0.0 -> true;
-	(C) when $0 =< C, C =< $9 -> true;
-	($.) -> true;
-	(_) -> false
-    end.
+% float_chars(Min, Max) ->
+%     fun ($-) when Min < 0.0 -> true;
+% 	($+) when Max > 0.0 -> true;
+% 	(C) when $0 =< C, C =< $9 -> true;
+% 	($.) -> true;
+% 	(_) -> false
+%     end.
 
 all_chars(_) -> true.
 
@@ -2803,6 +2805,7 @@ float_range(Min, Max) ->
 
 accept_all(_) -> ok.
 
+%% Does eval two time per character not nice..but its late..
 text_get_val(#text{last_val=OldVal}=Ts) when is_integer(OldVal) ->
     eval_integer(get_text(validate_string(Ts)), OldVal);
 text_get_val(#text{last_val=OldVal}=Ts) when is_float(OldVal) ->
@@ -2830,14 +2833,14 @@ eval_float(Str, Default) ->
 eval(Str0) ->
     Str = fix_expr(Str0, []),
     case catch eval_1(Str) of
-	{'EXIT', {{badmatch,{error,{1,erl_parse, [What, Where]}}},_}} ->
-	    io:format("Error: ~s ~s~n", [What,Where]),
+	{'EXIT', {{badmatch,{error,{1,erl_parse, [_What, _Where]}}},_}} ->
+%	    io:format("Error: ~s ~s~n", [What,Where]),
 	    error;
-	{'EXIT', {{ParseErr, [{erl_eval,_,_}|_]},_}} ->
-	    io:format("Parse Error: ~p~n", [ParseErr]),
+	{'EXIT', {{_ParseErr, [{erl_eval,_,_}|_]},_}} ->
+%	    io:format("Parse Error: ~p~n", [ParseErr]),
 	    error;
-	{'EXIT', Reason} ->
-	    io:format("Error: ~p~n", [Reason]),
+	{'EXIT', _Reason} ->
+%	    io:format("Error: ~p~n", [Reason]),
 	    error;
 	Val -> Val
     end.
@@ -2910,6 +2913,7 @@ gen_text_handler({focus,true}, [#fi{key=Key,index=I}|_], Sto0) ->
     %% Another field may have updated this field (e.g. a Browse button)
     %% while we were out of focus. Therefore, don't trust anything in
     %% #text{} structure (particularily not 'last_val').
+    reset_history(),
     Ts0 = gb_trees:get(-I, Sto0),
     K = var(Key, I),
     Val = gb_trees:get(K, Sto0),
@@ -3075,6 +3079,7 @@ get_text_r(#text{bef=Bef,aft=Aft}) ->
 text_event({key,Sym,Mod,Unicode}, _Fi, Ts) ->
     key(Sym, Mod, Unicode, Ts);
 text_event({focus,false}, _Fi, Ts0) ->
+    add_history(type(Ts0#text.last_val), get_text(Ts0)),
     Ts = validate_string(Ts0),
     Str = get_text(Ts),
     Ts#text{first=0,cpos=0,bef=[],aft=Str,sel=0};
@@ -3121,6 +3126,8 @@ key(?SDLK_HOME, Mod, _, Ts) -> key(1, Mod, Ts);
 key(?SDLK_END, Mod, _, Ts) -> key(5, Mod, Ts);
 key(?SDLK_LEFT, Mod, _, Ts) -> key(2, Mod, Ts);
 key(?SDLK_RIGHT, Mod, _, Ts) -> key(6, Mod, Ts);
+key(?SDLK_UP, Mod, _, Ts) -> key(12, Mod, Ts);
+key(?SDLK_DOWN, Mod, _, Ts) -> key(13, Mod, Ts);
 key(?SDLK_DELETE, Mod, _, Ts) -> key(4, Mod, Ts);
 key(?SDLK_BACKSPACE, Mod, _, Ts) -> key(?SDLK_BACKSPACE, Mod, Ts);
 key(?SDLK_KP_PERIOD, Mod, _, Ts) ->
@@ -3170,6 +3177,13 @@ key(4, _, #text{sel=0,aft=[_|Aft]}=Ts) ->	%Ctrl-D
     Ts#text{aft=Aft};
 key(4, _, Ts) ->				%Ctrl-D
     del_sel(Ts);
+key(12, _, #text{}=Ts) ->			%Ctrl-P
+    Txt = read_prev_hist(type(Ts#text.last_val), get_text(Ts)),
+    Ts#text{sel=0, bef=[], aft=Txt};
+key(13, _, #text{}=Ts) ->			%Ctrl-N
+    Txt = read_next_hist(type(Ts#text.last_val), get_text(Ts)),
+    Ts#text{sel=0, bef=[], aft=Txt};
+
 key(C, _, #text{charset=Charset}=Ts0)
   when $\s =< C, C < 256 ->
     case Charset(C) of
@@ -3198,7 +3212,6 @@ increment(Ts0, Incr) ->
 	    Ts = Ts0#text{bef=reverse(Str),aft=[],sel=-length(Str)},
 	    validate_string(Ts)
     end.
-
 
 %%%
 %%% Slider
@@ -3548,4 +3561,60 @@ hook(Hook, menu_disabled, [Var,I,Store]) ->
 		void -> [];
 		Disabled when is_list(Disabled) -> Disabled
 	    end
+    end.
+
+
+%%%% History functions
+
+type(Val) when is_integer(Val) -> int;
+type(Val) when is_float(Val) -> float;
+type(Val) when is_list(Val) -> string.
+
+init_history() ->
+    ets:new(wings_history, [named_table]),
+    ets:insert(wings_history, {{string, next}, 0}),
+    ets:insert(wings_history, {{float, next}, 0}),
+    ets:insert(wings_history, {{int, next}, 0}).
+
+add_history(_Type,[]) ->  %% No empty strings in history..
+    true;
+add_history(Type,Val) 
+  when is_list(Val), Type == float; Type == int; Type == string ->
+    [{_,Key}] = ets:lookup(wings_history, {Type,next}),
+    case ets:lookup(wings_history, {Type,Key-1}) of
+	[{_, Val}] -> %% Already the last history entry
+	    true;
+	_ ->
+	    ets:insert(wings_history, {{Type, Key}, Val}),
+	    ets:insert(wings_history, {{Type, next}, Key+1}),
+	    ets:delete(wings_history, {Type,pos})
+    end.
+
+reset_history() ->
+    ets:delete(wings_history, {int,pos}),
+    ets:delete(wings_history, {float,pos}),
+    ets:delete(wings_history, {string,pos}).
+
+read_prev_hist(Type, Default) ->
+    read_hist(Type, Default, -1).
+read_next_hist(Type, Default) ->
+    read_hist(Type, Default, +1).
+
+read_hist(Type, Default, Step) ->
+    [{_, Next}] = ets:lookup(wings_history, {Type,next}),
+    Curr0 = case ets:lookup(wings_history, {Type,pos}) of
+		[] ->  Next;
+		[{_,Key}] ->  Key
+	    end,
+    Curr1 = Curr0 + Step,
+    if Curr1 < 0 ->
+	    ets:insert(wings_history, {{Type,pos}, 0}),
+	    Default;
+       Curr1 >= Next ->
+	    ets:delete(wings_history,{Type,pos}),
+	    Default;
+       true ->
+	    ets:insert(wings_history, {{Type,pos}, Curr1}),
+	    [{_,Val}] = ets:lookup(wings_history, {Type,Curr1}),
+	    Val
     end.
