@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sv.lang,v 1.43 2004/12/04 09:43:41 bjorng Exp $
+%%     $Id: wings_sv.lang,v 1.44 2004/12/05 13:24:26 bjorng Exp $
 %%
 
 {wings,
@@ -395,7 +395,7 @@
   {export,
    [{1,"exporterar"},
     {2,"förbereder"},
-    {4,"Exporteraren krashade}]}]}.
+    {4,"Exporteraren krashade"}]}]}.
 {wings_extrude_edge,
  [
   {bevel_faces,
