@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.38 2002/11/28 20:22:21 dgud Exp $
+%%     $Id: wings_ask.erl,v 1.39 2002/12/05 14:32:44 dgud Exp $
 %%
 
 -module(wings_ask).
@@ -800,7 +800,7 @@ button_event(_Ev, _Fi, But) -> But.
 color(Def) ->
     Col = #col{val=Def},
     Fun = color_fun(),
-    {Fun,false,Col,3*?CHAR_WIDTH,?LINE_HEIGHT+2}.
+    {Fun,false,Col,10*?CHAR_WIDTH,?LINE_HEIGHT+2}.
 
 color_fun() ->
     fun({redraw,Active}, Fi, Col, Common) ->
@@ -845,45 +845,60 @@ col_inside(Xm, Ym, #fi{x=X,y=Y})
        Y+3 =< Ym, Ym < Y+?CHAR_HEIGHT+2 -> true;
 col_inside(_, _, _) -> false.
 
+rgb_to_hsi(R,G,B) ->
+    {H,S,I} = wings_color:rgb_to_hsi(R,G,B),
+    {round(H),S,I}.
+
 pick_color(#fi{key=Key}, Col, Common0) ->
     {R1,G1,B1,A1} =
 	case gb_trees:get(Key, Common0) of
 	    {R0,G0,B0} -> {R0,G0,B0,none};
 	    {R0,G0,B0,A0} -> {R0,G0,B0,A0}
 	end,
-    Range = [{range,{0,255}}],
+    {H1,S1,I1} = rgb_to_hsi(R1,G1,B1),    
+    RGBRange = [{range, {0.0,1.0}}],
+    HRange   = [{range, {0, 360}}],
+    SIRange  = [{range, {0.0,1.0}}],
     Draw = fun(X, Y, _W, _H, Common) ->
-		   Color = {gb_trees:get(r, Common)/255,
-			    gb_trees:get(g, Common)/255,
-			    gb_trees:get(b, Common)/255},
+		   Color = {gb_trees:get(r, Common),
+			    gb_trees:get(g, Common),
+			    gb_trees:get(b, Common)},
 		   wings_io:sunken_rect(X, Y, ?COL_PREVIEW_SZ,
 					?COL_PREVIEW_SZ-4, Color)
 	   end,
     case A1 of 
     	none ->
-    {dialog,[{hframe,
-	      [{custom,?COL_PREVIEW_SZ,?COL_PREVIEW_SZ,Draw},
-	       {label_column,
-		[{"R",{slider,{text,trunc(R1*255),[{key,r}|Range]}}},
-		 {"G",{slider,{text,trunc(G1*255),[{key,g}|Range]}}},
-		 {"B",{slider,{text,trunc(B1*255),[{key,b}|Range]}}}
-		]}]}],
-     fun([{r,R},{g,G},{b,B}]) ->
-	     Val = {R/255,G/255,B/255},
-		 {Col#col{val=Val},gb_trees:update(Key, Val, Common0)}
-     end};
+	    {dialog,[{hframe,
+		      [{custom,?COL_PREVIEW_SZ,?COL_PREVIEW_SZ,Draw},
+		       {label_column,
+			[{"R",{slider,{text,R1,[{key,r}|RGBRange]}}},
+			 {"G",{slider,{text,G1,[{key,g}|RGBRange]}}},
+			 {"B",{slider,{text,B1,[{key,b}|RGBRange]}}},
+			 {"H",{slider,{text,H1,[{key,h}|HRange]}}},
+			 {"S",{slider,{text,S1,[{key,s}|SIRange]}}},
+			 {"I",{slider,{text,I1,[{key,i}|SIRange]}}}
+			]}]}],
+	     fun([{r,R},{g,G},{b,B}| _]) ->
+		     Val = {R,G,B},
+		     {Col#col{val=Val},gb_trees:update(Key, Val, Common0)}
+	     end};
      	_ ->
-     {dialog,[{hframe,
-	      [{custom,?COL_PREVIEW_SZ,?COL_PREVIEW_SZ,Draw},
-	       {label_column,
-		[{"R",{slider,{text,trunc(R1*255),[{key,r}|Range]}}},
-		 {"G",{slider,{text,trunc(G1*255),[{key,g}|Range]}}},
-		 {"B",{slider,{text,trunc(B1*255),[{key,b}|Range]}}},
-		 {"A",{slider,{text,trunc(A1*255),[{key,a}|Range]}}}]}]}],
-     fun([{r,R},{g,G},{b,B},{a,A}]) ->
-	     Val =  {R/255,G/255,B/255,A/255},
-		 {Col#col{val=Val},gb_trees:update(Key, Val, Common0)}
-     end} end.
+	    {dialog,[{hframe,
+		      [{custom,?COL_PREVIEW_SZ,?COL_PREVIEW_SZ,Draw},
+		       {label_column,
+			[{"R",{slider,{text,R1,[{key,r}|RGBRange]}}},
+			 {"G",{slider,{text,G1,[{key,g}|RGBRange]}}},
+			 {"B",{slider,{text,B1,[{key,b}|RGBRange]}}},
+			 {"A",{slider,{text,A1,[{key,a}|RGBRange]}}},
+			 {"H",{slider,{text,H1,[{key,h}|HRange]}}},
+			 {"S",{slider,{text,S1,[{key,s}|SIRange]}}},
+			 {"I",{slider,{text,I1,[{key,i}|SIRange]}}}
+			]}]}],
+	     fun([{r,R},{g,G},{b,B},{a,A}| _]) ->
+		     Val =  {R,G,B,A},
+		     {Col#col{val=Val},gb_trees:update(Key, Val, Common0)}
+	     end} 
+    end.
 
 %%%
 %%% Custom field.
@@ -909,7 +924,9 @@ custom_fun() ->
 %%% Slider.
 %%%
 
--define(SL_LENGTH, 100).
+-define(SL_LENGTH, 120).
+-define(SL_H, 10).
+-define(SL_BAR_H, (?LINE_HEIGHT-1)).
 
 -record(sl,
 	{min,
@@ -936,37 +953,39 @@ slider_fun() ->
     end.
 
 get_colRange(r,Common) ->
-    B = gb_trees:get(b, Common)/255,
-    G = gb_trees:get(g, Common)/255,
-    {{0,G,B},{1,G,B}};
+    B = gb_trees:get(b, Common),
+    G = gb_trees:get(g, Common),
+    [{0,G,B},{1,G,B}];
 get_colRange(g, Common) ->
-    R = gb_trees:get(r, Common)/255,
-    B = gb_trees:get(b, Common)/255,
-    {{R,0,B},{R,1,B}};
+    R = gb_trees:get(r, Common),
+    B = gb_trees:get(b, Common),
+    [{R,0,B},{R,1,B}];
 get_colRange(b, Common) ->
-    R = gb_trees:get(r, Common)/255,
-    G = gb_trees:get(g, Common)/255,
-    {{R,G,0},{R,G,1}};
+    R = gb_trees:get(r, Common),
+    G = gb_trees:get(g, Common),
+    [{R,G,0},{R,G,1}];
 get_colRange(_E, _Common) ->
-    {?MENU_COLOR, ?MENU_COLOR}.
+    [?MENU_COLOR, ?MENU_COLOR].
     
 slider_redraw(#fi{x=X,y=Y0,w=W},
 	      #sl{min=Min,range=Range,peer=Peer}, 
 	      Common) ->
-    {SCol,ECol} = get_colRange(Peer, Common),
-    Y = Y0+?LINE_HEIGHT div 2,
-    wings_io:sunken_rect(X, Y, W, 3, ?MENU_COLOR),
+    [SCol,ECol] = get_colRange(Peer, Common),
+    Y = Y0+?LINE_HEIGHT div 2 + 2,
+    wings_io:sunken_rect(X, Y-(?SL_H div 2), W, ?SL_H, ?MENU_COLOR),
     gl:shadeModel(?GL_SMOOTH),
-    gl:'begin'(?GL_LINES),
-    gl:color3fv(SCol), gl:vertex2f(X+1,Y+2),
-    gl:color3fv(ECol), gl:vertex2f(X+W,Y+2),
-    gl:color3fv(SCol), gl:vertex2f(X+1,Y+3),
-    gl:color3fv(ECol), gl:vertex2f(X+W,Y+3),
+    gl:'begin'(?GL_QUADS),
+    gl:color3fv(SCol), 
+    gl:vertex2f(X+1,Y+(?SL_H div 2)-1),
+    gl:vertex2f(X+1,Y-(?SL_H div 2)+1),
+    gl:color3fv(ECol), 
+    gl:vertex2f(X+W,Y-(?SL_H div 2)+1),
+    gl:vertex2f(X+W,Y+(?SL_H div 2)-1),
     gl:'end'(),
     Val = gb_trees:get(Peer, Common),
     Pos = trunc((Val-Min) / Range),
-    wings_io:raised_rect(X+Pos, Y-7, 4, 16, ?MENU_COLOR).
-
+    wings_io:raised_rect(X+Pos, Y-(?SL_BAR_H div 2), 
+			 4, ?SL_BAR_H, ?MENU_COLOR).
 
 slider_event(#mousebutton{x=Xb,state=?SDL_RELEASED}, Fi, Sl, Common) ->
     slider_move(Xb, Fi, Sl, Common);
@@ -974,15 +993,36 @@ slider_event(#mousemotion{x=Xb}, Fi, Sl, Common) ->
     slider_move(Xb, Fi, Sl, Common);
 slider_event(_, _, Sl, _) -> Sl.
 
-slider_move(Xb, #fi{x=X}, #sl{min=Min,range=Range,peer=Peer}=Sl, Common) ->
+slider_move(Xb, #fi{x=X}, #sl{min=Min,range=Range,peer=Peer}=Sl, Common0) ->
     Pos = max(0, min(Xb-X, ?SL_LENGTH)),
     Val0 = Min + Pos*Range,
     Val = if
 	      is_integer(Min) -> round(Val0);
 	      true -> Val0
 	  end,
-    {Sl,gb_trees:update(Peer, Val, Common)}.
+    Common1 = gb_trees:update(Peer, Val, Common0),
+    Common  = update_color(Peer, Common1),
+    {Sl,Common}.
 
+update_color(RGB, Common0) when RGB == r; RGB == g; RGB == b ->
+    R = gb_trees:get(r, Common0),
+    G = gb_trees:get(g, Common0),
+    B = gb_trees:get(b, Common0),
+    {H,S,I} = rgb_to_hsi(R,G,B),
+    Common1 = gb_trees:update(h, H, Common0),
+    Common2 = gb_trees:update(s, S, Common1),
+    gb_trees:update(i, I, Common2);
+update_color(HSI, Common0) when HSI == h; HSI == s; HSI == i ->
+    H = gb_trees:get(h, Common0),
+    S = gb_trees:get(s, Common0),
+    I = gb_trees:get(i, Common0),
+    {R,G,B} = wings_color:hsi_to_rgb(H,S,I),
+    Common1 = gb_trees:update(r, R, Common0),
+    Common2 = gb_trees:update(g, G, Common1),
+    gb_trees:update(b, B, Common2);
+update_color(_, Common) ->
+    Common.
+    
 %%%
 %%% Label.
 %%%
@@ -1128,7 +1168,8 @@ gen_text_handler({event,Ev}, #fi{key=Key}=Fi,
 	  end,
     Ts = text_event(Ev, Fi, Ts1),
     Val = text_get_val(Ts),
-    Common = gb_trees:update(Key, Val, Common0),
+    Common1 = gb_trees:update(Key, Val, Common0),
+    Common = update_color(Key, Common1),
     {Ts#text{last_val=Val},Common};
 gen_text_handler(value, #fi{key=Key}, _, Common) ->
     gb_trees:get(Key, Common).
