@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_import.erl,v 1.18 2004/06/30 06:19:45 bjorng Exp $
+%%     $Id: wings_import.erl,v 1.19 2004/06/30 08:11:04 bjorng Exp $
 %%
 
 -module(wings_import).
@@ -120,16 +120,30 @@ build_1(ObjType, Mesh0) ->
 	We -> We
     end.
 
-rip_apart(Mode, #e3d_mesh{fs=Fs}=Mesh) ->
-    rip_apart(Fs, Mode, Mesh, []).
+rip_apart(Mode, Mesh) ->
+    rip_apart_1(Mesh, Mode, []).
 
-rip_apart([#e3d_face{vs=Vs,tx=Tx}=Face|T], Mode, Template, Acc) ->
+rip_apart_1(#e3d_mesh{fs=Fs}=Mesh0, Mode, Acc0) ->
+    case length(Fs) of
+	N when N > 512 ->
+	    Mid = N div 2,
+	    First = lists:sublist(Fs, Mid),
+	    Second = lists:nthtail(Mid, Fs),
+ 	    Mesh1 = e3d_mesh:renumber(Mesh0#e3d_mesh{fs=First}),
+ 	    Mesh2 = e3d_mesh:renumber(Mesh0#e3d_mesh{fs=Second}),
+	    Acc = rip_apart_1(Mesh1, Mode, Acc0),
+	    rip_apart_1(Mesh2, Mode, Acc);
+	_ ->
+	    rip_apart_2(Fs, Mode, Mesh0, Acc0)
+    end.
+
+rip_apart_2([#e3d_face{vs=Vs,tx=Tx}=Face|T], Mode, Template, Acc) ->
     BackFace = Face#e3d_face{vs=reverse(Vs),tx=reverse(Tx),mat=['_hole_']},
     Fs = [Face,BackFace],
     Mesh = e3d_mesh:renumber(Template#e3d_mesh{fs=Fs,he=[]}),
     We = wings_we:build(Mode, Mesh),
-    rip_apart(T, Mode, Template, [We|Acc]);
-rip_apart([], _, _, Wes) -> Wes.
+    rip_apart_2(T, Mode, Template, [We|Acc]);
+rip_apart_2([], _, _, Wes) -> Wes.
 
 %% rename_materials(NameMap, We0) -> We
 rename_materials([], We) -> We;
