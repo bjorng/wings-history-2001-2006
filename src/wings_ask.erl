@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.123 2003/11/17 12:30:19 raimo_niskanen Exp $
+%%     $Id: wings_ask.erl,v 1.124 2003/11/19 09:52:12 raimo_niskanen Exp $
 %%
 
 -module(wings_ask).
@@ -1292,13 +1292,13 @@ rb_event(value, [#fi{index=I}|_], Store) ->
 	Val -> {value,Val};
 	_ -> none
     end;
-rb_event({key,_,_,$\s}, [Fi=#fi{index=I}|_], Store) ->
-    rb_set(Fi, gb_trees:get(-I, Store), I, Store);
+rb_event({key,_,_,$\s}, [#fi{index=I}|_], Store) ->
+    rb_set(gb_trees:get(-I, Store), I, Store);
 rb_event(#mousebutton{x=Xb,state=?SDL_RELEASED,button=1}, 
-	 [Fi=#fi{x=X,index=I}|_], Store) ->
+	 [#fi{x=X,index=I}|_], Store) ->
     #rb{labelw=LblW,spacew=SpaceW} = Rb = gb_trees:get(-I, Store),
     if
-	Xb-X < LblW+4*SpaceW -> rb_set(Fi, Rb, I, Store);
+	Xb-X < LblW+4*SpaceW -> rb_set(Rb, I, Store);
 	true -> keep
     end;
 rb_event(_Ev, _Fi, _Store) -> keep.
@@ -1367,8 +1367,8 @@ rb_draw(Active, #fi{x=X,y=Y0}, #rb{label=Label,val=Val}, Common, DisEnable) ->
     gl:color3b(0, 0, 0),
     DisEnable.
 
-rb_set(#fi{key=Key}, #rb{val=Val}, I, Store) ->
-    {store,gb_trees:update(var(Key, I), Val, Store)}.
+rb_set(#rb{var=Var,val=Val}, I, Store) ->
+    {store,gb_trees:update(var(Var, I), Val, Store)}.
 
 
 %%%
