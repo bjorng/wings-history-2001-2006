@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.51 2002/12/08 17:41:03 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.52 2002/12/20 19:22:48 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -44,7 +44,24 @@ command({pick,[],Res,Ns}, St) ->
     Cmd = wings_menu:build_command(list_to_tuple(reverse(Res)), Ns),
     wings_io:putback_event({action,Cmd}),
     St;
-command({pick,[axis|More],Acc,Names}, St0) ->
+command({pick,[{Atom,Desc}|T],Acc,Names}, St) when is_atom(Atom) ->
+    command_1(Atom, Desc, T, Acc, Names, St);
+command({pick,[Atom|T],Acc,Names}, St) when is_atom(Atom) ->
+    Msg = case Atom of
+	      axis -> {"Select axis for ",Names};
+	      point -> {"Select point for ",Names};
+	      magnet -> {"Select magnet influence for ",Names};
+	      _ -> []
+	  end,
+    command_1(Atom, Msg, T, Acc, Names, St);
+command({pick_special,{Modes,Init,Check,Exit}}, St0) ->
+    pick_init(St0),
+    wings_io:icon_restriction(Modes),
+    St = Init(St0),
+    Ss = #ss{selmodes=Modes,check=Check,exit=Exit},
+    {seq,push,get_event(Ss, St)}.
+
+command_1(axis, Msg, More, Acc, Names, St0) ->
     pick_init(St0),
     Modes = [vertex,edge,face],
     St1 = mode_restriction(Modes, St0),
@@ -55,9 +72,9 @@ command({pick,[axis|More],Acc,Names}, St0) ->
 		  end,
 	     selmodes=Modes,
 	     is_axis=true},
-    command_message("Select axis for ", Names),
-    {seq,{push,dummy},get_event(Ss, St1#st{sel=[]})};
-command({pick,[point|More],Acc,Names}, St0) ->
+    command_message(Msg),
+    {seq,push,get_event(Ss, St1#st{sel=[]})};
+command_1(point, Msg, More, Acc, Names, St0) ->
     pick_init(St0),
     Modes = [vertex,edge,face],
     St1 = mode_restriction(Modes, St0),
@@ -67,35 +84,31 @@ command({pick,[point|More],Acc,Names}, St0) ->
 			  common_exit(Check, More, Acc, Names, St)
 		  end,
 	     selmodes=Modes},
-    command_message("Select point for ", Names),
-    {seq,{push,dummy},get_event(Ss, St1#st{sel=[]})};
-command({pick,[magnet],Acc,Names}, St0) ->
+    command_message(Msg),
+    {seq,push,get_event(Ss, St1#st{sel=[]})};
+command_1(magnet, Msg, [], Acc, Names, St0) ->
     pick_init(St0),
     Modes = [vertex,edge,face],
     wings_io:icon_restriction(Modes),
     Ss = #ss{check=fun check_point/1,
 	     exit=fun(_X, _Y, St) -> exit_magnet([], Acc, Names, St) end,
 	     selmodes=Modes},
-    command_message("Select magnet influence for ", Names),
-    {seq,{push,dummy},get_event(Ss, St0#st{selmode=vertex,sel=[]})};
-command({pick,[magnet_options],Acc,Names}, _St) ->
+    command_message(Msg),
+    {seq,push,get_event(Ss, St0#st{selmode=vertex,sel=[]})};
+command_1(magnet_options, _, [], Acc, Names, _St) ->
     wings_magnet:dialog(fun(Mag) ->
-				    {vector,{pick,[],[Mag|Acc],Names}}
-			    end);
-command({pick,[{magnet_options,Point}],Acc,Names}, _St) ->
+				{vector,{pick,[],[Mag|Acc],Names}}
+			end);
+command_1({magnet_options,Point}, _, [], Acc, Names, _St) ->
     wings_magnet:dialog(Point,
 			fun(Mag) ->
 				{vector,{pick,[],[Mag|Acc],Names}}
-			end);
-command({pick_special,{Modes,Init,Check,Exit}}, St0) ->
-    pick_init(St0),
-    wings_io:icon_restriction(Modes),
-    St = Init(St0),
-    Ss = #ss{selmodes=Modes,check=Check,exit=Exit},
-    {seq,{push,dummy},get_event(Ss, St)}.
+			end).
 
-command_message(Prefix, Ns) ->
-    wings_wm:message_right(Prefix ++ command_name(Ns)).
+command_message({Prefix,Ns}) ->
+    wings_wm:message_right(Prefix ++ command_name(Ns));
+command_message(Msg) ->
+    wings_wm:message_right(Msg).
 
 mode_restriction(Modes, #st{selmode=Mode}=St) ->
     wings_io:icon_restriction(Modes),
@@ -320,7 +333,11 @@ common_exit_1(Vec, More, Acc, Ns) ->
 
 pick_more_help([point|_], Ns) ->
     "Continue to select point for " ++ command_name(Ns);
+pick_more_help([{point,_}|_], Ns) ->
+    "Continue to select point for " ++ command_name(Ns);
 pick_more_help([axis|_], Ns) ->
+    "Continue to select axis for " ++ command_name(Ns);
+pick_more_help([{axis,_}|_], Ns) ->
     "Continue to select axis for " ++ command_name(Ns).
 
 add_to_acc(Vec, [radial]) -> [{radial,Vec}];

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_deform.erl,v 1.29 2002/04/13 07:22:31 bjorng Exp $
+%%     $Id: wings_deform.erl,v 1.30 2002/12/20 19:22:47 bjorng Exp $
 %%
 
 -module(wings_deform).
@@ -83,7 +83,10 @@ taper_item(Axis) ->
 			expand_effects(Effects, []);
 		   (3, Ns) ->
 			[Effect|_] = Effects,
-			{vector,{pick,[point],[Effect],Ns}}
+			{vector,
+			 {pick,
+			  [{point,"Pick taper origin"}],
+			  [Effect],Ns}}
 		end,
 	    {AxisStr,{Axis,F},[]}
     end.
@@ -102,14 +105,22 @@ expand_effects([], Acc) -> reverse(Acc).
 effect_fun(Effect) ->
     fun(1, Ns) -> wings_menu:build_command(Effect, Ns);
        (2, _Ns) -> ignore;
-       (3, Ns) -> {vector,{pick,[point],[Effect],Ns}}
+       (3, Ns) ->
+	    {vector,
+	     {pick,[{point,"Pick taper origin"}],
+	      [Effect],Ns}}
     end.
     
 inflate_fun() ->
     fun(help, _) -> {"Inflate elements",[],"Pick center and radius"};
        (1, _Ns) -> {vertex,{deform,inflate}};
        (2, _Ns) -> ignore;
-       (3, Ns) -> {vector,{pick,[point,point],[],[inflate|Ns]}}
+       (3, Ns) ->
+	    {vector,
+	     {pick,
+	      [{point,"Pick center point"},
+	       {point,"Pick point to define radius"}],
+	      [],[inflate|Ns]}}
     end.
 
 command({crumple,Dir}, St) -> crumple(Dir, St);
