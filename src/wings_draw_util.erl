@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.104 2003/08/27 06:56:56 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.105 2003/08/27 09:23:58 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -19,7 +19,7 @@
 	 plain_face/2,plain_face/3,uv_face/2,uv_face/3,vcol_face/2,vcol_face/3,
 	 smooth_mat_faces/1,smooth_uv_faces/1,smooth_vcol_faces/1,
 	 unlit_face/2,unlit_face/3,
-	 force_flat_color/2,good_triangulation/5]).
+	 force_flat_color/2,consistent_normal/4,good_triangulation/5]).
 
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
@@ -109,9 +109,9 @@ delete_dlists() ->
 	    ok
     end.
 
-clear_old_dl([#dlo{src_we=We,proxy_data=Pd0}|T]) ->
+clear_old_dl([#dlo{src_we=We,proxy_data=Pd0,ns=Ns}|T]) ->
     Pd = wings_subdiv:clean(Pd0),
-    [#dlo{src_we=We,mirror=none,proxy_data=Pd}|clear_old_dl(T)];
+    [#dlo{src_we=We,mirror=none,proxy_data=Pd,ns=Ns}|clear_old_dl(T)];
 clear_old_dl([]) -> [].
 
 tess() ->
@@ -591,6 +591,17 @@ plain_face(Face, Edge, #we{vp=Vtab}=We) ->
 
 plain_face_1([V|Vs], Vtab, Acc) ->
     plain_face_1(Vs, Vtab, [gb_trees:get(V, Vtab)|Acc]);
+plain_face_1([], _, [_,_,_]=VsPos) ->
+    N = e3d_vec:normal(VsPos),
+    gl:normal3fv(N),
+    wings__du:plain_face(VsPos);
+plain_face_1([], _, [A,B,C,D]=VsPos) ->
+    N = e3d_vec:normal(VsPos),
+    gl:normal3fv(N),
+    case good_triangulation(N, A, B, C, D) of
+	false -> wings__du:plain_face(N, VsPos);
+	true -> wings__du:plain_face(VsPos)
+    end;
 plain_face_1([], _, VsPos) ->
     N = e3d_vec:normal(VsPos),
     gl:normal3fv(N),
@@ -611,6 +622,17 @@ uv_face(Face, Edge, #we{vp=Vtab}=We) ->
 uv_face_1([[V|Col]|Vs], Vtab, Nacc, VsAcc) ->
     Pos = gb_trees:get(V, Vtab),
     uv_face_1(Vs, Vtab, [Pos|Nacc], [[Pos|Col]|VsAcc]);
+uv_face_1([], _, Nacc, [_,_,_]=Vs) ->
+    N = e3d_vec:normal(Nacc),
+    gl:normal3fv(N),
+    wings__du:uv_face(Vs);
+uv_face_1([], _, Nacc, [A,B,C,D]=Vs) ->
+    N = e3d_vec:normal(Nacc),
+    gl:normal3fv(N),
+    case good_triangulation(N, hd(A), hd(B), hd(C), hd(D)) of
+	false -> wings__du:uv_face(N, Vs);
+	true -> wings__du:uv_face(Vs)
+    end;
 uv_face_1([], _, Nacc, Vs) ->
     N = e3d_vec:normal(Nacc),
     gl:normal3fv(N),
@@ -631,6 +653,17 @@ vcol_face(Face, Edge, #we{vp=Vtab}=We) ->
 vcol_face_1([[V|Col]|Vs], Vtab, Nacc, VsAcc) ->
     Pos = gb_trees:get(V, Vtab),
     vcol_face_1(Vs, Vtab, [Pos|Nacc], [[Pos|Col]|VsAcc]);
+vcol_face_1([], _, Nacc, [_,_,_]=Vs) ->
+    N = e3d_vec:normal(Nacc),
+    gl:normal3fv(N),
+    wings__du:vcol_face(Vs);
+vcol_face_1([], _, Nacc, [A,B,C,D]=Vs) ->
+    N = e3d_vec:normal(Nacc),
+    gl:normal3fv(N),
+    case good_triangulation(N, hd(A), hd(B), hd(C), hd(D)) of
+	false -> wings__du:vcol_face(N, Vs);
+	true -> wings__du:vcol_face(Vs)
+    end;
 vcol_face_1([], _, Nacc, Vs) ->
     N = e3d_vec:normal(Nacc),
     gl:normal3fv(N),
@@ -638,7 +671,7 @@ vcol_face_1([], _, Nacc, Vs) ->
 
 %% good_triangulation(Normal, Point1, Point2, Point3, Point4) -> true|false
 %%  Return true if triangulation by connecting Point1 to Point3 is OK.
-%%  The normal Normal should be the averaged normal for the quad.
+%%  The normal Normal should be averaged normal for the quad.
 good_triangulation({Nx,Ny,Nz}, {Ax,Ay,Az}, {Bx,By,Bz}, {Cx,Cy,Cz}, {Dx,Dy,Dz})
   when is_float(Ax), is_float(Ay), is_float(Az) ->
     CAx = Cx-Ax, CAy = Cy-Ay, CAz = Cz-Az,
@@ -650,6 +683,21 @@ good_triangulation({Nx,Ny,Nz}, {Ax,Ay,Az}, {Bx,By,Bz}, {Cx,Cy,Cz}, {Dx,Dy,Dz})
 
 good_triangulation_1(D1, D2) when D1 > 0, D2 > 0 -> true;
 good_triangulation_1(_, _) -> false.
+
+%% consistent_normal(Point1, Point2, Point3, Normal) -> true|false
+%%  Return true if the normal for the triangle Point1-Point2-Point3
+%%  points in approximately the same direction as the normal Normal.
+consistent_normal({A0,A1,A2}, {B0,B1,B2}, {C0,C1,C2}, {X,Y,Z})
+  when is_float(A0), is_float(A1), is_float(A2),
+       is_float(B0), is_float(B1), is_float(B2),
+       is_float(C0), is_float(C1), is_float(C2) ->
+    D10 = A0-B0,
+    D11 = A1-B1,
+    D12 = A2-B2,
+    D20 = B0-C0,
+    D21 = B1-C1,
+    D22 = B2-C2,
+    X*(D11*D22-D12*D21) + Y*(D12*D20-D10*D22) + Z*(D10*D21-D11*D20) > 0.
 
 %% force_flat_color(OriginalDlist, Color) -> NewDlist.
 %%  Wrap a previous display list (that includes gl:color*() calls)
@@ -674,21 +722,60 @@ force_flat_color(OriginalDlist, {R,G,B}) ->
     gl:disable(?GL_LIGHT7),
     gl:lightModelfv(?GL_LIGHT_MODEL_AMBIENT, {0,0,0,0}),
     gl:materialfv(?GL_FRONT_AND_BACK, ?GL_EMISSION, {R,G,B,1}),
-    wings_draw_util:call(OriginalDlist),
+    call(OriginalDlist),
     gl:popAttrib(),
     gl:endList(),
     {call,Dl,OriginalDlist}.
 
+smooth_mat_faces([{_,{_,[_,_,_]=Vs}}|Fs]) ->
+    wings__du:smooth_plain_face(Vs),
+    smooth_mat_faces(Fs);
+smooth_mat_faces([{_,{N,[A,B,C,D]=Vs}}|Fs]) ->
+    Ap = element(1, A),
+    Bp = element(1, B),
+    Cp = element(1, C),
+    Dp = element(1, D),
+    case wings_draw_util:good_triangulation(N, Ap, Bp, Cp, Dp) of
+	false -> wings__du:smooth_plain_face(N, Vs);
+	true -> wings__du:smooth_plain_face(Vs)
+    end,
+    smooth_mat_faces(Fs);
 smooth_mat_faces([{_,{N,Vs}}|Fs]) ->
     wings__du:smooth_plain_face(N, Vs),
     smooth_mat_faces(Fs);
 smooth_mat_faces([]) -> ok.
 
+smooth_uv_faces([{_,{_,[_,_,_]=Vs}}|Fs]) ->
+    wings__du:smooth_uv_face(Vs),
+    smooth_uv_faces(Fs);
+smooth_uv_faces([{_,{N,[A,B,C,D]=Vs}}|Fs]) ->
+    Ap = element(1, A),
+    Bp = element(1, B),
+    Cp = element(1, C),
+    Dp = element(1, D),
+    case wings_draw_util:good_triangulation(N, Ap, Bp, Cp, Dp) of
+	false -> wings__du:smooth_uv_face(N, Vs);
+	true -> wings__du:smooth_uv_face(Vs)
+    end,
+    smooth_uv_faces(Fs);
 smooth_uv_faces([{_,{N,Vs}}|Fs]) ->
     wings__du:smooth_uv_face(N, Vs),
     smooth_uv_faces(Fs);
 smooth_uv_faces([]) -> ok.
 
+smooth_vcol_faces([{_,{_,[_,_,_]=Vs}}|Fs]) ->
+    wings__du:smooth_vcol_face(Vs),
+    smooth_vcol_faces(Fs);
+smooth_vcol_faces([{_,{N,[A,B,C,D]=Vs}}|Fs]) ->
+    Ap = element(1, A),
+    Bp = element(1, B),
+    Cp = element(1, C),
+    Dp = element(1, D),
+    case wings_draw_util:good_triangulation(N, Ap, Bp, Cp, Dp) of
+	false -> wings__du:smooth_vcol_face(N, Vs);
+	true -> wings__du:smooth_vcol_face(Vs)
+    end,
+    smooth_vcol_faces(Fs);
 smooth_vcol_faces([{_,{N,Vs}}|Fs]) ->
     wings__du:smooth_vcol_face(N, Vs),
     smooth_vcol_faces(Fs);
@@ -706,8 +793,13 @@ unlit_face(Face, Edge, #we{vp=Vtab}=We) ->
 unlit_face_1([V|Vs], Vtab, Acc) ->
     unlit_face_1(Vs, Vtab, [gb_trees:get(V, Vtab)|Acc]);
 unlit_face_1([], _, [_,_,_]=VsPos) ->
-    %% Triangle. Send a dummy normal. It will not be used.
-    wings__du:plain_face([], VsPos);
+    wings__du:plain_face(VsPos);
+unlit_face_1([], _, [A,B,C,D]=VsPos) ->
+    N = e3d_vec:normal(VsPos),
+    case good_triangulation(N, A, B, C, D) of
+	false -> wings__du:plain_face(N, VsPos);
+	true -> wings__du:plain_face(VsPos)
+    end;
 unlit_face_1([], _, VsPos) ->
     N = e3d_vec:normal(VsPos),
     wings__du:plain_face(N, VsPos).
