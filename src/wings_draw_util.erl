@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.42 2002/10/28 06:19:42 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.43 2002/11/01 19:32:25 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -423,20 +423,27 @@ face(Face, #we{fs=Ftab}=We) ->
     #face{edge=Edge} = gb_trees:get(Face, Ftab),
     face(Face, Edge, We).
 
-face(Face, Edge, We) ->
-    Vs = wings_face:draw_info(Face, Edge, We),
-    {X,Y,Z} = N = wings_face:draw_normal(Vs),
+face(Face, Edge, #we{vs=Vtab}=We) ->
+    Vs0 = wings_face:vinfo(Face, Edge, We),
+    face_1(Vs0, Vtab, [], []).
+
+face_1([[V|Col]|Vs], Vtab, Nacc, VsAcc) ->
+    #vtx{pos=Pos} = gb_trees:get(V, Vtab),
+    face_1(Vs, Vtab, [Pos|Nacc], [[Pos|Col]|VsAcc]);
+face_1([], _, Nacc, Vs) ->
+    N = e3d_vec:normal(reverse(Nacc)),
     gl:normal3fv(N),
     Tess = tess(),
-    glu:tessNormal(Tess, X, Y, Z),
     glu:tessBeginPolygon(Tess),
     glu:tessBeginContour(Tess),
+    {X,Y,Z} = N,
+    glu:tessNormal(Tess, X, Y, Z),
     tess_face_vtxcol(Tess, Vs).
 
-tess_face_vtxcol(Tess, [{Pos,{_,_}=UV}|T]) ->
+tess_face_vtxcol(Tess, [[Pos|{_,_}=UV]|T]) ->
     glu:tessVertex(Tess, Pos, [{texcoord2,UV}]),
     tess_face_vtxcol(Tess, T);
-tess_face_vtxcol(Tess, [{Pos,{_,_,_}=Col}|T]) ->
+tess_face_vtxcol(Tess, [[Pos|{_,_,_}=Col]|T]) ->
     glu:tessVertex(Tess, Pos, [{material,?GL_FRONT,
 				?GL_AMBIENT_AND_DIFFUSE,Col}]),
     tess_face_vtxcol(Tess, T);
