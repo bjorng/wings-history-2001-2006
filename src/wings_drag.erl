@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.154 2003/07/30 12:18:42 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.155 2003/08/14 07:11:05 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -719,7 +719,7 @@ normalize_fun(#dlo{src_we=#we{id=Id,vp=Vtab0}}=D, Shs) ->
     #we{vp=OldVtab}= We0 = gb_trees:get(Id, Shs),
     %% Heuristic for break-even. (Note that we don't know the exact number
     %% of vertices that will be updated.)
-    Break = round(16*math:log(gb_trees:size(OldVtab))/math:log(2)+0.5),
+    Break = round(16*math:log(gb_trees:size(OldVtab)+1)/math:log(2)+0.5),
     Vtab = case gb_trees:size(Vtab0) of
 	       Sz when Sz =< Break ->
 		   %% Update the gb_tree to allow sharing with the undo list.

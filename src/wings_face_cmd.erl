@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.88 2003/08/11 05:35:38 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.89 2003/08/14 07:11:05 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -235,7 +235,7 @@ dissolve(Faces, We0) ->
     We.
 
 dissolve(Faces, #we{id=Id}=We0, Acc) ->
-    We = dissolve_1(Faces, We0, We0),
+    We = dissolve_1(Faces, We0),
     case wings_we:is_consistent(We) of
 	true ->
 	    Sel = wings_we:new_items(face, We0, We),
@@ -244,12 +244,18 @@ dissolve(Faces, #we{id=Id}=We0, Acc) ->
 	    wings_util:error("Dissolving would cause an inconsistent object structure.")
     end.
 		  
-dissolve_1(Faces, WeOrig, We0) ->
+dissolve_1(Faces, We) ->
+    case gb_sets:is_empty(Faces) of
+	true -> We;
+	false -> dissolve_2(Faces, We)
+    end.
+
+dissolve_2(Faces, We0) ->
     {Face,_} = gb_sets:take_smallest(Faces),
     Mat = wings_material:get(Face, We0),
     We1 = wings_material:delete_faces(Faces, We0),
     Parts = outer_edge_partition(Faces, We1),
-    We = do_dissolve(Faces, Parts, Mat, WeOrig, We1),
+    We = do_dissolve(Faces, Parts, Mat, We0, We1),
     foldl(fun(_, bad_edge) -> bad_edge;
 	     (F, W) -> wings_face:delete_if_bad(F, W)
 	  end, We, gb_sets:to_list(wings_we:new_items(face, We0, We))).

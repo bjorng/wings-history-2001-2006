@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.57 2003/08/05 05:55:32 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.58 2003/08/14 07:11:05 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -386,9 +386,13 @@ merge_renumber_rest([We0|Wes], Next0, Acc) ->
 merge_renumber_rest([], _, Acc) -> Acc.
 
 merge_bounds([#we{vp=Vtab,fs=Ftab,es=Etab}=We0|Wes], Acc) ->
-    First = lists:min([wings_util:gb_trees_smallest_key(Vtab),
-		       wings_util:gb_trees_smallest_key(Etab),
-		       wings_util:gb_trees_smallest_key(Ftab)]),
+    First = case gb_trees:is_empty(Etab) of
+		true -> 0;
+		false ->
+		    lists:min([wings_util:gb_trees_smallest_key(Vtab),
+			       wings_util:gb_trees_smallest_key(Etab),
+			       wings_util:gb_trees_smallest_key(Ftab)])
+	    end,
     We = update_id_bounds(We0),
     merge_bounds(Wes, [{First,We}|Acc]);
 merge_bounds([], Acc) -> sort(Acc).
@@ -425,6 +429,7 @@ do_renumber(#we{mode=Mode,vp=Vtab0,es=Etab0,fs=Ftab0,
 		  end, [], Etab1),
     Etab = gb_trees:from_orddict(reverse(Etab2)),
 
+
     Htab1 = foldl(fun(E, A) ->
 			  renum_hard_edge(E, Emap, A)
 		  end, [], gb_sets:to_list(Htab0)),
@@ -451,7 +456,10 @@ do_renumber(#we{mode=Mode,vp=Vtab0,es=Etab0,fs=Ftab0,
     %% In case this function will be used for merging #we records,
     %% it is essential to update the next_id field. Its value can
     %% safely be based the largest key in the edge table only.
-    LastId = wings_util:gb_trees_largest_key(Etab),
+    LastId = case gb_trees:size(Etab) of
+		 0 -> 0;
+		 _ -> wings_util:gb_trees_largest_key(Etab)
+	     end,
     {We#we{next_id=LastId+1},RootSet}.
 
 map_rootset([{vertex,Vs,Data}|T], Emap, Vmap, Fmap) when is_list(Vs) ->
