@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.50 2003/04/05 09:43:30 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.51 2003/06/03 08:27:13 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -179,21 +179,31 @@ opengl_info() ->
 		       ?GL_MAX_CLIENT_ATTRIB_STACK_DEPTH},
 		      {"Number of auxiliary buffers",?GL_AUX_BUFFERS},
 		      {"Color buffers store RGBA",?GL_RGBA_MODE},
-		      {"Color buffers store indicies",?GL_INDEX_MODE},
+		      {"Color buffers store indices",?GL_INDEX_MODE},
 		      {"Double buffering",?GL_DOUBLEBUFFER},
 		      {"Stereo buffers",?GL_STEREO},
-		      {"Max number of texturing units",
-		       ?GL_MAX_TEXTURE_UNITS}]),
+		      {"Range of aliased point sizes",?GL_ALIASED_POINT_SIZE_RANGE},
+		      {"Range of antialised point sizes",?GL_SMOOTH_POINT_SIZE_RANGE},
+		      {"Range of aliased line widths",?GL_ALIASED_LINE_WIDTH_RANGE},
+		      {"Range of antialised line widths",?GL_SMOOTH_LINE_WIDTH_RANGE},
+		      {"Max width of convolution filter",?GL_MAX_CONVOLUTION_WIDTH},
+		      {"Max height of convolution filter",?GL_MAX_CONVOLUTION_HEIGHT},
+		      {"Recommended max number of indices for drawRangeElement()",
+		       ?GL_MAX_ELEMENTS_INDICES},
+		      {"Recommended max number of vertices for drawRangeElement()",
+		       ?GL_MAX_ELEMENTS_VERTICES},
+		      {"Max number of texturing units",?GL_MAX_TEXTURE_UNITS}]),
 	    compressed_texture_info(),
 	    "OpenGL Extensions",extensions()],
     help_window("OpenGL Info", Help).
 
 get_info([{Label,Attr}|T]) ->
     Val = gl:getIntegerv(Attr),
-    ValStr = case catch gl:getError() of
-        0 -> integer_to_list(hd(Val));
-        _ -> "---"
-    end,
+    ValStr = case {gl:getError(),Val} of
+		 {0,[A]} -> integer_to_list(A);
+		 {0,[A,B|_]} -> integer_to_list(A) ++ ", " ++ integer_to_list(B);
+		 _ -> "---"
+	     end,
     Label ++ ": " ++ ValStr ++ "\n" ++ get_info(T);
 get_info([]) -> [].
 
