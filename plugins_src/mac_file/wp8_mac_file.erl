@@ -3,14 +3,14 @@
 %%
 %%     Native file dialog boxes for Mac OS X.
 %%
-%%  Copyright (c) 2001 Patrik Nyblom
+%%  Copyright (c) 2001-2002 Patrik Nyblom, Bjorn Gustavsson.
 %%
 %%  Changes for OSX by Sean Hinde : 2002/2/18
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp8_mac_file.erl,v 1.5 2002/09/18 13:16:07 bjorng Exp $
+%%     $Id: wp8_mac_file.erl,v 1.6 2002/11/14 09:02:20 bjorng Exp $
 %%
 
 -module(wp8_mac_file).
@@ -74,18 +74,17 @@ fileop({file,merge,Prop}, _Next) ->
     file_dialog(?OP_READ, Prop, "Merge Wings 3D file");
 
 fileop(What, Next) ->
-%     io:format("Default called for ~p~n",[What]),
-%     Ret=Next(What),
-%     io:format("Default returned ~p~n",[Ret]),
-%     Ret.
     Next(What).
 
 file_dialog(Type, Prop, Title) ->
-    Ext = proplists:get_value(ext, Prop, ".wings"),
-    ExtDesc = proplists:get_value(ext_desc, Prop, "Default type"),
+    Filter = case proplists:get_value(ext, Prop, none) of
+		 [$.|Ext] -> Ext;
+		 none -> []
+	     end,
+    io:format("~p\n", [proplists:get_value(extensions, Prop, kalle)]),
     Dir = wings_pref:get_value(current_directory),
     DefName = proplists:get_value(default_filename, Prop, ""),
-    Data = [Dir,0,Ext,0,ExtDesc,0,Title,0,DefName,0],
+    Data = [Dir,0,Title,0,DefName,0,Filter,0],
     case erlang:port_control(wp8_file_port, Type, Data) of
 	[] -> aborted;
 	Else -> filename:absname(Else)

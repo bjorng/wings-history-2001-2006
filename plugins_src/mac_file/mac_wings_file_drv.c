@@ -4,17 +4,15 @@
  *
  *     Erlang driver for native file dialog boxes for Mac OS X.
  *
- *  Copyright (c) 2001 Patrik Nyblom
+ *  Copyright (c) 2001-2002 Patrik Nyblom, Bjorn Gustavsson.
  *
  *  Modified to support OSX by Sean Hinde
  *
  *  See the file "license.terms" for information on usage and redistribution
  *  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
  *
- *     $Id: mac_wings_file_drv.c,v 1.6 2002/09/16 19:29:19 bjorng Exp $
+ *     $Id: mac_wings_file_drv.c,v 1.7 2002/11/14 09:02:33 bjorng Exp $
  */
-
-/*cc -ObjC -I ~/local/lib/erlang/usr/include -bundle -flat_namespace -undefined suppress -framework Cocoa -o ../../plugins/mac_file/mac_wings_file_drv.so mac_wings_file_drv.c */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -103,7 +101,6 @@ static int mac_wings_file_control(ErlDrvData handle, unsigned int command,
   char *rbuff;
   char *defdir;
     char *filter;
-    char *filter_desc;
     char *title;
     char *text;
     char *defname;
@@ -136,20 +133,18 @@ static int mac_wings_file_control(ErlDrvData handle, unsigned int command,
 	NSString* defname1;
           
 	defdir = buff; /* Default directory */
-	filter = defdir + strlen(defdir) + 1; /* Filter expression (.wings) */
-	filter_desc = filter + strlen(filter) + 1;      /* Desc. of filter */
-	title = filter_desc + strlen(filter_desc) + 1;  /* Title of dialog */
+	title = defdir + strlen(defdir) + 1;  /* Title of dialog */
 	defname = title + strlen(title) + 1; /* Default name for file */
+	filter = defname + strlen(defname) + 1; /* Filter expression (.wings) */
 
         defdir1 = [NSString stringWithCString:defdir];
-	/* The description of the filter is ignored for Mac */
-        filter1 = [NSString stringWithCString:filter + 1]; // . not needed for mac
+        filter1 = [NSString stringWithCString:filter];
         title1 = [NSString stringWithCString:title];
         defname1 = [NSString stringWithCString:defname];
 	
 	rbuff=driver_alloc(PATH_MAX+1);
 	strcpy(rbuff, defname);
-	fileTypes = [NSArray arrayWithObject:filter1];
+	fileTypes = filter[0] ? [NSArray arrayWithObject:filter1] : nil;
 	
 	if (command == 1) {
 	  NSOpenPanel *oPanel = [NSOpenPanel openPanel];
