@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.13 2001/10/03 09:24:11 bjorng Exp $
+%%     $Id: wings.erl,v 1.14 2001/10/03 12:11:12 bjorng Exp $
 %%
 
 -module(wings).
@@ -1011,8 +1011,13 @@ translate_event(#keyboard{keysym=#keysym{sym=Sym,mod=Mod}}, St) ->
     translate_key(Sym, Mod, St);
 translate_event(quit, St) -> {file,quit};
 translate_event(ignore, ST) -> ignore;
-translate_event(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED}, St) ->
-    ignore;
+translate_event(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED}=Mb, St) ->
+    case sdl_keyboard:getModState() of
+	Mod when Mod band ?ALT_BITS =/= 0 ->
+	    translate_event(Mb#mousebutton{button=2}, St);
+	_ ->
+	    ignore
+    end;
 translate_event(#mousebutton{button=1,x=X,y=Y,state=?SDL_RELEASED}=Mb, St) ->
     case sdl_keyboard:getModState() of
 	Mod when Mod band ?ALT_BITS =/= 0 ->
