@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.81 2002/11/26 20:05:30 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.82 2002/12/02 06:46:58 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -46,7 +46,7 @@ menu(_) ->
      {"Reset View",reset},
      {"Aim",aim},
      {"Frame",frame},
-     {"Ortographic View",orthogonal_view,
+     {"Orthographic View",orthogonal_view,
       crossmark(orthogonal_view)},
      separator,
      {"Scene Lights",scene_lights,crossmark(scene_lights)},
