@@ -8,12 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_color.erl,v 1.7 2002/12/05 21:08:21 dgud Exp $
+%%     $Id: wings_color.erl,v 1.8 2003/01/01 12:09:47 bjorng Exp $
 %%
 
 -module(wings_color).
 -export([init/0,default/0,share/1,store/1,average/1,mix/3,white/0,
-	 rgb_to_hsi/1,rgb_to_hsi/3,hsi_to_rgb/1,hsi_to_rgb/3,
 	 rgb_to_hsv/1,rgb_to_hsv/3,hsv_to_rgb/1,hsv_to_rgb/3]).
 
 -include("wings.hrl").
@@ -78,9 +77,7 @@ average([], A0, A1, L0) ->
 
 rgb_to_hsv({R,G,B}) ->
     rgb_to_hsv(R,G,B).
-rgb_to_hsv(R0,G0,B0) ->
-%%    {R,G,B} = e3d_vec:norm(float(R0),float(G0),float(B0)),
-    {R,G,B} = {R0,G0,B0},
+rgb_to_hsv(R, G, B) ->
     Max = lists:max([R,G,B]),
     Min = lists:min([R,G,B]),
     V = Max,   
@@ -125,53 +122,3 @@ convert_hsv(H,V,Min) when H =< 60.0 ->
 convert_hsv(H,V,Min) ->
     Mean = Min+(120-H)*(V-Min)/H,
     {Mean,V,Min}.
-
-rgb_to_hsi({R,G,B}) ->
-    rgb_to_hsi(R, G, B).
-
-rgb_to_hsi(R, G, B) when is_float(R), is_float(G), is_float(B) ->
-    RMinusB = R-B,
-    RMinusG = R-G,
-    A1 = case math:sqrt(RMinusG*RMinusG+RMinusB*(G-B)) of
-	     A0 when A0 < 1.0E-6 -> 0.0;
-	     A0 -> 0.5*(RMinusB+RMinusG)/A0
-	 end,
-    A = 180*math:acos(A1)/math:pi(),
-    H = if
-	    B =< G -> A;
-	    true -> 360 - A
-	end,
-    S = case R+G+B of
-	    Sum when Sum < 1.0E-4 -> 0.0;
-	    Sum ->
-		MinRGB = lists:min([R,G,B]),
-		1.0 - 3*MinRGB/Sum
-	end,
-    I = (R+G+B)/3,
-    {H,S,I}.
-
-hsi_to_rgb({H,S,I}) ->
-    hsi_to_rgb(H, S, I).
-
-hsi_to_rgb(H, S, I) when 0 =< H, H < 120 ->
-    {B,R,G} = rgb_components(H, S, I),
-    {R,G,B};
-hsi_to_rgb(H, S, I) when H < 240 ->
-    rgb_components(H-120, S, I);
-hsi_to_rgb(H, S, I) when H < 360 ->
-    {G,B,R} = rgb_components(H-240, S, I),
-    {R,G,B}.
-
-rgb_components(H0, S, I) ->
-    H = to_radians(H0),
-    A = I*(1-S),
-    B = clamp(I*(1 + S*math:cos(H)/math:cos(to_radians(60)-H))),
-    C = 3*I-(A+B),
-    {A,B,C}.
-    
-to_radians(A) ->
-    A*math:pi()/180.
-
-clamp(V) when V < 0.0 -> 0.0;
-clamp(V) when V > 1.0 -> 1.0;
-clamp(V) -> V.

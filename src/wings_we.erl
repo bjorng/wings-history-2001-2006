@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.45 2002/12/30 13:30:52 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.46 2003/01/01 12:09:47 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -20,11 +20,10 @@
 	 new_id/1,new_ids/2,
 	 invert_normals/1,
 	 merge/1,merge/2,force_merge/1,
-	 renumber/1,renumber/2,renumber/3,map_renumber/2,
+	 renumber/2,renumber/3,map_renumber/2,
 	 uv_to_color/2,
 	 transform_vs/2,
 	 separate/1,
-	 get_sub_object/2,
 	 normals/1,
 	 new_items/3,
 	 is_consistent/1]).
@@ -393,8 +392,8 @@ merge_bounds([#we{vp=Vtab,fs=Ftab,es=Etab}=We0|Wes], Acc) ->
 merge_bounds([], Acc) -> sort(Acc).
 
 %%% Renumber a winged-edge structure.
-renumber(#we{next_id=Id}=We) ->
-    renumber(We, Id).
+% renumber(#we{next_id=Id}=We) ->
+%     renumber(We, Id).
 
 renumber(We0, Id) ->
     {We,_} = renumber(We0, Id, []),
@@ -536,15 +535,6 @@ update_id_bounds(#we{vp=Vtab,es=Etab,fs=Ftab}=We) ->
 %%%
 %%% Separate a combined winged-edge structure.
 %%%
-
-%% get_sub_object(Edge, We) -> We'
-%%  Returns a copy of the sub-object that is reachable from Edge.
-
-get_sub_object(Edge, #we{es=Etab0}=We) ->
-    Ws = gb_sets:singleton(Edge),
-    {_,NewEtab} = separate(Ws, Etab0, gb_trees:empty()),
-    NewWe = copy_dependents(NewEtab, We),
-    NewWe#we{es=NewEtab,mirror=none}.
 
 separate(We) ->
     separate(We#we{mirror=none}, []).

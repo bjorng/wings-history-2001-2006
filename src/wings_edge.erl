@@ -8,24 +8,23 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.55 2003/01/01 10:36:52 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.56 2003/01/01 12:09:47 bjorng Exp $
 %%
 
 -module(wings_edge).
 
 %% Commands.
--export([menu/3,command/2,
- 	 select_region/1,select_edge_ring/1,
- 	 cut/2,cut/3,fast_cut/3,connect/1,
- 	 dissolve/1,dissolve_edges/2,dissolve_edge/2,
- 	 hardness/2,hardness/3]).
+-export([menu/3,command/2]).
 
 %% Utilities.
 -export([convert_selection/1,
 	 select_more/1,select_more/2,
+	 select_region/1,select_edge_ring/1,
+ 	 cut/3,fast_cut/3,
+ 	 dissolve_edges/2,dissolve_edge/2,
+ 	 hardness/2,hardness/3,
 	 select_less/1,adjacent_edges/2,
 	 to_vertices/2,from_faces/2,extend_sel/2,
-	 connect/2,
 	 patch_edge/4,patch_edge/5]).
 
 -export([dissolve_vertex/2]).
@@ -333,10 +332,6 @@ cut_pick_1([], _, Acc) -> Acc.
 connect(St0) ->
     {St,Sel} = wings_sel:mapfold(fun connect/3, [], St0),
     wings_sel:set(Sel, St).
-
-connect(Es, We0) ->
-    {We,_} = connect(Es, We0, []),
-    We.
 
 connect(Es, #we{id=Id}=We0, Acc) ->
     {We1,Vs} = cut_edges(Es, We0),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.43 2002/12/31 10:33:37 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.44 2003/01/01 12:09:47 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -22,7 +22,6 @@
 	 grab_focus/1,release_focus/0,has_focus/1,focus_window/0,
 	 top_size/0,viewport/0,viewport/1,
 	 local2global/1,local2global/2,global2local/2,local_mouse_state/0,
-	 window_under/2,
 	 translation_change/0,me_modifiers/0,set_me_modifiers/1,
 	 draw_message/1,draw_completions/1]).
 
@@ -228,16 +227,6 @@ local_mouse_state() ->
     {X,Y} = global2local(X0, Y0),
     {B,X,Y}.
 
-window_under(X, Y) ->
-    Wins = reverse(sort(gb_trees:values(get(wm_windows)))),
-    window_under(Wins, X, Y).
-
-window_under([#win{x=X,y=Y,w=W,h=H,name=Name}|_], X0, Y0)
-  when X =< X0, X0 < X+W,
-       Y =< Y0, Y0 < Y+H -> Name;
-window_under([_|T], X, Y) ->
-    window_under(T, X, Y).
-    
 enter_event_loop() ->
     {W,H} = top_size(),
     dispatch_event(#resize{w=W,h=H}),

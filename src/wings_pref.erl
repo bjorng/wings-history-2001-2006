@@ -8,19 +8,18 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.64 2002/12/28 22:10:28 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.65 2003/01/01 12:09:47 bjorng Exp $
 %%
 
 -module(wings_pref).
 -export([init/0,finish/0,
 	 menu/1,command/2,
 	 get_value/1,get_value/2,set_value/2,set_default/2,
-	 delete_value/1,browse/1,cleanup/1]).
+	 delete_value/1]).
 
 -define(NEED_ESDL, 1).    %% Some keybindings
 -include("wings.hrl").
 -import(lists, [foreach/2,keysearch/3,map/2,reverse/1,sort/1]).
--compile({parse_transform,ms_transform}).
 
 init() ->
     ets:new(wings_state, [named_table,public,ordered_set]),
@@ -253,9 +252,6 @@ delete_value(Key) ->
     ets:delete(wings_state, Key),
     ok.
 
-browse(Prefix) ->
-    ets:select(wings_state, [{{{Prefix,'$1'},'$2'},[],[{{'$1','$2'}}]}]).
-
 locate(File) ->
     Dir = wings:root_dir(),
     Name = filename:absname(File, Dir),
@@ -363,45 +359,3 @@ is_wings_vector(_) -> false.
 bad_command({_,{rotate,Atom}}) when is_atom(Atom) -> true;
 bad_command({view,virtual_mirror}) -> true;
 bad_command(_) -> false.
-
-%%%
-%%% Cleanup obsolete bindkeys on startup.
-%%%
-cleanup(St0) ->
-    St1 = wings_shapes:command(cube, St0),
-    Sel = cleanup_sel(St1),
-    St = St1#st{sel=Sel},
-    Spec = ets:fun2ms(fun({{bindkey,_,_},_,user}) -> object() end),
-    Bad = cleanup(ets:select(wings_state, Spec), St, []),
-    io:format("~p\n", [Bad]),
-    keep.
-
-cleanup([{{_,Mode,_},{Mode,_}=Cmd,_}=Bk|T], St, Bad) ->
-    case catch wings:command(Cmd, St#st{selmode=Mode}) of
-	{'EXIT',_} ->
-	    case cleanup_is_plugin(Cmd) of
-		true -> cleanup(T, St, Bad);
-		false -> cleanup(T, St, [Bk|Bad])
-	    end;
-	_ -> cleanup(T, St, Bad)
-    end;
-cleanup([_|T], St, Bad) ->
-    cleanup(T, St, Bad);
-cleanup([], _, Bad) -> Bad.
-
-cleanup_sel(#st{shapes=Shs}) ->
-    [Id] = gb_trees:keys(Shs),
-    [{Id,gb_sets:singleton(1)}].
-
-cleanup_is_plugin(Cmd) when is_atom(Cmd) ->
-    cleanup_is_wpc_atom(Cmd);
-cleanup_is_plugin({Cmd,More}) ->
-    cleanup_is_wpc_atom(Cmd) orelse cleanup_is_plugin(More);
-cleanup_is_plugin(_) -> false.
-
-cleanup_is_wpc_atom(Atom) when is_atom(Atom) ->
-    case atom_to_list(Atom) of
-	"wpc_" ++ _ -> true;
-	_ -> false
-    end.
-	    
