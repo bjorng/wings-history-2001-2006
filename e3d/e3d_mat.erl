@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mat.erl,v 1.22 2002/12/17 08:10:07 bjorng Exp $
+%%     $Id: e3d_mat.erl,v 1.23 2002/12/26 22:38:03 bjorng Exp $
 %%
 
 -module(e3d_mat).
@@ -16,6 +16,7 @@
 -export([identity/0,is_identity/1,compress/1,expand/1,
 	 translate/1,translate/3,scale/1,scale/3,
 	 rotate/2,rotate_to_z/1,rotate_s_to_t/2,
+	 project_to_plane/1,
 	 transpose/1,mul/2,mul_point/2,mul_vector/2]).
 -compile(inline).
 
@@ -81,6 +82,23 @@ rotate(A0, {X,Y,Z}) when is_float(X), is_float(Y), is_float(Z) ->
      U2+NegS*U2+C2, U5+S*(1.0-U5), U8+NegS*U8+C8,
      U3+NegS*U3+C3, U6+NegS*U6+C6, U9+S*(1.0-U9),
      0.0,0.0,0.0}.
+
+%% Project to plane perpendicular to vector Vec.
+project_to_plane(Vec) ->
+    %%       T
+    %% P = QQ
+    %% (Strang: Linear Algebra and its Applications, 3rd edition, p 170.)
+    {Ux,Vx,_,
+     Uy,Vy,_,
+     Uz,Vz,_,
+     _,_,_} = rotate_to_z(Vec),
+    if
+	is_float(Ux), is_float(Uy), is_float(Uz) ->
+	    {Ux*Ux+Vx*Vx,Uy*Ux+Vy*Vx,Uz*Ux+Vz*Vx,
+	     Ux*Uy+Vx*Vy,Uy*Uy+Vy*Vy,Uz*Uy+Vz*Vy,
+	     Ux*Uz+Vx*Vz,Uy*Uz+Vy*Vz,Uz*Uz+Vz*Vz,
+	     0.0,0.0,0.0}
+    end.
 
 rotate_to_z(Vec) ->
     {Vx,Vy,Vz} = V =
