@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_image.erl,v 1.12 2003/02/25 06:09:33 bjorng Exp $
+%%     $Id: wpc_image.erl,v 1.13 2003/03/03 17:26:51 bjorng Exp $
 %%
 
 -module(wpc_image).
@@ -46,7 +46,7 @@ make_image() ->
     case wpa:import_filename(Ps) of
 	aborted -> keep;
 	Name ->
-	    Props = [{filename,Name},{type,r8g8b8},{alignment,1}],
+	    Props = [{filename,Name},{alignment,1},{order,lower_left}],
 	    case wpa:image_read(Props) of
 		#e3d_image{}=Image ->
 		    make_image_1(Name, Image);
@@ -59,10 +59,9 @@ make_image() ->
 
 make_image_1(Name0, Image0) ->
     Name = filename:rootname(filename:basename(Name0)),
-    Image1 = strip_any_alpha(Image0),
-    #e3d_image{width=W0,height=H0} = Image1,
-    Image = pad_image(Image1),
-    #e3d_image{width=W,height=H,order=Order} = Image,
+    #e3d_image{width=W0,height=H0} = Image0,
+    Image = pad_image(Image0),
+    #e3d_image{width=W,height=H} = Image,
     ImageId = wings_image:new(Name, Image),
     case can_texture_be_loaded(Image) of
 	false ->
@@ -74,15 +73,10 @@ make_image_1(Name0, Image0) ->
 	    M = [image],
 	    Fs = [#e3d_face{vs=[0,3,2,1],tx=[1,0,3,2],mat=M},
 		  #e3d_face{vs=[1,2,3,0],tx=[2,3,0,1],mat=M}],
-	    Tx = case Order of
-		     upper_left ->
-			 [{0.0,MaxV},{MaxU,MaxV},{MaxU,0.0},{0.0,0.0}];
-		     lower_left ->
-			 [{0.0,0.0},{MaxU,0.0},{MaxU,MaxV},{0.0,MaxV}]
-		 end,
+	    UVs = [{0.0,0.0},{MaxU,0.0},{MaxU,MaxV},{0.0,MaxV}],
 	    {X,Y} = ratio(W0, H0),
 	    Vs = [{0.0,-Y,-X},{0.0,Y,-X},{0.0,Y,X},{0.0,-Y,X}],
-	    Mesh = #e3d_mesh{type=polygon,fs=Fs,vs=Vs,tx=Tx},
+	    Mesh = #e3d_mesh{type=polygon,fs=Fs,vs=Vs,tx=UVs},
 	    Obj = #e3d_object{obj=Mesh},
 	    Mat = [{image,[{maps,[{diffuse,ImageId}]}]},
 		   {default,[]}],
@@ -92,11 +86,6 @@ make_image_1(Name0, Image0) ->
 ratio(D, D) -> {1.0,1.0};
 ratio(W, H) when W < H -> {1.0,H/W};
 ratio(W, H) -> {W/H,1.0}.
-
-strip_any_alpha(#e3d_image{type=r8g8b8}=Image) -> Image;
-strip_any_alpha(#e3d_image{type=b8g8r8}=Image) -> Image;
-strip_any_alpha(#e3d_image{type=r8g8b8a8}=Image) -> e3d_image:convert(Image, r8g8b8);
-strip_any_alpha(#e3d_image{type=b8g8r8a8}=Image) -> e3d_image:convert(Image, r8g8b8).
     
 can_texture_be_loaded(#e3d_image{width=W,height=H,image=Pixels}) ->
     gl:texImage2D(?GL_PROXY_TEXTURE_2D, 0, ?GL_RGB,
@@ -104,22 +93,22 @@ can_texture_be_loaded(#e3d_image{width=W,height=H,image=Pixels}) ->
     W == gl:getTexLevelParameteriv(?GL_PROXY_TEXTURE_2D, 0,
 				   ?GL_TEXTURE_WIDTH).
 
-pad_image(#e3d_image{width=W0,image=Pixels0}=Image) ->
+pad_image(#e3d_image{width=W0,image=Pixels0,bytes_pp=PP}=Image) ->
     case nearest_power_two(W0) of
 	W0 ->
 	    pad_image_1(Image);
 	W ->
-	    Pad = zeroes(3*(W-W0)),
-	    Pixels = pad_rows(Pixels0, 3*W0, Pad, []),
+	    Pad = zeroes(PP*(W-W0)),
+	    Pixels = pad_rows(Pixels0, PP*W0, Pad, []),
 	    pad_image_1(Image#e3d_image{width=W,image=Pixels})
     end.
 
-pad_image_1(#e3d_image{width=W,height=H0,image=Pixels0}=Image) ->
+pad_image_1(#e3d_image{width=W,height=H0,image=Pixels0,bytes_pp=PP}=Image) ->
     case nearest_power_two(H0) of
 	H0 ->
 	    pad_image_2(Image);
 	H ->
-	    Pad = zeroes(3*W*(H-H0)),
+	    Pad = zeroes(PP*W*(H-H0)),
 	    Pixels = [Pixels0|Pad],
 	    pad_image_2(Image#e3d_image{height=H,image=Pixels})
     end.
