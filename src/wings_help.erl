@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.68 2004/04/07 11:08:17 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.69 2004/04/20 07:52:37 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -288,8 +288,10 @@ help_window(Name, Title, Text0) ->
     {Rows,Lines} = wings_text:break_lines(Text, 60),
     {W,H} = wings_wm:top_size(),
     MaxH = trunc(H*0.75),
-    Xs = 64*?CHAR_WIDTH,
-    Ys = case Rows*?LINE_HEIGHT of
+    Cw = wings_text:width(),
+    Lh = wings_text:height()+2,
+    Xs = 64*Cw,
+    Ys = case Rows*Lh of
 	     Ys0 when Ys0 > MaxH -> MaxH;
 	     Ys0 -> Ys0
 	 end,
@@ -297,7 +299,7 @@ help_window(Name, Title, Text0) ->
     Y = trunc((H-Ys) / 2),
     Ts = #ts{lines=Lines,first=0,tw=Xs,th=Ys0,wh=Ys},
     Op = {seq,push,get_help_event(Ts)},
-    Size = {Xs+?CHAR_WIDTH,Ys+?LINE_HEIGHT},
+    Size = {Xs+Cw,Ys+Lh},
     wings_wm:toplevel(Name, Title, {X,Y,highest}, Size,
 		      [closable,vscroller], Op),
     wings_wm:dirty().
@@ -444,7 +446,7 @@ draw_splash_1([], _) -> ok.
 splash_contents() ->
     [{spacer,0,14},
      {icon,wings,256,128},
-     {text,?WINGS_VERSION},
+     {text,[{bold,?WINGS_VERSION}]},
      {spacer,0,10},
      {text,"Wings 3D is a subdivision modeler inspired"},
      {text,"by Nendo and Mirai from IZware."},

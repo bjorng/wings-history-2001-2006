@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_magnet.erl,v 1.48 2004/04/20 06:12:29 bjorng Exp $
+%%     $Id: wings_magnet.erl,v 1.49 2004/04/20 07:52:37 bjorng Exp $
 %%
 
 -module(wings_magnet).
@@ -52,7 +52,7 @@ flags({magnet,Type,_,_}, Flags) ->
 magnet_mode_fun() ->	    
     fun(help, Type) ->
 	    drag_help(Type);
-       (key, C) ->
+       ({key,C}, _) ->
 	    hotkey(C);
        (done, Type) ->
 	    wings_pref:set_value(magnet_type, Type);

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.178 2004/04/18 06:58:50 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.179 2004/04/20 07:52:36 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -93,8 +93,6 @@ standard_mode_fun(Falloff) ->
 		   lists:flatten(["[+] or [-] Adjust Radius  "|Help0])
 	   end,
     fun(help, _) -> Help;
-       (key, _) -> none;
-       (done, _) -> ok;
        (_, _) -> none
      end.
 
@@ -378,8 +376,9 @@ handle_drag_event(Event, Drag) ->
 	    Other
     end.
 
-handle_drag_event_0(#keyboard{unicode=C}=Ev, #drag{mode_fun=ModeFun}=Drag0) ->
-    case ModeFun(key, C) of
+handle_drag_event_0(#keyboard{unicode=C}=Ev,
+		    #drag{mode_fun=ModeFun,mode_data=ModeData0}=Drag0) ->
+    case ModeFun({key,C}, ModeData0) of
 	none -> handle_drag_event_1(Ev, Drag0);
 	ModeData ->
 	    wings_wm:message_right(ModeFun(help, ModeData)),

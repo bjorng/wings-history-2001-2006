@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.93 2004/04/19 23:08:04 dgud Exp $
+%%     $Id: wings_edge.erl,v 1.94 2004/04/20 07:52:37 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -418,6 +418,8 @@ cut_pick_marker({finish,[I]}, D0, Edge, We, Start, Dir, Char) ->
 %%%
 
 slide(St) ->
+    Mode = wings_pref:get_value(slide_mode, relative),
+    State = {Mode,none},
     SUp = SDown = SN = {0.0,0.0,0.0},
     {Tvs,_,_,_} = 
 	wings_sel:fold(
@@ -426,29 +428,47 @@ slide(St) ->
 		  LofEs = reverse(sort([{length(Es),Es} || Es <- LofEs0])),
 		  {Slides,Up,Dw,N} = slide_setup_edges(LofEs,Up0,Dw0,N0,We,
 						       gb_trees:empty()),
-		  {[{Id, make_slide_tv(Slides)}| Acc], Up,Dw,N}
+		  {[{Id, make_slide_tv(Slides, State)}| Acc], Up,Dw,N}
 	  end, {[], SUp, SDown, SN}, St),
     Units = [distance],
-    Flags = [{mode, {slide_mode(),default}}, {initial,[0]}],
+    Flags = [{mode,{slide_mode(),State}},{initial,[0]}],
     wings_drag:setup(Tvs, Units, Flags, St).
 
 slide_mode() ->
-    fun(help, _Type) ->
-	    "[1] Toggle Absolute/Relative mode "
-		"[2] Toggle freeze direction";
-       (key, $1) ->
-	    toggle_mode;
-       (key, $2) ->
-	    toggle_freeze;
-       (done, _Type) ->
-	    ok;
+    fun(help, State) ->
+	    slide_help(State);
+       ({key,$1}, {relative,F}) ->
+	    {absolute,F};
+       ({key,$1}, {absolute,F}) ->
+	    {relative,F};
+       ({key,$2}, {Mode,none}) ->
+	    case get(wings_slide) of
+		undefined -> 
+		    {Mode,none};
+		Dx when Dx >= 0 -> 
+		    {Mode,positive};
+		_ -> 
+		    {Mode,negative}
+	    end;
+       ({key,$2}, {Mode,_}) ->
+	    {Mode,none};
+       (done, {NewMode,_}) ->
+	    wings_pref:set_value(slide_mode, NewMode);
        (_, _) -> none
     end.
 
-make_slide_tv(Slides) ->
+slide_help({Mode,Freeze}) ->
+    ["[1] ",slide_help_mode(Mode),"  [2] ",slide_help_freeze(Freeze)].
+
+slide_help_mode(relative) -> "Absolute";
+slide_help_mode(absolute) -> "Relative".
+
+slide_help_freeze(none) -> "Freeze direction";
+slide_help_freeze(_) -> "Thaw direction".
+
+make_slide_tv(Slides, {Mode,Freeze}) ->
     Vs = gb_trees:keys(Slides),
-    Mode = wings_pref:get_value(slide_mode, relative),
-    {Vs, make_slide_fun(Vs, Slides, Mode, false)}.
+    {Vs,make_slide_fun(Vs, Slides, Mode, Freeze)}.
 
 make_slide_fun(Vs, Slides, Mode, Freeze) ->
     fun([Dx|_],Acc) ->
@@ -458,7 +478,7 @@ make_slide_fun(Vs, Slides, Mode, Freeze) ->
 			      gb_trees:get(V, Slides),
 			  ScaleDir = 
 			      case Freeze of
-				  false ->
+				  none ->
 				      if Dx > 0, Mode == relative ->
 					      e3d_vec:mul(e3d_vec:norm(Pdir), Dx*(PL/PC));
 					 Mode == relative ->
@@ -479,23 +499,8 @@ make_slide_fun(Vs, Slides, Mode, Freeze) ->
 			      end,
 			  [{V,e3d_vec:add(Pos, ScaleDir)}|A]
 		  end, Acc, Vs);
-       (new_mode_data, {toggle_mode,_}) when Mode == relative ->
-	    wings_pref:set_value(slide_mode, absolute),
-	    make_slide_fun(Vs,Slides, absolute, Freeze);
-       (new_mode_data, {toggle_mode,_}) when Mode == absolute ->
-	    wings_pref:set_value(slide_mode, relative),
-	    make_slide_fun(Vs,Slides, relative, Freeze);
-       (new_mode_data, {toggle_freeze,_}) when Freeze == false ->	    
-	    case get(wings_slide) of
-		undefined -> 
-		    make_slide_fun(Vs,Slides,Mode,Freeze);
-		Dx when Dx >= 0 -> 
-		    make_slide_fun(Vs,Slides,Mode,positive);
-		_ -> 
-		    make_slide_fun(Vs,Slides,Mode,negative)
-	    end;
-       (new_mode_data, {toggle_freeze,_}) ->
-	    make_slide_fun(Vs,Slides,Mode,false);
+       (new_mode_data, {{NewMode,NewFreeze},_}) ->
+	    make_slide_fun(Vs,Slides, NewMode, NewFreeze);
        (_,_) ->
 	    make_slide_fun(Vs,Slides,Mode,Freeze)
     end.
