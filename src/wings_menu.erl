@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.91 2003/02/26 16:04:25 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.92 2003/02/26 19:39:17 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -132,9 +132,20 @@ delete_from(Level) ->
 	    delete_from(Level+1)
     end.
 
-setup_menu_killer(#mi{owner=Owner}) ->
+setup_menu_killer(#mi{owner=Owner,level=Level}) ->
+    %% The menu killer window lies below all menus, covering the entire screen.
+    %% It will kill all menus if clicked.
     case wings_wm:is_window(menu_killer) of
-	true -> ok;
+	true ->
+	    if
+		Level =:= ?INITIAL_LEVEL ->
+		    %% An new top-level menu will be created. Make sure
+		    %% that the menu killer window will be directly below it.
+		    wings_wm:raise(menu_killer);
+		true ->
+		    %% A sub-menu will be created. Don't move the menu killer.
+		    ok
+	    end;
 	false ->
 	    Op = {push,fun(Ev) -> menu_killer(Ev, Owner) end},
 	    {TopW,TopH} = wings_wm:top_size(),
