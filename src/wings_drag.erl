@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.182 2004/05/11 06:08:16 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.183 2004/05/15 18:00:58 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -140,9 +140,9 @@ setup_offsets([], []) -> [].
 %% moved).
 %%
 break_apart(Tvs, St) ->
-    wings_draw_util:map(fun(D, Data) ->
-				break_apart_1(D, Data, St)
-			end, wings_util:rel2fam(Tvs)).
+    wings_dl:map(fun(D, Data) ->
+			 break_apart_1(D, Data, St)
+		 end, wings_util:rel2fam(Tvs)).
 
 break_apart_1(#dlo{src_we=#we{id=Id}=We}=D0, [{Id,TvList0}|Tvs], St) ->
     TvList = mirror_constrain(TvList0, We),
@@ -260,9 +260,9 @@ constrain_vs([], _, _, Acc) -> Acc.
 
 insert_matrix(Tvs) ->
     Id = e3d_mat:identity(),
-    wings_draw_util:map(fun(D, Data) ->
-				insert_matrix_fun(D, Data, Id)
-			end, sort(Tvs)).
+    wings_dl:map(fun(D, Data) ->
+			 insert_matrix_fun(D, Data, Id)
+		 end, sort(Tvs)).
 
 insert_matrix_fun(#dlo{work=Work,edges=Edges,sel=Sel,src_sel=SrcSel,
 		       src_we=#we{id=Id}=We,mirror=M,proxy_data=Pd},
@@ -272,7 +272,7 @@ insert_matrix_fun(#dlo{work=Work,edges=Edges,sel=Sel,src_sel=SrcSel,
 insert_matrix_fun(D, Tvs, _) -> {D,Tvs}.
 
 break_apart_general(Tvs) ->
-    wings_draw_util:map(fun break_apart_general/2, Tvs).
+    wings_dl:map(fun break_apart_general/2, Tvs).
 
 break_apart_general(#dlo{src_we=#we{id=Id}}=D, [{Id,Fun}|Tvs]) ->
     {D#dlo{drag={general,Fun}},Tvs};
@@ -375,9 +375,9 @@ handle_drag_event(Event, Drag) ->
 	Other ->
 	    %% Clear any potential marker for an edge about to be
 	    %% cut (Cut RMB).
-	    wings_draw_util:map(fun(#dlo{hilite=none}=D, _) -> D;
-				   (D, _) -> D#dlo{hilite=none}
-				end, []),
+	    wings_dl:map(fun(#dlo{hilite=none}=D, _) -> D;
+			    (D, _) -> D#dlo{hilite=none}
+			 end, []),
 	    Other
     end.
 
@@ -423,7 +423,7 @@ handle_drag_event_1({drag_arguments,Move}, Drag0) ->
     wings_wm:later(DragEnded),
     pop;
 handle_drag_event_1(#mousebutton{button=3,state=?SDL_RELEASED}, Drag) ->
-    wings_draw_util:map(fun invalidate_fun/2, []),
+    wings_dl:map(fun invalidate_fun/2, []),
     ungrab(Drag),
     wings_wm:later(revert_state),
     pop;
@@ -528,7 +528,7 @@ view_changed(#drag{flags=Flags}=Drag0) ->
     case member(screen_relative, Flags) of
 	false -> Drag0;
 	true ->
-	    wings_draw_util:map(fun view_changed_fun/2, []),
+	    wings_dl:map(fun view_changed_fun/2, []),
 	    {_,X,Y} = sdl_mouse:getMouseState(),
 	    Drag0#drag{x=X,y=Y,xs=0,ys=0,zs=0}
     end.
@@ -659,9 +659,9 @@ constraint_factor(_, Mod) ->
 %%%
 
 motion_update(Move, #drag{unit=Units}=Drag) ->
-    wings_draw_util:map(fun(D, _) ->
-				   motion_update_fun(D, Move)
-			   end, []),
+    wings_dl:map(fun(D, _) ->
+			 motion_update_fun(D, Move)
+		 end, []),
     Msg0 = progress_units(Units, Move),
     Msg = reverse(trim(reverse(lists:flatten(Msg0)))),
     Drag#drag{info=Msg,last_move=Move}.
@@ -685,9 +685,9 @@ possible_falloff_update(Move, Drag) ->
     parameter_update(new_falloff, NewFalloff, Drag#drag{falloff=NewFalloff}).
     
 parameter_update(Key, Val, Drag) ->
-    wings_draw_util:map(fun(D, _) ->
-				parameter_update_fun(D, Key, Val)
-			end, []),
+    wings_dl:map(fun(D, _) ->
+			 parameter_update_fun(D, Key, Val)
+		 end, []),
     {_,X,Y} = wings_wm:local_mouse_state(),
     Ev = #mousemotion{x=X,y=Y,state=0},
     motion(Ev, Drag).
@@ -743,9 +743,9 @@ normalize(Move, #drag{mode_fun=ModeFun,mode_data=ModeData,
 		      st=#st{shapes=Shs0}=St}) ->
     ModeFun(done, ModeData),
     gl:disable(gl_rescale_normal()),
-    Shs = wings_draw_util:map(fun(D, Sh) ->
-				      normalize_fun(D, Move, Sh)
-			      end, Shs0),
+    Shs = wings_dl:map(fun(D, Sh) ->
+			       normalize_fun(D, Move, Sh)
+		       end, Shs0),
     St#st{shapes=Shs}.
 
 normalize_fun(#dlo{drag=none}=D, _Move, Shs) -> {D,Shs};
@@ -775,7 +775,7 @@ redraw(#drag{info=Info,st=St}) ->
     wings:redraw(Info, St).
 
 clear_sel_dlists() ->
-    wings_draw_util:map(fun clear_sel_dlists/2, []).
+    wings_dl:map(fun clear_sel_dlists/2, []).
 
 clear_sel_dlists(#dlo{drag=none}=D, _) -> D;
 clear_sel_dlists(#dlo{drag={matrix,_,_}}=D, _) -> D;

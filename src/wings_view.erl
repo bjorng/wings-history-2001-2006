@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.148 2004/05/14 05:29:49 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.149 2004/05/15 18:01:01 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -293,27 +293,24 @@ command(orthogonal_view, St) ->
     St;
 command(show_textures, St) ->
     toggle_option(show_textures),
-    wings_draw_util:map(
-      fun(#dlo{src_we=#we{mode=material}}=D, _) ->
-	      D#dlo{work=none,smooth=none,proxy_faces=none};
-	 (D, _) -> D
-      end, []),
+    wings_dl:map(fun(#dlo{src_we=#we{mode=material}}=D, _) ->
+			 D#dlo{work=none,smooth=none,proxy_faces=none};
+		    (D, _) -> D
+		 end, []),
     St;
 command(show_materials, St) ->
     toggle_option(show_materials),
-    wings_draw_util:map(
-      fun(#dlo{src_we=#we{mode=material}}=D, _) ->
-	      D#dlo{work=none,smooth=none,proxy_faces=none};
-	 (D, _) -> D
-      end, []),
+    wings_dl:map(fun(#dlo{src_we=#we{mode=material}}=D, _) ->
+			 D#dlo{work=none,smooth=none,proxy_faces=none};
+		    (D, _) -> D
+		 end, []),
     St;
 command(show_colors, St) ->
     toggle_option(show_colors),
-    wings_draw_util:map(
-      fun(#dlo{src_we=#we{mode=vertex}}=D, _) ->
-	      D#dlo{work=none,smooth=none,proxy_faces=none};
-	 (D, _) -> D
-      end, []),
+    wings_dl:map(fun(#dlo{src_we=#we{mode=vertex}}=D, _) ->
+			 D#dlo{work=none,smooth=none,proxy_faces=none};
+		    (D, _) -> D
+		 end, []),
     St;
 command(show_normals, St) ->
     Bool = wings_pref:get_value(show_normals),
@@ -321,7 +318,7 @@ command(show_normals, St) ->
     case Bool of
 	false -> St;
 	true ->
-	    wings_draw_util:map(fun(D, _) -> D#dlo{normals=none} end, []),
+	    wings_dl:map(fun(D, _) -> D#dlo{normals=none} end, []),
 	    St
     end;
 command(show_edges, St) ->
@@ -330,7 +327,7 @@ command(show_edges, St) ->
     case Bool of
 	false -> St;
 	true ->
-	    wings_draw_util:map(fun(D, _) -> D#dlo{hard=none} end, []),
+	    wings_dl:map(fun(D, _) -> D#dlo{hard=none} end, []),
 	    St
     end;
 command(aim, St) ->

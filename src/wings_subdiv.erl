@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.76 2004/04/27 17:10:21 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.77 2004/05/15 18:00:59 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -384,7 +384,7 @@ quick_preview(_St) ->
     end.
 
 setup(#st{sel=OrigSel}=St) ->
-    wings_draw_util:map(fun(D, Sel) -> setup_1(D, Sel) end, OrigSel),
+    wings_dl:map(fun(D, Sel) -> setup_1(D, Sel) end, OrigSel),
     {save_state,wings_sel:reset(St)}.
 
 setup_1(#dlo{src_we=#we{id=Id}=We}=D, [{Id,_}|Sel]) when ?IS_ANY_LIGHT(We) ->
@@ -406,7 +406,7 @@ setup_1(#dlo{src_we=#we{id=Id},proxy_data=Pd}=D, [{Id,_}|Sel]) ->
 setup_1(D, Sel) -> {D,Sel}.
 
 setup_all(Activate) ->
-    wings_draw_util:map(fun(D, _) -> setup_all(D, Activate) end, []).
+    wings_dl:map(fun(D, _) -> setup_all(D, Activate) end, []).
 
 setup_all(#dlo{src_we=#we{id=Id},proxy_data=none}=D, true) ->
     Wire0 = wings_wm:get_prop(wings_wm:this(), wireframed_objects),
@@ -473,8 +473,8 @@ smooth_we(#dlo{proxy_data=Pd0,src_we=We0}) ->
     end.
 
 any_proxy() ->
-    wings_draw_util:fold(fun(#dlo{proxy_data=none}, A) -> A;
-			    (#dlo{}, _) -> true end, false).
+    wings_dl:fold(fun(#dlo{proxy_data=none}, A) -> A;
+		     (#dlo{}, _) -> true end, false).
 
 draw(#dlo{proxy_faces=none,proxy_data=[Dl|_]}=D, Wire) ->
     draw_1(D, Dl, Wire, proxy_moving_opacity, cage);
@@ -500,7 +500,7 @@ draw_1(D, Dl, Wire, Key, EdgeStyleKey) ->
 		    gl:blendColor(0, 0, 0, Opacity)
 	    end
     end,
-    wings_draw_util:call(Dl),
+    wings_dl:call(Dl),
     gl:disable(?GL_BLEND),
     gl:disable(?GL_POLYGON_OFFSET_FILL),
     gl:disable(?GL_LIGHTING),
@@ -519,12 +519,12 @@ draw_edges_1(#dlo{edges=Edges}, cage) ->
     gl:enable(?GL_POLYGON_OFFSET_LINE),
     gl:polygonOffset(1, 1),
     gl:disable(?GL_CULL_FACE),
-    wings_draw_util:call(Edges),
+    wings_dl:call(Edges),
     gl:enable(?GL_CULL_FACE);
 draw_edges_1(#dlo{proxy_edges=ProxyEdges}, _) ->
     gl:color3fv(wings_pref:get_value(edge_color)),
     gl:lineWidth(1),
-    wings_draw_util:call(ProxyEdges).
+    wings_dl:call(ProxyEdges).
 
 clean([_,#sp{}=Pd]) -> Pd;
 clean(Other) -> Other.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.106 2004/04/25 13:43:32 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.107 2004/05/15 18:01:01 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -122,13 +122,13 @@ mode_restriction(Modes, #st{selmode=Mode}=St) ->
 
 pick_finish() ->
     wings_wm:dirty(),
-    wings_draw_util:map(fun clear_orig_sel/2, []).
+    wings_dl:map(fun clear_orig_sel/2, []).
 
 clear_orig_sel(D, _) -> D#dlo{sel=none,orig_sel=none,orig_mode=none}.
 
 clear_sel() ->
     wings_wm:dirty(),
-    wings_draw_util:map(fun clear_sel/2, []).
+    wings_dl:map(fun clear_sel/2, []).
 
 clear_sel(D, _) -> D#dlo{sel=none}.
 
@@ -143,9 +143,9 @@ get_event(Ss, St) ->
 
 handle_event({ask_init,Do,Done}, #ss{selmodes=Modes}=Ss,
 	     #st{selmode=Mode}=St0) ->
-    wings_draw_util:map(fun(#dlo{orig_sel=none,sel=Dlist}=D, _) ->
-				D#dlo{orig_sel=Dlist,orig_mode=Mode}
-			end, []),
+    wings_dl:map(fun(#dlo{orig_sel=none,sel=Dlist}=D, _) ->
+			 D#dlo{orig_sel=Dlist,orig_mode=Mode}
+		 end, []),
     wings_util:menu_restriction(wings_wm:this(), [view,select]),
     St = wings_sel:reset(mode_restriction(Modes, St0)),
     pick_next(Do, Done, Ss, St);
@@ -610,7 +610,7 @@ draw_vec(Vec) ->
 	    put(wings_current_vector, #vec{vec=VecDl,src_vec=Vec}),
 	    VecDl
     end,
-    wings_draw_util:call(VecDl).
+    wings_dl:call(VecDl).
 
 make_vec_dlist(Vec) ->
     Dlist = gl:genLists(1),
