@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel.erl,v 1.1 2001/08/14 18:16:36 bjorng Exp $
+%%     $Id: wings_sel.erl,v 1.2 2001/08/17 10:18:47 bjorng Exp $
 %%
 
 -module(wings_sel).
@@ -26,7 +26,9 @@
 	 random/2]).
 
 %% Selection commands.
--export([save/1,load/1,exchange/1,union/1,subtract/1,intersection/1,
+-export([select_all/1,select_more/1,select_less/1,
+	 save/1,load/1,
+	 exchange/1,union/1,subtract/1,intersection/1,
 	 inverse/1,similar/1]).
 
 -include("wings.hrl").
@@ -416,6 +418,45 @@ validate_items(Items, body, Shape) -> Items.
 %%%
 %%% Selection commands.
 %%%
+
+select_all(#st{drag=Drag}=St) when Drag =/= undefined -> St;
+select_all(#st{selmode=body,shapes=Shapes}=St) ->
+    Items = gb_sets:singleton(0),
+    Sel = [{Id,Items} || {Id,_} <- gb_trees:to_list(Shapes)],
+    St#st{sel=Sel};
+select_all(#st{sel=[],shapes=Shapes}=St) ->
+    case gb_trees:is_empty(Shapes) of
+	true -> St;
+	false ->
+	    Sel = gb_trees:to_list(Shapes),
+	    select_all(St#st{sel=Sel})
+    end;
+select_all(#st{selmode=Mode,sel=Sel0}=St) ->
+    Sel = [{Id,get_all_items(Mode, Id, St)} || {Id,_} <- Sel0],
+    St#st{sel=Sel}.
+
+get_all_items(Mode, Id, #st{shapes=Shapes}) ->
+    #shape{sh=We} = gb_trees:get(Id, Shapes),
+    Items = case Mode of
+		vertex -> gb_trees:keys(We#we.vs);
+		edge -> gb_trees:keys(We#we.es);
+		face -> gb_trees:keys(We#we.fs)
+	    end,
+    gb_sets:from_ordset(Items).
+
+select_more(St) ->
+    selection_change(select_more, St).
+
+select_less(St) ->
+    selection_change(select_less, St).
+
+selection_change(Change, #st{selmode=vertex}=St) ->
+    wings_vertex:Change(St);
+selection_change(Change, #st{selmode=edge}=St) ->
+    wings_edge:Change(St);
+selection_change(Change, #st{selmode=face}=St) ->
+    wings_face:Change(St);
+selection_change(Change, St) -> St.
 
 save(#st{selmode=Mode,sel=Sel}=St) ->
     St#st{ssel={Mode,Sel}}.

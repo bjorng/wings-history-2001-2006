@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.1 2001/08/14 18:16:35 bjorng Exp $
+%%     $Id: wings.erl,v 1.2 2001/08/17 10:18:47 bjorng Exp $
 %%
 
 -module(wings).
@@ -297,15 +297,15 @@ command({edit,repeat}, St) -> St;
 command({select,edge_loop}, St) ->
     {save_state,wings_edge:select_loop(St)};
 command({select,more}, St) ->
-    selection_change(select_more, St);
+    wings_sel:select_more(St);
 command({select,less}, St) ->
-    selection_change(select_less, St);
+    wings_sel:select_less(St);
 command({select,{material,Material}}, St) ->
     wings_face_cmd:select_material(Material, St);
 command({select,all}, St) ->
-    select_all(St);
+    {save_state,wings_sel:select_all(St)};
 command({select,{all,Mode}}, St) ->
-    select_all(St#st{selmode=Mode});
+    wings_sel:select_all(St#st{selmode=Mode});
 command({select,hard_edges}, St) ->
     wings_sel:make(fun(Edge, #we{he=Htab}) ->
 			   gb_sets:is_member(Edge, Htab)
@@ -862,39 +862,6 @@ set_select_mode(deselect, St) ->
     {save_state,model_changed(St#st{sel=[]})};
 set_select_mode(Type, St) ->
     {save_state,model_changed(wings_sel:convert_selection(Type, St))}.
-
-selection_change(Change, #st{selmode=vertex}=St) ->
-    wings_vertex:Change(St);
-selection_change(Change, #st{selmode=edge}=St) ->
-    wings_edge:Change(St);
-selection_change(Change, #st{selmode=face}=St) ->
-    wings_face:Change(St);
-selection_change(Change, St) -> St.
-
-select_all(#st{drag=Drag}=St) when Drag =/= undefined -> St;
-select_all(#st{selmode=body,shapes=Shapes}=St) ->
-    Items = gb_sets:singleton(0),
-    Sel = [{Id,Items} || {Id,_} <- gb_trees:to_list(Shapes)],
-    {save_state,model_changed(St#st{sel=Sel})};
-select_all(#st{sel=[],shapes=Shapes}=St) ->
-    case gb_trees:is_empty(Shapes) of
-	true -> St;
-	false ->
-	    Sel = gb_trees:to_list(Shapes),
-	    select_all(St#st{sel=Sel})
-    end;
-select_all(#st{selmode=Mode,sel=Sel0}=St) ->
-    Sel = [{Id,get_all_items(Mode, Id, St)} || {Id,_} <- Sel0],
-    {save_state,model_changed(St#st{sel=Sel})}.
-
-get_all_items(Mode, Id, #st{shapes=Shapes}) ->
-    #shape{sh=We} = gb_trees:get(Id, Shapes),
-    Items = case Mode of
-		vertex -> [V || {V,_} <- gb_trees:to_list(We#we.vs)];
-		edge -> [Edge || {Edge,_} <- gb_trees:to_list(We#we.es)];
-		face -> [Face || {Face,_} <- gb_trees:to_list(We#we.fs)]
-	    end,
-    gb_sets:from_ordset(Items).
 
 info(#st{shapes=Shapes,selmode=body,sel=[{Id,_}]}) ->
     Sh = gb_trees:get(Id, Shapes),
