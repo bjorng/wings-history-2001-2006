@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mesh.erl,v 1.19 2002/06/14 13:02:16 bjorng Exp $
+%%     $Id: e3d_mesh.erl,v 1.20 2002/06/15 19:55:59 bjorng Exp $
 %%
 
 -module(e3d_mesh).
@@ -304,19 +304,27 @@ renumber_1(#e3d_mesh{fs=Ftab0,vs=Vs0,tx=Tx0,ns=Ns0}=Mesh,
     UVMap = rn_make_map(UsedUV, 0, []),
     NsMap = rn_make_map(UsedNs, 0, []),
     Ftab = renumber_ftab(Ftab0, VsMap, UVMap, NsMap, []),
-    Vs = rn_remove_unused(Vs0, VsMap, 0, []),
-    Tx = rn_remove_unused(Tx0, UVMap, 0, []),
-    Ns = rn_remove_unused(Ns0, NsMap, 0, []),
+    Vs = rn_remove_unused(Vs0, VsMap),
+    Tx = rn_remove_unused(Tx0, UVMap),
+    Ns = rn_remove_unused(Ns0, NsMap),
     Mesh#e3d_mesh{fs=Ftab,vs=Vs,tx=Tx,ns=Ns}.
 
 renumber_ftab([#e3d_face{vs=Vs0,tx=Tx0,ns=Ns0}=Rec|Fs],
 	      VsMap, UVMap, NsMap, Acc) ->
-    Vs = [gb_trees:get(V, VsMap) || V <- Vs0],
-    Tx = [gb_trees:get(V, UVMap) || V <- Tx0],
-    Ns = [gb_trees:get(V, NsMap) || V <- Ns0],
+    Vs = [map_vtx(V, VsMap) || V <- Vs0],
+    Tx = [map_vtx(V, UVMap) || V <- Tx0],
+    Ns = [map_vtx(V, NsMap) || V <- Ns0],
     renumber_ftab(Fs, VsMap, UVMap, NsMap,
 		  [Rec#e3d_face{vs=Vs,tx=Tx,ns=Ns}|Acc]);
-renumber_ftab([], _, _, _, Acc) -> Acc.
+renumber_ftab([], _, _, _, Acc) -> reverse(Acc).
+
+map_vtx(V, {map,Low,_}) -> V-Low;
+map_vtx(V, Map) -> gb_trees:get(V, Map).
+
+rn_remove_unused(Vs, {map,Low,N}) ->
+    lists:sublist(Vs, Low+1, N);
+rn_remove_unused(Vs, Map) ->
+    rn_remove_unused(Vs, Map, 0, []).
 
 rn_remove_unused([V|Vs], Map, I, Acc) ->
     case gb_trees:is_defined(I, Map) of
@@ -331,11 +339,16 @@ rn_used_vs(#e3d_mesh{fs=Ftab}) ->
     Ns = foldl(fun(#e3d_face{ns=Ns}, A) -> Ns++A end, [], Ftab),
     {ordsets:from_list(Vs),ordsets:from_list(UV),ordsets:from_list(Ns)}.
 
+rn_make_map([V], I, Acc0) ->
+    [{Low,_}|_] = Acc = reverse(Acc0, [{V,I}]),
+    High = V+1,
+    case High-Low of
+	Range when Range =:= length(Acc) -> {map,Low,Range};
+	_Range -> gb_trees:from_orddict(Acc)
+    end;
 rn_make_map([V|Vs], I, Acc) ->
     rn_make_map(Vs, I+1, [{V,I}|Acc]);
-rn_make_map([], _, Acc) ->
-    gb_trees:from_orddict(reverse(Acc)).
-
+rn_make_map([], _, []) -> gb_trees:empty().
 
 number_faces(Fs) ->
     number_faces(Fs, 0, []).

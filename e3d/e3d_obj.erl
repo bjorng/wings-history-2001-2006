@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_obj.erl,v 1.22 2002/06/15 06:31:40 bjorng Exp $
+%%     $Id: e3d_obj.erl,v 1.23 2002/06/15 19:55:59 bjorng Exp $
 %%
 
 -module(e3d_obj).
@@ -19,6 +19,8 @@
 
 -import(lists, [reverse/1,reverse/2,sort/1,keysearch/3,foreach/2,
 		map/2,foldl/3]).
+-compile(inline).
+-compile({inline_size,24}).
 
 -record(ost,
 	{v=[],					%Vertices.
@@ -32,11 +34,11 @@
 	 seen=gb_sets:empty()}).		%Unknown type seen.
 
 import(Name) ->
-    case file:open(Name, [read]) of
+    case read_open(Name) of
 	{ok,Fd} ->
 	    Dir = filename:dirname(Name),
 	    Res = import_1(Fd, Dir),
-	    file:close(Fd),
+	    close(Fd),
 	    Res;
 	{error,Reason} ->
 	    {error,file:format_error(Reason)}
@@ -57,30 +59,30 @@ import_2(Fd, Dir) ->
     TxTab = reverse(TxTab0),
     Ftab = make_ftab(Ftab0, []),
     Gs1 = reverse(Gs0),
-    Gs2 = separate(Gs1, []),
-    Gs = simplify(Gs2, 0),
+    Gs = separate(Gs1, []),
     Template = #e3d_mesh{type=polygon,vs=Vtab,tx=TxTab},
     Objs = make_objects(Gs, Ftab, Template),
     #e3d_file{objs=Objs,mat=Mat}.
 
 separate([{eof,N}], []) -> [{undefined,0,N}];
-separate([{eof,_}], Acc) -> reverse(Acc);
+separate([{eof,_}], [{_,_,E}|_]=Acc) ->
+    separate_1(Acc, E, []);
 separate([{group,[Name|_],N}|T], Acc) ->
     separate(T, [{Name,N,get_face_num(T)}|Acc]);
 separate([{name,Name,Start}|T0], Acc) ->
     {T,End} = skip_upto_name(T0),
     separate(T, [{Name,Start,End}|Acc]).
 
+separate_1([{Name,S,E}|T], E, Acc) ->
+    separate_1(T, S, [{Name,E-S}|Acc]);
+separate_1([], _, Acc) -> Acc.
+    
 get_face_num([{eof,N}|_]) -> N;
 get_face_num([{group,_,N}|_]) -> N.
 
 skip_upto_name([{eof,N}]=T) -> {T,N};
 skip_upto_name([{name,_,N}|_]=T) -> {T,N};
 skip_upto_name([_|T]) -> skip_upto_name(T).
-
-simplify([{Name,S,E}|T], S) ->
-    [{Name,E-S}|simplify(T, E)];
-simplify([], _) -> [].
 
 make_objects([{Name,N}|T], Fs0, Template) ->
     {Ftab,Fs} = split(Fs0, N, []),
@@ -101,9 +103,11 @@ make_ftab([{Mat,Vs0}|Fs], Acc) ->
     make_ftab(Fs, [#e3d_face{mat=Mat,vs=Vs,tx=Tx}|Acc]);
 make_ftab([], Acc) -> Acc.
 
-read(Parse, Fd, Acc) ->
-    read(Parse, io:get_line(Fd, ''), Fd, Acc).
+read(Parse, Fd0, Acc) ->
+    {Line,Fd} = get_line(Fd0),
+    read(Parse, Line, Fd, Acc).
 
+read(_, eof, _, Acc) -> Acc;
 read(Parse, "#" ++ _Comment, Fd, Acc) ->
     read(Parse, Fd, Acc);
 read(Parse, "\r\n", Fd, Acc) ->
@@ -114,7 +118,6 @@ read(Parse, " " ++ Line, Fd, Acc) ->
     read(Parse, Line, Fd, Acc);
 read(Parse, "\t" ++ Line, Fd, Acc) ->
     read(Parse, Line, Fd, Acc);
-read(_Parse, eof, _Fd, Acc) -> Acc;
 read(Parse, "mtllib" ++ Name0, Fd, Acc0) ->
     Name1 = skip_blanks(Name0),
     Name = case reverse(Name1) of
@@ -244,10 +247,10 @@ read_matlib(Name, Dir) ->
     end.
 
 try_matlib(Name) ->
-    case file:open(Name, [read]) of
+    case read_open(Name) of
 	{ok,Fd} ->
 	    Res = read(fun mtl_parse/2, Fd, []),
-	    file:close(Fd),
+	    close(Fd),
 	    [{Mat,[{maps,Maps},{opengl,OpenGL}]} || {Mat,OpenGL,Maps} <- Res];
 	{error,_Reason} -> error
     end.
@@ -305,6 +308,32 @@ space_concat([]) -> [].
 skip_blanks([$\s|T]) -> skip_blanks(T);
 skip_blanks([$\t|T]) -> skip_blanks(T);
 skip_blanks(S) -> S.
+
+read_open(Name) ->
+    case file:open(Name, [read,raw,read_ahead]) of
+	{ok,Fd} -> {ok,{Fd,[]}};
+	{error,_}=Error -> Error
+    end.
+
+close({Fd,_}) ->
+    file:close(Fd).
+	    
+get_line({Fd,Buf}) ->
+    get_line(Buf, Fd, []).
+
+get_line([], Fd, Line) ->
+    case file:read(Fd, 128) of
+	eof ->
+	    case Line of
+		[] -> {eof,{Fd,[]}};
+		_ -> {reverse(Line),{Fd,[]}}
+	    end;
+	{ok,Cs} -> get_line(Cs, Fd, Line)
+    end;
+get_line([$\n|Cs], Fd, Line) ->
+    {reverse(Line, [$\n]),{Fd,Cs}};
+get_line([C|Cs], Fd, Line) ->
+    get_line(Cs, Fd, [C|Line]).
     
 %%%
 %%% Export.
