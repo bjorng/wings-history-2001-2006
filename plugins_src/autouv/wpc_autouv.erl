@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.133 2003/07/16 05:34:44 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.134 2003/07/16 05:56:12 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -219,6 +219,8 @@ init_show_maps(Map0, #we{es=Etab}=We, St) ->
     create_uv_state(Edges, Map, none, #setng{}, We, St).
 
 create_uv_state(Edges, Map, MatName, Options, #we{id=Id}=We, St) ->
+    wings:mode_restriction([body]),
+    wings_wm:current_state(#st{selmode=body,sel=[]}),
     {_,Geom} = init_drawarea(),
     Uvs = #uvstate{st=wings_select_faces([], Id, St),
 		   origst=St,
