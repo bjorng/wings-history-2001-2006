@@ -9,17 +9,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.176 2004/05/13 19:46:51 raimo_niskanen Exp $
+%%     $Id: wings_ask.erl,v 1.177 2004/05/31 20:27:30 raimo_niskanen Exp $
 %%
 
 -module(wings_ask).
 -export([init/0,ask/3,ask/4,dialog/3,dialog/4,
 	 hsv_to_rgb/1,hsv_to_rgb/3,rgb_to_hsv/1,rgb_to_hsv/3]).
-
-%% Debug exports
--export([binsearch/2]).
--export([eval/1]).
--import(wings_util, [min/2,max/2]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -34,7 +29,10 @@
 -define(BUTTON_MASK,
 	(?SDL_BUTTON_LMASK bor ?SDL_BUTTON_MMASK bor ?SDL_BUTTON_RMASK)).
 
+-import(wings_util, [min/2,max/2]).
 -import(lists, [reverse/1,reverse/2,duplicate/2,keysearch/3,member/2,map/2]).
+
+
 
 %%%-define(DEBUG_CATEGORIES, [event,other]).
 -ifdef(DEBUG_CATEGORIES).
@@ -71,6 +69,8 @@
 -define(DMPTREE(_Cat,Fi), ok).
 -endif.
 
+
+
 -record(s,
 	{w,
 	 h,
@@ -100,29 +100,32 @@
 	 flags=[],			%Flags field.
 	 x,y,				%Upper left position.
 	 w,h,				%Width, height.
+	 stretch=0,			%Horizontal stretch koefficient
 	 extra				%Container or leaf data
 	}).
 
 %% Extra static data for container fields
-
 -record(container,
 	{type,				%vframe|hframe|oframe
 	 x,y,				%Container pos
 	 w,h,				%Container size
 	 fields,			%Contained fields, tuple()
-	 selected			%integer()|undefined
+	 selected,			%integer()|undefined
+	 stretch,			%Sum of contained stretch
+	 w0,h0				%Unpropagated outer (field) size
 	}).
 
 %% Extra static data for leaf fields
-
 -record(leaf,
 	{w,h				%Natural (min) size
 	}).
 
+
+
 init() ->
     init_history(),
     ok.
-    
+
 ask(Title, Qs, Fun) ->
     ask(true, Title, Qs, Fun).
 
@@ -250,7 +253,8 @@ ask_unzip([], Labels, Vals) ->
 %% See slider regular field below. This is a {hframe,...} containing
 %% two fields.
 %%
-%% {button,{text,Def,Flags}}                    -- Text field with a Browse button
+%% {button,{text,Def,Flags}}                    -- Text field with a 
+%%                                                 Browse button
 %%    Flags = [Flag]
 %%    Flag = {props,DialogBoxProperties}|{dialog_type,DialogType}|RegularFlags
 %%    DialogType = open_dialog|save_dialog
@@ -258,10 +262,15 @@ ask_unzip([], Labels, Vals) ->
 %% Regular fields (dialog tree leafs).
 %% Additional types:
 %%     RegularFlags = [RegularFlag]
-%%     RegularFlag = {key,Key}|{hook,Hook}|{info,String}|layout
+%%     RegularFlag = {key,Key}|{hook,Hook}|{info,String}|
+%%                   {stretch,Stretch}|layout
 %% Note: the 'layout' flag forces a layout pass if the field changes value.
+%%       Default Stretch is 0 and defines how much of horizontal padding
+%%       when contained in a hframe that the field will use. The horizintal
+%%       padding is distributed evenly over the stretch factors.
 %%
-%% panel					-- Blank filler
+%% panel					-- Blank filler, stretch 1
+%% {panel,RegularFlags}
 %% Does not return a value.
 %%
 %% {label,String}				-- Textual label
@@ -1084,7 +1093,7 @@ mktree({oframe,Qs,Def,Flags}, Sto, I) ->
     mktree_oframe(Qs, Def, Sto, I, [layout|Flags]);
 %%
 mktree(panel, Sto, I) ->
-    mktree_panel(Sto, I, []);
+    mktree_panel(Sto, I, [{stretch,1}]);
 mktree({panel,Flags}, Sto, I) ->
     mktree_panel(Sto, I, Flags);
 %%
@@ -1199,6 +1208,10 @@ mktree_leaf(Handler, State, Minimized, W, H, I, Flags) ->
 	key=proplists:get_value(key, Flags, 0),
 	index=I,
 	hook=proplists:get_value(hook, Flags),
+	stretch=case proplists:lookup(stretch, Flags) of
+		    none -> 0;
+		    {stretch,S} when integer(S), S >= 0 -> S
+		end,
 	flags=Flags,
 	extra=#leaf{w=W,h=H}}.
 
@@ -1297,10 +1310,10 @@ dmptree(Fi) ->
     end.
     
 dmptree(#fi{key=Key,index=Index,state=State,minimized=Minimized,flags=Flags,
-	       x=X,y=Y,w=W,h=H,extra=Extra}, Fill) ->
+	       x=X,y=Y,w=W,h=H,stretch=Stretch,extra=Extra}, Fill) ->
     io:format("~s#fi{key=~p,index=~p,flags=~p,x=~p,y=~p,w=~p,h=~p,~n"
-	      "~s    state=~p,minimized=~p",
-	      [Fill,Key,Index,Flags,X,Y,W,H,Fill,State,Minimized]),
+	      "~s    state=~p,minimized=~p,stretch=~p",
+	      [Fill,Key,Index,Flags,X,Y,W,H,Fill,State,Minimized,Stretch]),
     dmptree_1(Extra, Fill).
 
 dmptree(Fields, Fill, I) when I =< size(Fields) ->
@@ -1309,10 +1322,11 @@ dmptree(Fields, Fill, I) when I =< size(Fields) ->
 dmptree(_Fields, _Fill, _I) -> ok.
 
 dmptree_1(#container{type=Type,x=X,y=Y,w=W,h=H,
-		   fields=Fields,selected=Selected}, Fill) ->
+		     fields=Fields,selected=Selected,
+		     stretch=Stretch,w0=W0,h0=H0}, Fill) ->
     io:format("}.~n~s  #container{type=~p,selected=~p,"
-	      "x=~p,y=~p,w=~p,h=~p}~n",
-	      [Fill,Type,Selected,X,Y,W,H]),
+	      "x=~p,y=~p,w=~p,h=~p,stretch=~p,w0=~p,h0=~p}~n",
+	      [Fill,Type,Selected,X,Y,W,H,Stretch,W0,H0]),
     dmptree(Fields, "  "++Fill, 1);
 dmptree_1(#leaf{w=W,h=H}, _Fill) -> 
     io:format("#leaf{w=~p,h=~p}}.~n", [W,H]).
@@ -1347,15 +1361,16 @@ layout(Fi=#fi{key=Key,index=Index,
     Pad = 10,
     X1 = X0+Pad,
     Y1 = Y0+Ht,
-    {Fields,X2,Y2} = layout_container(oframe, Fields0, Sto, X1, Y1),
+    {Fields,X2,Y2,Stretch} = layout_container(oframe, Fields0, Sto, X1, Y1),
     Wi = max(Wt, X2-X1),
     Hi = Y2-Y1,
     Wo = Pad+Wi+Pad,
     Ho = Ht + Hi + Pad,
     Fi#fi{x=X0,y=Y0,w=Wo,h=Ho,
-	  extra=Container#container{x=X1,y=Y1,w=Wi,h=Hi,
+	  extra=Container#container{x=X1,y=Y1,w=Wi,h=Hi,w0=Wo,h0=Ho,
 				    fields=Fields,
-				    selected=Selected}};
+				    selected=Selected,
+				    stretch=Stretch}};
 layout(Fi=#fi{key=Key,index=Index,flags=Flags,hook=Hook,
 	      extra=Container=#container{type=Type,fields=Fields0}}, 
        Sto, X0, Y0) when Type =:= hframe; Type =:= vframe ->
@@ -1368,7 +1383,7 @@ layout(Fi=#fi{key=Key,index=Index,flags=Flags,hook=Hook,
     Title = proplists:get_value(title, Flags),
     {X1,Y1} = if Title =:= undefined -> {X0,Y0};
 		 true -> {X0+10,Y0+?LINE_HEIGHT} end,
-    {Fields,X2,Y2} = layout_container(Type, Fields0, Sto, X1, Y1),
+    {Fields,X2,Y2,Stretch} = layout_container(Type, Fields0, Sto, X1, Y1),
     Wi = if Title =:= undefined -> 
 		 if Minimized =:= true -> 0;
 		    true -> X2-X1 end;
@@ -1379,33 +1394,38 @@ layout(Fi=#fi{key=Key,index=Index,flags=Flags,hook=Hook,
 	if Minimized =:= true -> 0; true -> Hi end +
 	if Title =:= undefined -> 0; true -> 10 end,
     Fi#fi{x=X0,y=Y0,w=Wo,h=Ho,minimized=Minimized,
-	  extra=Container#container{x=X1,y=Y1,w=Wi,h=Hi,fields=Fields}}.
+	  extra=Container#container{x=X1,y=Y1,w=Wi,h=Hi,w0=Wo,h0=Ho,
+				    fields=Fields,stretch=Stretch}}.
 
 layout_container(vframe, Fields, Sto, X, Y) -> 
-    layout_vframe(1, Fields, Sto, X, Y, 0, []);
+    layout_vframe(1, Fields, Sto, X, Y, 0, [], 0);
 layout_container(hframe, Fields, Sto, X, Y) -> 
-    layout_hframe(1, Fields, Sto, X, Y, 0, []);
+    layout_hframe(1, Fields, Sto, X, Y, 0, [], 0);
 layout_container(oframe, Fields, Sto, X, Y) -> 
-    layout_oframe(1, Fields, Sto, X, Y, 0, 0, []).
+    layout_oframe(1, Fields, Sto, X, Y, 0, 0, [], 0).
 
-layout_vframe(I, Fields, Sto, X0, Y0, W0, R) when I =< size(Fields) ->
-    Fi = #fi{x=X0,y=Y0,w=W,h=H} = layout(element(I, Fields), Sto, X0, Y0),
-    layout_vframe(I+1, Fields, Sto, X0, Y0+H, max(W, W0), [Fi|R]);
-layout_vframe(_I, _Fields, _Sto, X, Y, W, R) ->
-    {R,X+W,Y}.
+layout_vframe(I, Fields, Sto, X0, Y0, W0, R, S) when I =< size(Fields) ->
+    Fi = #fi{x=X0,y=Y0,w=W,h=H,stretch=Stretch} = 
+	layout(element(I, Fields), Sto, X0, Y0),
+    layout_vframe(I+1, Fields, Sto, X0, Y0+H, max(W, W0), [Fi|R], S+Stretch);
+layout_vframe(_I, _Fields, _Sto, X, Y, W, R, S) ->
+    {R,X+W,Y,S}.
 
-layout_hframe(I, Fields, Sto, X0, Y0, H0, R) when I =< size(Fields) ->
-    Fi = #fi{x=X0,y=Y0,w=W,h=H} = layout(element(I, Fields), Sto, X0, Y0),
+layout_hframe(I, Fields, Sto, X0, Y0, H0, R, S) when I =< size(Fields) ->
+    Fi = #fi{x=X0,y=Y0,w=W,h=H,stretch=Stretch} = 
+	layout(element(I, Fields), Sto, X0, Y0),
     layout_hframe(I+1, Fields, Sto, X0+W+?HFRAME_SPACING, Y0, max(H, H0), 
-		  [Fi|R]);
-layout_hframe(_I, _Fields, _Sto, X, Y, H, R) ->
-    {R,X-?HFRAME_SPACING,Y+H}.
+		  [Fi|R], S+Stretch);
+layout_hframe(_I, _Fields, _Sto, X, Y, H, R, S) ->
+    {R,X-?HFRAME_SPACING,Y+H, S}.
 
-layout_oframe(I, Fields, Sto, X, Y, W0, H0, R) when I =< size(Fields) ->
-    Fi = #fi{x=X,y=Y,w=W,h=H} = layout(element(I, Fields), Sto, X, Y),
-    layout_oframe(I+1, Fields, Sto, X, Y, max(W0, W), max(H0, H), [Fi|R]);
-layout_oframe(_I, _Fields, _Sto, X, Y, W, H, R) ->
-    {R,X+W,Y+H}.
+layout_oframe(I, Fields, Sto, X, Y, W0, H0, R, S) when I =< size(Fields) ->
+    Fi = #fi{x=X,y=Y,w=W,h=H,stretch=Stretch} = 
+	layout(element(I, Fields), Sto, X, Y),
+    layout_oframe(I+1, Fields, Sto, X, Y, max(W0, W), max(H0, H), 
+		  [Fi|R], S+Stretch);
+layout_oframe(_I, _Fields, _Sto, X, Y, W, H, R, S) ->
+    {R,X+W,Y+H,S}.
     
 
 
@@ -1417,10 +1437,19 @@ layout_propagate(Fi=#fi{extra=Container=#container{
 				type=vframe,w=W,fields=Fields}}) ->
     Fi#fi{extra=Container#container{
 		  fields=layout_propagate_vframe(Fields, W, [])}};
-layout_propagate(Fi=#fi{extra=Container=#container{
-				type=hframe,h=H,fields=Fields}}) ->
+layout_propagate(Fi=#fi{w=W,
+			extra=Container=#container{
+				type=hframe,h=H,w=Wi,w0=W0,stretch=Stretch,
+				fields=Fields}}) ->
+    {Dx,Ds,S} = 
+	if Stretch =:= 0 -> {0,0,0}; 
+	   true -> 
+		Pad = W - W0,
+		{Pad,Pad div Stretch,Pad rem Stretch}
+	end,
     Fi#fi{extra=Container#container{
-		  fields=layout_propagate_hframe(Fields, H, [])}};
+		  w=Wi+Dx,
+		  fields=layout_propagate_hframe(Fields, H, Dx, Ds, S, [])}};
 layout_propagate(Fi=#fi{extra=Container=#container{
 				type=oframe,w=W,h=H,fields=Fields}}) ->
     Fi#fi{extra=Container#container{
@@ -1433,9 +1462,16 @@ layout_propagate_vframe([Fi|Fis], W, R) ->
 layout_propagate_vframe([], _W, R) ->
     list_to_tuple(R).
 
-layout_propagate_hframe([Fi|Fis], H, R) ->
-    layout_propagate_hframe(Fis, H, [layout_propagate(Fi#fi{h=H})|R]);
-layout_propagate_hframe([], _H, R) ->
+layout_propagate_hframe([#fi{x=X,stretch=0}=Fi|Fis], H, Dx, Ds, S, R) ->
+    layout_propagate_hframe(Fis, H, Dx, Ds, S,
+			    [layout_propagate(Fi#fi{x=X+Dx,h=H})|R]);
+layout_propagate_hframe([#fi{x=X,w=W,stretch=Stretch}=Fi|Fis], 
+			H, Dx0, Ds, S, R) ->
+    Dw = min(Stretch, S)*(Ds + 1) + max(Stretch-S, 0)*Ds,
+    Dx = Dx0-Dw,
+    layout_propagate_hframe(Fis, H, Dx, Ds, max(S-Stretch, 0),
+			    [layout_propagate(Fi#fi{x=X+Dx,w=W+Dw,h=H})|R]);
+layout_propagate_hframe([], _H, _Pad, _Ds, _S, R) ->
     list_to_tuple(R).
 
 layout_propagate_oframe([Fi|Fis], W, H, R) ->

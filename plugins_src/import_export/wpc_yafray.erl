@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.83 2004/05/31 12:46:41 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.84 2004/05/31 20:27:30 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -393,10 +393,11 @@ material_dialog(_Name, Mat) ->
     Modulators = proplists:get_value(modulators, YafRay, def_modulators(Maps)),
     ObjectVframe = 
 	{vframe,
-	 [{hframe,[help_button({material_dialog,object}),
-		   {"Cast Shadow",Shadow,[{key,{?TAG,shadow}}]},
+	 [{hframe,[{"Cast Shadow",Shadow,[{key,{?TAG,shadow}}]},
 		   {"Emit Rad",EmitRad,[{key,{?TAG,emit_rad}}]},
-		   {"Recv Rad",RecvRad,[{key,{?TAG,recv_rad}}]}]},
+		   {"Recv Rad",RecvRad,[{key,{?TAG,recv_rad}}]},
+		   panel,
+		   help_button({material_dialog,object})]},
 	  {hframe,[{"Use Edge Hardness",UseHardness,
 		    [{key,{?TAG,use_hardness}}]},
 		   {"Caustic",Caus,[{key,{?TAG,caus}}]}]},
@@ -409,9 +410,10 @@ material_dialog(_Name, Mat) ->
 	  {key,{?TAG,object_minimized}}]},
     FresnelVframe =
 	{vframe,
-	 [{hframe,[help_button({material_dialog,fresnel}),
-		   {label,"Index Of Refraction"},
-		   {text,IOR,[{range,{0.0,100.0}},{key,{?TAG,ior}}]}]},
+	 [{hframe,[{label,"Index Of Refraction"},
+		   {text,IOR,[{range,{0.0,100.0}},{key,{?TAG,ior}}]},
+		   panel,
+		   help_button({material_dialog,fresnel})]},
 	  {hframe,[{"Fast Fresnel",FastFresnel,[{key,{?TAG,fast_fresnel}}]},
 		   {"Total Internal Reflection",TIR,[{key,{?TAG,tir}}]}]},
 	  {hframe,[{label,"Minimum Reflection"},
@@ -712,10 +714,11 @@ light_dialog(Name, Ps) ->
     Minimized = proplists:get_value(minimized, YafRay, true),
     Power = proplists:get_value(power, YafRay, DefPower),
     [{vframe,
-      [{hframe,[help_button(light_dialog),
-		{vframe, [{label,"Power"}]},
+      [{hframe,[{vframe, [{label,"Power"}]},
 		{vframe,[{text,Power,
-			  [{range,{0.0,10000.0}},{key,{?TAG,power}}]}]}]}|
+			  [{range,{0.0,10000.0}},{key,{?TAG,power}}]}]},
+		panel,
+		help_button(light_dialog)]}|
        light_dialog(Name, Type, YafRay)],
       [{title,"YafRay Options"},{key,{?TAG,minimized}},{minimized,Minimized}]}].
 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_test_ask.erl,v 1.29 2004/05/13 19:46:48 raimo_niskanen Exp $
+%%     $Id: wpc_test_ask.erl,v 1.30 2004/05/31 20:27:29 raimo_niskanen Exp $
 %%
 
 -module(wpc_test_ask).
@@ -311,6 +311,7 @@ large_dialog_r(MinimizedR) ->
 			       {layout,gb_trees:update(Var, Val, Store)};
 			   (_, _) -> void end}]}]},
       {hframe,[{text,1.23},
+	       panel,
 	       {button,"Ok",ok,[{hook,disable_hook(c)}]}],
        [{minimized,true}]},
       {menu,[{"A",a},{"B",b},{"C",c}],a,
