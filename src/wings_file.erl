@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.84 2002/10/05 15:47:28 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.85 2002/10/28 17:51:15 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -449,13 +449,14 @@ export_filename(Prop, St) ->
     end.
 
 export(Props0, Exporter, St) ->
+    SubDivs = proplists:get_value(subdivisions, Props0, 0),
     case export_file_prop(Props0, St) of
 	none ->
-	    ?SLOW(do_export(Exporter, none, St));
+	    ?SLOW(do_export(Exporter, none, SubDivs, St));
 	Props ->
 	    case output_file(export, Props) of
 		aborted -> ok;
-		Name -> ?SLOW(do_export(Exporter, Name, St))
+		Name -> ?SLOW(do_export(Exporter, Name, SubDivs, St))
 	    end
     end.
 
@@ -573,22 +574,26 @@ rename_mat([], _, _, Acc) -> gb_trees:from_orddict(reverse(Acc)).
 %%% Generic export code.
 %%%
 
-do_export(Exporter, Name, #st{shapes=Shs}=St) ->
-    Objs = foldl(fun do_export/2, [], gb_trees:values(Shs)),
+do_export(Exporter, Name, SubDivs, #st{shapes=Shs}=St) ->
+    Objs = foldl(fun(W, A) ->
+			 do_export(W, SubDivs, A)
+		 end, [], gb_trees:values(Shs)),
     Creator = "Wings 3D " ++ ?WINGS_VERSION,
     Mat0 = wings_material:used_materials(St),
     Mat = keydelete('_hole_', 1, Mat0),
     Contents = #e3d_file{objs=Objs,mat=Mat,creator=Creator},
     Exporter(Name, Contents).
 
-do_export(#we{perm=Perm}, Acc) when ?IS_NOT_VISIBLE(Perm) -> Acc;
-do_export(#we{name=Name,light=none}=We, Acc) ->
-    Mesh = make_mesh(We),
+do_export(#we{perm=Perm}, _, Acc) when ?IS_NOT_VISIBLE(Perm) -> Acc;
+do_export(#we{name=Name,light=none}=We, SubDivs, Acc) ->
+    Mesh = make_mesh(We, SubDivs),
     [#e3d_object{name=Name,obj=Mesh}|Acc];
-do_export(_, Acc) -> Acc.
+do_export(_, _, Acc) -> Acc.
 
-make_mesh(We0) ->
-    #we{fs=Ftab,vs=Vs0,es=Etab,he=He0} = We = wings_we:renumber(We0, 0),
+make_mesh(We0, SubDivs) ->
+    wings_io:disable_progress(),
+    We1 = sub_divide(SubDivs, We0),
+    #we{fs=Ftab,vs=Vs0,es=Etab,he=He0} = We = wings_we:renumber(We1, 0),
     Vs = [P || #vtx{pos=P} <- gb_trees:values(Vs0)],
     {ColTab0,UvTab0} = make_tables(We),
     ColTab1 = gb_trees:from_orddict(ColTab0),
@@ -606,6 +611,11 @@ make_mesh(We0) ->
     Mesh = #e3d_mesh{type=polygon,fs=Fs,vs=Vs,tx=UvTab,he=He,
 		     vc=ColTab,matrix=Matrix},
     e3d_mesh:renumber(Mesh).
+
+sub_divide(0, We) -> We;
+sub_divide(N, We0) ->
+    We = wings_subdiv:smooth(We0),
+    sub_divide(N-1, We).
 
 make_face(Face, Mat, _ColTab, UvTab, #we{mode=uv}=We) ->
     {Vs,UVs} = wings_face:fold_vinfo(
