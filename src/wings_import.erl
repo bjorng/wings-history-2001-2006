@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_import.erl,v 1.12 2003/06/15 12:56:16 bjorng Exp $
+%%     $Id: wings_import.erl,v 1.13 2003/07/18 13:02:22 bjorng Exp $
 %%
 
 -module(wings_import).
@@ -127,21 +127,32 @@ rename_materials(NameMap, We) ->
 
 %% If there are materials in the #e3d_file{} record, distribute
 %% them down to each object.
-distribute_materials(#e3d_file{mat=[]}=File) ->
-    File;
 distribute_materials(#e3d_file{objs=Objs0,mat=Mat0}=File) ->
     Mat = sofs:relation(Mat0, [{name,data}]),
     Objs = distribute_materials_1(Objs0, Mat),
     File#e3d_file{objs=Objs}.
 
-distribute_materials_1([#e3d_object{obj=Mesh}=Obj|T], Mat) ->
+distribute_materials_1([#e3d_object{mat=[]}=Obj0|T], Mat) ->
+    %% No material in the #e3d_object{} - use material from %e3d_file{}.
+    Obj = distribute_materials_2(Obj0, Mat),
+    [Obj|distribute_materials_1(T, Mat)];
+distribute_materials_1([#e3d_object{mat=ObjMat0}=Obj0|T], Mat) ->
+    %% Use the material from the #e3d_object{} itself.
+    ObjMat = sofs:relation(ObjMat0, [{name,data}]),
+    Obj = distribute_materials_2(Obj0, ObjMat),
+    [Obj|distribute_materials_1(T, Mat)];
+distribute_materials_1([], _) -> [].
+
+%% distribute_materials_2(Obj, Mat)
+%%  Remove any material not used; added default definitions for any
+%%  material referenced but not defined.
+distribute_materials_2(#e3d_object{obj=Mesh}=Obj, Mat) ->
     Used0 = e3d_mesh:used_materials(Mesh),
     Used = sofs:from_external(Used0, [name]),
     ObjMat0 = sofs:restriction(Mat, Used),
     ObjMat1 = sofs:extension(ObjMat0, Used, sofs:from_term([], data)),
     ObjMat = sofs:to_external(ObjMat1),
-    [Obj#e3d_object{mat=ObjMat}|distribute_materials_1(T, Mat)];
-distribute_materials_1([], _) -> [].
+    Obj#e3d_object{mat=ObjMat}.
 
 -ifndef(DUMP).
 dump(_) -> ok.
