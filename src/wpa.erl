@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.47 2004/04/22 09:13:16 raimo_niskanen Exp $
+%%     $Id: wpa.erl,v 1.48 2004/06/23 11:25:34 raimo_niskanen Exp $
 %%
 -module(wpa).
 -export([ask/3,ask/4,dialog/3,dialog/4,error/1,
@@ -22,6 +22,8 @@
 	 send_command/1,
 	 pref_get/2,pref_get/3,pref_set/2,pref_set/3,
 	 pref_set_default/3,pref_delete/2,
+	 scene_pref_get/2,scene_pref_get/3,
+	 scene_pref_set/2,scene_pref_set_default/2,scene_pref_delete/2,
 	 sel_get/1,sel_set/2,sel_set/3,sel_map/2,sel_fold/3,sel_convert/3,
 	 sel_edge_regions/2,sel_face_regions/2,sel_strict_face_regions/2,
 	 drag/3,drag/4,
@@ -254,6 +256,74 @@ pref_set_default(Mod, Key, Value) ->
 
 pref_delete(Mod, Key) ->
     wings_pref:delete_value({Mod,Key}).
+
+%%%
+%%% Scene preferences.
+%%%
+%%% As Mod, pass in ?MODULE.
+%%%
+%%% The set/delete functions sets/deletes a list of values and
+%%% then updates Wings global need_save state by sending a message
+%%% to the geometry window, if there was a value change.
+%%%
+
+scene_pref_get(Mod, Key) ->
+    wings_pref:get_scene_value({Mod,Key}).
+
+scene_pref_get(Mod, Key, Default) ->
+    wings_pref:get_scene_value({Mod,Key}, Default).
+
+scene_pref_set(Mod, KeyVals) when is_list(KeyVals) ->
+    Undefined = make_ref(),
+    case
+	foldl(fun({Key,Val}, NeedSave) ->
+		      case wings_pref:get_scene_value({Mod,Key}, Undefined) of
+			  Val -> NeedSave;
+			  _ ->
+			      wings_pref:set_scene_value({Mod,Key}, Val),
+			      true
+		      end
+	      end, false, KeyVals) of
+	true -> 
+	    wings_wm:send(geom, need_save),
+	    ok;
+	false -> ok
+    end.
+
+scene_pref_set_default(Mod, KeyVals) when is_list(KeyVals) ->
+    Undefined = make_ref(),
+    case
+	foldl(fun({Key,Val}, NeedSave) ->
+		      case wings_pref:get_scene_value({Mod,Key}, Undefined) of
+			  Val -> NeedSave;
+			  Undefined ->
+			      wings_pref:set_scene_value({Mod,Key}, Val),
+			      true;
+			  _ -> NeedSave
+		      end
+	      end, false, KeyVals) of
+	true -> 
+	    wings_wm:send(geom, need_save),
+	    ok;
+	false -> ok
+    end.
+
+scene_pref_delete(Mod, Keys) when is_list(Keys) ->
+    Undefined = make_ref(),
+    case
+	foldl(fun(Key, NeedSave) ->
+		      case wings_pref:get_scene_value({Mod,Key}, Undefined) of
+			  Undefined -> NeedSave;
+			  _ ->
+			      wings_pref:delete_scene_value({Mod,Key}),
+			      true
+		      end
+	      end, false, Keys) of
+	true -> 
+	    wings_wm:send(geom, need_save),
+	    ok;
+	false -> ok
+    end.
 
 %%%    
 %%% Selection utilities.

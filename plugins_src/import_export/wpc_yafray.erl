@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.91 2004/06/22 10:21:33 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.92 2004/06/23 11:25:31 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -331,7 +331,7 @@ menu_entry(pref) ->
 
 
 command_file(render, Attr, St) when is_list(Attr) ->
-    set_pref(Attr),
+    set_prefs(Attr),
     case get_var(rendering) of
 	false ->
 	    do_export(export, props(render), [{?TAG_RENDER,true}|Attr], St);
@@ -339,8 +339,8 @@ command_file(render, Attr, St) when is_list(Attr) ->
 	    wpa:error("Already rendering.")
     end;
 command_file(render, Ask, _St) when is_atom(Ask) ->
-    wpa:dialog(Ask, "YafRay Render Options", export_dialog(render),
-	       fun(Attr) -> {file,{render,{?TAG,Attr}}} end);
+    export_dialog(Ask, "YafRay Render Options", render,
+		  fun(Attr) -> {file,{render,{?TAG,Attr}}} end);
 command_file(?TAG_RENDER, Result, _St) ->
     Rendering = set_var(rendering, false),
     case Rendering of
@@ -361,10 +361,10 @@ command_file(?TAG_RENDER, Result, _St) ->
     end;
 command_file(Op, Attr, St) when is_list(Attr) ->
     %% when Op =:= export; Op =:= export_selected
-    set_pref(Attr),
+    set_prefs(Attr),
     do_export(Op, props(Op), Attr, St);
 command_file(Op, Ask, _St) when is_atom(Ask) ->
-    wpa:dialog(Ask, "YafRay Export Options", export_dialog(Op),
+    export_dialog(Ask, "YafRay Export Options", Op,
 	       fun(Attr) -> {file,{Op,{?TAG,Attr}}} end).
 
 -record(camera_info, {pos,dir,up,fov}).
@@ -1083,8 +1083,8 @@ light_result(Ps) ->
 
 
 pref_edit(St) ->
-    Dialogs = get_pref(dialogs, ?DEF_DIALOGS),
-    Renderer = get_pref(renderer, ?DEF_RENDERER),
+    [{dialogs,Dialogs},{renderer,Renderer}] = 
+	get_prefs([{dialogs,?DEF_DIALOGS},{renderer,?DEF_RENDERER}]),
     BrowseProps = [{dialog_type,open_dialog},{directory,"/"},
 		   case os:type() of
 		       {win32,_} -> 
@@ -1103,38 +1103,74 @@ pref_edit(St) ->
 	       fun (Attr) -> pref_result(Attr,St) end).
 
 pref_result(Attr, St) ->
-    set_pref(Attr),
+    set_user_prefs(Attr),
     init_pref(),
     St.
 
 
 
+export_dialog(Ask, Title, Operation, Fun) ->
+    wpa:dialog(Ask, Title, 
+	       export_dialog_qs(Operation, 
+				get_prefs(def_export_prefs())
+				++[save,load,reset]),
+	       export_dialog_fun(Operation, Fun)).
 
-export_dialog(Operation) ->
-    SubDiv = get_pref(subdivisions, ?DEF_SUBDIVISIONS),
-    SaveAlpha = get_pref(save_alpha, ?DEF_SAVE_ALPHA),
-    Gamma = get_pref(gamma, ?DEF_GAMMA),
-    Exposure = get_pref(exposure, ?DEF_EXPOSURE),
-    AA_passes = get_pref(aa_passes, ?DEF_AA_PASSES),
-    AA_minsamples = get_pref(aa_minsamples, ?DEF_AA_MINSAMPLES),
-    AA_pixelwidth = get_pref(aa_pixelwidth, ?DEF_AA_PIXELWIDTH),
-    AA_threshold = get_pref(aa_threshold, ?DEF_AA_THRESHOLD),
-    Raydepth = get_pref(raydepth, ?DEF_RAYDEPTH),
-    Bias = get_pref(bias, ?DEF_BIAS),
-    Width = get_pref(width, ?DEF_WIDTH),
-    Height = get_pref(height, ?DEF_HEIGHT),
-    BgColor = get_pref(background_color, ?DEF_BACKGROUND_COLOR),
-    LoadImage = get_pref(load_image, ?DEF_LOAD_IMAGE),
-    Options = get_pref(options, ?DEF_OPTIONS),
-    DofFilter = get_pref(dof_filter, ?DEF_DOF_FILTER),
-    NearBlur = get_pref(near_blur, ?DEF_NEAR_BLUR),
-    FarBlur = get_pref(far_blur, ?DEF_FAR_BLUR),
-    DofScale = get_pref(dof_scale, ?DEF_DOF_SCALE),
-    AntinoiseFilter = get_pref(antinoise_filter, ?DEF_ANTINOISE_FILTER),
-    AntinoiseRadius = get_pref(antinoise_radius, ?DEF_ANTINOISE_RADIUS),
-    AntinoiseMaxDelta = get_pref(antinoise_radius, ?DEF_ANTINOISE_MAX_DELTA),
-    FogDensity = get_pref(fog_density, ?DEF_FOG_DENSITY),
-    FogColor = get_pref(fog_color, ?DEF_FOG_COLOR),
+export_dialog_fun(Operation, Fun) ->
+    fun (Attr) -> export_dialog_loop(Operation, Fun, Attr) end.
+
+def_export_prefs() ->
+    [{subdivisions,?DEF_SUBDIVISIONS},
+     {aa_passes,?DEF_AA_PASSES},
+     {aa_minsamples,?DEF_AA_MINSAMPLES},
+     {raydepth,?DEF_RAYDEPTH},
+     {gamma,?DEF_GAMMA},
+     {aa_threshold,?DEF_AA_THRESHOLD},
+     {aa_pixelwidth,?DEF_AA_PIXELWIDTH},
+     {bias,?DEF_BIAS},
+     {exposure,?DEF_EXPOSURE},
+     {save_alpha,?DEF_SAVE_ALPHA},
+     {background_color,?DEF_BACKGROUND_COLOR},
+     {width,?DEF_WIDTH},
+     {height,?DEF_HEIGHT},
+     {antinoise_filter,?DEF_ANTINOISE_FILTER},
+     {dof_filter,?DEF_DOF_FILTER},
+     {fog_density,?DEF_FOG_DENSITY},
+     {antinoise_radius,?DEF_ANTINOISE_RADIUS},
+     {near_blur,?DEF_NEAR_BLUR},
+     {dof_scale,?DEF_DOF_SCALE},
+     {fog_color,?DEF_FOG_COLOR},
+     {antinoise_max_delta,?DEF_ANTINOISE_MAX_DELTA},
+     {far_blur,?DEF_FAR_BLUR},
+     {options,?DEF_OPTIONS},
+     {load_image,?DEF_LOAD_IMAGE}].
+
+export_dialog_qs(Operation,
+	  [{subdivisions,SubDiv},
+	   {aa_passes,AA_passes},
+	   {aa_minsamples,AA_minsamples},
+	   {raydepth,Raydepth},
+	   {gamma,Gamma},
+	   {aa_threshold,AA_threshold},
+	   {aa_pixelwidth,AA_pixelwidth},
+	   {bias,Bias},
+	   {exposure,Exposure},
+	   {save_alpha,SaveAlpha},
+	   {background_color,BgColor},
+	   {width,Width},
+	   {height,Height},
+	   {antinoise_filter,AntinoiseFilter},
+	   {dof_filter,DofFilter},
+	   {fog_density,FogDensity},
+	   {antinoise_radius,AntinoiseRadius},
+	   {near_blur,NearBlur},
+	   {dof_scale,DofScale},
+	   {fog_color,FogColor},
+	   {antinoise_max_delta,AntinoiseMaxDelta},
+	   {far_blur,FarBlur},
+	   {options,Options},
+	   {load_image,LoadImage},
+	   _Save,_Load,_Reset]) ->
     AA_thresholdFlags = [range(aa_threshold),{key,aa_threshold}],
     AA_pixelwidthFlags = [range(aa_pixelwidth),{key,aa_pixelwidth}],
     BiasFlags = [range(bias),{key,bias}],
@@ -1201,21 +1237,47 @@ export_dialog(Operation) ->
 					 hook(enable, antinoise_filter)]},
 		{text,FarBlur,[range(dof_blur),{key,far_blur},
 			       hook(enable, dof_filter)]}]}],
-      [{title,"Filters"}]}
-     |
-     case Operation of 
-	 render ->
-	     [{hframe,[{label,"Options"},
-		       {text,Options,[{key,options}]},
-		       {"Load Image",LoadImage,[{key,load_image}]}],
-	       [{title,"Rendering Job"}]}];
-	 export ->
-	     [];
-	 export_selected ->
-	     []
-     end].
+      [{title,"Filters"}]},
+     {hframe,
+      [{label,"Options"},
+       {text,Options,[{key,options}]},
+       {"Load Image",LoadImage,[{key,load_image}]}],
+      [{title,"Rendering Job"},
+       {hook,
+	fun (is_disabled, {_Var,_I,_Sto}) ->
+		case Operation of
+		    render -> false;
+		    _ -> true
+		end;
+	    (_, _) -> void
+	end}]},
+     {hframe,[{button,"Save",done,[{info,"Save to user preferences"}]},
+	      {button,"Load",done,[{info,"Load from user preferences"}]},
+	      {button,"Reset",done,[{info,"Reset to default values"}]}]}].
 
-
+export_dialog_loop(Operation, Fun, Attr) ->
+    {Prefs,Buttons} = split_list(Attr, 24),
+    case Buttons of
+	[true,false,false] -> % Save
+	    set_user_prefs(Prefs),
+	    {dialog,
+	     export_dialog_qs(Operation, Attr),
+	     export_dialog_fun(Operation, Fun)};
+	[false,true,false] -> % Load
+	    {dialog,
+	     export_dialog_qs(Operation,
+			      get_user_prefs(def_export_prefs())
+			      ++[save,load,reset]),
+	     export_dialog_fun(Operation, Fun)};
+	[false,false,true] -> % Reset
+	    {dialog,
+	     export_dialog_qs(Operation,
+			      def_export_prefs()
+			      ++[save,load,reset]),
+	     export_dialog_fun(Operation, Fun)};
+	[false,false,false] -> % Ok
+	    Fun(Prefs)
+    end.
 
 %% General purpose hook handling is_minimized and is_disabled.
 %% Does lookup in Store for combinations of values.
@@ -2411,13 +2473,31 @@ format_decimals_4(F) when is_float(F) ->
 
 %% Set and get preference variables saved in the .wings file for this module
 
-set_pref(Attr) ->
+set_prefs(Attr) ->
+    wpa:scene_pref_set(?MODULE, Attr).
+
+set_user_prefs(Attr) ->
     wpa:pref_set(?MODULE, Attr).
 
 get_pref(Key, Def) ->
-    wpa:pref_get(?MODULE, Key, Def).
+    [{Key,Val}] = get_prefs([{Key,Def}]),
+    Val.
 
+get_prefs(KeyDefs) when is_list(KeyDefs) ->
+    get_prefs_1(KeyDefs, make_ref()).
 
+get_prefs_1([], _Undefined) ->
+    [];
+get_prefs_1([{Key,Def}|KeyDefs], Undefined) ->
+    [{Key,case wpa:scene_pref_get(?MODULE, Key, Undefined) of
+	      Undefined ->
+		  wpa:pref_get(?MODULE, Key, Def);
+	      Val ->
+		  Val
+	  end}|get_prefs_1(KeyDefs, Undefined)].
+
+get_user_prefs(KeyDefs) when is_list(KeyDefs) ->
+    [{Key,wpa:pref_get(?MODULE, Key, Def)} || {Key,Def} <- KeyDefs].
 
 %% Set and get global variables (in the process dictionary) 
 %% per wings session for this module.

@@ -8,14 +8,17 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.122 2004/06/17 09:57:58 raimo_niskanen Exp $
+%%     $Id: wings_pref.erl,v 1.123 2004/06/23 11:25:34 raimo_niskanen Exp $
 %%
 
 -module(wings_pref).
 -export([init/0,finish/0,
 	 menu/1,command/2,
 	 get_value/1,get_value/2,set_value/2,set_default/2,
-	 delete_value/1]).
+	 delete_value/1,
+	 get_scene_value/0,get_scene_value/1,get_scene_value/2,
+	 set_scene_value/2,set_scene_default/2,
+	 delete_scene_value/0,delete_scene_value/1]).
 
 -define(NEED_ESDL, 1).    %% Some keybindings
 -include("wings.hrl").
@@ -28,6 +31,7 @@
 init() ->
     ets:new(wings_state, [named_table,public,ordered_set]),
     ets:new(wings_delayed_update, [named_table,public,ordered_set]),
+    ets:new(wings_scene_prefs, [named_table,public,ordered_set]),
     ets:insert(wings_state, defaults()),
     wings_hotkey:set_default(),
     case old_pref_file() of
@@ -634,6 +638,44 @@ set_default(Key, Value) ->
 delete_value(Key) ->
     ets:delete(wings_state, Key),
     ok.
+
+
+%%% Scene prefs
+
+get_scene_value() ->
+    ets:tab2list(wings_scene_prefs).
+
+get_scene_value(Key) ->
+    get_value(Key, undefined).
+
+get_scene_value(Key, Default) ->
+    case ets:lookup(wings_scene_prefs, Key) of
+	[] -> Default;
+	[{Key,Val}] -> Val
+    end.
+
+set_scene_value(Key, Value) ->
+    true = ets:insert(wings_scene_prefs, {Key,Value}),
+    ok.
+
+set_scene_default(Key, Value) ->
+    case ets:member(wings_scene_prefs, Key) of
+	true -> ok;
+	false ->
+	    ets:insert(wings_scene_prefs, {Key,Value}),
+	    ok
+    end.
+
+delete_scene_value() ->
+    true = ets:delete_all_objects(wings_scene_prefs),
+    ok.
+
+delete_scene_value(Key) ->
+    true = ets:delete(wings_scene_prefs, Key),
+    ok.
+
+%%% End of scene prefs
+
 
 defaults() ->
     [{background_color,{0.8,0.8,0.8}},

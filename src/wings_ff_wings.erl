@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.55 2004/06/17 04:34:56 bjorng Exp $
+%%     $Id: wings_ff_wings.erl,v 1.56 2004/06/23 11:25:34 raimo_niskanen Exp $
 %%
 
 -module(wings_ff_wings).
@@ -189,8 +189,14 @@ import_props([{views,Views}|Ps], St0) ->
     import_props(Ps, St);
 import_props([{current_view,CurrentView}|Ps], #st{views={_,Views}}=St) ->
     import_props(Ps, St#st{views={CurrentView,Views}});
-import_props([{palette, Palette}|Ps], St) ->
+import_props([{palette,Palette}|Ps], St) ->
     import_props(Ps, St#st{pal=Palette});
+import_props([{scene_prefs,ScenePrefs}|Ps], St) ->
+    lists:foreach(fun({Key,Val}) ->
+			  wings_pref:set_scene_value(Key, Val)
+		  end,
+		  ScenePrefs),
+    import_props(Ps, St);
 import_props([_|Ps], St) ->
     import_props(Ps, St);
 import_props([], St) -> St.
@@ -431,10 +437,11 @@ export(Name, St0) ->
 		 [] -> Props2;
 		 Views -> [{current_view,CurrentView},{views,Views}|Props2]
 	     end,
-    Props  = case wings_palette:palette(St) of
+    Props4 = case wings_palette:palette(St) of
 		 [] -> Props3;
 		 Palette -> [{palette, Palette}|Props3]
 	     end,
+    Props  = [{scene_prefs,wings_pref:get_scene_value()}|Props4],
     Wings = {wings,2,{Shs,Materials,Props}},
     wings_pb:update(0.99, "compressing"),
     Bin = term_to_binary(Wings, [compressed]),
