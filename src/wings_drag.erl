@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.87 2002/05/17 07:41:48 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.88 2002/05/18 07:09:32 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -162,10 +162,14 @@ mirror_constrain_2([{Vec0,V}|T], VsSet, {N,_}=Plane, Acc) ->
 	false ->
 	    mirror_constrain_2(T, VsSet, Plane, [{Vec0,[V]}|Acc]);
 	true ->
-	    Vec = wings_util:project_vector(Vec0, N),
+	    Vec = project_vector(Vec0, N),
 	    mirror_constrain_2(T, VsSet, Plane, [{Vec,[V]}|Acc])
     end;
 mirror_constrain_2([], _, _, Acc) -> Acc.
+
+project_vector(Vec, Plane) ->
+    e3d_vec:sub(Vec, e3d_vec:mul(Plane, e3d_vec:dot(Vec, Plane))).
+
 
 constrain_fun(Tr0, Plane, Vs) ->
     fun(Cmd, Arg) ->
