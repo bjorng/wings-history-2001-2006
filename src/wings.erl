@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.331 2004/12/29 09:58:21 bjorng Exp $
+%%     $Id: wings.erl,v 1.332 2005/01/02 11:13:28 bjorng Exp $
 %%
 
 -module(wings).
@@ -242,7 +242,6 @@ ask(Ask, St, Cb) ->
     wings_vec:do_ask(Ask, St, Cb).
 
 main_loop(St) ->
-    ?VALIDATE_MODEL(St),
     clear_mode_restriction(),
     wings_draw:refresh_dlists(St),
     wings_wm:current_state(St),

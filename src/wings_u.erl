@@ -3,19 +3,19 @@
 %%
 %%     Various utility functions that not obviously fit somewhere else.
 %%
-%%  Copyright (c) 2001-2004 Bjorn Gustavsson
+%%  Copyright (c) 2001-2005 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_u.erl,v 1.1 2004/12/18 19:36:22 bjorng Exp $
+%%     $Id: wings_u.erl,v 1.2 2005/01/02 11:13:29 bjorng Exp $
 %%
 
 -module(wings_u).
 -export([error/1,error/2,message/1,get_matrices/2,
 	 geom_windows/0,menu_restriction/2,
 	 yes_no/2,yes_no/3,yes_no_cancel/3,
-	 export_we/2,win_crash/1,crash_log/2,check_error/2,
+	 export_we/2,win_crash/1,crash_log/2,
 	 caption/1]).
 
 -define(NEED_OPENGL, 1).
@@ -116,20 +116,6 @@ crash_log(WinName, Reason) ->
     analyse(F, StackTrace),
     file:close(F),
     LogName.
-
--ifdef(DEBUG).
-check_error(Mod, Line) ->
-    case wings_gl:gl_error_string(gl:getError()) of
-	no_error ->
-	    ok;
-	Str ->
-	    io:format("~p, line ~p: ~s\n", [Mod,Line,Str]),
-	    erlang:fault(gl_error, [Mod,Line])
-    end.
--else.
-check_error(_Mod, _Line) ->
-    ok.
--endif.
 
 caption(#st{file=undefined}=St) ->
     Caption = wings_util:wings(),

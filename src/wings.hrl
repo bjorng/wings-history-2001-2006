@@ -3,12 +3,12 @@
 %%
 %%     Global record definition and defines.
 %%
-%%  Copyright (c) 2001-2003 Bjorn Gustavsson
+%%  Copyright (c) 2001-2005 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.108 2004/12/21 06:48:12 bjorng Exp $
+%%     $Id: wings.hrl,v 1.109 2005/01/02 11:13:29 bjorng Exp $
 %%
 
 -compile({parse_transform,wings_lang}).
@@ -60,13 +60,11 @@
 -define(ASSERT(E), case E of
 		       true -> ok;
 		       _ ->
-			   erlang:fault({assertion_failed,?MODULE,?LINE})
+			   erlang:error({assertion_failed,?MODULE,?LINE})
 		   end).
--define(VALIDATE_MODEL(St), wings_util:validate(?MODULE, ?LINE, St)).
--define(CHECK_ERROR(), wings_util:check_error(?MODULE, ?LINE)).
+-define(CHECK_ERROR(), wings_gl:check_error(?MODULE, ?LINE)).
 -else.
 -define(ASSERT(E),ok).
--define(VALIDATE_MODEL(St),ok).
 -define(CHECK_ERROR(), ok).
 -endif.
 

@@ -3,18 +3,21 @@
 %%
 %%     A few OpenGL utilities.
 %%
-%%  Copyright (c) 2001-2004 Bjorn Gustavsson
+%%  Copyright (c) 2001-2005 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_gl.erl,v 1.1 2004/12/16 15:42:04 bjorng Exp $
+%%     $Id: wings_gl.erl,v 1.2 2005/01/02 11:13:29 bjorng Exp $
 %%
 
 -module(wings_gl).
 -export([init_extensions/0,is_ext/1,is_ext/2,
 	 init_restrictions/0,is_restriction/1,
 	 error_string/1]).
+
+%% Debugging.
+-export([check_error/2]).
 
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
@@ -100,3 +103,20 @@ error_string(?GL_STACK_UNDERFLOW) -> "GL_STACK_UNDERFLOW";
 error_string(?GL_OUT_OF_MEMORY) -> "GL_OUT_OF_MEMORY";
 error_string(Error) -> "Error: "++integer_to_list(Error).
 
+%%%
+%%% Error checking in debug builds.
+%%%
+
+-ifdef(DEBUG).
+check_error(Mod, Line) ->
+    case error_string(gl:getError()) of
+	no_error ->
+	    ok;
+	Str ->
+	    io:format("~p, line ~p: ~s\n", [Mod,Line,Str]),
+	    erlang:error(gl_error, [Mod,Line])
+    end.
+-else.
+check_error(_Mod, _Line) ->
+    ok.
+-endif.
