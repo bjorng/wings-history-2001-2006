@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_it.lang,v 1.17 2004/10/29 18:32:18 bjorng Exp $
+%%     $Id: wings_it.lang,v 1.18 2004/10/30 08:02:35 bjorng Exp $
 %%
 
 {wings,
@@ -607,9 +607,9 @@
     {4,"si puo' attivare \"Comandi predefiniti\"."},
     {5,"Due comandi predefiniti possono essere definiti. Per salvare il comando precedente eseguito basta scegliere una tra le seguenti combinazioni:"},
     {8,"Per usare un comando definito in questo modo, invece basta usare:"},
-    {11,"Nota: quando si usa le modalita'"},
-    {13,"o"},
-    {15,"il secondo comando predefinito non puo' essere usato."},
+    {11,"Nota: quando si usa le modalita' "},
+    {13," o "},
+    {15," il secondo comando predefinito non puo' essere usato."},
     {16,"Assegnare comandi predefiniti"}]},
   {def_hotkeys,
    [{1,"Ad ogni comando che appare in un menu puo' essere assegnata una scorciatoia da tastiera."},

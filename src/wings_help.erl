@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.75 2004/10/16 12:22:04 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.76 2004/10/30 08:02:34 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -163,12 +163,12 @@ def_commands() ->
 	    ?STR(def_commands,8,"To use a command that has been defined this way, use one of:"),
 	    "  " ++ Ctrl ++ wings_s:lmb(),
 	    "  " ++ Ctrl ++ wings_s:mmb(),
-	    ?STR(def_commands,11,"Note: When using the") ++ " " ++
-	    [{ul,wings_s:camera_mode(tds)}] ++ " " ++
-	    ?STR(def_commands,13,"or") ++ " " ++
-	    [{ul,wings_s:camera_mode(blender)}] ++ " " ++
+	    ?STR(def_commands,11,"Note: When using the ") ++
+	    [{ul,wings_s:camera_mode(tds)}] ++
+	    ?STR(def_commands,13," or ") ++
+	    [{ul,wings_s:camera_mode(blender)}] ++
 	    ?STR(def_commands,15,
-		 "camera modes, the second default command cannot be used.")],
+		 " camera modes, the second default command cannot be used.")],
     help_window(?STR(def_commands,16,"Assigning Default Commands"), Help).
 
 performance_tips() ->
