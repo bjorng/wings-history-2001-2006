@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.20 2003/03/06 05:52:31 bjorng Exp $
+%%     $Id: wings_image.erl,v 1.21 2003/03/06 19:20:40 bjorng Exp $
 %%
 
 -module(wings_image).
@@ -343,8 +343,15 @@ event(close, _) -> delete;
 event(_, _) -> keep.
 
 redraw(Id) ->
+    case info(Id) of
+	none ->
+	    wings_wm:later(close),
+	    keep;
+	Im -> redraw_1(Id, Im)
+    end.
+
+redraw_1(Id, #e3d_image{width=Iw,height=Ih}=Im) ->
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
-    #e3d_image{width=Iw,height=Ih} = Im = info(Id),
     Aspect = Iw/Ih,
     {W0,H0} = wings_wm:win_size(),
     wings_io:ortho_setup(),
