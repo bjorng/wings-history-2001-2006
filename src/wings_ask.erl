@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.122 2003/11/16 23:59:08 raimo_niskanen Exp $
+%%     $Id: wings_ask.erl,v 1.123 2003/11/17 12:30:19 raimo_niskanen Exp $
 %%
 
 -module(wings_ask).
@@ -179,8 +179,11 @@ setup_ask(Qs, Fun) ->
     next_focus(1, S).
 
 
-setup_blanket(Dialog, #s{store=Sto}) ->
-    EyePicker = gb_trees:is_defined({eyepicker}, Sto),
+setup_blanket(Dialog, #s{fi=Fi,store=Sto}) ->
+    EyePicker = case get_eyepicker(Fi, Sto) of
+		    [#fi{}|_] -> true;
+		    [] -> false
+		end,
 
     %% The menu blanket window lies below the dialog, covering the entire
     %% screen and ignoring most events. Keyboard events will be forwarded
@@ -251,8 +254,8 @@ event({drop,{X,Y},DropData}, S) ->
     drop_event(X, Y, DropData, S);
 event({action,Action}, S) ->
     field_event(Action, S);
-event({picked_color,Col}, #s{store=Sto0}=S) ->
-    [#fi{key=K,index=I,hook=Hook}|_] = get_eyepicker(S),
+event({picked_color,Col}, #s{fi=Fi,store=Sto0}=S) ->
+    [#fi{key=K,index=I,hook=Hook}|_] = get_eyepicker(Fi, Sto0),
     case Hook(update, {var(K, I),I,Col,Sto0}) of
 	void -> keep;
 	keep -> keep;
@@ -289,7 +292,10 @@ field_type(I, Store) ->
     end.
 
 escape_pressed(S0=#s{fi=TopFi,store=Sto}) -> 
-    case get_cancel(TopFi, Sto) of
+    case find_field(fun([#fi{index=Index,flags=Flags}|_]) ->
+			    (field_type(Index, Sto) =:= but)
+				andalso member(cancel, Flags)
+		    end, TopFi) of
 	[] -> keep;
 	Path -> 
 	    S = set_focus(Path, S0, false),
@@ -512,53 +518,29 @@ binsearch(Cmp, Tuple, L, U) when L =< U ->
 %%% Dialog tree functions
 %%%
 
-%% Find cancel button field.
-%% Return path to root.
-
-get_cancel(Fi, Sto) -> get_cancel(Fi, Sto, []).
-
-get_cancel(Fi=#fi{extra=#container{fields=Fields}}, Sto, Path) ->
-    get_cancel(size(Fields), Fields, Sto, [Fi|Path]);
-get_cancel(Fi=#fi{index=Index,flags=Flags}, Sto, Path) ->
-    case field_type(Index, Sto) of
-	but ->
-	    case member(cancel, Flags) of
-		false -> [];
-		true -> [Fi|Path]
-	    end;
-	_ -> []
-    end.
-
-get_cancel(I, Fields, Sto, Path) when I >= 1 ->
-    case get_cancel(element(I, Fields), Sto, Path) of
-	[] -> get_cancel(I-1, Fields, Sto);
-	P -> P
-    end;
-get_cancel(_I, _Fields, _Sto, _Path) ->
-    [].
-
-get_eyepicker(#s{fi=Fi,store=Store}) ->
-    find_field(fun(#fi{index=Index}, Sto) ->
-		       field_type(Index, Sto) == eyepicker
-	       end, Fi, Store).
+get_eyepicker(Fi, Sto) ->
+    find_field(fun([#fi{index=Index}|_]) ->
+		       field_type(Index, Sto) =:= eyepicker
+	       end, Fi).
 
 %% Search field to find fields with some specific attribute.
-find_field(Fun, Fi, Sto) -> find_field_1(Fi, Fun, Sto, []).
+find_field(Fun, Fi) -> find_field_1(Fun, Fi, []).
 
-find_field_1(Fi=#fi{extra=#container{fields=Fields}}, Fun, Sto, Path) ->
-    find_field_2(size(Fields), Fields, Fun, Sto, [Fi|Path]);
-find_field_1(Fi, Fun, Sto, Path) ->
-    case Fun(Fi, Sto) of
+find_field_1(Fun, Fi=#fi{extra=#container{fields=Fields}}, Path) ->
+    find_field_2(Fun, Fields, [Fi|Path], size(Fields));
+find_field_1(Fun, Fi, Path0) ->
+    Path = [Fi|Path0],
+    case Fun(Path) of
 	false -> [];
-	true -> [Fi|Path]
+	true -> Path
     end.
 
-find_field_2(I, Fields, Fun, Sto, Path) when I >= 1 ->
-    case find_field_1(element(I, Fields), Fun, Sto, Path) of
-	[] -> find_field_2(I-1, Fields, Fun, Sto, Path);
+find_field_2(Fun, Fields, Path, I) when I >= 1 ->
+    case find_field_1(Fun, element(I, Fields), Path) of
+	[] -> find_field_2(Fun, Fields, Path, I-1);
 	P -> P
     end;
-find_field_2(_I, _Fields, _Fun, _Sto, _Path) -> [].
+find_field_2(_Fun, _Fields, _Path, _I) -> [].
 
 %% Collect results from all fields.
 %% Return list of result values.
@@ -721,8 +703,7 @@ mktree({hframe,Qs,Flags}, Sto, I) ->
     mktree_container(Qs, Sto, I, Flags, hframe);
 mktree(panel, Sto, I) ->
     mktree_fi(panel(), Sto, I, []);
-mktree({eyepicker,Hook}, Sto0, I) ->
-    Sto = gb_trees:insert({eyepicker}, true, Sto0),
+mktree({eyepicker,Hook}, Sto, I) ->
     mktree_fi(eyepicker(), Sto, I, [{hook,Hook}]);
 mktree({label,Label}, Sto, I) ->
     mktree_fi(label(Label, []), Sto, I, []);
@@ -1802,14 +1783,18 @@ custom_event(_Ev, _Path, _Store) -> keep.
 %%% Panel
 %%%
 
-panel() -> {fun (_Ev, _Path, _Store) -> keep end, true, panel, 0, 0}.
+-record(panel, {}).
+
+panel() -> {fun (_Ev, _Path, _Store) -> keep end, true, #panel{}, 0, 0}.
 
 %%%
 %%% Eyepicker.
 %%%
 
+-record(eyepicker, {}).
+
 eyepicker() ->
-    {fun (_Ev, _Path, _Store) -> keep end, true, {eyepicker}, 0, 0}.
+    {fun (_Ev, _Path, _Store) -> keep end, true, #eyepicker{}, 0, 0}.
 
 %%%
 %%% Label.
@@ -2082,10 +2067,11 @@ draw_text_active(#fi{x=X0,y=Y0},
     Y = Y0 + ?CHAR_HEIGHT,
     X = X0 + (?CHAR_WIDTH div 2),
     Len = length(Bef),
-    Str = case Password of
+    Str0 = case Password of
 	      true -> stars(Len+length(Aft));
 	      false -> reverse(Bef, Aft)
 	  end,
+    Str = string:substr(Str0, 1, Max),
     ?DEBUG_DISPLAY([Sel,Bef,Aft]),
     gl:color3fv(color3_text()),
     wings_io:text_at(X, Y, Str),
