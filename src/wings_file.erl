@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.103 2003/02/15 09:16:50 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.104 2003/02/22 11:11:52 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -699,7 +699,10 @@ make_mesh(We0, SubDivs) ->
     Fs0 = foldl(fun({_,#face{mat='_hole_'}}, A) ->
 			A;
 		   ({Face,#face{mat=Mat}}, A) ->
-			[make_face(Face, Mat, ColTab1, UvTab1, We)|A]
+			case make_face(Face, Mat, ColTab1, UvTab1, We) of
+			    #e3d_face{vs=[_,_]} -> A;
+			    E3DFace -> [E3DFace|A]
+			end
 		end, [], gb_trees:to_list(Ftab)),
     Fs = reverse(Fs0),
     He = hard_edges(gb_sets:to_list(He0), Etab, []),
