@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.57 2002/07/26 18:17:32 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.58 2002/08/01 10:13:00 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -671,8 +671,9 @@ read_events(Eq0) ->
 	{_,Evs} -> read_events(enter_events(Evs, Eq0))
     end.
 
-enter_events(Evs, Eq0) ->
-    foldl(fun(E, Q) -> queue:in(E, Q) end, Eq0, Evs).
+enter_events([E|Evs], Eq) ->
+    enter_events(Evs, queue:in(E, Eq));
+enter_events([], Eq) -> Eq.
 
 read_out(Eq0) ->
     case queue:out(Eq0) of
@@ -686,7 +687,7 @@ read_out(Eq0) ->
 	    receive
 		{timeout,Ref,{event,Event}} when is_reference(Ref) ->
 		    {Event,Eq0}
-	    after 3 ->
+	    after 50 ->
 		    read_events(Eq)
 	    end
     end.
