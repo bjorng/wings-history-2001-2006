@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.5 2002/01/20 11:12:23 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.6 2002/01/22 09:56:40 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -25,6 +25,7 @@ menu(X, Y, St) ->
 	    {"Less","-",less},
 	    {"Region","L",select_region},
 	    {"Edge Loop","l",edge_loop},
+	    {"Edge Ring","R",edge_ring},
 	    {"Previous Edge Loop","F3",prev_edge_loop},
 	    {"Next Edge Loop","F4",next_edge_loop},
 	    {"Similar","i",similar},
@@ -79,16 +80,18 @@ command(edge_loop, #st{selmode=face}=St) ->
        fun(Faces, We) ->
 	       gb_sets:from_list(wings_face:outer_edges(Faces, We))
        end, edge, St)};
-command(next_edge_loop, St) ->
-    {save_state,wings_edge_loop:select_next(St)};
-command(deselect, St) ->
-    {save_state,St#st{sel=[]}};
 command(edge_loop, St) ->
     {save_state,wings_edge_loop:select_loop(St)};
+command(edge_ring, St) ->
+    {save_state,wings_edge:select_edge_ring(St)};
+command(next_edge_loop, St) ->
+    {save_state,wings_edge_loop:select_next(St)};
 command(prev_edge_loop, St) ->
     {save_state,wings_edge_loop:select_prev(St)};
 command(select_region, St) ->
     {save_state,wings_edge:select_region(St)};
+command(deselect, St) ->
+    {save_state,St#st{sel=[]}};
 command(more, St) ->
     select_more(St);
 command(less, St) ->

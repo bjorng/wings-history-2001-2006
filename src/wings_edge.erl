@@ -3,18 +3,18 @@
 %%
 %%     This module contains most edge command and edge utility functions.
 %%
-%%  Copyright (c) 2001 Bjorn Gustavsson
+%%  Copyright (c) 2001-2002 Bjorn Gustavsson.
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.31 2002/01/12 10:32:39 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.32 2002/01/22 09:56:40 bjorng Exp $
 %%
 
 -module(wings_edge).
 
 %% Commands.
--export([select_region/1,
+-export([select_region/1,select_edge_ring/1,
 	 cut/2,cut/3,fast_cut/3,fast_cut/4,connect/1,
 	 dissolve/1,dissolve_edges/2,dissolve_edge/2,
 	 hardness/2,hardness/3,loop_cut/1]).
@@ -602,7 +602,49 @@ collect_maybe_add(Work, Face, Edges, We, Res) ->
 		      end
 	      end
       end, Work, Face, We).
-    
+
+%%%
+%%% Edge Ring. (Based on Anders Conradi's plug-in.)
+%%%
+
+select_edge_ring(#st{selmode=edge}=St) ->
+    Sel = wings_sel:fold(fun build_selection/3, [], St),
+    St#st{sel=Sel};
+select_edge_ring(St) -> St.
+
+build_selection(Edges, #we{id=Id} = We, ObjAcc) ->
+    [{Id,foldl(fun(Edge, EdgeAcc) -> 
+		       grow_from_edge(Edge, We, EdgeAcc) 
+	       end, gb_sets:empty(), gb_sets:to_list(Edges))}|ObjAcc].
+
+grow_from_edge(unknown, We, Selected) -> Selected;
+grow_from_edge(Edge, We, Selected0) ->
+    Selected = gb_sets:add(Edge, Selected0),
+    case gb_sets:is_member(Edge, Selected0) of
+        true -> Selected;
+        false ->
+	    LeftSet = grow_from_edge(opposing_edge(Edge, We, left), We, Selected),
+	    grow_from_edge(opposing_edge(Edge, We, right), We, LeftSet)
+    end.
+
+opposing_edge(Edge, #we{es=Es}=We, Side) ->
+    #edge{lf=Left,rf=Right} = EdgeStruct = gb_trees:get(Edge, Es),
+    Face = case Side of
+               left -> Left;
+               right -> Right
+           end,
+    %% Get opposing edge or fail.
+    case wings_face:vertices(Face, We) of
+        4 -> next_edge(next_edge(Edge, Face, We), Face, We);
+        _ -> unknown
+    end.
+
+next_edge(Edge, Face, #we{es = Es} = We)->
+    case gb_trees:get(Edge, Es) of
+        #edge{lf=Face,ltsu=NextEdge} -> NextEdge;
+        #edge{rf = Face, rtsu=NextEdge} -> NextEdge
+    end.
+
 %%%
 %%% Utilities.
 %%%
