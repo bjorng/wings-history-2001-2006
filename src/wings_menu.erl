@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.62 2002/11/16 08:06:42 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.63 2002/11/23 20:34:32 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -40,7 +40,8 @@
 	 adv,					%Advanced menus (true|false).
 	 ignore_rel=true,			%Ignore button release if
 						% just openened.
-	 type=plain				%Type of menu: plain|popup
+	 type=plain,				%Type of menu: plain|popup
+	 owner					%Owning window.
 	}).
 
 %%%
@@ -62,12 +63,15 @@ is_popup_event(#mousebutton{button=3,x=X,y=Y,state=State}) ->
 is_popup_event(_Event) -> no.
 
 menu(X, Y, Name, Menu) ->
-    menu_setup(plain, X, Y, Name, Menu, #mi{adv=false}).
+    Active = wings_wm:active_window(),
+    menu_setup(plain, X, Y, Name, Menu, #mi{adv=false,owner=Active}).
 
 popup_menu(X, Y, Name, Menu) ->
+    Active = wings_wm:active_window(),
     Adv = wings_pref:get_value(advanced_menus),
     IgnoreRel = (Adv == false),
-    menu_setup(popup, X, Y, Name, Menu, #mi{adv=Adv,ignore_rel=IgnoreRel}).
+    menu_setup(popup, X, Y, Name, Menu,
+	       #mi{adv=Adv,ignore_rel=IgnoreRel,owner=Active}).
 
 menu_setup(Type, X0, Y0, Name, Menu0, #mi{ns=Names0,adv=Adv}=Mi0) ->
     Names = [Name|Names0],
@@ -97,7 +101,7 @@ menu_setup(Type, X0, Y0, Name, Menu0, #mi{ns=Names0,adv=Adv}=Mi0) ->
     wings_wm:new(WinName, {X,Y,Level}, {W,Mh+10}, Op),
     if
 	Level == ?INITIAL_LEVEL ->
-	    wings_wm:set_active(WinName);
+	    wings_wm:grab_focus(WinName);
 	true -> ok
     end,
     keep.
@@ -277,9 +281,9 @@ call_action(X, Act, Button, Ns, Ps, Mi) ->
 	    do_action(Cmd, Mi)
     end.
 
-do_action(Action, Mi) ->
+do_action(Action, #mi{owner=Owner}=Mi) ->
     wings_io:clear_menu_sel(),
-    wings_io:putback_event({action,Action}),
+    wings_wm:send(Owner, {action,Action}),
     delete_all(Mi).
 	    
 handle_key(#keysym{sym=27}, Mi) ->		%Escape.
@@ -339,13 +343,14 @@ set_hotkey(Val, #mi{sel=Sel,menu=Menu0}=Mi) ->
 	_Other -> Mi
     end.
 
-popup_submenu(Button, X0, Y0, SubName, SubMenu0, Mi) ->
+popup_submenu(Button, X0, Y0, SubName, SubMenu0, #mi{owner=Owner}=Mi) ->
     %% Only in advanced menu mode.
     case expand_submenu(Button, SubName, SubMenu0, Mi) of
 	ignore -> keep;
 	Action when is_tuple(Action); is_atom(Action) ->
 	    wings_io:clear_menu_sel(),
-	    wings_io:putback_event({action,Action}),
+	    wings_wm:send(Owner, {action,Action}),
+	    %%wings_io:putback_event({action,Action}),
 	    delete_all(Mi);
 	SubMenu when is_list(SubMenu) ->
 	    {X,Y} = wings_wm:local2global(X0, Y0),
@@ -403,10 +408,10 @@ same_menu(Name, #mi{ns=Names}) -> lists:last(Names) =:= Name.
 motion_outside_1(X, Y, #mi{level=Lev}) ->
     case wings_wm:window_under(X, Y) of
 	{menu,L} when L < Lev ->
-	    wings_wm:set_active({menu,L}),
+	    wings_wm:grab_focus({menu,L}),
 	    delete;
 	{menu,L} when L > Lev ->
-	    wings_wm:set_active({menu,L}),
+	    wings_wm:grab_focus({menu,L}),
 	    none;
 	_ -> none
     end.
@@ -569,8 +574,7 @@ item_colors(Y, Ps, Sel, #mi{sel=Sel,sel_side=Side,w=W}) ->
 item_colors(_, _, _, _) -> gl:color3f(0, 0, 0). %Black text
 
 help_text(#mi{sel=none}) ->
-    %% We don't want info display as wings_io:clear_message() would give.
-    wings_io:message("");
+    wings_wm:message("");
 help_text(#mi{menu=Menu,sel=Sel}=Mi) ->
     Elem = element(Sel, Menu),
     case is_magnet_active(Elem, Mi) of
@@ -589,16 +593,16 @@ is_magnet_active({_,_,_,_,Ps}, Mi) ->
 plain_help({Text,{_,_},_,_,_}, #mi{adv=false}) ->
     %% No specific help text for submenus in basic mode.
     Help = [Text|" submenu"],
-    wings_io:message(Help);
+    wings_wm:message(Help);
 plain_help({_,{Name,Fun},_,_,_}, #mi{ns=Ns,adv=Adv}) when is_function(Fun) ->
     %% "Submenu" in advanced mode.
     Help0 = Fun(help, [Name|Ns]),
     Help = help_text_1(Help0, Adv),
-    wings_io:message(Help);
+    wings_wm:message(Help);
 plain_help({_,_,_,Help0,_}, #mi{adv=Adv}) ->
     %% Plain entry - not submenu.
     Help = help_text_1(Help0, Adv),
-    wings_io:message(Help);
+    wings_wm:message(Help);
 plain_help(separator, _) -> ok.
 
 help_text_1([_|_]=S, false) -> S;
@@ -673,8 +677,7 @@ draw_separator(X, Y, Mw) ->
     ?CHECK_ERROR().
 
 move_if_outside(X, Y, Mw, Mh, Mi) ->
-    {W,H0} = wings_wm:top_size(),
-    H = H0 - 40,
+    {W,H} = wings_wm:top_size(),
     if
 	X+Mw > W ->
 	    NewX = left_of_parent(Mw, W, Mi),
@@ -707,7 +710,7 @@ have_magnet(Ps) ->
 
 get_hotkey(Cmd, Mi) ->
     wings_wm:dirty(),
-    wings_io:message("Press key to bind command to."),
+    wings_wm:message("Press key to bind command to."),
     {seq,{push,dummy},
      {replace,fun(Ev) ->
 		      handle_key_event(Ev, Cmd, Mi)

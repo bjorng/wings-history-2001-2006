@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.54 2002/11/23 08:48:49 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.55 2002/11/23 20:34:30 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -106,8 +106,7 @@ get_seg_event(Ss) ->
     {replace,fun(Ev) -> seg_event(Ev, Ss) end}.
 
 seg_event(redraw, #seg{st=St,msg=Msg}) ->
-    wings_io:message(Msg),
-    wings_io:message_right("Segmenting"),
+    wings_wm:message(Msg, "Segmenting"),
     wings:redraw(St),
     keep;
 seg_event(Ev, Ss) ->
@@ -282,8 +281,6 @@ seg_command(Cmd, #seg{st=#st{mat=Mat}=St0}=Ss) ->
 
 seg_cancel() ->
     wings_io:clear_icon_restriction(),
-    wings_io:clear_message(),
-    wings_io:message("Command aborted"),
     wings_wm:dirty(),
     pop.
 
@@ -321,7 +318,6 @@ seg_map_charts_1(Cs, Type, We, Extra, I, N, Acc, Ss) when I =< N ->
     get_seg_event(Ss#seg{msg=Msg});
 seg_map_charts_1(_, _, We, {OrigWe,Vmap}, _, _, MappedCharts, _) ->
     wings_io:clear_icon_restriction(),
-    wings_io:clear_message(),
     Info = {MappedCharts,We,Vmap,OrigWe},
     wings_io:putback_event({action,{body,{?MODULE,show_map,Info}}}),
     pop.
@@ -724,7 +720,7 @@ wings_view(#uvstate{mode=Mode,geom={WingsPort,{X2,Y2,_,_,_,_,_}},st=St}=Uvs) ->
     ModeL = atom_to_list(Mode),
     Text = [ModeL] ++ [" Mode: [R] in texture window to access menu, "
 		       "[L] to select face groups"],
-    wings_io:message(Text),
+    wings_wm:message(Text),
     {_,_,_,Oh} = OldViewport = wings_wm:viewport(),
     set_viewport(WingsPort),
     wings_draw:render(St),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.79 2002/10/13 19:11:42 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.80 2002/11/23 20:34:33 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -272,7 +272,6 @@ auto_rotate_event_1({view,rotate_left=Cmd}, #tim{st=St}=Tim) ->
     set_auto_rotate_timer(Tim);
 auto_rotate_event_1(_Event, #tim{timer=Timer}) ->
     wings_wm:dirty(),
-    wings_io:clear_message(),
     wings_io:cancel_timer(Timer),
     pop.
 
@@ -282,8 +281,7 @@ auto_rotate_redraw(#tim{st=St}) ->
 
 auto_rotate_help() ->
     Help = ["[L] Stop rotating ",wings_camera:help()],
-    wings_io:message_right("[+] Increase speed [-] Decrease speed"),
-    wings_io:message(Help).
+    wings_wm:message(Help, "[+] Increase speed [-] Decrease speed").
 
 set_auto_rotate_timer(#tim{delay=Delay}=Tim) when Delay < 0 ->
     set_auto_rotate_timer(Tim#tim{delay=0});
@@ -325,7 +323,7 @@ smooth_help(#sm{edges=Edges,cage=Cage}) ->
 		false -> "Show edges";
 		true -> "Hide edges"
 	    end],
-    wings_io:message(Help).
+    wings_wm:message(Help).
     
 get_smooth_event(Sm) ->
     {replace,fun(Ev) -> smooth_event(Ev, Sm) end}.
@@ -389,7 +387,6 @@ smooth_event_1(_, _) ->
     smooth_exit().
 
 smooth_exit() ->
-    wings_io:clear_message(),
     wings_wm:dirty(),
     pop.
 

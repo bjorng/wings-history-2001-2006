@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.18 2002/08/08 07:58:04 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.19 2002/11/23 20:34:30 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -131,7 +131,7 @@ handle_tweak_event1(#mousemotion{state=?SDL_RELEASED},
     end_drag(T);
 handle_tweak_event1(#mousebutton{button=3,state=?SDL_RELEASED}, T) ->
     exit_tweak(T);
-handle_tweak_event1({resize,_,_}=Ev, T) ->
+handle_tweak_event1(#resize{}=Ev, T) ->
     wings_io:putback_event(Ev),
     exit_tweak(T);
 handle_tweak_event1(quit=Ev, T) ->
@@ -273,14 +273,13 @@ mirror_constrain({Plane,Point}, Pos) ->
 
 help(#tweak{magnet=false}) ->
     Msg = "[L] Drag vertices freely  [R] Exit tweak mode",
-    wings_io:message(Msg ++ "  " ++ wings_camera:help()),
-    wings_io:message_right("[1] Magnet On");
+    wings_wm:message(Msg ++ "  " ++ wings_camera:help(),
+		     "[1] Magnet On");
 help(#tweak{magnet=true,mag_type=Type}) ->
     Msg = "[L] Drag  [R] Exit",
-    wings_io:message(Msg),
     MagMsg = "[1] Magnet Off  [+]/[-] Tweak R  " ++
 	help_1(Type, [{2,dome},{3,straight},{4,spike}]),
-    wings_io:message_right(MagMsg).
+    wings_wm:message(Msg, MagMsg).
 
 help_1(Type, [{Digit,Type}|T]) ->
     "[" ++ [$0+Digit] ++ "] <<" ++

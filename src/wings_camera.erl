@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.52 2002/11/22 09:05:35 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.53 2002/11/23 20:34:31 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -172,8 +172,7 @@ blender_1(#mousebutton{x=X,y=Y}, Mod, Redraw) ->
 	false ->
 	    Camera = #camera{x=X,y=Y,ox=X,oy=Y},
 	    wings_io:grab(),
-	    wings_io:clear_message(),
-	    wings_io:message(help()),
+	    message(help()),
 	    {seq,{push,dummy},get_blender_event(Camera, Redraw)}
     end.
 
@@ -204,7 +203,6 @@ get_blender_event(Camera, Redraw) ->
 nendo(#mousebutton{button=2,x=X,y=Y,state=?SDL_RELEASED}, Redraw) ->
     Camera = #camera{x=X,y=Y,ox=X,oy=Y},
     wings_io:grab(),
-    wings_io:clear_message(),
     nendo_message(true),
     {seq,{push,dummy},get_nendo_event(Camera, Redraw, true)};
 nendo(#keyboard{keysym=#keysym{sym=Sym}}, _Redraw) ->
@@ -272,12 +270,12 @@ nendo_message(true) ->
     Mbutton = nendo_mbutton(),
     Help = ["[L] Accept  Move mouse to tumble  "
 	    "Drag ",Mbutton," to dolly  [Q] Move move to track"],
-    wings_io:message(Help);
+    message(Help);
 nendo_message(false) ->
     Mbutton = nendo_mbutton(),
     Help = ["[L] Accept  Move mouse to track  "
 	    "Drag ",Mbutton," Dolly  [Q] Move mouse to rotate"],
-    wings_io:message(Help).
+    message(Help).
 
 nendo_mbutton() ->
     case wings_pref:get_value(num_buttons) of
@@ -293,7 +291,6 @@ nendo_mbutton() ->
 mirai(#mousebutton{button=2,x=X,y=Y,state=?SDL_RELEASED}, Redraw) ->
     Camera = #camera{x=X,y=Y,ox=X,oy=Y},
     wings_io:grab(),
-    wings_io:clear_message(),
     mirai_message(true),
     View = wings_view:current(),
     {seq,{push,dummy},get_mirai_event(Camera, Redraw, true, View)};
@@ -364,11 +361,11 @@ get_mirai_event(Camera, Redraw, MouseRotates, View) ->
 mirai_message(true) ->
     Help = ["[L] Accept  [R] Cancel/restore view  Move mouse to tumble  "
 	    "Drag [M] to dolly  [Q] Move mouse to track"],
-    wings_io:message(Help);
+    message(Help);
 mirai_message(false) ->
     Help = ["[L] Accept  [R] Cancel/restore view  Move mouse to track  "
 	    "Drag [M] Dolly  [Q] Move mouse to rotate"],
-    wings_io:message(Help).
+    message(Help).
 
 %%%
 %%% 3ds max style camera.
@@ -377,8 +374,7 @@ mirai_message(false) ->
 tds(#mousebutton{button=2,x=X,y=Y,state=?SDL_PRESSED}, Redraw) ->
     Camera = #camera{x=X,y=Y,ox=X,oy=Y},
     wings_io:grab(),
-    wings_io:clear_message(),
-    wings_io:message(["[R] Restore view  "|help()]),
+    message(["[R] Restore view  "|help()]),
     View = wings_view:current(),
     {seq,{push,dummy},get_tds_event(Camera, Redraw, View)};
 tds(_, _) -> next.
@@ -418,8 +414,7 @@ maya(#mousebutton{x=X,y=Y,state=?SDL_PRESSED}, Redraw) ->
 	    sdl_events:eventState(?SDL_KEYUP, ?SDL_ENABLE),
 	    Camera = #camera{x=X,y=Y,ox=X,oy=Y},
 	    wings_io:grab(),
-	    wings_io:clear_message(),
-	    wings_io:message(help()),
+	    message(help()),
 	    {seq,{push,dummy},get_maya_event(Camera, Redraw)};
 	_Mod -> next
     end;
@@ -506,7 +501,6 @@ pan(Dx0, Dy0) ->
     wings_view:set_current(View#view{pan_x=PanX,pan_y=PanY}).
     
 stop_camera(#camera{ox=OX,oy=OY}) ->
-    wings_io:clear_message(),
     case wings_io:ungrab() of
 	still_grabbed ->
 	    sdl_mouse:warpMouse(OX, OY),
@@ -536,3 +530,7 @@ camera_mouse_range(X0, Y0, #camera{x=OX,y=OY, xt=Xt0, yt=Yt0}=Camera) ->
 	    wings_io:warp(OX, OY),
 	    {XD/?CAMDIV, YD/?CAMDIV, Camera#camera{xt=XD0, yt=YD0}}
     end.
+
+message(Message) ->
+    wings_wm:message(Message),
+    wings_wm:message_right([]).

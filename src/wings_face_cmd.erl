@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.64 2002/11/09 11:13:48 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.65 2002/11/23 20:34:31 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -822,7 +822,7 @@ bridge_color(Edge, Face, Iter) ->
 lift_selection(Dir, OrigSt) ->
     {[edge,vertex],
      fun(St) ->
-	     wings_io:message("Select edge or vertex to work as hinge."),
+	     wings_wm:message_right("Select edge or vertex to work as hinge"),
 	     St#st{selmode=edge,sel=[]}
      end,
      fun(St) -> lift_check_selection(St, OrigSt) end,
@@ -831,8 +831,7 @@ lift_selection(Dir, OrigSt) ->
 		 {_,[]} ->
 		     Lift = fun(_, _) -> {face,{lift,{Dir,Mode,Sel}}} end,
 		     {"Lift",Lift};
-		 {_,Message} ->
-		     wings_io:message(Message),
+		 {_,_} ->
 		     invalid_selection
 	     end
      end}.
@@ -1081,7 +1080,7 @@ put_on(_) ->
 put_on_selection(OrigSt) ->
     {[face,edge,vertex],
      fun(St) ->
-	     wings_io:message("Select element to align to."),
+	     wings_wm:message_right("Select element to align to"),
 	     St#st{selmode=face,sel=[]}
      end,
      fun(St) -> put_on_check_selection(St, OrigSt) end,
@@ -1090,8 +1089,7 @@ put_on_selection(OrigSt) ->
 		 {_,[]} ->
 		     PutOn = fun(_, _) -> {face,{put_on,{Mode,Sel}}} end,
 		     {"Put On",PutOn};
-		 {_,Message} ->
-		     wings_io:message(Message),
+		 {_,_} ->
 		     invalid_selection
 	     end
      end}.
@@ -1144,7 +1142,7 @@ clone_on(_) ->
 clone_on_selection() ->
     {[face,edge,vertex],
      fun(St) ->
-	     wings_io:message("Select element to align to."),
+	     wings_wm:message_right("Select element to align to"),
 	     St#st{selmode=face,sel=[]}
      end,
      fun(_) -> {none,""} end,

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.17 2002/09/25 16:32:42 bjorng Exp $
+%%     $Id: wings_light.erl,v 1.18 2002/11/23 20:34:32 bjorng Exp $
 %%
 
 -module(wings_light).
@@ -206,7 +206,7 @@ position_fun() ->
 position_sel() ->
     {[face,edge,vertex],
      fun(St) ->
-	     wings_io:message("Select element to set highlight to."),
+	     wings_wm:message_right("Select element to set highlight to"),
 	     St#st{selmode=face,sel=[]}
      end,
      fun position_check_selection/1,
@@ -215,8 +215,7 @@ position_sel() ->
 		 {none,""} ->
 		     F = fun(_, _) -> {light,{position_highlight,{Mode,Sel}}} end,
 		     {"Position Highlight",F};
-		 {_,Message} ->
-		     wings_io:message(Message),
+		 {_,_} ->
 		     invalid_selection
 	     end
      end}.

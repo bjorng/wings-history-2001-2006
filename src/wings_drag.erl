@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.110 2002/11/16 16:33:43 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.111 2002/11/23 20:34:31 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -219,7 +219,6 @@ break_apart_general(D, Tvs) -> {D,Tvs}.
 %%%
 
 do_drag(Drag0) ->
-    help_message(Drag0),
     {Event,Drag} = initial_motion(Drag0),
     {seq,{push,dummy},handle_drag_event_1(Event, Drag)}.
 
@@ -229,8 +228,7 @@ help_message(#drag{unit=Unit}=Drag) ->
 	       false -> [];
 	       true -> ["  Drag ",zmove_help()," Move along Z"]
 	   end,
-    wings_io:message([Msg,Zmsg]),
-    wings_io:message_right(help_message_right(Drag)).
+    wings_wm:message([Msg,Zmsg], help_message_right(Drag)).
 
 help_message_right(#drag{magnet=none,falloff=Falloff}) ->
     Help = "[Tab] Numeric entry  [Shift] and/or [Ctrl] Constrain",
@@ -310,7 +308,7 @@ handle_drag_event_0(#keyboard{keysym=#keysym{unicode=C}}=Ev, Drag0) ->
     case wings_magnet:hotkey(C) of
 	none -> handle_drag_event_1(Ev, Drag0);
 	Type ->
-	    wings_io:message_right(wings_magnet:drag_help(Type)),
+	    wings_wm:message_right(wings_magnet:drag_help(Type)),
 	    Val = {Type,Drag0#drag.falloff},
 	    Drag = parameter_update(new_type, Val, Drag0#drag{magnet=Type}),
 	    get_drag_event(Drag)
@@ -318,6 +316,7 @@ handle_drag_event_0(#keyboard{keysym=#keysym{unicode=C}}=Ev, Drag0) ->
 handle_drag_event_0(Ev, Drag) -> handle_drag_event_1(Ev, Drag).
 
 handle_drag_event_1(redraw, Drag) ->
+    help_message(Drag),
     redraw(Drag),
     get_drag_event_1(Drag);
 handle_drag_event_1(#mousemotion{}=Ev, Drag0) ->
@@ -342,7 +341,6 @@ handle_drag_event_1({drag_arguments,Move}, Drag0) ->
 handle_drag_event_1(#mousebutton{button=3,state=?SDL_RELEASED}, _Drag) ->
     wings_draw_util:map(fun invalidate_fun/2, []),
     wings_io:ungrab(),
-    wings_io:clear_message(),
     wings_wm:dirty(),
     pop;
 handle_drag_event_1(view_changed, Drag) ->

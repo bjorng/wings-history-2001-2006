@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.67 2002/11/23 08:48:49 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.68 2002/11/23 20:34:33 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -186,15 +186,14 @@ hilit_draw_sel(body, _, #we{fs=Ftab}=We) ->
 clear_hilite_marquee_mode(#marquee{st=St}=Pick) ->
     Message = "[Ctrl] Deselect  "
 	"[Shift] (De)select only elements wholly inside marquee",
-    wings_io:message(Message),
+    wings_wm:message(Message),
     {seq,{push,dummy},
      fun(redraw) ->
-	     wings_wm:set_active(dummy),
 	     wings:redraw(St),
-	     wings_wm:set_active(geom),
 	     wings_io:putback_event(now_enter_marquee_mode),
 	     keep;
 	(now_enter_marquee_mode) ->
+	     wings_wm:grab_focus(geom),
 	     wings_io:setup_for_drawing(),
 	     get_marquee_event(Pick);
 	(Ev) ->
@@ -239,6 +238,7 @@ marquee_event(#mousebutton{x=X0,y=Y0,button=1,state=?SDL_RELEASED}, M) ->
 	    St = marquee_update_sel(Op, Hits, St0),
 	    wings_io:putback_event({new_state,St})
     end,
+    wings_wm:release_focus(),
     wings_wm:dirty(),
     pop;
 marquee_event(_, _) -> keep.

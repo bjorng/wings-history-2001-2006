@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_plugin.erl,v 1.17 2002/07/28 12:36:47 bjorng Exp $
+%%     $Id: wings_plugin.erl,v 1.18 2002/11/23 20:34:33 bjorng Exp $
 %%
 -module(wings_plugin).
 -export([init/0,menu/2,command/2,call_ui/1]).
@@ -120,7 +120,7 @@ def_ui_plugin() ->
 	    Msg = io_lib:format("Reinstall Wings. "
 				"Missing plugin for ~p.",
 				[Missing]),
-	    wings_io:message(lists:flatten(Msg)),
+	    wings_wm:message(lists:flatten(Msg)),
 	    aborted
     end.
 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_magnet.erl,v 1.39 2002/11/16 08:06:42 bjorng Exp $
+%%     $Id: wings_magnet.erl,v 1.40 2002/11/23 20:34:32 bjorng Exp $
 %%
 
 -module(wings_magnet).
@@ -79,12 +79,12 @@ common_dialog() ->
       [{title,"Distance Route"}]}].
 			  
 menu_help() ->
-    wings_io:message("Magnet: [L] Pick influence radius  "
-		     "[M] Specify radius numerically  "
-		     "[R] Use last radius"),
+    Msg = "Magnet: [L] Pick influence radius  "
+	"[M] Specify radius numerically  "
+	"[R] Use last radius",
     Route0 = wings_pref:get_value(magnet_distance_route),
     Route = wings_util:cap(atom_to_list(Route0)),
-    wings_io:message_right(["Route: "|Route]).
+    wings_wm:message(Msg, ["Route: "|Route]).
     
 drag_help(Type) ->
     "[+] or [-] Tweak R  " ++

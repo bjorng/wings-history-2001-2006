@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.71 2002/11/23 09:05:52 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.72 2002/11/23 20:34:32 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -16,8 +16,7 @@
 	 icon_restriction/1,clear_icon_restriction/0,get_icon_restriction/0,
 	 arrow/0,hourglass/0,
 	 update/1,
-	 event/1,button/2,
-	 info/1,message/1,message_right/1,clear_message/0,
+	 event/1,button/2,info/1,
 	 disable_progress/0,progress/1,progress_tick/0,
 	 clear_menu_sel/0,
 	 border/5,
@@ -58,7 +57,6 @@
 	}).
 
 init() ->
-    put(wm_message, ""),			%XXX Quick hack.
     Icons = read_icons(),
     Arrow = build_cursor(arrow_data()),
     Hourglass = build_cursor(hourglass_data()),
@@ -143,24 +141,6 @@ info(Info) ->
     set_color(wings_pref:get_value(info_color)),
     text_at(4, 2*?LINE_HEIGHT+3, Info).
     
-message(Message) ->
-    case put(wm_message, Message) of
-	Message -> ok;
-	_ -> wings_wm:dirty()
-    end.
-
-message_right(Right0) ->
-    Right = lists:flatten(Right0),
-    case put(wm_message_right, Right) of
-	Right -> ok;
-	_ -> wings_wm:dirty()
-    end.
-
-clear_message() ->
-    put(wm_message, ""),
-    erase(wm_message_right),
-    wings_wm:dirty().
-
 clear_menu_sel() ->
     put_state((get_state())#io{sel=undefined}).
 
@@ -202,7 +182,7 @@ maybe_show_mem_used(H) ->
 		   "  Dlist: ",integer_to_list(Dl),
 		   "  Binaries: ",integer_to_list(length(B))],
 	    ortho_setup(),
-	    text_at(4, H-5*?LINE_HEIGHT+5, Mem);
+	    text_at(4, H-3*?LINE_HEIGHT+5, Mem);
 	false -> ok
     end.
 

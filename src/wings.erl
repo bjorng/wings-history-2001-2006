@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.165 2002/11/23 08:48:49 bjorng Exp $
+%%     $Id: wings.erl,v 1.166 2002/11/23 20:34:31 bjorng Exp $
 %%
 
 -module(wings).
@@ -140,8 +140,7 @@ init(File, Root) ->
     open_file(File),
     {W,H} = wings_wm:top_size(),
     Op = {seq,{push,dummy},main_loop_noredraw(St)},
-    wings_wm:new(geom, {0,0,0}, {W,H}, Op),
-    wings_wm:set_active(geom),
+    wings_wm:new(geom, {0,0,1}, {W,H}, Op),
     case catch wings_wm:enter_event_loop() of
 	{'EXIT',normal} ->
 	    wings_file:finish(),
@@ -193,6 +192,8 @@ main_loop(St) ->
     ?VALIDATE_MODEL(St),
     wings_io:clear_icon_restriction(),
     wings_wm:dirty(),
+    Message = ["[L] Select  [R] Show menu  "|wings_camera:help()],
+    wings_wm:message(Message),
     main_loop_noredraw(St).
 
 main_loop_noredraw(St) ->
@@ -251,12 +252,6 @@ handle_event_3({drag_arguments,_}, _St) ->	%Repeat Drag that failed.
     keep;
 handle_event_3(redraw, St) ->
     wings_draw:render(St),
-    case wings_wm:is_window_active(geom) of
-	true ->
-	    Message = ["[L] Select  [R] Show menu  "|wings_camera:help()],
-	    wings_io:message(Message);
-	false -> ok
-    end,
     wings_io:info(info(St)),
     wings_io:update(St),
     main_loop(St#st{vec=none});
@@ -264,7 +259,6 @@ handle_event_3(quit, St) ->
     do_command({file,quit}, St);
 handle_event_3({new_state,St}, St0) ->
     wings_wm:dirty(),
-    wings_io:clear_message(),
     save_state(St0, St);
 handle_event_3({callback,Cb}, _) -> Cb();
 handle_event_3(ignore, _St) -> keep.

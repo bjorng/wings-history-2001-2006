@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.35 2002/11/12 06:51:02 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.36 2002/11/23 20:34:31 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -93,7 +93,7 @@ do_dialog(Qs, Level, Fun) ->
     Op = {seq,{push,dummy},get_event(S)},
     Name = {dialog,Level},
     wings_wm:new(Name, {trunc(X),trunc(Y),Level}, {W,H}, Op),
-    wings_wm:set_active(Name),
+    wings_wm:grab_focus(Name),
     wings_wm:dirty(),
     keep.
 
@@ -182,7 +182,7 @@ event_key(Ev, S) ->
 
 delete(#s{level=?INITIAL_LEVEL}) -> delete;
 delete(#s{level=Level}) ->
-    wings_wm:set_active({dialog,Level-1}),
+    wings_wm:grab_focus({dialog,Level-1}),
     delete.
 
 mouse_event(_, _, #mousemotion{state=Bst}, _) when Bst band ?SDL_BUTTON_LMASK == 0 ->
@@ -299,7 +299,7 @@ drag(#mousemotion{x=X0,y=Y0}, {W,H}, Fi0, Fst, Common, DropData,
     Op = {push,Drag},
     Name = dragger,
     wings_wm:new(Name, {X,Y,Level+500}, {W,H}, Op),
-    wings_wm:set_active(Name),
+    wings_wm:grab_focus(Name),
     wings_wm:dirty(),
     keep.
 
@@ -315,7 +315,7 @@ drag_event(#mousebutton{}, #fi{w=W,h=H}, _, _, DropData, #s{level=Level}) ->
     {X,Y} = wings_wm:pos(dragger),
     Ev = {drop,{X + W div 2,Y + H div 2},DropData},
     wings_io:putback_event(Ev),
-    wings_wm:set_active({dialog,Level}),
+    wings_wm:grab_focus({dialog,Level}),
     delete;
 drag_event(Ev, _, _, _, _, _) ->
     io:format("~p\n", [Ev]),

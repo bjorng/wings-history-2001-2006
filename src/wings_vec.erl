@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.45 2002/11/23 08:48:50 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.46 2002/11/23 20:34:33 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -95,7 +95,7 @@ command({pick_special,{Modes,Init,Check,Exit}}, St0) ->
     {seq,{push,dummy},get_event(Ss, St)}.
 
 command_message(Prefix, Ns) ->
-    wings_io:message_right(Prefix ++ command_name(Ns)).
+    wings_wm:message_right(Prefix ++ command_name(Ns)).
 
 mode_restriction(Modes, #st{selmode=Mode}=St) ->
     wings_io:icon_restriction(Modes),
@@ -213,21 +213,16 @@ handle_event_5(_Event, Ss, St) ->
 
 secondary_selection(abort, _Ss, _St) ->
     pick_finish(),
-    wings_io:clear_message(),
     wings_wm:dirty(),
     pop.
 
 redraw(#ss{info=Info}, St) ->
-    case wings_wm:is_window_active(geom) of
-	false -> ok;
-	true ->
-	    RmbMod = case wings_camera:free_rmb_modifier() of
-			 ?ALT_BITS -> "Alt";
-			 ?CTRL_BITS -> "Ctrl"
-		     end,
-	    Message = ["[L] Select  [R] Execute  ["] ++ RmbMod ++ "]+[R] Menu  ",
-	    wings_io:message(Message)
-    end,
+    RmbMod = case wings_camera:free_rmb_modifier() of
+		 ?ALT_BITS -> "Alt";
+		 ?CTRL_BITS -> "Ctrl"
+	     end,
+    Message = ["[L] Select  [R] Execute  ["] ++ RmbMod ++ "]+[R] Menu  ",
+    wings_wm:message(Message),
     wings_draw:render(St),
     wings_io:info(Info),
     wings_io:update(St).
@@ -248,8 +243,6 @@ translate_key(_Event) -> next.
 
 translate_key_1(#keysym{sym=27}) ->		%Escape
     pick_finish(),
-    wings_io:clear_message(),
-    wings_io:message("Command aborted"),
     wings_wm:dirty(),
     pop;
 translate_key_1(_Other) -> next.
@@ -274,7 +267,6 @@ execute(MenuEntry) ->
 	     end,
     wings_io:putback_event({action,Action}),
     pick_finish(),
-    wings_io:clear_message(),
     wings_wm:dirty(),
     pop.
 
@@ -288,12 +280,8 @@ exit_menu_done(X, Y, MenuEntry) ->
 
 common_exit(Check, More, Acc, Ns, #st{vec=none}=St) ->
     case Check(St) of
-	{none,Msg} ->
-	    wings_io:message(Msg),
-	    invalid_selection;
-	{Vec,Msg} ->
-	    wings_io:message(Msg),
-	    common_exit_1(Vec, More, Acc, Ns)
+	{none,_} -> invalid_selection;
+	{Vec,_} -> common_exit_1(Vec, More, Acc, Ns)
     end;
 common_exit(_Check, [point]=More, Acc, Ns, #st{vec={Point,Vec}}) ->
     Command = command_name(Ns),
@@ -469,11 +457,9 @@ check_point(St) ->
 exit_magnet([], Acc, [N|Ns0]=Ns, St) ->
     %% Magnet must be last.
     case check_point(St) of
-	{none,Msg} ->
-	    wings_io:message(Msg),
+	{none,_} ->
 	    invalid_selection;
-	{Point,Msg} ->
-	    wings_io:message(Msg),
+	{Point,_} ->
 	    Mag = {magnet,wings_pref:get_value(magnet_type),
 		   wings_pref:get_value(magnet_distance_route),Point},
 	    Cmd0 = wings_menu:build_command(N, Ns0),

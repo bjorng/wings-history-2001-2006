@@ -8,15 +8,17 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.17 2002/11/23 08:48:50 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.18 2002/11/23 20:34:33 bjorng Exp $
 %%
 
 -module(wings_wm).
 -export([init/0,enter_event_loop/0,dirty/0,clean/0,new/4,delete/1,
-	 offset/3,pos/1,set_active/1,
+	 message/1,message/2,message_right/1,send/2,
+	 active_window/0,offset/3,pos/1,
+	 grab_focus/1,release_focus/0,has_focus/1,
 	 top_size/0,viewport/0,viewport/1,
 	 local2global/2,global2local/2,local_mouse_state/0,
-	 is_window_active/1,window_under/2,
+	 window_under/2,
 	 translation_change/0,me_modifiers/0,set_me_modifiers/1,
 	 draw_message/1,draw_completions/1]).
 
@@ -35,12 +37,14 @@
 
 -record(se,					%Stack entry record.
 	{h,					%Handler (fun).
-	 msg=""}).				%Current message.
-
+	 msg=[],				%Current message.
+	 msg_right=[]				%Right-side message.
+	}).
 %%%
 %%% Process dictionary usage:
 %%%
-%%% wm_active		Window name for active window.
+%%% wm_active		Currently active window (handling current event).
+%%% wm_focus		Window name of focus window or undefined.
 %%% wm_windows		All windows.
 %%% wm_dirty		Exists if redraw is needed.
 %%% wm_top_size         Size of top window.
@@ -57,9 +61,23 @@ init() ->
     put(wm_windows, gb_trees:empty()),
     new(top, {0,0,0}, {W,H}, {push,fun(_) -> keep end}),
     MsgH = 2*?LINE_HEIGHT-4,
-    new(message, {0,H-MsgH,10000}, {W,MsgH},
+    new(message, {0,H-MsgH,99}, {W,MsgH},
 	{seq,{push,dummy},{replace,fun message_event/1}}),
     ok.
+
+message(Message) ->
+    wings_io:putback_event({wm,{message,get(wm_active),Message}}).
+
+message_right(Right) ->
+    wings_io:putback_event({wm,{message_right,get(wm_active),Right}}).
+
+message(Message, Right) ->
+    message(Message),
+    message_right(Right).
+
+send(Name, Ev) ->
+    wings_io:putback_event({wm,{send_to,Name,Ev}}),
+    keep.
     
 dirty() ->
     put(wm_dirty, dirty).
@@ -76,14 +94,20 @@ new(Name, {X,Y,Z}, {W,H}, Op) when is_integer(X), is_integer(Y),
     keep.
 
 delete(Name) ->
-    case get(wm_active) of
-	Name -> put(wm_active, geom);
+    case get(wm_focus) of
+	Name -> erase(wm_focus);
 	_ -> ok
     end,
     dirty(),
     put(wm_windows, gb_trees:delete_any(Name, get(wm_windows))),
     keep.
 
+active_window() ->
+    case get(wm_active) of
+	undefined -> none;
+	Active -> Active
+    end.
+	    
 offset(Name, Xoffs, Yoffs) ->
     #win{x=X,y=Y} = Win = get_window_data(Name),
     put_window_data(Name, Win#win{x=X+Xoffs,y=Y+Yoffs}).
@@ -91,12 +115,15 @@ offset(Name, Xoffs, Yoffs) ->
 pos(Name) ->
     #win{x=X,y=Y} = get_window_data(Name),
     {X,Y}.
-	    
-set_active(Name) ->
-    put(wm_active, Name).
+	   
+grab_focus(Name) -> 
+    put(wm_focus, Name).
 
-is_window_active(Name) ->
-    get(wm_active) =:= Name.
+release_focus() -> 
+    erase(wm_focus).
+
+has_focus(Name) ->
+    get(wm_focus) =:= Name.
 
 top_size() ->
     #win{w=W,h=H} = get_window_data(top),
@@ -127,7 +154,7 @@ local_mouse_state() ->
     {B,X,Y}.
 
 window_under(X, Y) ->
-    Wins = reverse(gb_trees:values(get(wm_windows))),
+    Wins = reverse(sort(gb_trees:values(get(wm_windows)))),
     window_under(Wins, X, Y).
 
 window_under([#win{x=X,y=Y,w=W,h=H,name=Name}|_], X0, Y0)
@@ -179,15 +206,24 @@ dispatch_event(#resize{w=W,h=H}=Event) ->
     GeomData = send_event(GeomData1, Event#resize{h=H-MsgH}),
     put_window_data(geom, GeomData),
 
+    dirty(),
     event_loop();
+dispatch_event({wm,WmEvent}) ->
+    wm_event(WmEvent);
 dispatch_event(Event) ->
-    Active = get(wm_active),
+    case find_active(Event) of
+	none -> event_loop();
+	Active -> do_dispatch(Active, Event)
+    end.
+
+do_dispatch(Active, Ev) ->
     Win0 = get_window_data(Active),
-    case send_event(Win0, Event) of
+    case send_event(Win0, Ev) of
 	#win{name=Name,stk=delete} ->
 	    delete(Name),
 	    event_loop();
-	#win{stk=[]} -> ok;
+	#win{stk=[]} ->
+	    ok;
 	Win ->
 	    put_window_data(Active, Win),
 	    event_loop()
@@ -195,13 +231,15 @@ dispatch_event(Event) ->
 
 redraw_all() ->
     EarlyBC = wings_pref:get_value(early_buffer_clear),
-    maybe_clear(late, EarlyBC),			%Clear right before drawing (late).
+    maybe_clear(late, EarlyBC),			%Clear right before
+						%drawing (late).
     Ws = map(fun({Name,Win}) ->
 		     {Name,send_event(Win, redraw)}
 	     end, keysort(2, gb_trees:to_list(get(wm_windows)))),
     put(wm_windows, gb_trees:from_orddict(sort(Ws))),
     gl:swapBuffers(),
-    maybe_clear(early, EarlyBC),		%Clear immediately after buffer swap (early).
+    maybe_clear(early, EarlyBC),		%Clear immediately after
+						%buffer swap (early).
     wings_io:arrow(),
     erase(wm_dirty),
     event_loop().
@@ -216,17 +254,18 @@ send_event(Win, {expose}) ->
     dirty(),
     Win;
 send_event(#win{name=Name,x=X,y=Y0,w=W,h=H,stk=[Se|_]=Stk0}, Ev0) ->
+    put(wm_active, Name),
     Ev = translate_event(Ev0, X, Y0),
     {_,TopH} = get(wm_top_size),
     Y = TopH-(Y0+H),
     ViewPort = {X,Y,W,H},
-    %%io:format("~p: ~p ~p\n", [Name,{X,Y0},ViewPort]),
     case put(wm_viewport, {X,Y,W,H}) of
 	ViewPort -> ok;
 	_ -> gl:viewport(X, Y, W, H)
     end,
     Stk = handle_event(Se, Ev, Stk0),
     Win = get_window_data(Name),
+    erase(wm_active),
     Win#win{stk=Stk}.
 
 translate_event(#mousemotion{state=Mask0,x=X,y=Y}=M, Ox, Oy) ->
@@ -263,17 +302,19 @@ handle_response(Res, Event, Stk0) ->
 	next -> next_handler(Event, Stk0);
 	pop -> pop(Stk0);
 	delete -> delete;
-	{push,Top} -> [#se{h=Top}|Stk0];
+	{push,Handler} ->
+	    [OldTop|_] = Stk0,
+	    [OldTop#se{h=Handler}|Stk0];
 	{seq,First,Then} ->
 	    Stk = handle_response(First, Event, Stk0),
 	    handle_response(Then, Event, Stk);
-	{replace,Top} when is_function(Top) -> replace_top(Top, Stk0);
-	Top when is_function(Top) -> replace_top(Top, Stk0)
+	{replace,Top} when is_function(Top) -> replace_handler(Top, Stk0);
+	Top when is_function(Top) -> replace_handler(Top, Stk0)
     end.
 
 pop([_|Stk]) -> Stk.
 
-replace_top(Top, [_|Stk]) -> [#se{h=Top}|Stk].
+replace_handler(Handler, [Top|Stk]) -> [Top#se{h=Handler}|Stk].
 
 next_handler(Event, [_|[Next|_]=Stk]) ->
     handle_event(Next, Event, Stk).
@@ -286,8 +327,67 @@ default_stack() ->
     [#se{h=Handler}].
 
 %%%
+%%% Handling Wm Events.
+%%%
+
+wm_event({message,Name,Msg}) ->
+    case lookup_window_data(Name) of
+	none -> ok;
+	#win{stk=[#se{msg=Msg}|_]} -> ok;
+	#win{stk=[Top|Stk]}=Data0 ->
+	    Data = Data0#win{stk=[Top#se{msg=Msg}|Stk]},
+	    put_window_data(Name, Data),
+	    wings_wm:dirty()
+    end,
+    event_loop();
+wm_event({message_right,Name,Right0}) ->
+    Right = lists:flatten(Right0),
+    case lookup_window_data(Name) of
+	none -> ok;
+	#win{stk=[#se{msg_right=Right}|_]} -> ok;
+	#win{stk=[Top|Stk]}=Data0 ->
+	    Data = Data0#win{stk=[Top#se{msg_right=Right}|Stk]},
+	    put_window_data(Name, Data),
+	    wings_wm:dirty()
+    end,
+    event_loop();
+wm_event({send_to,Name,Ev}) ->
+    do_dispatch(Name, Ev).
+
+%%%
+%%% Finding the active window.
+%%%
+
+find_active(Ev) ->
+    case get(wm_focus) of
+	undefined -> find_active_1(Ev);
+	Focus -> Focus
+    end.
+
+find_active_1(Ev) ->
+    case Ev of
+	#mousebutton{x=X,y=Y} -> ok;
+	#mousemotion{x=X,y=Y} -> ok;
+	_ -> {_,X,Y} = sdl_mouse:getMouseState()
+    end,
+    find_active_2(reverse(sort(gb_trees:values(get(wm_windows)))), X, Y).
+
+find_active_2([#win{x=Wx,y=Wy,w=W,h=H,name=Name}|T], X, Y) ->
+    case {X-Wx,Y-Wy} of
+	{Rx,Ry} when 0 =< Rx, Rx < W,0 =< Ry, Ry < H -> Name;
+	_ -> find_active_2(T, X, Y)
+    end;
+find_active_2(_, _, _) -> none.
+
+%%%
 %%% Utility functions.
 %%%
+
+lookup_window_data(Name) ->
+    case gb_trees:lookup(Name, get(wm_windows)) of
+	none -> none;
+	{value,Val} -> Val
+    end.
 
 get_window_data(Name) ->
     gb_trees:get(Name, get(wm_windows)).
@@ -358,18 +458,26 @@ translate_button_1(B, _, Mod) ->
 %% The message window.
 %%
 
+message_event({callback,Fun}) -> Fun();
 message_event(redraw) ->
-    ?CHECK_ERROR(),
+    case find_active(redraw) of
+	none -> message_redraw([], []);
+	Active ->
+	    #win{stk=[#se{msg=Msg,msg_right=Right}|_]} = get_window_data(Active),
+	    message_redraw(Msg, Right)
+    end;
+message_event({action,_}=Action) ->
+    send(geom, Action);
+message_event(_) -> keep.
+
+message_redraw(Msg, Right) ->
     {W,_} = message_setup(),
-    Msg0 = get(wm_message),
-    Msg = if
-	      Msg0 == undefined -> [];
-	      true ->
-		  wings_io:text_at(0, Msg0),
-		  Msg0
-	  end,
-    case get(wm_message_right) of
-	undefined -> ok;
+    if
+	Msg == [] -> ok;
+	true -> wings_io:text_at(0, Msg)
+    end,
+    case Right of
+	[] -> ok;
 	Right when length(Msg)+length(Right) < W div ?CHAR_WIDTH-3 ->
 	    L = length(Right),
 	    Pos = W-?CHAR_WIDTH*(L+3),
@@ -380,9 +488,7 @@ message_event(redraw) ->
 	    wings_io:text_at(Pos, Right);
 	_ -> ok
     end,
-    ?CHECK_ERROR(),
-    keep;
-message_event(_) -> keep.
+    keep.
 
 message_setup() ->
     wings_io:ortho_setup(),
