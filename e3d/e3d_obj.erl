@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_obj.erl,v 1.17 2002/04/04 18:20:24 bjorng Exp $
+%%     $Id: e3d_obj.erl,v 1.18 2002/04/28 07:47:29 bjorng Exp $
 %%
 
 -module(e3d_obj).
@@ -265,8 +265,9 @@ export(File, #e3d_file{objs=Objs,mat=Mat,creator=Creator}) ->
 	  end, {1,1,1}, Objs),
     ok = file:close(F).
 
-export_object(F, #e3d_object{name=Name,obj=Mesh}, Vbase, UVbase, Nbase) ->
-    #e3d_mesh{vs=Vs,tx=Tx} = Mesh,
+export_object(F, #e3d_object{name=Name,obj=Mesh0}, Vbase, UVbase, Nbase) ->
+    Mesh = e3d_mesh:vertex_normals(Mesh0),
+    #e3d_mesh{fs=Fs0,vs=Vs,tx=Tx,ns=Ns} = Mesh,
     mesh_info(F, Mesh),
     foreach(fun({X,Y,Z}) ->
 		    io:format(F, "v ~p ~p ~p\n", [X,Y,Z])
@@ -274,11 +275,11 @@ export_object(F, #e3d_object{name=Name,obj=Mesh}, Vbase, UVbase, Nbase) ->
     foreach(fun({U,V}) ->
 		    io:format(F, "vt ~p ~p\n", [U,V])
 	    end, Tx),
-    {Fs0,Ns} = e3d_mesh:vertex_normals(Mesh),
     foreach(fun({X,Y,Z}) ->
 		    io:format(F, "vn ~p ~p ~p\n", [X,Y,Z])
 	    end, Ns),
-    Fs = sofs:to_external(sofs:relation_to_family(sofs:relation(Fs0))),
+    Fs1 = [{Mat,FaceRec} || #e3d_face{mat=Mat}=FaceRec <- Fs0],
+    Fs = sofs:to_external(sofs:relation_to_family(sofs:relation(Fs1))),
     foreach(fun(Face) ->
 		    face_mat(F, Name, Face, Vbase, UVbase, Nbase)
 	    end, Fs),
@@ -297,14 +298,24 @@ face_mat(F, Name, {Ms,Fs}, Vbase, UVbase, Nbase) ->
     io:nl(F),
     foreach(fun(Vs) -> face(F, Vs, Vbase, UVbase, Nbase) end, Fs).
 
-face(F, Vs, Vbase, UVbase, Nbase) ->
+face(F, #e3d_face{vs=Vs,tx=[],ns=Ns}, Vbase, _UVbase, Nbase) ->
     io:put_chars(F, "f"),
-    foreach(fun({V,N,UV}) ->
-		    io:format(F, " ~p/~p/~p", [V+Vbase,UV+UVbase,N+Nbase]);
-	       ({V,N}) ->
-		    io:format(F, " ~p//~p", [V+Vbase,N+Nbase])
-	    end, Vs),
+    face_nouv(F, Vs, Ns, Vbase, Nbase),
+    io:nl(F);
+face(F, #e3d_face{vs=Vs,tx=Tx,ns=Ns}, Vbase, UVbase, Nbase) ->
+    io:put_chars(F, "f"),
+    face_uv(F, Vs, Tx, Ns, Vbase, UVbase, Nbase),
     io:nl(F).
+
+face_nouv(F, [V|Vs], [N|Ns], Vbase, Nbase) ->
+    io:format(F, " ~p//~p", [V+Vbase,N+Nbase]),
+    face_nouv(F, Vs, Ns, Vbase, Nbase);
+face_nouv(_, [], [], _, _) -> ok.
+
+face_uv(F, [V|Vs], [UV|UVs], [N|Ns], Vbase, UVbase, Nbase) ->
+    io:format(F, " ~p/~p/~p", [V+Vbase,UV+UVbase,N+Nbase]),
+    face_uv(F, Vs, UVs, Ns, Vbase, UVbase, Nbase);
+face_uv(_, [], [], [], _, _, _) -> ok.
 
 materials(Name0, Mats, Creator) ->
     Root = filename:rootname(Name0, ".obj"),

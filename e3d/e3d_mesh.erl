@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mesh.erl,v 1.16 2002/04/08 08:08:32 bjorng Exp $
+%%     $Id: e3d_mesh.erl,v 1.17 2002/04/28 07:47:29 bjorng Exp $
 %%
 
 -module(e3d_mesh).
@@ -169,7 +169,7 @@ quadrangulate_face_with_holes(Face, Holes, Vcoords) ->
 %%% Calculate normals for each vertex in a mesh.
 %%%
 
-vertex_normals(#e3d_mesh{fs=Ftab,vs=Vtab0,he=He}) ->
+vertex_normals(#e3d_mesh{fs=Ftab,vs=Vtab0,he=He}=Mesh) ->
     Vtab = list_to_tuple(Vtab0),
     FaceNormals = face_normals(Ftab, Vtab),
 
@@ -193,24 +193,15 @@ vertex_normals(#e3d_mesh{fs=Ftab,vs=Vtab0,he=He}) ->
     Normals0 = gb_trees:values(VtxNormals),
     Normals1 = sort(Normals0),
     Normals = [N || {Vn,N} <- Normals1],
-    {Faces,Normals}.
+    Mesh#e3d_mesh{fs=Faces,ns=Normals}.
 
-vn_faces([#e3d_face{mat=Mat,vs=Vs0,tx=Tx}|Fs], VtxNormals, Face, Acc) ->
-    Vs1 = foldl(fun(V, A) ->
-			vn_face(V, VtxNormals, Face, A)
-		end, [], Vs0),
-    Vs2 = reverse(Vs1),
-    Vs = add_uv(Vs2, Tx),
-    vn_faces(Fs, VtxNormals, Face+1, [{Mat,Vs}|Acc]);
+vn_faces([#e3d_face{vs=Vs}=E3DFace|Fs], VtxNormals, Face, Acc) ->
+    Ns0 = foldl(fun(V, A) ->
+			[vn_lookup(V, Face, VtxNormals)|A]
+		end, [], Vs),
+    Ns = reverse(Ns0),
+    vn_faces(Fs, VtxNormals, Face+1, [E3DFace#e3d_face{ns=Ns}|Acc]);
 vn_faces([], _VtxNormals, _Face, Acc) -> reverse(Acc).
-
-add_uv(Vs, []) -> Vs;
-add_uv([{V,N}|Vs], [UV|UVs]) ->
-    [{V,N,UV}|add_uv(Vs, UVs)];
-add_uv([], []) -> [].
-
-vn_face(V, VtxNormals, Face, Acc) ->
-    [{V,vn_lookup(V, Face, VtxNormals)}|Acc].
     
 vn_lookup(V, Face, VtxNormals) ->
     case gb_trees:lookup(V, VtxNormals) of
@@ -301,28 +292,35 @@ vn_edge_name(Va, Vb) -> {Vb,Va}.
 %%  Removes vertices and UV coordinates that are not referenced
 %%  from any faces and renumbers vertices and UV coordinates to
 %%  remove the gaps.
-renumber(#e3d_mesh{tx=Tx,vs=Vtab}=Mesh) ->
-    {UsedVs,UsedUv} = rn_used_vs(Mesh),
+renumber(#e3d_mesh{tx=Tx,vs=Vtab,ns=Ns}=Mesh) ->
+    {UsedVs,UsedUv,UsedNs} = rn_used_vs(Mesh),
     if
 	length(Vtab) =/= length(UsedVs);
-	length(Tx) =/= length(UsedUv) ->
-	    renumber_1(Mesh, UsedVs, UsedUv);
+	length(Tx) =/= length(UsedUv);
+	length(Ns) =/= length(UsedNs) ->
+	    renumber_1(Mesh, UsedVs, UsedUv, UsedNs);
 	true -> Mesh
     end.
 
-renumber_1(#e3d_mesh{fs=Ftab0,vs=Vs0,tx=Tx0}=Mesh, UsedVs, UsedUV) ->
+renumber_1(#e3d_mesh{fs=Ftab0,vs=Vs0,tx=Tx0,ns=Ns0}=Mesh,
+	   UsedVs, UsedUV, UsedNs) ->
     VsMap = rn_make_map(UsedVs, 0, []),
     UVMap = rn_make_map(UsedUV, 0, []),
-    Ftab = renumber_ftab(Ftab0, VsMap, UVMap, []),
+    NsMap = rn_make_map(UsedNs, 0, []),
+    Ftab = renumber_ftab(Ftab0, VsMap, UVMap, NsMap, []),
     Vs = rn_remove_unused(Vs0, VsMap, 0, []),
     Tx = rn_remove_unused(Tx0, UVMap, 0, []),
-    Mesh#e3d_mesh{fs=Ftab,vs=Vs,tx=Tx}.
+    Ns = rn_remove_unused(Ns0, NsMap, 0, []),
+    Mesh#e3d_mesh{fs=Ftab,vs=Vs,tx=Tx,ns=Ns}.
 
-renumber_ftab([#e3d_face{vs=Vs0,tx=Tx0}=Rec|Fs], VsMap, UVMap, Acc) ->
+renumber_ftab([#e3d_face{vs=Vs0,tx=Tx0,ns=Ns0}=Rec|Fs],
+	      VsMap, UVMap, NsMap, Acc) ->
     Vs = [gb_trees:get(V, VsMap) || V <- Vs0],
     Tx = [gb_trees:get(V, UVMap) || V <- Tx0],
-    renumber_ftab(Fs, VsMap, UVMap, [Rec#e3d_face{vs=Vs,tx=Tx}|Acc]);
-renumber_ftab([], _, _, Acc) -> Acc.
+    Ns = [gb_trees:get(V, NsMap) || V <- Ns0],
+    renumber_ftab(Fs, VsMap, UVMap, NsMap,
+		  [Rec#e3d_face{vs=Vs,tx=Tx,ns=Ns}|Acc]);
+renumber_ftab([], _, _, _, Acc) -> Acc.
 
 rn_remove_unused([V|Vs], Map, I, Acc) ->
     case gb_trees:is_defined(I, Map) of
@@ -334,7 +332,8 @@ rn_remove_unused([], _, _, Acc) -> reverse(Acc).
 rn_used_vs(#e3d_mesh{fs=Ftab}) ->
     Vs = foldl(fun(#e3d_face{vs=Vs}, A) -> Vs++A end, [], Ftab),
     UV = foldl(fun(#e3d_face{tx=Tx}, A) -> Tx++A end, [], Ftab),
-    {ordsets:from_list(Vs),ordsets:from_list(UV)}.
+    Ns = foldl(fun(#e3d_face{ns=Ns}, A) -> Ns++A end, [], Ftab),
+    {ordsets:from_list(Vs),ordsets:from_list(UV),ordsets:from_list(Ns)}.
 
 rn_make_map([V|Vs], I, Acc) ->
     rn_make_map(Vs, I+1, [{V,I}|Acc]);
