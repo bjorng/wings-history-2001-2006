@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_vec.erl,v 1.20 2004/03/29 07:12:47 bjorng Exp $
+%%     $Id: e3d_vec.erl,v 1.21 2004/04/16 18:25:26 bjorng Exp $
 %%
 
 -module(e3d_vec).
@@ -16,7 +16,7 @@
 -export([zero/0,is_zero/1,add/1,add/2,add_prod/3,sub/1,sub/2,norm_sub/2,mul/2,
 	 divide/2,neg/1,dot/2,cross/2,norm_cross/2,len/1,dist/2,norm/1,norm/3,
 	 normal/3,normal/1,average/1,average/2,average/4,
-	 bounding_box/1]).
+	 bounding_box/1,area/3]).
 
 -compile(inline).
 -compile({inline_size,24}).
@@ -124,6 +124,21 @@ normal({V10,V11,V12}, {V20,V21,V22}, {V30,V31,V32})
 	{'EXIT',_} -> {0.0,0.0,0.0};
 	R -> R
     end.
+
+area({V10,V11,V12}, {V20,V21,V22}, {V30,V31,V32})
+  when is_float(V10), is_float(V11), is_float(V12),
+       is_float(V20), is_float(V21), is_float(V22),
+       is_float(V30), is_float(V31), is_float(V32) ->
+    D10 = V10-V20,
+    D11 = V11-V21,
+    D12 = V12-V22,
+    D20 = V20-V30,
+    D21 = V21-V31,
+    D22 = V22-V32,
+    N0 = D11*D22-D12*D21,
+    N1 = D12*D20-D10*D22,
+    N2 = D10*D21-D11*D20,
+    math:sqrt(N0*N0+N1*N1+N2*N2)*0.5.
 
 %% normal([{X,Y,Z}]) ->
 %%  Calculate the averaged normal for the polygon using Newell's method.
