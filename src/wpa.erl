@@ -8,12 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.18 2002/07/13 10:10:39 bjorng Exp $
+%%     $Id: wpa.erl,v 1.19 2002/07/28 12:34:10 bjorng Exp $
 %%
 -module(wpa).
 -export([ask/2,ask/3,ask/4,dialog/2,dialog/3,dialog/4,error/1,yes_no/1,
 	 bind_unicode/2,bind_virtual/3,
-	 import/3,export/3,export_selected/3,export_filename/2,
+	 import/3,import_filename/1,
+	 export/3,export_selected/3,export_filename/2,
 	 pref_get/2,pref_get/3,pref_set/2,pref_set/3,pref_delete/2,
 	 sel_get/1,sel_set/2,sel_set/3,sel_map/2,sel_fold/3,sel_convert/3,
 	 sel_edge_regions/2,sel_face_regions/2,
@@ -76,6 +77,9 @@ bind_virtual(Key, Mods, Command) ->
 
 import(Props, Importer, St) ->
     wings_file:import(Props, Importer, St).
+
+import_filename(Prop) ->
+    wings_file:import_filename(Prop).
 
 export(Props, Exporter, St) ->
     wings_file:export(Props, Exporter, St),
