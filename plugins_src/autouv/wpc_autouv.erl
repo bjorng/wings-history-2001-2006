@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.26 2002/10/26 19:08:35 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.27 2002/10/26 20:47:26 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -1459,10 +1459,10 @@ rotate_area(faceg, {Id,A = #a{rotate = R}}, DX, DY) ->
     {Id,A#a{rotate = NewR}}.
 transpose_x(faceg,{Id,A = #a{vpos = Vpos}}) ->
     New = [{Nr, {-X,Y,Z}} || {Nr, {X,Y,Z}} <- Vpos],
-    {Id,A#a{vpos = New}}.
+    {Id,A#a{vpos = New, twe = undefined}}.
 transpose_y(faceg,{Id,A = #a{vpos = Vpos}}) ->
     New = [{Nr, {X,-Y,Z}} || {Nr, {X,Y,Z}} <- Vpos],
-    {Id,A#a{vpos = New}}.
+    {Id,A#a{vpos = New, twe = undefined}}.
 rescale_all(Areas0) ->
     Areas1 = gb_trees:to_list(Areas0),
     Find = fun({_, #a{center = {CX,CY}, size = {W,H}}}, [MX,MY]) ->
