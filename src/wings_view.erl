@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.123 2003/06/10 18:17:59 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.124 2003/06/13 12:01:38 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -467,11 +467,11 @@ model_transformations(IncludeLights) ->
 	true -> ok
     end.
 
+%% Calculate the location of the viewer in 3D space.
+%% (The (0,0,0) point multiplied by the inverse model transformation matrix.)
 eye_point() ->
-    #view{origin=Origin,distance=Dist0,azimuth=Az,
+    #view{origin=Origin,distance=Dist,azimuth=Az,
 	  elevation=El,pan_x=PanX,pan_y=PanY} = current(),
-    {W,H} = wings_wm:win_size(),
-    Dist = Dist0 * math:sqrt((W*H) / (640*480)),
     M0 = e3d_mat:translate(e3d_vec:neg(Origin)),
     M1 = e3d_mat:mul(M0, e3d_mat:rotate(-Az, {0.0,1.0,0.0})),
     M2 = e3d_mat:mul(M1, e3d_mat:rotate(-El, {1.0,0.0,0.0})),
