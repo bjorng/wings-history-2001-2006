@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.142 2003/08/12 17:17:43 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.143 2003/08/13 05:19:53 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -580,8 +580,15 @@ merge_texture(ImageBins,Wd,Hd,W,H,Acc) ->
 %%%%%%% Events handling and window redrawing 
    
 get_event(Uvs) ->
+    update_dlists(Uvs),
     wings_wm:dirty(),
     get_event_nodraw(Uvs).
+
+update_dlists(#uvstate{areas=Shs,sel=[],origst=#st{mat=Mat}}) ->
+    wings_draw:invalidate_dlists(#st{selmode=body,shapes=Shs,mat=Mat});
+update_dlists(#uvstate{areas=Shs0,sel=Sel,origst=#st{mat=Mat}}) ->
+    Shs = gb_trees:from_orddict(sort(gb_trees:to_list(Shs0) ++ Sel)),
+    wings_draw:invalidate_dlists(#st{selmode=body,shapes=Shs,mat=Mat}).
 
 get_event_nodraw(Uvs) ->
     {replace,fun(Ev) -> handle_event(Ev, Uvs) end}.
@@ -1069,7 +1076,7 @@ update_selection(Areas, Sel0, Other0) ->
 select(Mode, X,Y, Objects, ViewP) ->
     select_1(Mode, X,Y, 3,3, Objects, ViewP).
 
-select_1(Mode, X,Y, W, H, All, {XYS,XM,XYS,YM}) ->
+select_1(_Mode, X,Y, W, H, All, {XYS,XM,XYS,YM}) ->
     {_,_,UVW,UVH} = wings_wm:viewport(),
     HitBuf = get(wings_hitbuf),
     gl:selectBuffer(?HIT_BUF_SIZE, HitBuf),
@@ -1078,49 +1085,20 @@ select_1(Mode, X,Y, W, H, All, {XYS,XM,XYS,YM}) ->
     gl:viewport(0, 0, UVW, UVH),
     gl:matrixMode(?GL_PROJECTION),
     gl:loadIdentity(),
-    glu:pickMatrix(float(X), float(Y), W,H, {0,0,UVW,UVH}),
+    glu:pickMatrix(X, Y, W,H, {0,0,UVW,UVH}),
     glu:ortho2D(XYS, XM, XYS, YM),
     gl:matrixMode(?GL_MODELVIEW),
     gl:loadIdentity(),
-    select_draw(gb_trees:values(All), Mode),
-    gl:flush(),
-    case gl:renderMode(?GL_RENDER) of
-	0 -> 
-	    none;
-	NumHits ->
-	    HitData = sdl_util:read(HitBuf, 5*NumHits),
-	    Hits = get_hits(NumHits, HitData),
+    auv_pick:draw(),
+    case auv_pick:get_hits(HitBuf) of
+	none -> none;
+	Hits0 ->
+	    Hits = ordsets:from_list([Id || {Id,_} <- Hits0]),
 	    map(fun(Hit) -> 
 			HitArea = gb_trees:get(Hit, All),
 			{[Hit], HitArea}
-		end, lists:usort(Hits))
+		end, Hits)
     end.
-
-select_draw(Charts, Mode) ->
-    gl:pushName(0),
-    select_draw_1(Charts, Mode).
-
-select_draw_1([#we{id=Id,name=Ch}=We|R], Mode) ->
-    #ch{fs=Fs,center={CX,CY},scale=Scale,rotate=Rot} = Ch,
-    gl:loadName(Id),
-    gl:pushMatrix(),
-    gl:translatef(CX, CY, 0),
-    gl:scalef(Scale, Scale, 1),
-    gl:rotatef(Rot, 0, 0, 1),
-    select_draw_2(Mode, Fs, We#we{mode=material}),
-    gl:popMatrix(),
-    select_draw_1(R, Mode);
-select_draw_1([], _) -> gl:popName().
-
-select_draw_2(body, Fs, We) ->
-    draw_faces(Fs, We).
-
-get_hits(N, Buf) ->
-    get_hits_1(N, Buf, []).
-
-get_hits_1(0, _, Acc) -> Acc;
-get_hits_1(N, [1,_,_,A|T], Acc) ->
-    get_hits_1(N-1, T, [A|Acc]).
 
 -define(OUT, 1.2/2). %% was 1/2 
 

@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile.win32,v 1.4 2003/06/03 07:21:39 bjorng Exp $
+#     $Id: Makefile.win32,v 1.5 2003/08/13 05:19:53 bjorng Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -24,12 +24,13 @@ ESDL_PATH=..\..\..\esdl
 !endif
 
 TARGET_FILES= \
-	$(EBIN)\auv_segment.beam \
 	$(EBIN)\auv_mapping.beam \
-	$(EBIN)\auv_placement.beam \
 	$(EBIN)\auv_matrix.beam \
-	$(EBIN)\auv_util.beam \
+	$(EBIN)\auv_pick.beam \
+	$(EBIN)\auv_placement.beam \
+	$(EBIN)\auv_segment.beam \
 	$(EBIN)\auv_seg_ui.beam \
+	$(EBIN)\auv_util.beam \
 	$(EBIN)\auv_snap.beam \
 	$(EBIN)\wpc_autouv.beam
 
