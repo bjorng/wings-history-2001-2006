@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.58 2002/08/01 10:13:00 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.59 2002/08/01 19:25:04 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -285,8 +285,10 @@ maybe_show_mem_used(H) ->
 		    end,
 	    Dl = gl:genLists(1),
 	    gl:deleteLists(Dl, 1),
-	    Mem = ["Memory: ",integer_to_list(N),M,"  Dlist: ",
-		   integer_to_list(Dl)],
+	    {binary,B} = process_info(self(), binary),
+	    Mem = ["Memory: ",integer_to_list(N),M,
+		   "  Dlist: ",integer_to_list(Dl),
+		   "  Binaries: ",integer_to_list(length(B))],
 	    ortho_setup(),
 	    text_at(4, H-5*?LINE_HEIGHT+5, Mem);
 	false -> ok
@@ -479,9 +481,9 @@ menu_text([Atom|Cs], Acc) when is_atom(Atom) ->
     draw_reverse(Acc),
     wings_text:char(Atom),
     menu_text(Cs, []);
-menu_text([$&,C|T], Acc) when is_integer(C) ->
+menu_text([$&,C|T], Acc) when is_integer(C), C < 256 ->
     menu_text(T, [$_,8,C|Acc]);
-menu_text([C|T], Acc) when is_integer(C) ->
+menu_text([C|T], Acc) when is_integer(C), C < 256 ->
     menu_text(T, [C|Acc]);
 menu_text([L|Cs], Acc) when is_list(L) ->
     draw_reverse(Acc),
@@ -547,7 +549,7 @@ cleanup_after_drawing() ->
 
 ortho_setup() ->
     ?CHECK_ERROR(),
-    [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
+    {_,_,W,H} = wings_wm:viewport(),
     gl:pixelStorei(?GL_UNPACK_ALIGNMENT, 1),
     gl:shadeModel(?GL_FLAT),
     gl:disable(?GL_DEPTH_TEST),

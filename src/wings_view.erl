@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.70 2002/07/29 20:18:51 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.71 2002/08/01 19:25:04 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -538,7 +538,7 @@ projection() ->
     gl:matrixMode(?GL_MODELVIEW).
 
 perspective() ->
-    [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
+    {_,_,W,H} = wings_wm:viewport(),
     #view{distance=D,fov=Fov,hither=Hither,yon=Yon} = current(),
     case wings_pref:get_value(orthogonal_view) of
 	false ->
@@ -552,7 +552,7 @@ perspective() ->
 model_transformations() ->
     #view{origin=Origin,distance=Dist0,azimuth=Az,
 	  elevation=El,pan_x=PanX,pan_y=PanY} = current(),
-    [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
+    {_,_,W,H} = wings_wm:viewport(),
     gl:matrixMode(?GL_MODELVIEW),
     gl:loadIdentity(),
 
@@ -573,7 +573,7 @@ model_transformations() ->
 eye_point() ->
     #view{origin=Origin,distance=Dist0,azimuth=Az,
 	  elevation=El,pan_x=PanX,pan_y=PanY} = current(),
-    [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
+    {_,_,W,H} = wings_wm:viewport(),
     Dist = Dist0 * math:sqrt((W*H) / (640*480)),
     M0 = e3d_mat:translate(e3d_vec:neg(Origin)),
     M1 = e3d_mat:mul(M0, e3d_mat:rotate(-Az, {0.0,1.0,0.0})),
@@ -604,7 +604,7 @@ frame(St) ->
 
 frame_1(none) -> ok;
 frame_1(BB) ->
-    [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
+    {_,_,W,H} = wings_wm:viewport(),
     C = e3d_vec:average(BB),
     R = e3d_vec:len(e3d_vec:sub(C, hd(BB))),
     #view{fov=Fov} = View = current(),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.40 2002/07/13 10:10:39 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.41 2002/08/01 19:25:04 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -68,7 +68,7 @@ get_matrices(Id, MM) ->
 	    gl:multMatrixf(Matrix);
 	original -> ok
     end,
-    ViewPort = gl:getIntegerv(?GL_VIEWPORT),
+    ViewPort = wings_wm:viewport(),
     ModelMatrix = gl:getDoublev(?GL_MODELVIEW_MATRIX),
     ProjMatrix = gl:getDoublev(?GL_PROJECTION_MATRIX),
     {ModelMatrix,ProjMatrix,ViewPort}.

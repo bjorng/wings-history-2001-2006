@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.20 2002/07/26 17:43:54 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.21 2002/08/01 19:25:03 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -178,7 +178,7 @@ redraw({Lines,Xs,Ys}) ->
 	  end, 0, Lines);
 redraw(splash) ->
     wings_io:ortho_setup(),
-    [_,_,Xs,Ys] = gl:getIntegerv(?GL_VIEWPORT),
+    {_,_,Xs,Ys} = wings_wm:viewport(),
     wings_io:raised_rect(0, 0, Xs, Ys),
     gl:color3f(0.0, 0.0, 0.0),
     gl:recti(3, 3, Xs-3, Ys-3),

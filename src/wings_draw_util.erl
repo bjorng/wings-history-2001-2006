@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.36 2002/08/01 06:50:15 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.37 2002/08/01 19:25:03 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -515,7 +515,10 @@ dummy_axis_letter() ->
 	true ->
 	    MM = list_to_tuple(gl:getDoublev(?GL_MODELVIEW_MATRIX)),
 	    PM = list_to_tuple(gl:getDoublev(?GL_PROJECTION_MATRIX)),
-	    Viewport = gl:getIntegerv(?GL_VIEWPORT),
+	    %% Since this is a workaround, we will do a real fetching
+	    %% of the viewport (rather than wings_wm:viewport/0).
+	    [X,Y,W,H] = gl:getIntegerv(?GL_VIEWPORT),
+	    Viewport = {X,Y,W,H},
 	    dummy_axis_letter(MM, PM, Viewport)
     end.
 
@@ -529,7 +532,7 @@ axis_letters() ->
 	true ->
 	    MM = list_to_tuple(gl:getDoublev(?GL_MODELVIEW_MATRIX)),
 	    PM = list_to_tuple(gl:getDoublev(?GL_PROJECTION_MATRIX)),
-	    ViewPort = gl:getIntegerv(?GL_VIEWPORT),
+	    ViewPort = wings_wm:viewport(),
 	    Info = {MM,PM,ViewPort},
 	    axis_letter(1, axisx, wings_pref:get_value(x_color), Info),
 	    axis_letter(2, axisy, wings_pref:get_value(y_color), Info),
@@ -576,7 +579,7 @@ clip_1({O1,D1}=Axis, [{O2,D2}|Lines], {Ow,_}=W) ->
     end;
 clip_1(_, [], _W) -> none.
 
-show_letter(X0, Y0, W, Char, Color, [Vx,Vy,Vw,Vh]) ->
+show_letter(X0, Y0, W, Char, Color, {Vx,Vy,Vw,Vh}) ->
     X = (0.5*X0/W + 0.5)*Vw + Vx,
     Y = (0.5*Y0/W + 0.5)*Vh + Vy,
     wings_io:axis_text(X, Y, Char, Color).
