@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.13 2002/09/18 13:16:07 bjorng Exp $
+%%     $Id: wpc_opengl.erl,v 1.14 2002/11/19 23:48:00 bjorng Exp $
 
 -module(wpc_opengl).
 
@@ -86,7 +86,7 @@ set_pref(KeyVals) ->
 	 acc_size=6,
 	 attr}).
 
-do_render(Ask, St) when is_atom(Ask) ->
+do_render(Ask, _St) when is_atom(Ask) ->
     wpa:dialog(Ask, dialog_qs(render),
 	       fun(Res) ->
 		       {file,{render,{opengl,Res}}}
@@ -248,7 +248,7 @@ jitter_draw_1([{Jx,Jy}|J], Pass, W, H, #r{acc_size=AccSize}=Rr) ->
 	    gl:drawBuffer(?GL_FRONT),
 	    gl:disable(?GL_LIGHTING),
 	    wings_io:text_at(20, H-20,
-			     io_lib:format("Pass ~p of ~p\n", [Pass,AccSize])),
+			     io_lib:format("Pass ~p of ~p", [Pass,AccSize])),
 	    gl:flush(),
 	    gl:popAttrib(),
 	    gl:drawBuffer(?GL_BACK),
@@ -321,7 +321,7 @@ render_redraw_2(#dlo{smooth=Dlist,transparent=Trans}, RenderTrans) ->
     gl:depthMask(?GL_TRUE),
     ?CHECK_ERROR().
 
-render_mask(#dlo{smoothed=Dlist,transparent=Trans}) ->
+render_mask(#dlo{smoothed=Dlist}) ->
     ?CHECK_ERROR(),
     gl:enable(?GL_POLYGON_OFFSET_FILL),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),

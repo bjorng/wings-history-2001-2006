@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.52 2002/11/14 15:03:06 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.53 2002/11/19 23:48:00 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -317,7 +317,7 @@ seg_map_charts(Method, #seg{st=#st{shapes=Shs},we=OrigWe}=Ss) ->
 seg_map_charts_1(Cs, Type, We, Extra, I, N, Acc, Ss) when I =< N ->
     MapChart = fun() -> seg_map_chart(Cs, Type, We, Extra, I, N, Acc, Ss) end,
     wings_io:putback_event({callback,MapChart}),
-    Msg = io_lib:format("Mapping chart ~w of ~w\n", [I,N]),
+    Msg = io_lib:format("Mapping chart ~w of ~w", [I,N]),
     get_seg_event(Ss#seg{msg=Msg});
 seg_map_charts_1(_, _, We, {OrigWe,Vmap}, _, _, MappedCharts, _) ->
     wings_io:clear_icon_restriction(),
