@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.57 2003/02/25 13:33:31 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.58 2003/02/25 17:43:14 bjorng Exp $
 %%
 
 -module(wings_shape).
--export([new/3,insert/3,replace/3,window/1,window/3]).
+-export([new/3,insert/3,replace/3,window/1,window/4]).
 -export([restore_all/1]).
 
 -define(NEED_ESDL, 1).
@@ -69,24 +69,31 @@ replace(Id, We0, #st{shapes=Shapes0}=St) ->
 	}).
 
 window(St) ->
-    case wings_wm:is_window(object) of
+    Name = {object,wings_wm:active_window()},
+    case wings_wm:is_window(Name) of
 	true ->
-	    wings_wm:delete(object);
+	    wings_wm:raise(Name),
+	    keep;
 	false ->
 	    {{_,DeskY},{DeskW,DeskH}} = wings_wm:win_rect(desktop),
 	    W = 28*?CHAR_WIDTH,
 	    Pos = {DeskW-5,DeskY+55},
 	    Size = {W,DeskH div 2},
-	    window(Pos, Size, St),
+	    window(Name, Pos, Size, St),
 	    keep
     end.
 
-window(Pos, Size, St) ->
+window({_,Client}=Name, Pos, Size, St) ->
+    Title = case Client of
+		geom -> "Geometry Graph";
+		{geom,N} -> "Geometry Graph #" ++ integer_to_list(N)
+	    end,
     Ost = #ost{first=0,lh=18,active=-1},
     Current = {current_state,St},
     Op = {seq,push,event(Current, Ost)},
-    wings_wm:toplevel(object, "Objects", Pos, Size,
-		      [resizable,closable,vscroller,{anchor,ne}], Op).
+    wings_wm:toplevel(Name, Title, Pos, Size,
+		      [resizable,closable,vscroller,{anchor,ne}], Op),
+    wings_wm:link(Client, Name).
 
 get_event(Ost) ->
     {replace,fun(Ev) -> event(Ev, Ost) end}.
@@ -158,11 +165,11 @@ help_1(OneMsg, ThreeMsg) ->
     wings_util:button_message(OneMsg, [], ThreeMsg).
 
 command({delete_object,Id}, _) ->
-    wings_wm:send(geom, {action,{body,{delete_object,[Id]}}});
+    send_client({action,{body,{delete_object,[Id]}}});
 command({duplicate_object,Id}, _) ->
-    wings_wm:send(geom, {action,{body,{duplicate_object,[Id]}}});
+    send_client({action,{body,{duplicate_object,[Id]}}});
 command({rename_object,Id}, _) ->
-    wings_wm:send(geom, {action,{body,{rename,[Id]}}});
+    send_client({action,{body,{rename,[Id]}}});
 command(Cmd, _) ->
     io:format("NYI: ~p\n", [Cmd]),
     keep.
@@ -298,7 +305,7 @@ toggle_visibility(#we{id=Id,perm=Perm}, #ost{st=St0}=Ost) ->
 		  true ->
 		      {show,restore_object(Id, St0)}
 	      end,
-    wings_wm:send(geom, {new_state,St}),
+    send_client({new_state,St}),
     get_event(Ost#ost{op=Op}).
 
 toggle_visibility_all(#we{id=Id}, #ost{os=Objs,st=St0}=Ost) ->
@@ -306,7 +313,7 @@ toggle_visibility_all(#we{id=Id}, #ost{os=Objs,st=St0}=Ost) ->
 	     false -> restore_all(St0);
 	     true -> hide_others(Id, St0)
 	 end,
-    wings_wm:send(geom, {new_state,St}),
+    send_client({new_state,St}),
     get_event(Ost#ost{op=none}).
 
 are_all_visible([#we{id=Id}|T], Id) ->
@@ -320,10 +327,10 @@ are_all_visible([], _) -> true.
 
 toggle_lock(#we{perm=Perm}, _) when ?IS_NOT_VISIBLE(Perm) -> keep;
 toggle_lock(#we{id=Id,perm=Perm}, #ost{st=St0}=Ost) when ?IS_SELECTABLE(Perm) ->
-    wings_wm:send(geom, {new_state,lock_object(Id, St0)}),
+    send_client({new_state,lock_object(Id, St0)}),
     get_event(Ost#ost{op=lock});
 toggle_lock(#we{id=Id}, #ost{st=St0}=Ost) ->
-    wings_wm:send(geom, {new_state,restore_object(Id, St0)}),
+    send_client({new_state,restore_object(Id, St0)}),
     get_event(Ost#ost{op=unlock}).
 
 toggle_lock_all(#we{id=Id}, #ost{st=St0,os=Objs}=Ost) ->
@@ -331,7 +338,7 @@ toggle_lock_all(#we{id=Id}, #ost{st=St0,os=Objs}=Ost) ->
 	     true -> restore_all(St0);
 	     false -> lock_others(Id, St0)
 	 end,
-    wings_wm:send(geom, {new_state,St}),
+    send_client({new_state,St}),
     get_event(Ost#ost{op=none}).
 
 are_all_visible_locked([#we{id=Id}|T], Id) ->
@@ -351,11 +358,11 @@ toggle_sel(#we{id=Id,perm=P}, #ost{st=St0,sel=Sel}=Ost) ->
     case keymember(Id, 1, Sel) of
 	false when ?IS_SELECTABLE(P) ->
 	    St = wings_sel:select_object(Id, St0),
-	    wings_wm:send(geom, {new_state,St}),
+	    send_client({new_state,St}),
 	    get_event(Ost#ost{op=select});
 	true ->
 	    St = wings_sel:deselect_object(Id, St0),
-	    wings_wm:send(geom, {new_state,St}),
+	    send_client({new_state,St}),
 	    get_event(Ost#ost{op=deselect});
 	false ->
 	    get_event(Ost#ost{op=none})
@@ -367,25 +374,27 @@ toggle_sel_all(We, Ost) ->
 
 toggle_sel_all_1(_, #ost{sel=[],st=St0}) ->
     St = wings_sel_cmd:select_all(St0),
-    wings_wm:send(geom, {new_state,St});
+    send_client({new_state,St});
 toggle_sel_all_1(#we{id=Id}, #ost{sel=[{Id,_}],st=St0}) ->
     St = wings_sel_cmd:select_all(St0#st{sel=[]}),
-    wings_wm:send(geom, {new_state,St});
+    send_client({new_state,St});
 toggle_sel_all_1(#we{id=Id,perm=P}, #ost{st=St}) when ?IS_SELECTABLE(P) ->
-    wings_wm:send(geom, {new_state,wings_sel:select_object(Id, St#st{sel=[]})});
+    send_client({new_state,wings_sel:select_object(Id, St#st{sel=[]})});
 toggle_sel_all_1(_, _) -> ok.
 
 toggle_wire(#we{id=Id}, _) ->
-    W0 = wings_wm:get_prop(geom, wireframed_objects),
+    {_,Client} = wings_wm:active_window(),
+    W0 = wings_wm:get_prop(Client, wireframed_objects),
     W = case gb_sets:is_member(Id, W0) of
 	    false -> gb_sets:insert(Id, W0);
 	    true -> gb_sets:delete(Id, W0)
 	end,
-    wings_wm:set_prop(geom, wireframed_objects, W),
+    wings_wm:set_prop(Client, wireframed_objects, W),
     wings_wm:dirty().
 
 toggle_wire_all(#we{id=Id}, #ost{st=#st{shapes=Shs}}) ->
-    W0 = wings_wm:get_prop(geom, wireframed_objects),
+    {_,Client} = wings_wm:active_window(),
+    W0 = wings_wm:get_prop(Client, wireframed_objects),
     W1 = case gb_sets:is_empty(gb_sets:delete_any(Id, W0)) of
 	     true -> gb_sets:from_ordset(gb_trees:keys(Shs));
 	     false -> gb_sets:empty()
@@ -394,7 +403,7 @@ toggle_wire_all(#we{id=Id}, #ost{st=#st{shapes=Shs}}) ->
 	    false -> gb_sets:delete_any(Id, W1);
 	    true -> gb_sets:add(Id, W1)
 	end,
-    wings_wm:set_prop(geom, wireframed_objects, W),
+    wings_wm:set_prop(Client, wireframed_objects, W),
     wings_wm:dirty().
 
 %%%
@@ -447,9 +456,10 @@ draw_objects_1(N, [#we{name=Name}|Wes],
     draw_objects_1(N-1, Wes, Ost, R, Active-1, Y+Lh).
 
 draw_icons(N, Objs, Ost, R, I, Y) ->
+    {_,Client} = wings_wm:active_window(),
     gl:enable(?GL_TEXTURE_2D),
     gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
-    Wires = wings_wm:get_prop(geom, wireframed_objects),
+    Wires = wings_wm:get_prop(Client, wireframed_objects),
     wings_draw_util:fold(fun draw_icons_1/2, {N,Objs,Ost,R,I,Y,Wires}),
     gl:bindTexture(?GL_TEXTURE_2D, 0),
     gl:disable(?GL_TEXTURE_2D).
@@ -593,3 +603,7 @@ update_sel(#we{id=Id,perm={SMode,Elems0}}, #st{selmode=Mode,sel=Sel}=St) ->
     #st{sel=[{Id,Elems}]} = wings_sel:convert_selection(Mode, StTemp),
     sort([{Id,Elems}|Sel]);
 update_sel(_, #st{sel=Sel}) -> Sel.
+
+send_client(Message) ->
+    {_,Client} = wings_wm:active_window(),
+    wings_wm:send(Client, Message).

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.80 2003/02/25 13:33:33 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.81 2003/02/25 17:43:15 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -214,7 +214,7 @@ delete_windows(Name, W0) ->
 	    Active = active_window(),
 	    W = gb_trees:delete_any(Name, W0),
 	    foldl(fun(L, A) when L =/= Active ->
-			  gb_trees:delete_any(L, A);
+			  delete_windows(L, A);
 		     (_, A) -> A
 		  end, W, Links)
     end.
@@ -282,7 +282,8 @@ update_window(Name, Updates) ->
     dirty().
 
 update_linked_z([N|Ns], Dz) ->
-    case get_window_data(N) of
+    case lookup_window_data(N) of
+	none -> ok;
 	#win{z=Hidden} when Hidden < 0 -> ok;
 	#win{z=Z}=Data ->
 	    put_window_data(N, Data#win{z=Z+Dz}),

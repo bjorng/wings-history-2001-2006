@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.27 2003/02/25 13:33:30 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.28 2003/02/25 17:43:14 bjorng Exp $
 %%
 
 -module(wings_outliner).
@@ -38,7 +38,8 @@
 window(St) ->
     case wings_wm:is_window(outliner) of
 	true ->
-	    wings_wm:delete(outliner);
+	    wings_wm:raise(outliner),
+	    keep;
 	false ->
 	    {{_,DeskY},{DeskW,DeskH}} = wings_wm:win_rect(desktop),
 	    W = 28*?CHAR_WIDTH,
@@ -70,7 +71,7 @@ event(resized, Ost) ->
 event(got_focus, _) ->
     Msg = wings_util:button_format("Select", [],
 				   "Show outliner menu (if selection) or "
-				  "creation menu (if no selection)"),
+				   "creation menu (if no selection)"),
     wings_wm:message(Msg),
     wings_wm:dirty();
 event({current_state,St}, Ost0) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.219 2003/02/25 13:33:22 bjorng Exp $
+%%     $Id: wings.erl,v 1.220 2003/02/25 17:43:13 bjorng Exp $
 %%
 
 -module(wings).
@@ -176,14 +176,14 @@ init(File, Root) ->
 new_viewer(St) ->
     {Pos,{W,H}} = wings_wm:win_rect(desktop),
     Size = {W div 2-40,H div 2-40},
-    new_viewer(Pos, Size, false, St).
-
-new_viewer({X,Y}, Size, ToolbarHidden, St) ->
-    Op = main_loop_noredraw(St),
     N = free_viewer_num(2),
+    Name = {geom,N},
+    new_viewer(Name, Pos, Size, false, St).
+
+new_viewer({geom,N}=Name, {X,Y}, Size, ToolbarHidden, St) ->
+    Op = main_loop_noredraw(St),
     Title = "Geometry #" ++ integer_to_list(N),
     Props = wings_view:initial_properties(),
-    Name = {geom,N},
     wings_wm:toplevel(Name, Title, {X,Y,highest}, Size,
 		      [resizable,closable,{anchor,nw},
 		       {toolbar,fun create_toolbar/3},
@@ -596,16 +596,16 @@ tools_menu(_) ->
 	 "Create real geometry from the virtual mirrors"}]}}].
 
 window_menu(_) ->
-    [{"Outliner",outliner,[],win_crossmark(outliner)},
-     {"Objects",object,[],win_crossmark(object)},
+    Name = case wings_wm:active_window() of
+	       {_,geom} ->
+		   "Geometry Graph";
+	       {_,{geom,N}} ->
+		   "Geometry Graph #" ++ integer_to_list(N)
+	   end,
+    [{"Outliner",outliner,[]},
+     {Name,object,[]},
      separator,
-     {"Geometry",geom_viewer}].
-
-win_crossmark(Name) ->
-    case wings_wm:is_window(Name) of
-	false -> [];
-	true -> [crossmark]
-    end.
+     {"New Geometry Window",geom_viewer}].
 
 patches() ->
     case wings_start:get_patches() of
@@ -859,29 +859,38 @@ wings() -> "Wings 3D".
 %%%
 
 save_windows() ->
-    Wins = save_windows_1([outliner,object]) ++
-	save_geom_windows(wings_util:geom_windows()),
-    wings_pref:set_value(saved_windows, Wins).
+    Saved = save_windows_1(wings_wm:windows()),
+    wings_pref:set_value(saved_windows, Saved).
 
-save_windows_1([N|Ns]) ->
-    case wings_wm:is_window(N) of
-	false -> save_windows_1(Ns);
-	true ->
-	    Pos = wings_wm:win_ur({controller,N}),
-	    Size = wings_wm:win_size(N),
-	    [{N,Pos,Size}|save_windows_1(Ns)]
-    end;
+save_windows_1([outliner|Ns]) ->
+    save_window(outliner, Ns);
+save_windows_1([{object,_}=N|Ns]) ->
+    save_window(N, Ns);
+save_windows_1([geom=N|Ns]) ->
+    save_geom_window(N, Ns);
+save_windows_1([{geom,_}=N|Ns]) ->
+    save_geom_window(N, Ns);
+save_windows_1([_|T]) -> save_windows_1(T);
 save_windows_1([]) -> [].
 
-save_geom_windows([Name|T]) ->
+save_window(Name, Ns) ->
+    Pos = wings_wm:win_ur({controller,Name}),
+    Size = wings_wm:win_size(Name),
+    [{Name,Pos,Size}|save_windows_1(Ns)].
+
+save_geom_window(Name, Ns) ->
     {Pos,Size} = wings_wm:win_rect(Name),
     ToolbarHidden = wings_wm:is_hidden({toolbar,Name}),
     Geom = {Name,Pos,Size,ToolbarHidden},
-    [Geom|save_geom_windows(T)];
-save_geom_windows([]) -> [].
+    [Geom|save_windows_1(Ns)].
 
 restore_windows(St) ->
-    Windows = sort(wings_pref:get_value(saved_windows, [])),
+    %% Sort windows using names as keys to make sure we
+    %% create the geometry windows before the object windows.
+    %% (Because we set up links.)
+    Windows0 = wings_pref:get_value(saved_windows, []),
+    Windows1 = sort([{element(1, W),W} || W <- Windows0]),
+    Windows = [W || {_,W} <- Windows1],
     restore_windows_1(Windows, St).
 
 restore_windows_1([{geom,{_,_}=Pos0,{_,_}=Size,ToolbarHidden}|Ws], St) ->
@@ -892,12 +901,12 @@ restore_windows_1([{geom,{_,_}=Pos0,{_,_}=Size,ToolbarHidden}|Ws], St) ->
     Pos = geom_pos(Pos0),
     wings_wm:move(geom, Pos, Size),
     restore_windows_1(Ws, St);
-restore_windows_1([{{geom,_},Pos,Size,ToolbarHidden}|Ws], St) ->
-    Name = new_viewer({0,0}, Size, ToolbarHidden, St),
+restore_windows_1([{{geom,_}=Name,Pos,Size,ToolbarHidden}|Ws], St) ->
+    new_viewer(Name, {0,0}, Size, ToolbarHidden, St),
     wings_wm:move(Name, Pos, Size),
     restore_windows_1(Ws, St);
-restore_windows_1([{object,{_,_}=Pos,{_,_}=Size}|Ws], St) ->
-    wings_shape:window(Pos, Size, St),
+restore_windows_1([{{object,_}=Name,{_,_}=Pos,{_,_}=Size}|Ws], St) ->
+    wings_shape:window(Name, Pos, Size, St),
     restore_windows_1(Ws, St);
 restore_windows_1([{outliner,{_,_}=Pos,{_,_}=Size}|Ws], St) ->
     wings_outliner:window(Pos, Size, St),
