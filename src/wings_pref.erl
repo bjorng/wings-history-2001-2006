@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.106 2003/11/30 07:53:19 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.107 2003/11/30 09:59:08 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -219,9 +219,16 @@ ui_prefs() ->
      ]}.
 
 misc_prefs() ->
+    Flags = case wings_util:is_gl_ext({1,2}, 'GL_ARB_imaging') of
+		true -> [];
+		false ->
+		    [{hook,fun(is_disabled, _) -> true;
+			      (_, _) -> void
+			   end},
+		     {info,"Opacity settings not supported using this version of OpenGL"}]
+	    end,
     {vframe,
-       [
-	{vframe,
+       [{vframe,
 	 [{label_column,
 	   [{"Angle",auto_rotate_angle},
 	    {"Delay (ms)",auto_rotate_delay}]}],
@@ -239,18 +246,13 @@ misc_prefs() ->
 	     proxy_shaded_edge_style}],
 	   [{title,"Shaded Mode Edge Style"}]},
 	  {hframe,
-	   case wings_util:is_gl_ext('GL_ARB_imaging') of
-	       false ->
-		   [{vframe,[{label,"(Opacity preferences only supported when"},
-			     {label,"using OpenGL 1.2 or higher.)"}]}];
-	       true ->
-		   [{vframe,
-		     [{label,"Stationary Opacity"},
-		      {label,"Moving Opacity"}]},
-		    {vframe,
-		     [{slider,{text,proxy_static_opacity,[{range,{0.0,1.0}}]}},
-		      {slider,{text,proxy_moving_opacity,[{range,{0.0,1.0}}]}}]}]
-	   end}],[{title,"Proxy Mode"}]}
+	   [{vframe,
+	     [{label,"Stationary Opacity"},
+	      {label,"Moving Opacity"}]},
+	    {vframe,
+	     [{slider,{text,proxy_static_opacity,[{range,{0.0,1.0}}|Flags]}},
+	      {slider,{text,proxy_moving_opacity,[{range,{0.0,1.0}}|Flags]}}]}]}],
+	 [{title,"Proxy Mode"}]}
        ]}.
 
 smart_set_value(Key, Val, St) ->
