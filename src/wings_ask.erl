@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.92 2003/10/11 07:19:59 raimo_niskanen Exp $
+%%     $Id: wings_ask.erl,v 1.93 2003/10/20 12:51:42 raimo_niskanen Exp $
 %%
 
 -module(wings_ask).
@@ -60,6 +60,8 @@
 	{handler,				%Handler fun.
 	 key,					%Field key.
 	 inert=true,				%Inert field.
+	 disabled=false,			%Disabled field, temporary inert
+	 hook,					%Field hook fun/2
 	 flags,					%Flags field.
 	 x,y,					%Upper left position.
 	 w,h,					%Width, height.
@@ -197,8 +199,7 @@ get_event(S) ->
 
 event(redraw, S) ->
     ?DEBUG_DISPLAY(redraw),
-    redraw(S),
-    keep;
+    redraw(S);
 event({current_state,_}, _) ->
     keep;
 event(#keyboard{sym=Sym,mod=Mod,unicode=Unicode}, S) ->
@@ -305,7 +306,7 @@ drop_event(X, Y, DropData, #s{ox=Ox,oy=Oy,fi=Fis}=S0) ->
 mouse_to_field(I, Fis, _X, _Y) when I > size(Fis) -> none;
 mouse_to_field(I, Fis, X, Y) ->
     case element(I, Fis) of
-	#fi{inert=false,x=Lx,y=Uy,w=W,h=H}
+	#fi{inert=false,x=Lx,y=Uy,w=W,h=H,disabled=false}
 	when Lx =< X, X < Lx+W,
 	     Uy =< Y, Y < Uy+H -> I;
 	_Other -> mouse_to_field(I+1, Fis, X, Y)
@@ -322,6 +323,7 @@ next_focus_1(I0, Dir, #s{fi=Fis}=S) ->
 	end,
     case element(I, Fis) of
 	#fi{inert=true} -> next_focus_1(I, Dir, S);
+	#fi{disabled=true} -> next_focus_1(I, Dir, S);
 	_ -> set_focus(I, S)
     end.
 
@@ -376,7 +378,7 @@ field_event(Ev, I, #s{fi=Fis,store=Store}=S) ->
 	    get_event(S#s{store=Store1});
 	Action when is_function(Action) ->
 	    Res = collect_result(S),
-    Action(Res),
+	    Action(Res),
 	    delete(S)
     end.
 
@@ -423,7 +425,7 @@ collect_result(I, Fis, Store) when I =< size(Fis) ->
     end;
 collect_result(_, _, _) -> [].
 
-redraw(#s{w=W,h=H,ox=Ox,oy=Oy,focus=Focus,fi=Fis,store=Store}) ->
+redraw(#s{w=W,h=H,ox=Ox,oy=Oy,focus=Focus,fi=Fis0,store=Store} = S) ->
     wings_io:ortho_setup(),
     gl:translated(Ox, Oy, 0),
     blend(fun(Color) ->
@@ -431,13 +433,25 @@ redraw(#s{w=W,h=H,ox=Ox,oy=Oy,focus=Focus,fi=Fis,store=Store}) ->
 				  W+2*?HMARGIN-1, H+2*?VMARGIN-1,
 				  Color)
 	  end),
-    draw_fields(1, Fis, Focus, Store).
+    case draw_fields(1, Fis0, Focus, Store, keep) of
+	keep -> keep;
+	Fis ->  get_event(S#s{fi=Fis})
+    end.
 
-draw_fields(I, Fis, Focus, Store) when I =< size(Fis) ->
-    #fi{handler=Handler} = Fi = element(I, Fis),
-    Handler({redraw,I =:= Focus}, Fi, I, Store),
-    draw_fields(I+1, Fis, Focus, Store);
-draw_fields(_, _, _, _) -> ok.
+draw_fields(I, Fis, Focus, Store, Keep) when I =< size(Fis) ->
+    #fi{handler=Handler,disabled=Disabled} = Fi = element(I, Fis),
+    case Handler({redraw,I =:= Focus}, Fi, I, Store) of
+	enable when Disabled == true ->
+	    draw_fields(I+1, setelement(I, Fis, Fi#fi{disabled=false}),
+			Focus, Store, change);
+	disable when Disabled == false -> 
+	    draw_fields(I+1, setelement(I, Fis, Fi#fi{disabled=true}),
+			Focus, Store, change);
+	_ ->
+	    draw_fields(I+1, Fis, Focus, Store, Keep)
+    end;
+draw_fields(_, _, _, _, keep) -> keep;
+draw_fields(_, Fis, _, _, change) -> Fis.
 
 %%%
 %%% Conversion of queries to internal format and dimension calculation.
@@ -482,14 +496,18 @@ normalize({color,Def,Flags}, Fi) ->
     normalize_field(color(Def), [drag|Flags], Fi);
 normalize({alt,{Var,Def},Prompt,Val}, Fi) ->
     normalize_field(radiobutton(Var, Def, Prompt, Val), [], Fi);
+normalize({alt,{Var,Def},Prompt,Val,Flags}, Fi) ->
+    normalize_field(radiobutton(Var, Def, Prompt, Val), Flags, Fi);
 normalize({key_alt,{Var,Def},Prompt,Val}, Fi) ->
     normalize_field(radiobutton(Var, Def, Prompt, Val), [{key,Var}], Fi);
+normalize({key_alt,{Var,Def},Prompt,Val,Flags}, Fi) ->
+    normalize_field(radiobutton(Var, Def, Prompt, Val), [{key,Var}|Flags], Fi);
 normalize({menu,Menu,{Var,Def}}, Fi) ->
     normalize_field(menu(Var, Def, Menu), [{key,Var}], Fi);    
 normalize({menu,Menu,VarDef}, Fi) ->
     normalize({menu,Menu,VarDef,[]}, Fi);
 normalize({menu,Menu,{Var,Def},Flags}, Fi) ->
-    normalize_field(menu(Var, Def, Menu), Flags, Fi);    
+    normalize_field(menu(Var, Def, Menu), [{key,Var}|Flags], Fi);    
 normalize({menu,Menu,Def,Flags}, Fi) ->
     normalize_field(menu(0, Def, Menu), Flags, Fi);    
 normalize({button,Action}, Fi) when is_atom(Action) ->
@@ -626,7 +644,8 @@ flatten_fields(FiPriv, Store0) ->
 flatten_fields([], Store, I, Fis) ->
     {Store,I,Fis};
 flatten_fields([{#fi{flags=Flags}=Fi0,Priv}|FiPrivs], Store0, I0, Fis0) ->
-    Fi = Fi0#fi{key=proplists:get_value(key, Flags, 0)},
+    Fi = Fi0#fi{key=proplists:get_value(key, Flags, 0),
+		hook=proplists:get_value(hook, Flags)},
     case Priv of
 	#vframe{} ->
 	    {Store,I,Fis} = 
@@ -656,7 +675,7 @@ frame_event(_, _, _, _) -> keep.
 frame_redraw(#fi{flags=[]}) -> ok;
 frame_redraw(#fi{x=X,y=Y0,w=W,h=H0,flags=Flags}) ->
     case proplists:get_value(title, Flags) of
-	undefined -> ok;
+	undefined -> keep;
 	Title ->
 	    Y = Y0 + ?CHAR_HEIGHT div 2 + 3,
 	    H = H0 - (Y-Y0) - 4,
@@ -673,7 +692,8 @@ frame_redraw(#fi{x=X,y=Y0,w=W,h=H0,flags=Flags}) ->
 				   TextPos+(length(Title)+1)*?CHAR_WIDTH, Y+2)
 		  end),
 	    gl:color3b(0, 0, 0),
-	    wings_io:text_at(TextPos, Y0+?CHAR_HEIGHT, Title)
+	    wings_io:text_at(TextPos, Y0+?CHAR_HEIGHT, Title),
+	    keep
     end.
 
 hline(X0, Y0, W) ->
@@ -725,7 +745,10 @@ separator_draw(#fi{x=X,y=Y,w=W}) ->
     gl:vertex2f(RightX, UpperY),
     gl:'end'(),
     gl:color3b(0, 0, 0),
-    ?CHECK_ERROR().
+    ?CHECK_ERROR(),
+    keep.
+
+
 
 
 
@@ -754,10 +777,12 @@ cb_event(init, #fi{key=Key}, I, Store) ->
     {store,gb_trees:enter(ck(Key, I), Val, Store)};
 cb_event(value, #fi{key=Key}, I, Store) ->
     {value,gb_trees:get(ck(Key, I), Store)};
-cb_event({redraw,Active}, #fi{key=Key}=Fi, I, Store) ->
+cb_event({redraw,Active}, #fi{key=Key,hook=Hook}=Fi, I, Store) ->
+    Ck = ck(Key, I),
     Cb = gb_trees:get(-I, Store),
-    Val = gb_trees:get(ck(Key, I), Store),
-    cb_draw(Active, Fi, Cb, Val);
+    Val = gb_trees:get(Ck, Store),
+    DisEnable = hook_is_disabled(Hook, Ck, I, Store),
+    cb_draw(Active, Fi, Cb, Val, DisEnable);
 cb_event({key,_,_,$\s}, #fi{key=Key}, I, Store) ->
     Ck = ck(Key, I),
     Val = gb_trees:get(Ck, Store),
@@ -773,8 +798,12 @@ cb_event(#mousebutton{x=Xb,state=?SDL_PRESSED}, #fi{x=X,key=Key}, I, Store) ->
     end;
 cb_event(_Ev, _Fi, _I, _Store) -> keep.
 
-cb_draw(Active, #fi{x=X,y=Y0}, #cb{label=Label}, Val) ->
-    wings_io:sunken_rect(X, Y0+?CHAR_HEIGHT-9, 8, 8, {1,1,1}),
+cb_draw(Active, #fi{x=X,y=Y0}, #cb{label=Label}, Val, DisEnable) ->
+    wings_io:sunken_rect(X, Y0+?CHAR_HEIGHT-9, 8, 8, 
+			 case DisEnable of
+			     disable -> color();
+			     _ -> {1,1,1}
+			 end),
     Y = Y0+?CHAR_HEIGHT,
     case Val of
 	false -> ok;
@@ -786,7 +815,10 @@ cb_draw(Active, #fi{x=X,y=Y0}, #cb{label=Label}, Val) ->
 	    wings_io:text_at(X+2*?CHAR_WIDTH, Y,
 			     duplicate(length(Label), $_));
 	true -> ok
-    end.
+    end,
+    DisEnable.
+
+
 
 
 
@@ -817,9 +849,10 @@ rb_event(init, _Fi, I, Store) ->
 	Def -> {store,gb_trees:enter(Var, Val, Store)};
 	_ -> keep
     end;
-rb_event({redraw,Active}, Fi, I, Store) ->
+rb_event({redraw,Active}, #fi{hook=Hook}=Fi, I, Store) ->
     #rb{var=Var} = Rb = gb_trees:get(-I, Store),
-    rb_draw(Active, Fi, Rb, gb_trees:get(Var, Store));
+    DisEnable = hook_is_disabled(Hook, Var, I, Store),
+    rb_draw(Active, Fi, Rb, gb_trees:get(Var, Store), DisEnable);
 rb_event(value, _Fi, I, Store) ->
     #rb{var=Var,val=Val} = gb_trees:get(-I, Store),
     case gb_trees:get(Var, Store) of
@@ -836,10 +869,13 @@ rb_event(#mousebutton{x=Xb,state=?SDL_RELEASED}, #fi{x=X}, I, Store) ->
     end;
 rb_event(_Ev, _Fi, _I, _Store) -> keep.
 
-rb_draw(Active, #fi{x=X,y=Y0}, #rb{label=Label,val=Val}, Common) ->
+rb_draw(Active, #fi{x=X,y=Y0}, #rb{label=Label,val=Val}, Common, DisEnable) ->
     Y = Y0+?CHAR_HEIGHT,
-    gl:color3f(1, 1, 1),
-    White = <<
+    gl:color4fv(case DisEnable of
+		   disable -> color();
+		   _ -> {1,1,1,1}
+	       end),
+    Fg = <<
 	     2#00111000,
 	     2#01111100,
 	     2#11111110,
@@ -848,7 +884,7 @@ rb_draw(Active, #fi{x=X,y=Y0}, #rb{label=Label,val=Val}, Common) ->
 	     2#01111100,
 	     2#00111000>>,
     gl:rasterPos2i(X, Y),
-    gl:bitmap(7, 7, -1, 0, 7, 0, White),
+    gl:bitmap(7, 7, -1, 0, 7, 0, Fg),
     gl:color3b(0, 0, 0),
     B = case Common of
 	    Val ->
@@ -878,11 +914,11 @@ rb_draw(Active, #fi{x=X,y=Y0}, #rb{label=Label,val=Val}, Common) ->
 	    wings_io:text_at(X+2*?CHAR_WIDTH, Y,
 			     duplicate(length(Label), $_));
 	true -> ok
-    end.
+    end,
+    DisEnable.
 
 rb_set(#rb{var=Var,val=Val}, Store) ->
     {store,gb_trees:update(Var, Val, Store)}.
-
 
 
 %%%
@@ -1109,8 +1145,9 @@ button_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #but{label=Label}) ->
     if
 	Active == true ->
 	    L = length(Label),
-	    wings_io:text_at(TextX, Y, duplicate(L, $_));
-	true -> ok
+	    wings_io:text_at(TextX, Y, duplicate(L, $_)),
+	    keep;
+	true -> keep
     end.
 
 
@@ -1169,8 +1206,9 @@ col_draw(Active, #fi{x=X,y=Y0}, RGB) ->
     Y = Y0+?CHAR_HEIGHT,
     if
 	Active == true ->
-	    wings_io:text_at(X, Y, "___");
-	true -> ok
+	    wings_io:text_at(X, Y, "___"),
+	    keep;
+	true -> keep
     end.
 
 col_inside(Xm, Ym, #fi{x=X,y=Y}) ->
@@ -1192,7 +1230,8 @@ pick_color(#fi{key=Key}, I, Store) ->
 		   R = gb_trees:get(red, Sto),
 		   G = gb_trees:get(green, Sto),
 		   B = gb_trees:get(blue, Sto),
-		   wings_io:sunken_rect(X, Y, W, H, {R,G,B})
+		   wings_io:sunken_rect(X, Y, W, H, {R,G,B}),
+		   keep
 	   end,
     Aslider = case A1 of
 		  none -> [];
@@ -1267,7 +1306,7 @@ color_text_flags(T, {K1,K2,K3}, Kabc, Range) ->
     [{key,K1},{range,Range},{hook,color_update(T, {K2,K3}, Kabc)}].
 
 color_update(T, {K1,K2}, {Ka,Kb,Kc}) ->
-    fun (update, {_Key,Val,Store0}) ->
+    fun (update, {_Key,_I,Val,Store0}) ->
 	    V1 = gb_trees:get(K1, Store0),
 	    V2 = gb_trees:get(K2, Store0),
 	    {Va,Vb,Vc} = color_update(T, Val, V1, V2),
@@ -1343,8 +1382,11 @@ label_event(_, _, _, _) -> keep.
 
 label_draw([L|Lines], X, Y) ->
     wings_io:text_at(X, Y, L),
-    label_draw(Lines, X, Y+?LINE_HEIGHT);
-label_draw([], _, _) -> ok.
+    label_draw(Lines, X, Y+?LINE_HEIGHT),
+    keep;
+label_draw([], _, _) -> keep.
+
+
 
 
 
@@ -1404,32 +1446,44 @@ validator(Val, _Flags) when is_list(Val) ->
 
 integer_validator(Flags) ->
     case proplists:get_value(range, Flags) of
-	undefined -> {8,fun accept_all/1,fun integer_chars/1,undefined};
+	undefined -> {8,fun accept_all/1,integer_chars(),undefined};
 	{Min,Max}=Range when is_integer(Min), is_integer(Max), Min =< Max ->
 	    Digits = trunc(math:log(Max-Min+1)/math:log(10))+2,
-	    {Digits,integer_range(Min, Max),fun integer_chars/1,Range}
+	    {Digits,integer_range(Min, Max),integer_chars(Min, Max),Range}
     end.
 
 float_validator(Flags) ->
     case proplists:get_value(range, Flags) of
-	undefined -> {12,fun accept_all/1,fun float_chars/1,undefined};
+	undefined -> {12,fun accept_all/1,float_chars(),undefined};
 	{Min,Max}=Range when is_float(Min), is_float(Max), Min =< Max ->
 	    Digits = min(trunc(math:log(Max-Min+1)/math:log(10))+8, 20),
-	    {Digits,float_range(Min, Max),fun float_chars/1,Range}
+	    {Digits,float_range(Min, Max),float_chars(Min, Max),Range}
     end.
 
 string_validator() ->
     {30,fun accept_all/1,fun all_chars/1,undefined}.
 
-integer_chars($-) -> true;
-integer_chars(C) when $0 =< C, C =< $9 -> true;
-integer_chars(_) -> false.
+integer_chars() ->
+    integer_chars(-1, 1).
 
-float_chars($-) -> true;
-float_chars($.) -> true;
-float_chars(C) when $0 =< C, C =< $9 -> true;
-float_chars(_) -> false.
+integer_chars(Min, Max) ->
+    fun ($-) when Min < 0 -> true;
+	($+) when Max > 0 -> true;
+	(C) when $0 =< C, C =< $9 -> true;
+	(_) -> false
+    end.
 
+float_chars() ->
+    float_chars(-1.0, +1.0).
+	    
+float_chars(Min, Max) ->
+    fun ($-) when Min < 0.0 -> true;
+	($+) when Max > 0.0 -> true;
+	(C) when $0 =< C, C =< $9 -> true;
+	($.) -> true;
+	(_) -> false
+    end.
+	    
 all_chars(_) -> true.
 
 integer_range(Min, Max) ->
@@ -1461,10 +1515,10 @@ text_get_val(#text{last_val=OldVal}=Ts) when is_integer(OldVal) ->
 	{'EXIT',_} -> OldVal;
 	Val -> Val
     end;
-text_get_val(#text{last_val=Val}=Ts) when is_float(Val) ->
-    case string_to_float(get_text(Ts)) of
-	error -> 0.0;
-	F -> F
+text_get_val(#text{last_val=OldVal}=Ts) when is_float(OldVal) ->
+    case string_to_float(get_text(validate_string(Ts))) of
+	error -> OldVal;
+	Val -> Val
     end;
 text_get_val(#text{last_val=Val}=Ts) when is_list(Val) ->
     get_text(Ts).
@@ -1473,6 +1527,7 @@ string_to_float(Str0) ->
     Str = case Str0 of
 	      [$.|_]=T -> [$0|T];
 	      [$-|[$.|_]=T] -> [$-,$0|T];
+	      [$+|[$.|_]=T] -> [$+,$0|T];
 	      T -> T
 	  end,
     case catch list_to_float(Str) of
@@ -1523,7 +1578,8 @@ draw_text_inactive(#fi{x=X0,y=Y0}, #text{max=Max,password=Password}, Val) ->
 			 {1,1,1}),
     Y = Y0 + ?CHAR_HEIGHT,
     X = X0 + (?CHAR_WIDTH div 2),
-    wings_io:text_at(X, Y, Str).
+    wings_io:text_at(X, Y, Str),
+    keep.
 
 draw_text_active(#fi{x=X0,y=Y0}, 
 		 #text{sel=Sel,bef=Bef,aft=Aft,max=Max,password=Password}) ->
@@ -1549,12 +1605,14 @@ draw_text_active(#fi{x=X0,y=Y0},
  	    gl:recti(X1, Y-?CHAR_HEIGHT+3, X1+N*?CHAR_WIDTH, Y+2),
  	    gl:color3f(1, 1, 1),
 	    wings_io:text_at(X1, Y, SelStr),
-	    gl:color3b(0, 0, 0);
+	    gl:color3b(0, 0, 0),
+	    keep;
 	_ ->
 	    gl:color3f(1, 0, 0),
 	    X1 = X+Len*?CHAR_WIDTH,
 	    wings_io:text_at(X1, Y, [caret]),
-	    gl:color3b(0, 0, 0)
+	    gl:color3b(0, 0, 0),
+	    keep
     end.
 
 stars(N) when integer(N) ->
@@ -1717,7 +1775,6 @@ increment(Ts0, Incr) ->
 -record(sl,
 	{min,
 	 range,
-	 hook,
 	 color,
 	 h
 	}).
@@ -1729,8 +1786,7 @@ slider(Flags) ->
 	    undefined -> {undefined,2};
 	    {T,_,_}=C when T==r;T==g;T==b;T==h;T==s;T==v -> {C,9}
 	end,
-    Hook = proplists:get_value(hook, Flags),
-    Sl = #sl{min=Min,range=Max-Min,hook=Hook,color=Color,h=H},
+    Sl = #sl{min=Min,range=Max-Min,color=Color,h=H},
     Fun = fun slider_event/4,
     {Fun,false,Sl,?SL_LENGTH+4,?LINE_HEIGHT+2}.
 
@@ -1766,11 +1822,11 @@ slider_event({key,?SDLK_UP,_,_}, Fi, I, Store) ->
     slider_move(10, Fi, I, Store);
 slider_event({key,?SDLK_DOWN,_,_}, Fi, I, Store) ->
     slider_move(-10, Fi, I, Store);
-slider_event({key,?SDLK_HOME,_,_}, #fi{key=Key}, I, Store) ->
-    #sl{min=Min,hook=Hook} = gb_trees:get(-I, Store),
+slider_event({key,?SDLK_HOME,_,_}, #fi{key=Key,hook=Hook}, I, Store) ->
+    #sl{min=Min} = gb_trees:get(-I, Store),
     slider_update(Hook, Min, Key, I, Store);
-slider_event({key,?SDLK_END,_,_}, #fi{key=Key}, I, Store) ->
-    #sl{min=Min,range=Range,hook=Hook} = gb_trees:get(-I, Store),
+slider_event({key,?SDLK_END,_,_}, #fi{key=Key,hook=Hook}, I, Store) ->
+    #sl{min=Min,range=Range} = gb_trees:get(-I, Store),
     slider_update(Hook, Min+Range, Key, I, Store);
 slider_event({key,_,_,6}, Fi, I, Store) -> %Ctrl-F
     slider_move(1, Fi, I, Store);
@@ -1782,8 +1838,8 @@ slider_event({key,_,_,14}, Fi, I, Store) -> %Ctrl-N
     slider_move(-10, Fi, I, Store);
 slider_event(_, _, _, _) -> keep.
 
-slider_move(D0, #fi{key=Key}, I, Store) ->
-    #sl{min=Min,range=Range,hook=Hook} = gb_trees:get(-I, Store),
+slider_move(D0, #fi{key=Key,hook=Hook}, I, Store) ->
+    #sl{min=Min,range=Range} = gb_trees:get(-I, Store),
     Val0 = gb_trees:get(sk(Key, I), Store),
     D = if
 	     is_integer(Min), D0 > 0 -> max(round(D0*0.01*Range), 1);
@@ -1793,8 +1849,8 @@ slider_move(D0, #fi{key=Key}, I, Store) ->
     Val = max(Min, min(Min+Range, Val0+D)),
     slider_update(Hook, Val, Key, I, Store).
 
-slider_event_move(Xb, #fi{x=X,key=Key}, I, Store) ->
-    #sl{min=Min,range=Range,hook=Hook} = gb_trees:get(-I, Store),
+slider_event_move(Xb, #fi{x=X,key=Key,hook=Hook}, I, Store) ->
+    #sl{min=Min,range=Range} = gb_trees:get(-I, Store),
     Pos = max(0, min(Xb-X, ?SL_LENGTH)),
     V = Min + Pos*Range/?SL_LENGTH,
     Val = if
@@ -1806,15 +1862,7 @@ slider_event_move(Xb, #fi{x=X,key=Key}, I, Store) ->
 slider_update(Hook, Val, Key, I, Store) ->
     Sk = sk(Key, I),
     ?DEBUG_DISPLAY([Val,Sk]),
-    case Hook of
-	undefined ->
-	    {store,gb_trees:update(Sk, Val, Store)};
-	_ when is_function(Hook) ->
-	    case Hook(update, {Key,Val,gb_trees:update(Sk, Val, Store)}) of
-		void -> keep;
-		Result -> Result
-	    end
-    end.
+    hook_update(Hook, Sk, I, Val, Store).
 
 slider_redraw(Active, Fi, #sl{color={T,K1,K2}}=Sl, Val, Store) ->
     V1 = gb_trees:get(K1, Store),
@@ -1839,7 +1887,8 @@ slider_redraw_1(Active, #fi{x=X,y=Y0,w=W}, #sl{min=Min,range=Range,h=H}, C) ->
 			  wings_io:sunken_rect(X+Pos, Y-(?SL_BAR_H div 2),
 					       4, ?SL_BAR_H, Col)
 		  end
-	  end).
+	  end),
+    keep.
 
 color_slider({h,{Hue,S,V}},X,W,Y,H) ->
     gl:shadeModel(?GL_SMOOTH),
@@ -1933,3 +1982,25 @@ sk(0, I) when is_integer(I), I > 0 ->
     I-1;
 sk(Key, I) when not is_integer(Key), is_integer(I) ->
     Key.
+
+hook_is_disabled(Hook, Var, I, Store) ->
+    case Hook of
+	undefined -> keep;
+	_ when is_function(Hook) ->
+	    case Hook(is_disabled, {Var,I,Store}) of
+		void -> keep;
+		true -> enable;
+		false -> disable
+	    end
+    end.
+
+hook_update(Hook, Var, I, Val, Store) ->
+    case Hook of
+	undefined ->
+	    {store,gb_trees:update(Var, Val, Store)};
+	_ when is_function(Hook) ->
+	    case Hook(update, {Var,I,Val,gb_trees:update(Var, Val, Store)}) of
+		void -> keep;
+		Result -> Result
+	    end
+    end.

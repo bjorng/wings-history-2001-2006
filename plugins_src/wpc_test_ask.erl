@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_test_ask.erl,v 1.1 2003/10/11 07:19:59 raimo_niskanen Exp $
+%%     $Id: wpc_test_ask.erl,v 1.2 2003/10/20 12:51:41 raimo_niskanen Exp $
 %%
 
 -module(wpc_test_ask).
@@ -93,12 +93,12 @@ command_dialog(_St) ->
 	[{hframe,
 	  [{vframe,
 	    [{label,"Label"},
-	     {key_alt,{d,1},"Alt 3",3},
+	     {key_alt,{d,1},"Alt 3",3,[{hook,disable_hook(c)}]},
 	     separator,
 	     {"Checkbox",false},
-	     {"Checkbox key",false,[{key,c}]},
+	     {"Checkbox key",false,[{key,c},{hook,disable_hook(-1)}]},
 	     separator,
-	     {key_alt,{d,1},"Alt 1",1},
+	     {key_alt,{d,1},"Alt 1",1,[{hook,disable_hook(c)}]},
 	     {custom,40,10,fun (X, Y, W, H, Store) ->
 				   Color = case gb_trees:get(c, Store) of
 					       true -> {1,1,0};
@@ -106,7 +106,7 @@ command_dialog(_St) ->
 				   wings_io:sunken_rect(X, Y, W, H, Color)
 			   end},
 	     {slider,[{range,{1,3}},{key,d}]},
-	     {key_alt,{d,1},"Alt 2",2},
+	     {key_alt,{d,1},"Alt 2",2,[{hook,disable_hook(c)}]},
 	     separator,
 	     {custom,40,10,fun (X, Y, W, H, Store) ->
 				   R = gb_trees:get(red, Store),
@@ -181,3 +181,12 @@ color_update(s, S, H, V) ->
     wings_ask:hsv_to_rgb(H, S, V);
 color_update(v, V, H, S) ->
     wings_ask:hsv_to_rgb(H, S, V).
+
+disable_hook(V) ->
+    fun (is_disabled, {_Var,I,Store}) when integer(V) ->
+	    gb_trees:get(I+V, Store);
+	(is_disabled, {_Var,_I,Store}) ->
+	    gb_trees:get(V, Store);
+	(_, _) ->
+	    void
+    end.
