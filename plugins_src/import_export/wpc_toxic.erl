@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_toxic.erl,v 1.7 2004/06/12 00:41:20 raimo_niskanen Exp $
+%%     $Id: wpc_toxic.erl,v 1.8 2004/06/12 05:38:44 dgud Exp $
 %%
 
 -module(wpc_toxic).
@@ -236,6 +236,7 @@ attr(St, Attr) ->
     [{Pos,Dir,Up},Fov,Origin,Dist,Az,El,{PanX,PanY}] = 
 	wpa:camera_info([pos_dir_up,fov,aim,distance_to_aim,
 			 azimuth,elevation,tracking]),
+    
     CameraInfo = #camera_info{pos=Pos,dir=Dir,up=Up,fov=Fov,
 			      origin=Origin,distance=Dist,azimuth=Az,
 			      elevation=El,pan_x=PanX,pan_y=PanY},
@@ -327,6 +328,7 @@ light_dialog(_Name, Ps) ->
     CastShadows = pget(cast_shadows, Toxic, true),
     case Type of
 	area -> [{label, "Not supported for toxic use emission in material setting instead"}];
+	ambient -> [];
 	_ ->
 	    [{vframe,
 	      [{hframe,[{label,"Power"},
@@ -422,6 +424,7 @@ export_dialog(Operation) ->
     Gamma      = get_pref(gamma, ?DEF_GAMMA),
     Width      = get_pref(width, ?DEF_WIDTH),
     Height     = get_pref(height, ?DEF_HEIGHT),
+    BG         = get_pref(background, {0.0,0.0,0.0}),
     LoadImage  = get_pref(load_image, ?DEF_LOAD_IMAGE),
 
     ExportMesh = get_pref(export_mesh, ?DEF_EXPORT_MESH),
@@ -551,26 +554,28 @@ export_dialog(Operation) ->
 	     {hframe,
 	      [{"", RadPreComp, [{key, {?TAG, radprecomp}}]},
 	       {label, "Radiance Precomputation"},
-	       {label, "Spacing"},
-	       {text,
-		RadPreSpacing,[{range,{1,10000}},{key,{?TAG,{radprecomp,spacing}}}]},
-	       {label, "Search Dist"},
-	       {text, RadPreSearch, [{range,{0.1,100.0}},
-				     {key, {?TAG, {radprecomp, search}}}]}]},
-						%       [{key, {?TAG, radprecomp}}]},
+	       {hframe,
+		[
+		 {label, "Spacing"},
+		 {text, RadPreSpacing,[{range,{1,10000}},
+				       {key,{?TAG,{radprecomp,spacing}}}]},
+		 {label, "Search Dist"},
+		 {text, RadPreSearch, [{range,{0.1,100.0}},
+				       {key, {?TAG, {radprecomp, search}}}]}],
+		[enable_hook({?TAG, radprecomp})]}]},
 	     {hframe,
 	      [{"", RadPrimary, [{key, {?TAG, radprimary}}]},
 	       {vframe,
 		[{label, "Primary Final Gathering"} |
 		 pixelsampling(radprimary, [IDLtype, IDLrandom,
-					    IDLWidth,IDLHeight])]}]},
-						%      [{key, {?TAG, radprimary}}]},
+					    IDLWidth,IDLHeight])],
+		[enable_hook({?TAG, radprimary})]}]},
 	     {hframe,
 	      [{"", RadSecondary, [{key, {?TAG, radsecondary}}]},
 	       {label, "Secondary Final Gathering"},
 	       {text, RadSecDist, [{range, {0.0000001, 1000.0}},
-				   {key, {?TAG, {radsecondary, dist}}}]}]}],
-						%       [{key, {?TAG, radsecondary}}]}],
+				   {key, {?TAG, {radsecondary, dist}}},
+				   enable_hook({?TAG,radsecondary})]}]}],
 	    [{title,"Enable InDirect Lighting"},
 	     {minimized,InDirectLightMin},
 	     {key,{?TAG,indirect_light_min}},
@@ -605,7 +610,9 @@ export_dialog(Operation) ->
 	 {vframe,[{label,"Height"}]},
 	 {vframe,[{text,Height,[{range,{1,10000}},{key,{?TAG,height}}]}]},
 	 {vframe,[{label,"Gamma"}]},
-	 {vframe,[{text,Gamma,[{range,{0.0,10.0}},{key,{?TAG,gamma}}]}]}],
+	 {vframe,[{text,Gamma,[{range,{0.0,10.0}},{key,{?TAG,gamma}}]}]},
+	 {vframe,[{label,"BackGround"}]},
+	 {vframe,[{color,BG,[{key,{?TAG,background}}]}]}],
 	[{title,"Output"}]}]}
      |
      case Operation of
@@ -896,7 +903,9 @@ export_scene(#files{scene=File,dir=Dir, objects=Wavefront}, Objs, Attrs) ->
     println(F, "<ToxicScene xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" "
 	    "xsi:noNamespaceSchemaLocation=\"../../schemas/toxicscene.xsd\">"),
     println(F, " <Frame>"),
-    
+    println(F, "  <Parameter name=\"backgroundcolor\" value=\"~s ~s ~s\"/>",
+	    vector_to_list(pget(background,Attrs))),
+
     Mat = case Objs of  %% Hack
 	      #e3d_file{mat=Mtab} -> 
 		  Mtab;
@@ -981,7 +990,11 @@ export_lights(F, [{_Name,L}|Ls], Scale) ->
     export_lights(F, Ls,Scale);
 export_lights(_, [],_) -> ok.
 
-export_light(_, area, _, _, _) -> ignore;  %% BUGBUG Arealights.
+export_light(_, area, _, _, _) -> ignore;     %% BUGBUG Arealights.
+export_light(F, ambient, _, OpenGL, _) -> 
+    {DR,DG,DB} = rgba2rgb(proplists:get_value(diffuse, OpenGL, {1.0,1.0,1.0,1.0})),
+    println(F,"  <Parameter name=\"ambientillum\" value=\"~s ~s ~s\"/>", 
+	    [format(DR),format(DG),format(DB)]); 
 export_light(F, _, Scale, OpenGL, Toxic) ->
     {X,Y,Z} = proplists:get_value(position, OpenGL, {0.0,0.0,0.0}),
     {DR,DG,DB} = rgba2rgb(proplists:get_value(diffuse, OpenGL, {1.0,1.0,1.0,1.0})),
@@ -1000,9 +1013,9 @@ export_light(F, _, Scale, OpenGL, Toxic) ->
     println(F,"  </Object>").
 
 export_camera(F, Scale, Attr) ->
-    #camera_info{ %pos=_Pos,dir=Dir,up=Up,fov=Fov,
-		 origin=Origin,distance=Dist,azimuth=Az,
-		 elevation=El,pan_x=PanX,pan_y=PanY} = 
+    #camera_info{ %pos=_Pos,dir=Dir,up=Up,
+	       fov=Fov, origin=Origin,distance=Dist,azimuth=Az,
+	       elevation=El,pan_x=PanX,pan_y=PanY} = 
 	proplists:lookup(camera_info, Attr),
     case pget(camera, Attr) of
 	pinhole ->
@@ -1024,17 +1037,6 @@ export_camera(F, Scale, Attr) ->
     end,
 %    println(F,"  <Parameter name=\"hfov\" value=\"~s\"/>", [format(Fov)]),
     println(F,"    <Transform>"),
-%     println(F,"      <Translation value=\"~s ~s ~s\"/>", vector_to_list(Pos,Scale)),
-%     {DirDeg, DirAxis} = rotate_vec(e3d_vec:norm(Dir), {0.0,0.0,-1.0}),
-%     println(F,"      <Rotation angle=\"~s\" axis=\"~s ~s ~s\"/>", 
-% 	    [format(DirDeg)|vector_to_list(DirAxis)]),
-%     Rot = e3d_mat:rotate(DirDeg,DirAxis),
-%     UpRot = e3d_mat:mul_vector(Rot,{0.0,1.0,0.0}),
-%     {UpDeg, UpAxis} = rotate_vec(Up, UpRot),
-%     println(F,"      <Rotation angle=\"~s\" axis=\"~s ~s ~s\"/>", 
-% 	    [format(UpDeg)|vector_to_list(UpAxis)]),
-%     io:format("Dir ~p DirDeg ~p DirAxis ~p~n", [Dir,DirDeg,DirAxis]),
-%     io:format("Up ~p UpRot ~p UpDeg ~p UpAxis ~p~n", [Up,UpRot,UpDeg,UpAxis]),
 
 %%%%%%%%%%% Almost Same as wings %%%%%%%%%%%%
 %%% After trial and error, This works..
@@ -1060,8 +1062,8 @@ export_camera(F, Scale, Attr) ->
 % 	    {Dir, Cross}
 %     end.
 
-% vector_to_list({X,Y,Z}) ->
-%     [format(X),format(Y),format(Z)].
+vector_to_list({X,Y,Z}) ->
+    [format(X),format(Y),format(Z)].
 vector_to_list({X,Y,Z},Scale) ->
     [format(X*Scale),format(Y*Scale),format(Z*Scale)].
 
@@ -1076,8 +1078,8 @@ render(Renderer, Attr, #files{dir=Dir, image=Image, scene=Scene}) ->
     Width = pget(width,Attr),
     Height = pget(height,Attr),
 
-    Cmd = uquote(Renderer)++" "++ filename:basename(Scene) ++ 
-	" -o " ++ Image ++ " -w " ++ format(Width) ++ 
+    Cmd = uquote(Renderer)++" "++ uquote(filename:basename(Scene)) ++ 
+	" -o " ++ uquote(Image) ++ " -w " ++ format(Width) ++ 
 	" -h " ++ format(Height) ++ " " ++ Options,
     PortOpts = [{cd,Dir},eof,exit_status,stderr_to_stdout],
 %%%     PortOpts = [{line,1},{cd,Dirname},eof,exit_status,stderr_to_stdout],
