@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel.erl,v 1.46 2004/05/09 08:24:32 bjorng Exp $
+%%     $Id: wings_sel.erl,v 1.47 2004/05/09 12:10:51 bjorng Exp $
 %%
 
 -module(wings_sel).
@@ -198,42 +198,39 @@ bounding_boxes(#st{selmode=Mode}=St) ->
 %%%
 
 face_regions(Faces, We) when is_list(Faces) ->
-    find_face_regions(gb_sets:from_list(Faces), We, []);
+    face_regions_1(gb_sets:from_list(Faces), We);
 face_regions(Faces, We) ->
-    find_face_regions(Faces, We, []).
+    face_regions_1(Faces, We).
 
-find_face_regions(Faces0, We, Acc) ->
+face_regions_1(Faces, We) ->
+    find_face_regions(Faces, We, fun collect_face_fun/5, []).
+
+find_face_regions(Faces0, We, Coll, Acc) ->
     case gb_sets:is_empty(Faces0) of
 	true -> Acc;
 	false ->
 	    {Face,Faces1} = gb_sets:take_smallest(Faces0),
-	    Ws = gb_sets:singleton(Face),
-	    {Reg,Faces} = collect_face_region(Ws, We, [], Faces1),
-	    find_face_regions(Faces, We, [Reg|Acc])
+	    Ws = [Face],
+	    {Reg,Faces} = collect_face_region(Ws, We, Coll, [], Faces1),
+	    find_face_regions(Faces, We, Coll, [Reg|Acc])
     end.
 
-collect_face_region(Ws0, We, Reg0, Faces0) ->
-    case gb_sets:is_empty(Ws0) of
-	true -> {gb_sets:from_list(Reg0),Faces0};
-	false ->
-	    {Face,Ws1} = gb_sets:take_smallest(Ws0),
-	    Reg = [Face|Reg0],
-	    {Ws,Faces} = collect_adj_sel(Face, We, Ws1, Faces0),
-	    collect_face_region(Ws, We, Reg, Faces)
-    end.
+collect_face_region([_|_]=Ws0, We, Coll, Reg0, Faces0) ->
+    Reg = Ws0++Reg0,
+    {Ws,Faces} = wings_face:fold_faces(Coll, {[],Faces0}, Ws0, We),
+    collect_face_region(Ws, We, Coll, Reg, Faces);
+collect_face_region([], _, _, Reg, Faces) ->
+    {gb_sets:from_list(Reg),Faces}.
 
-collect_adj_sel(Face, We, Ws0, Faces0) ->
-    wings_face:fold(
-      fun(_, _, Rec, {W0,F0}=A) ->
-	      Of = case Rec of
-		       #edge{lf=Face,rf=Of0} -> Of0;
-		       #edge{rf=Face,lf=Of0} -> Of0
-		   end,
-	      case gb_sets:is_member(Of, F0) of
-		  true -> {gb_sets:insert(Of, W0),gb_sets:delete(Of, F0)};
-		  false -> A
-	      end
-      end, {Ws0,Faces0}, Face, We).
+collect_face_fun(Face, _, _, Rec, {Ws,Faces}=A) ->
+    Of = case Rec of
+	     #edge{lf=Face,rf=Of0} -> Of0;
+	     #edge{rf=Face,lf=Of0} -> Of0
+	 end,
+    case gb_sets:is_member(Of, Faces) of
+	true -> {[Of|Ws],gb_sets:delete(Of, Faces)};
+	false -> A
+    end.
 
 %%%
 %%% Divide the face selection into regions where each face shares at least
