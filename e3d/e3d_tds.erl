@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_tds.erl,v 1.33 2004/01/11 18:22:15 bjorng Exp $
+%%     $Id: e3d_tds.erl,v 1.34 2004/02/05 06:32:00 bjorng Exp $
 %%
 
 -module(e3d_tds).
@@ -770,7 +770,9 @@ msg_find_group(B, _) -> B.
 %%%
 
 split_vertices(#e3d_mesh{tx=[]}=Mesh) -> Mesh;
-split_vertices(#e3d_mesh{vs=Vtab0,fs=Fs0,tx=Tx0}=Mesh) ->
+split_vertices(Mesh0) ->
+    Mesh = split_dummy_uvs(Mesh0),
+    #e3d_mesh{vs=Vtab0,fs=Fs0,tx=Tx0} = Mesh,
     F = split_vertices_1(Fs0, []),
     NextV = length(Vtab0),
     Map = split_make_map(F, NextV, []),
@@ -826,3 +828,19 @@ split_reorder_tx([], _, Acc) ->
 split_reorder_tx_1([{I,UV}|UVs], I, Acc) ->
     split_reorder_tx_1(UVs, I+1, [UV|Acc]);
 split_reorder_tx_1([], _, Acc) -> reverse(Acc).
+
+%% split_dummy_uvs(Mesh0) -> Mesh
+%%  Add dummy UVs if necessary to make sure that all vertices
+%%  in all faces have UV coordinates.
+split_dummy_uvs(#e3d_mesh{fs=Fs0,tx=Tx0}=Mesh) ->
+    DummyUV = length(Tx0),
+    Tx = Tx0 ++ [{0.0,0.0}],
+    Fs = split_dummy_uvs_1(Fs0, DummyUV, []),
+    Mesh#e3d_mesh{fs=Fs,tx=Tx}.
+
+split_dummy_uvs_1([#e3d_face{tx=[_,_,_]}=F|T], UV, Acc) ->
+    split_dummy_uvs_1(T, UV, [F|Acc]);
+split_dummy_uvs_1([F|T], UV, Acc) ->
+    split_dummy_uvs_1(T, UV, [F#e3d_face{tx=[UV,UV,UV]}|Acc]);
+split_dummy_uvs_1([], _, Acc) -> reverse(Acc).
+
