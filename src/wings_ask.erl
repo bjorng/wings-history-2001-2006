@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.10 2002/03/03 16:59:26 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.11 2002/03/08 13:22:36 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -619,9 +619,11 @@ init_text(Fun, Label, String, Max, IsInteger, Charset, Validator) ->
     LblLen = (length(Label)+1)*?CHAR_WIDTH,
     {Fun,false,Ts,LblLen,LblLen+(1+Max)*?CHAR_WIDTH,?LINE_HEIGHT+3}.
 
+integer_chars($-) -> true;
 integer_chars(C) when $0 =< C, C =< $9 -> true;
 integer_chars(_) -> false.
 
+float_chars($-) -> true;
 float_chars($.) -> true;
 float_chars(C) when $0 =< C, C =< $9 -> true;
 float_chars(_) -> false.
@@ -770,6 +772,7 @@ key(?SDLK_END, Mod, _, Ts) -> key(5, Mod, Ts);
 key(?SDLK_LEFT, Mod, _, Ts) -> key(2, Mod, Ts);
 key(?SDLK_RIGHT, Mod, _, Ts) -> key(6, Mod, Ts);
 key(?SDLK_DELETE, Mod, _, Ts) -> key(4, Mod, Ts);
+key(?SDLK_BACKSPACE, Mod, _, Ts) -> key(?SDLK_BACKSPACE, Mod, Ts);
 key(?SDLK_KP_PERIOD, Mod, _, Ts) ->
     key($., Mod, Ts);
 key(C, Mod, _, Ts) when ?SDLK_KP0 =< C, C =< ?SDLK_KP9 ->
