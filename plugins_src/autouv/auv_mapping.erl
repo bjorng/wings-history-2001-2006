@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.6 2002/10/10 13:04:10 dgud Exp $
+%%     $Id: auv_mapping.erl,v 1.7 2002/10/10 20:34:47 dgud Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -59,7 +59,8 @@ project2d(Vs, Normal, We) ->
     Rot = e3d_mat:rotate_s_to_t(Normal,{0.0,0.0,1.0}),
     Res = [{V,e3d_mat:mul_point(Rot, wings_vertex:pos(V, We))} || 
 	      V <- Vs],
-    lists:reverse(Res).
+    Res.
+
 
 %% Alg. found in comp.graphics.algorithms faq
 %% To be correct it needs the polygons to flat but we
@@ -77,8 +78,12 @@ sum_crossp([_Last], Acc) ->
 
 project_and_triangulate([Face|Fs], We, I, Acc) ->
     Normal = wings_face:normal(Face, We),
-    Vs0 = wings_face:to_vertices([Face], We),
+    Vs0 = wpa:face_vertices(Face, We),
+%    ?DBG("Face ~p ~p~n", 
+%	[Face,[{Id,(gb_trees:get(Id,We#we.vs))#vtx.pos} 
+%	|| Id <- Vs0]]),
     Vs2 = project2d(Vs0, Normal, We),
+%    ?DBG("Projected ~p ~p~n", [Face,Vs2]),
     if length(Vs2) > 3 ->
 	    {Ids,Cds,All} = setup_tri_vs(Vs2,0,[],[],[]),
 	    NewFs = e3d_mesh:triangulate_face(#e3d_face{vs=Ids}, Cds),
@@ -109,14 +114,15 @@ get_verts([],I,_,Acc) ->
 
 lsqcm(C = {Id, Fs}, We) ->
     ?DBG("Project and tri ~n", []),
-    Vs1 = ?TC(project_and_triangulate(Fs,We,-1,[])),
+    Vs1 = ?TC(project_and_triangulate(Fs,We,-1,[])),    
     {V1, V2} = ?TC(get_2uvs(C, We)),
-    ?DBG("LSQ ~n", []),        
+%    ?DBG("LSQ ~p ~p: ~p~n", [V1,V2,Vs1]),
     case ?TC(lsq(Vs1,V1,V2)) of
 	{error, What} ->
 	    ?DBG("TXMAP error ~p~n", [What]),
 	    exit({txmap_error, What});
 	{ok,Vs2} ->
+%	    ?DBG("LSQ res ~p~n", [Vs2]),
 	    Patch = fun({Idt, {Ut,Vt}}) -> {Idt, {Ut,Vt, 0.0}} end,
 	    lists:map(Patch, Vs2)
     end.
@@ -149,12 +155,12 @@ get_2uvs(C = {Id, Faces}, We) ->
 	lists:foldl(fun(Pos, Ac) -> maxmin(Pos, Ac) end, 
 		    {First,First,First,First}, RVs1),
     if 
-	(X2-X1) > (Y2-Y1) ->
-	    ?DBG("Points choosen ~p ~p~n", [BX0,BX1]),
-	    choose(BX1,BX0);
+	(abs(X2-X1)) > abs(Y2-Y1) ->
+%	    ?DBG("Points choosen ~p ~p~n", [BX0,BX1]),
+	    choose(BX0,BX1);
 	true ->
-	    ?DBG("Points choosen ~p ~p~n", [BY0,BY1]),
-	    choose(BY1,BY0)
+%	    ?DBG("Points choosen ~p ~p~n", [BY0,BY1]),
+	    choose(BY0,BY1)
     end.
 
 choose({Id1,{X1,Y1,_}}, {Id2,{X2,Y2,_}}) ->
