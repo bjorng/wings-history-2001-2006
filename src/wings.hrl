@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.23 2001/11/21 07:01:41 bjorng Exp $
+%%     $Id: wings.hrl,v 1.24 2001/11/22 20:38:48 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -59,7 +59,6 @@
 	{faces=none,				%Faces.
 	 edges=none,				%Edges.
 	 pick=none,				%For picking.
-	 pick_mode,				%Mode pick list was created in.
 	 old_sel,				%Actual selection.
 	 sel=none				%For selected faces.
 	}).

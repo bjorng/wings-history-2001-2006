@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.7 2001/11/22 09:08:29 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.8 2001/11/22 20:38:48 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -17,7 +17,7 @@
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
 
--import(lists, [foreach/2,last/1,reverse/1,sort/1,foldl/3,map/2]).
+-import(lists, [foreach/2,last/1,reverse/1,sort/1,foldl/3,map/2,min/1]).
 
 pick(#st{hit_buf=HitBuf,shapes=Shapes,selmode=Mode}=St0, X0, Y0) ->
     gl:selectBuffer(?HIT_BUF_SIZE, HitBuf),
@@ -31,10 +31,7 @@ pick(#st{hit_buf=HitBuf,shapes=Shapes,selmode=Mode}=St0, X0, Y0) ->
     [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
     X = float(X0),
     Y = H-float(Y0),
-    S = case Mode of
-	    edge -> 10.0;
-	    Other -> 1.0
-	end,
+    S = 1.0,
     glu:pickMatrix(X, Y, S, S, [0,0,W,H]),
     wings_view:perspective(),
     St = select_draw(St0),
@@ -46,13 +43,30 @@ pick(#st{hit_buf=HitBuf,shapes=Shapes,selmode=Mode}=St0, X0, Y0) ->
 	0 -> St;
 	NumHits ->
 	    HitData = sdl_util:readBin(HitBuf, ?HIT_BUF_SIZE),
-	    Hits = get_hits(NumHits, HitData, []),
+	    Hits0 = get_hits(NumHits, HitData, []),
+	    Hits = filter_hits(Hits0, St),
 	    case Hits of
 		[] -> St;
 		[{_,Hit}|_] -> update_selection(Hit, X, Y, St)
 	    end
     end.
 
+filter_hits(Hits, #st{selmode=body}) -> Hits;
+filter_hits(Hits, #st{shapes=Shs}) ->
+    EyePoint = wings_view:eye_point(),
+    filter_hits_1(Hits, Shs, EyePoint).
+
+filter_hits_1([{_,[Id,Face]}|Hits]=Hits0, Shs, EyePoint) ->
+    #shape{sh=We} = gb_trees:get(Id, Shs),
+    Vs = [V|_] = wings_face:surrounding_vertices(Face, We),
+    N = wings_face:face_normal(Vs, We),
+    D = e3d_vec:dot(wings_vertex:pos(V, We), N),
+    case e3d_vec:dot(EyePoint, N) of
+	S when S < D -> filter_hits_1(Hits, Shs, EyePoint);
+	S -> Hits0
+    end;
+filter_hits_1([], St, EyePoint) -> [].
+    
 update_selection([Id,Item], X, Y, #st{sel=Sel0}=St) ->
     Sel = update_selection(Id, Item, Sel0, X, Y, St),
     St#st{sel=Sel}.
@@ -94,9 +108,8 @@ get_name(N, <<Name:32,Names/binary>>, Acc) ->
 %% Given a selection hit, return the correct vertex/edge/face/body.
 %%
 
-find_item(Id, Item, X, Y, #st{selmode=body}) -> Item;
+find_item(Id, Face, X, Y, #st{selmode=body}) -> 0;
 find_item(Id, Face, X, Y, #st{selmode=face}) -> Face;
-find_item(Id, Edge, X, Y, #st{selmode=edge}) -> Edge; %XXX Temporary.
 find_item(Id, Face, X, Y, #st{selmode=Mode,shapes=Shapes}=St) ->
     #shape{sh=#we{}=We} = gb_trees:get(Id, Shapes),
     wings_view:projection(),
@@ -104,27 +117,46 @@ find_item(Id, Face, X, Y, #st{selmode=Mode,shapes=Shapes}=St) ->
     ViewPort = gl:getIntegerv(?GL_VIEWPORT),
     ModelMatrix = gl:getDoublev(?GL_MODELVIEW_MATRIX),
     ProjMatrix = gl:getDoublev(?GL_PROJECTION_MATRIX),
+    Trans = {ModelMatrix,ProjMatrix,ViewPort},
     case Mode of
-	vertex ->
-	    find_vertex(Face, We, X, Y, ModelMatrix, ProjMatrix, ViewPort);
-	edge ->
-	    find_edge(Face, We, X, Y, ModelMatrix, ProjMatrix, ViewPort)
+	vertex -> find_vertex(Face, We, X, Y, Trans);
+	edge ->   find_edge(Face, We, X, Y, Trans)
     end.
 
-find_vertex(Face, We, X, Y, ModelMatrix, ProjMatrix, ViewPort) ->
+find_vertex(Face, We, X, Y, Trans) ->
     Vs0 = wings_face:surrounding_vertices(Face, We),
     Vs = map(fun(V) ->
-		     {Px,Py,Pz} = wings_vertex:pos(V, We),
-		     {true,Xs,Ys,_} = project(Px, Py, Pz, ModelMatrix,
-					      ProjMatrix, ViewPort),
+		     {Xs,Ys} = project_vertex(V, We, Trans),
 		     Dx = X-Xs,
 		     Dy = Y-Ys,
 		     {Dx*Dx+Dy*Dy,V}
 	     end, Vs0),
-    {_,V} = lists:min(Vs),
+    {_,V} = min(Vs),
     V.
-find_edge(Face, We, X, Y, ModelMatrix, ProjMatrix, ViewPort) ->
-    1.
+
+find_edge(Face, We, Cx, Cy, Trans) ->
+    Es = wings_face:fold(
+	   fun(_, Edge, #edge{vs=Va,ve=Vb}, A) ->
+		   {Ax,Ay} = project_vertex(Va, We, Trans),
+		   {Bx,By} = project_vertex(Vb, We, Trans),
+		   if
+		       is_float(Ax), is_float(Ay),
+		       is_float(Bx), is_float(By) ->
+			   Xdist = Bx-Ax,
+			   Ydist = By-Ay,
+			   L = math:sqrt(Xdist*Xdist+Ydist*Ydist),
+			   S = ((Ay-Cy)*Xdist-(Ax-Cx)*Ydist)/L*L,
+			   Dist = abs(S)*L,
+			   [{Dist,Edge}|A]
+		   end
+	   end, [], Face, We),
+    {_,Edge} = min(Es),
+    Edge.
+
+project_vertex(V, We, {ModelMatrix,ProjMatrix,ViewPort}) ->
+    {Px,Py,Pz} = wings_vertex:pos(V, We),
+    {true,Xs,Ys,_} = project(Px, Py, Pz, ModelMatrix, ProjMatrix, ViewPort),
+    {Xs,Ys}.
 
 project(Objx, Objy, ObjZ, ModelMatrix0, ProjMatrix0, [Vx,Vy,Vw,Vh]) ->
     ModelMatrix = list_to_tuple(ModelMatrix0),
@@ -158,44 +190,15 @@ select_draw(St0) ->
     St.
 
 select_draw_0(#st{dl=#dl{pick=none}=DL}=St) ->
-    make_dlist(St);
-select_draw_0(#st{selmode=Mode,dl=#dl{pick_mode=Mode}=DL}=St) ->
-    St;
-select_draw_0(St) ->
-    make_dlist(St).
-
-make_dlist(#st{selmode=Mode,dl=DL}=St) ->
     Dlist = ?DL_PICK,
     gl:newList(Dlist, ?GL_COMPILE),
     gl:pushAttrib(?GL_LINE_BIT),
     select_draw_1(St),
     gl:popAttrib(),
     gl:endList(),
-    St#st{dl=DL#dl{pick=Dlist,pick_mode=Mode}}.
+    St#st{dl=DL#dl{pick=Dlist}};
+select_draw_0(St) -> St.
 
-select_draw_1(#st{selmode=body}=St) ->
-    wings_util:foreach_shape(
-      fun(Id, #shape{sh=Data}=Sh) ->
-	      gl:pushName(Id),
-	      gl:pushName(0),
-	      draw_faces(Data, false, St),
-	      gl:popName(),
-	      gl:popName()
-      end, St);
-select_draw_1(#st{selmode=edge}=St) ->
-    foreach_we(
-      fun(#we{vs=Vtab}=We) ->
-	      gl:pushName(0),
-	      wings_util:foreach_edge(
-		fun(Edge, #edge{vs=Vstart,ve=Vend}, _Sh) ->
-			gl:loadName(Edge),
-			gl:'begin'(?GL_LINES),
-			gl:vertex3fv(lookup_pos(Vstart, Vtab)),
-			gl:vertex3fv(lookup_pos(Vend, Vtab)),
-			gl:'end'()
-		end, We),
-	      gl:popName()
-      end, St);
 select_draw_1(St) ->
     foreach_we(fun(We) ->
 		       gl:pushName(0),
@@ -206,6 +209,21 @@ select_draw_1(St) ->
 			 end, [], We),
 		       gl:popName()
 	       end, St).
+
+% select_draw_1(#st{selmode=edge}=St) ->
+%     foreach_we(
+%       fun(#we{vs=Vtab}=We) ->
+% 	      gl:pushName(0),
+% 	      wings_util:foreach_edge(
+% 		fun(Edge, #edge{vs=Vstart,ve=Vend}, _Sh) ->
+% 			gl:loadName(Edge),
+% 			gl:'begin'(?GL_LINES),
+% 			gl:vertex3fv(lookup_pos(Vstart, Vtab)),
+% 			gl:vertex3fv(lookup_pos(Vend, Vtab)),
+% 			gl:'end'()
+% 		end, We),
+% 	      gl:popName()
+%       end, St);
 % select_draw_1(#st{selmode=vertex}=St) ->
 %     foreach_we(fun(#we{}=We) ->
 % 		       gl:pushName(0),
@@ -238,12 +256,6 @@ foreach_we_1(F, Iter0) ->
 	{Id,_,Iter} ->
 	    foreach_we_1(F, Iter)
     end.
-
-draw_faces(#we{}=We, _, St) ->
-    wings_util:fold_face(
-      fun(Face, #face{edge=Edge}, _) ->
-	      draw_face(Face, Edge, We)
-      end, [], We).
 
 draw_face(Face, Edge, #we{es=Etab,vs=Vtab}) ->
     gl:'begin'(?GL_POLYGON),

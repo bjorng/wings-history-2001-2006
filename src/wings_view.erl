@@ -8,14 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.18 2001/11/21 07:06:06 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.19 2001/11/22 20:38:48 bjorng Exp $
 %%
 
 -module(wings_view).
 -export([menu/3,command/2,init/0,current/0,set_current/1,
 	 reset/0,projection/0,perspective/0,
-	 model_transformations/1,aim/1,along/2,
-	 align_to_selection/1]).
+	 model_transformations/1,eye_point/0,
+	 aim/1,along/2,align_to_selection/1]).
 
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
@@ -137,13 +137,23 @@ model_transformations(St) ->
     gl:loadIdentity(),
     gl:lightfv(?GL_LIGHT0, ?GL_POSITION, {0.0,0.0,1.0,0.0}),
     Dist = Dist0 * math:sqrt((W*H) / (640*480)),
-    gl:translatef(PanX, PanY, 0.0),
-    gl:translatef(0.0, 0.0, -Dist),
+    gl:translatef(PanX, PanY, -Dist),
     gl:rotatef(El, 1.0, 0.0, 0.0),
     gl:rotatef(Az, 0.0, 1.0, 0.0),
     {OX,OY,OZ} = Origo,
     gl:translatef(OX, OY, OZ).
-    
+
+eye_point() ->
+    #view{origo=Origo,distance=Dist0,azimuth=Az,
+	  elevation=El,pan_x=PanX,pan_y=PanY} = current(),
+    [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
+    Dist = Dist0 * math:sqrt((W*H) / (640*480)),
+    M0 = e3d_mat:translate(Origo),
+    M1 = e3d_mat:mul(M0, e3d_mat:rotate(-Az, {0.0,1.0,0.0})),
+    M2 = e3d_mat:mul(M1, e3d_mat:rotate(-El, {1.0,0.0,0.0})),
+    M = e3d_mat:mul(M2, e3d_mat:translate(-PanX, -PanY, Dist)),
+    e3d_mat:mul_point(M, {0.0,0.0,0.0}).
+
 aim(#st{sel=[]}=St) -> St;
 aim(St) ->
     Centers = wings_sel:centers(St),
