@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.155 2003/09/26 19:16:37 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.156 2003/10/22 17:19:29 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -202,13 +202,23 @@ do_update_dlists_1(Need, St) ->
     end.
 
 do_update_dlists_2(Need0, St) ->
+    Geom = wings_util:geom_windows(),
     Need1 = foldl(fun(W, A) ->
 			  case wings_wm:get_prop(W, workmode) of
 			      false -> [smooth|A];
 			      true -> [work|A]
 			  end
-		  end, Need0, wings_util:geom_windows()),
-    Need = ordsets:from_list(Need1),
+		  end, Need0, Geom),
+    Need2 = foldl(fun(W, A) ->
+			  %% We always need the work list if there
+			  %% are any wireframed objects.
+			  Wire = wings_wm:get_prop(W, wireframed_objects),
+			  case gb_sets:is_empty(Wire) of
+			      false -> [work|A];
+			      true -> A
+			  end
+		  end, Need1, Geom),
+    Need = ordsets:from_list(Need2),
     do_update_dlists_3(Need, St).
 
 do_update_dlists_3(CommonNeed, St) ->
