@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_test_ask.erl,v 1.15 2003/11/24 00:18:16 raimo_niskanen Exp $
+%%     $Id: wpc_test_ask.erl,v 1.16 2003/11/27 17:37:21 raimo_niskanen Exp $
 %%
 
 -module(wpc_test_ask).
@@ -50,6 +50,7 @@ menu({tools}, Menu) ->
 		[separator,
 		 {"Test Ask",{?MODULE,[{"Minimal Dialog",minimal},
 				       {"Large Dialog",large},
+				       {"Overlay Dialog",overlay},
 				       {"Dynamic Dialog",dynamic}]}}];
 	_ -> Menu
     end;
@@ -59,6 +60,8 @@ command({tools,{?MODULE,minimal}}, St) ->
     maybe_dialog(fun minimal_dialog/1, St);
 command({tools,{?MODULE,large}}, St) ->
     maybe_dialog(fun large_dialog/1, St);
+command({tools,{?MODULE,overlay}}, St) ->
+    maybe_dialog(fun overlay_dialog/1, St);
 command({tools,{?MODULE,dynamic}}, St) ->
     maybe_dialog(fun dynamic_dialog/1, St);
 command(_, _St) ->
@@ -133,6 +136,34 @@ large_result(St) ->
 		true -> 
 		    do_large_dialog(St, MinimizedL, MinimizedC, MinimizedR, 
 				    Pos),
+		    ignore;
+		false -> ignore
+	    end
+    end.
+
+overlay_dialog(St) -> do_overlay_dialog(St, 1, false, true, false, undefined).
+
+do_overlay_dialog(St, Active, MinimizedL, MinimizedC, MinimizedR, Pos) ->
+    Dialog =
+	[{oframe,
+	  [{"Left frame",large_dialog_l(MinimizedL, MinimizedC)},
+	   {"Right frame",large_dialog_r(MinimizedR)}],
+	  Active,
+	  [{style,tabs}]},
+	 {position,Pos,[{key,position}]}],
+    wings_ask:dialog("Test Ask Overlay", Dialog, overlay_result(St)).
+
+overlay_result(St) ->
+    fun ([Active,MinimizedL|Res]) -> 
+	    erlang:display({?MODULE,?LINE,Res}),
+	    MinimizedC = proplists:get_value(minimized_c, Res),
+	    MinimizedR = proplists:get_value(minimized_r, Res),
+	    Pos = proplists:get_value(position, Res),
+	    case proplists:get_value(reset, Res) of
+		true -> 
+		    do_overlay_dialog(St, Active,
+				      MinimizedL, MinimizedC, MinimizedR, 
+				      Pos),
 		    ignore;
 		false -> ignore
 	    end

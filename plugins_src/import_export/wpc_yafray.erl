@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.47 2003/11/24 10:45:04 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.48 2003/11/27 17:37:22 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -646,8 +646,8 @@ pref_edit(St) ->
 			 {"Automatic Dialogs",auto},
 			 {"Enabled Dialogs",enabled}],
 		   Dialogs,[{key,dialogs}]},
-		  {hframe,[{label,"Rendering Command"},
-			   {text,Renderer,[{key,renderer}]}]}]}],
+		  {label,"Rendering Command:"},
+		  {text,Renderer,[{key,renderer},{width,60}]}]}],
     wpa:dialog("YafRay Options", Dialog, 
 	       fun (Attr) -> pref_result(Attr,St) end).
 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.128 2003/11/24 00:18:17 raimo_niskanen Exp $
+%%     $Id: wings_ask.erl,v 1.129 2003/11/27 17:37:22 raimo_niskanen Exp $
 %%
 
 -module(wings_ask).
@@ -86,11 +86,12 @@
 %% Extra static data for container fields
 
 -record(container,
-	{type,					%vframe|hframe
+	{type,					%vframe|hframe|oframe
 	 x,y,					%Container pos
 	 w,h,					%Container size
-	 fields=[],				%Contained fields
-	 minimized				%true|false|_
+	 fields,				%Contained fields, tuple()
+	 minimized,				%true|false|undefined
+	 active					%integer()|undefined
 	}).
 
 %% Extra static data for leaf fields
@@ -381,7 +382,7 @@ next_focus(Dir, S=#s{focus=Index,focusable=Focusable,fi=TopFi}) ->
 set_focus(NewPath=[#fi{index=NewIndex,handler=NewHandler}|_], 
 	  #s{focus=OldIndex,focusable=_Focusable,
 	     fi=TopFi,store=Store0}=S, MouseFocus) ->
-    ?DEBUG_DISPLAY({set_focus,[OldIndex,Index,_Focusable]}),
+    ?DEBUG_DISPLAY({set_focus,[OldIndex,NewIndex,_Focusable]}),
     OldPath = [#fi{handler=OldHandler}|_] = get_fi(OldIndex, TopFi),
     Store2 = case OldHandler({focus,false}, OldPath, Store0) of
 		 {store,Store1} -> Store1;
@@ -623,19 +624,28 @@ collect_result_3(_Fields, _Sto, _Path, R, _I) -> R.
 
 draw_fields(Fi, Focus, Sto) -> draw_fields_1(Fi, Focus, Sto, []).
 
-draw_fields_1(Fi=#fi{handler=Handler,
-		     index=Index,
-		     extra=Container=#container{fields=Fields0,
-						minimized=Minimized}},
+draw_fields_1(Fi0=#fi{handler=Handler,
+		      index=Index,
+		      extra=Container=#container{fields=Fields0,
+						 minimized=Minimized,
+						 active=Active}},
 	      Focus, Sto, Path0) ->
-    Path = [Fi|Path0],
+    Path = [Fi0|Path0],
     Handler({redraw,Index =:= Focus}, Path, Sto),
-    if Minimized =/= true ->
+    case {Minimized,Active} of
+	{true,_} -> keep;
+	{_,undefined} ->
 	    case draw_fields_2(Fields0, Focus, Sto, Path, 1, [], false) of
 		keep -> keep;
-		Fields -> Fi#fi{extra=Container#container{fields=Fields}}
+		Fields -> Fi0#fi{extra=Container#container{fields=Fields}}
 	    end;
-       true -> keep
+	{_,_} ->
+	    case draw_fields_1(element(Active, Fields0), Focus, Sto, Path) of
+		keep -> keep;
+		Fi -> 
+		    Fields = setelement(Active, Fields0, Fi),
+		    Fi0#fi{extra=Container#container{fields=Fields}}
+	    end
     end;
 draw_fields_1(Fi=#fi{handler=Handler,index=Index,disabled=Disabled}, 
 	    Focus, Sto, Path) ->
@@ -660,23 +670,31 @@ draw_fields_2(_Fields, _Focus, _Sto, _TopFi, _I, R, true) ->
 %% Get field index from mouse position.
 %% Return path to root.
 
-mouse_to_field(X, Y, Fi) -> mouse_to_field(X, Y, Fi, [Fi]).
+mouse_to_field(X, Y, Fi) -> mouse_to_field_1(X, Y, Fi, [Fi]).
 
-mouse_to_field(X, Y, 
-	       #fi{extra=#container{x=X0,y=Y0,w=W,h=H,
-				    type=Type,fields=Fields,
-				    minimized=Minimized}}, 
-	       Path)
+mouse_to_field_1(X, Y, 
+		 Fi0=#fi{index=_Index,
+			 extra=#container{x=X0,y=Y0,w=W,h=H,
+					  type=Type,fields=Fields,
+					  minimized=Minimized,
+					  active=Active}},
+		 Path0)
   when Minimized =/= true, X0 =< X, X < X0+W, Y0 =< Y, Y < Y0+H ->
-    mouse_to_field(X, Y, Fields, Path, Type);
-mouse_to_field(X, Y, #fi{x=X0,y=Y0,w=W,h=H}, 
-	       Path)
+    ?DEBUG_DISPLAY([_Index,X,Y,X0,Y0,W,H]),
+    case Active of
+	undefined -> mouse_to_field_2(X, Y, Fields, Path0, Type);
+	_ ->
+	    Fi = element(Active, Fields),
+	    mouse_to_field_1(X, Y, Fi, [Fi,Fi0|Path0])
+    end;
+mouse_to_field_1(X, Y, #fi{index=_Index,x=X0,y=Y0,w=W,h=H}, Path)
   when X0 =< X, X < X0+W, Y0 =< Y, Y < Y0+H ->
+    ?DEBUG_DISPLAY([_Index,X,Y,X0,Y0,W,H]),
     Path;
-mouse_to_field(_X, _Y, #fi{}, _Path) ->
+mouse_to_field_1(_X, _Y, #fi{}, _Path) ->
     [].
 
-mouse_to_field(Xm, Ym, Fields, Path, vframe) ->
+mouse_to_field_2(Xm, Ym, Fields, Path, vframe) ->
     Cmp = fun (#fi{y=Y,h=H}) when Y+H =< Ym -> -1;
 	      (#fi{y=Y}) when Ym < Y -> 1;
 	      (#fi{}) -> 0 end,
@@ -686,8 +704,8 @@ mouse_to_field(Xm, Ym, Fields, Path, vframe) ->
 		I -> I
 	    end,
     Fi = element(Index, Fields),
-    mouse_to_field(Xm, Ym, Fi, [Fi|Path]);
-mouse_to_field(Xm, Ym, Fields, Path, hframe) ->
+    mouse_to_field_1(Xm, Ym, Fi, [Fi|Path]);
+mouse_to_field_2(Xm, Ym, Fields, Path, hframe) ->
     Cmp = fun (#fi{x=X,w=W}) when X+W =< Xm -> -1;
 	      (#fi{x=X}) when Xm < X -> 1;
 	      (#fi{}) -> 0 end,
@@ -697,16 +715,16 @@ mouse_to_field(Xm, Ym, Fields, Path, hframe) ->
 		I -> I
 	    end,
     Fi = element(Index, Fields),
-    mouse_to_field(Xm, Ym, Fi, [Fi|Path]).
+    mouse_to_field_1(Xm, Ym, Fi, [Fi|Path]).
     
 %% Get field from field index
 %% Return path to root.
 
-get_fi(Index, Fi) -> get_fi(Index, Fi, [Fi]).
+get_fi(Index, Fi) -> get_fi_1(Index, Fi, [Fi]).
 
-get_fi(Index, #fi{index=Index}, Path) ->
+get_fi_1(Index, #fi{index=Index}, Path) ->
     Path;
-get_fi(Index, #fi{extra=#container{fields=Fields}}, Path) ->
+get_fi_1(Index, #fi{extra=#container{fields=Fields}}, Path) ->
     Cmp = fun (#fi{index=I}) when I < Index -> -1;
 	      (#fi{index=I}) when Index < I -> 1;
 	      (_) -> 0 end,
@@ -714,10 +732,10 @@ get_fi(Index, #fi{extra=#container{fields=Fields}}, Path) ->
 	{0,1} -> [];
 	{I,_} -> 
 	    Fi = element(I, Fields),
-	    get_fi(Index, Fi, [Fi|Path]);
+	    get_fi_1(Index, Fi, [Fi|Path]);
 	I -> [element(I, Fields)|Path]
     end.% ;
-% get_fi(_Index, #fi{extra=#leaf{}}) ->
+% get_fi_1(_Index, #fi{extra=#leaf{}}) ->
 %     [].
 
 
@@ -760,6 +778,10 @@ mktree({hframe,Qs}, Sto, I) ->
     mktree_container(Qs, Sto, I, [], hframe);
 mktree({hframe,Qs,Flags}, Sto, I) ->
     mktree_container(Qs, Sto, I, Flags, hframe);
+mktree({oframe,Qs,Def}, Sto, I) ->
+    mktree_oframe(Qs, Def, Sto, I, []);
+mktree({oframe,Qs,Def,Flags}, Sto, I) ->
+    mktree_oframe(Qs, Def, Sto, I, Flags);
 %%
 mktree(panel, Sto, I) ->
     mktree_fi(panel(), Sto, I, []);
@@ -851,9 +873,9 @@ mktree_fi({Handler,Inert,Priv,W,H}, Sto, I, Flags) ->
 	 extra=#leaf{w=W,h=H}},
      gb_trees:insert(-I, Priv, Sto),
      I+1}.
-	     
+
 mktree_container(Qs, Sto0, I0, Flags, Type) ->
-    {Fields,Sto1,I} = mktree_container(Qs, Sto0, I0+1, []),
+    {Fields,Sto1,I} = mktree_container_1(Qs, Sto0, I0+1, []),
     Title = proplists:get_value(title, Flags),
     Minimized = proplists:get_value(minimized, Flags),
     Inert = (Title =:= undefined orelse Minimized =:= undefined),
@@ -870,11 +892,60 @@ mktree_container(Qs, Sto0, I0, Flags, Type) ->
      Sto,
      I}.
 
-mktree_container([], Sto, I, R) ->
+mktree_container_1([], Sto, I, R) ->
     {list_to_tuple(reverse(R)),Sto,I};
-mktree_container([Q|Qs], Sto0, I0, R) ->
+mktree_container_1([Q|Qs], Sto0, I0, R) ->
     {Fi,Sto,I} = mktree(Q, Sto0, I0),
-    mktree_container(Qs, Sto, I, [Fi|R]).
+    mktree_container_1(Qs, Sto, I, [Fi|R]).
+
+-record(oframe, {style,				%menu|tabs
+		 w,h,				%header size
+		 titles}).			%tuple() of list()
+
+mktree_oframe(Qs, Def, Sto0, I0, Flags) when integer(Def), Def >= 1 ->
+    {Titles,Fields,Sto1,I} = mktree_oframe_1(Qs, Sto0, I0+1, [], []),
+    FieldsTuple = list_to_tuple(Fields),
+    if  Def =< size(FieldsTuple) ->
+	    Style = proplists:get_value(style, Flags, menu),
+	    Key = proplists:get_value(key, Flags, 0),
+	    Cw = ?CHAR_WIDTH,
+	    {W,H} = 
+		case Style of
+		    menu -> 
+			{10 + 2*Cw +
+			 lists:foldl(
+			   fun (Title, Width) ->
+				   max(wings_text:width(Title), Width)
+			   end, 0, Titles),
+			 ?LINE_HEIGHT+10};
+		    tabs -> 
+			{lists:foldl(
+			   fun (Title, Width) ->
+				   2*Cw+Width+wings_text:width(Title)
+			   end, 2*Cw, Titles),
+			 ?LINE_HEIGHT+10}
+		end,
+	    Sto2 = gb_trees:insert(var(Key, I0), Def, Sto1),
+	    Sto = gb_trees:insert(-I0, #oframe{style=Style,
+					       w=W,h=H,
+					       titles=list_to_tuple(Titles)}, 
+				  Sto2),
+	    {#fi{handler=fun oframe_event/3,
+		 key=Key,
+		 inert=false,
+		 index=I0,
+		 hook=proplists:get_value(hook, Flags),
+		 flags=Flags,
+		 extra=#container{type=oframe,fields=FieldsTuple,active=Def}},
+	     Sto,
+	     I}
+    end.
+
+mktree_oframe_1([], Sto, I, T, R) ->
+    {reverse(T),reverse(R),Sto,I};
+mktree_oframe_1([{Title,Q}|Qs], Sto0, I0, T, R) when list(Title) ->
+    {Fi,Sto,I} = mktree(Q, Sto0, I0),
+    mktree_oframe_1(Qs, Sto, I, [Title|T], [Fi|R]).
 
 -ifdef(DEBUG).
 %%
@@ -903,9 +974,10 @@ dmptree(Fields, Fill, I) when I =< size(Fields) ->
 dmptree(_Fields, _Fill, _I) -> ok.
 
 dmptree_1(#container{type=Type,x=X,y=Y,w=W,h=H,
-		   fields=Fields,minimized=Minimized}, Fill) ->
-    io:format("}.~n~s  #container{type=~p,minimized=~p,x=~p,y=~p,w=~p,h=~p}~n",
-	      [Fill,Type,Minimized,X,Y,W,H]),
+		   fields=Fields,minimized=Minimized,active=Active}, Fill) ->
+    io:format("}.~n~s  #container{type=~p,minimized=~p,active=~p,"
+	      "x=~p,y=~p,w=~p,h=~p}~n",
+	      [Fill,Type,Minimized,Active,X,Y,W,H]),
     dmptree(Fields, "  "++Fill, 1);
 dmptree_1(#leaf{w=W,h=H}, _Fill) -> 
     io:format("#leaf{w=~p,h=~p}}.~n", [W,H]).
@@ -915,7 +987,7 @@ dmptree_1(#leaf{w=W,h=H}, _Fill) ->
 %%
 %% Layout the dialog, i.e calculate positions and sizes for all fields.
 %% Container frames take their size from their children, sum in one
-%% direction and max in other, depending on vframe/hframe.
+%% direction and max in other, depending on vframe/hframe/oframe.
 %%
 %% Note! The #container.fields field is a reversed list after this pass.
 
@@ -923,25 +995,33 @@ layout(Fi, Sto) -> layout_propagate(layout(Fi, Sto, 0, 0)).
 
 layout(Fi=#fi{extra=#leaf{w=W,h=H}}, _Sto, X, Y) ->
     Fi#fi{x=X,y=Y,w=W,h=H};
+layout(Fi=#fi{key=Key,index=Index,
+	      extra=Container=#container{type=oframe,fields=Fields0}}, 
+       Sto, X0, Y0) ->
+    #oframe{w=Wt,h=Ht} = gb_trees:get(-Index, Sto),
+    Active = gb_trees:get(var(Key, Index), Sto),
+    Pad = 10, %case Style of menu -> 10; tabs -> 0 end,
+    X1 = X0+Pad,
+    Y1 = Y0+Ht,
+    {Fields,X2,Y2} = layout_container(oframe, Fields0, Sto, X1, Y1),
+    Wi = max(Wt, X2-X1),
+    Hi = Y2-Y1,
+    Wo = Pad+Wi+Pad,
+    Ho = Ht + Hi + Pad,
+    Fi#fi{x=X0,y=Y0,w=Wo,h=Ho,
+	  extra=Container#container{x=X1,y=Y1,w=Wi,h=Hi,
+				    fields=Fields,
+				    active=Active}};
 layout(Fi=#fi{key=Key,index=Index,flags=Flags,
 	      extra=Container=#container{type=Type,fields=Fields0}}, 
-       Sto, X0, Y0) ->
+       Sto, X0, Y0) when Type =:= hframe; Type =:= vframe ->
     Minimized = gb_trees:get(var(Key, Index), Sto),
     Title = proplists:get_value(title, Flags),
     {X1,Y1} = if Title =:= undefined -> {X0,Y0};
 		 true -> {X0+10,Y0+?LINE_HEIGHT} end,
-%%% 	case {Title,Minimized} of
-%%% 	    {undefined,undefined} -> {X0,Y0};
-%%% 	    _ -> {X0+10,Y0+?LINE_HEIGHT}
-%%% 	end,
     {Fields,X2,Y2} = layout_container(Type, Fields0, Sto, X1, Y1),
     Wi = if Title =:= undefined -> X2-X1;
-	    true -> max(3*?CHAR_WIDTH+wings_text:width(Title),X2-X1) end,
-%%% 	case {Title,Minimized} of
-%%% 	    {undefined,undefined} -> X2-X1;
-%%% %	    {_,true} -> 3*?CHAR_WIDTH+wings_text:width(Title);
-%%% 	    _ -> max(3*?CHAR_WIDTH+wings_text:width(Title),X2-X1)
-%%% 	end,
+	    true -> max(3*?CHAR_WIDTH+wings_text:width(Title), X2-X1) end,
     Hi = Y2-Y1,
     Wo = 2*(X1-X0)+Wi,
     Ho = Y1-Y0 +
@@ -955,7 +1035,9 @@ layout(Fi=#fi{key=Key,index=Index,flags=Flags,
 layout_container(vframe, Fields, Sto, X, Y) -> 
     layout_vframe(1, Fields, Sto, X, Y, 0, []);
 layout_container(hframe, Fields, Sto, X, Y) -> 
-    layout_hframe(1, Fields, Sto, X, Y, 0, []).
+    layout_hframe(1, Fields, Sto, X, Y, 0, []);
+layout_container(oframe, Fields, Sto, X, Y) -> 
+    layout_oframe(1, Fields, Sto, X, Y, 0, 0, []).
 
 layout_vframe(I, Fields, Sto, X0, Y0, W0, R) when I =< size(Fields) ->
     Fi = #fi{x=X0,y=Y0,w=W,h=H} = layout(element(I, Fields), Sto, X0, Y0),
@@ -970,6 +1052,13 @@ layout_hframe(I, Fields, Sto, X0, Y0, H0, R) when I =< size(Fields) ->
 layout_hframe(_I, _Fields, _Sto, X, Y, H, R) ->
     {R,X-?HFRAME_SPACING,Y+H}.
 
+layout_oframe(I, Fields, Sto, X, Y, W0, H0, R) when I =< size(Fields) ->
+    Fi = #fi{x=X,y=Y,w=W,h=H} = layout(element(I, Fields), Sto, X, Y),
+    layout_oframe(I+1, Fields, Sto, X, Y, max(W0, W), max(H0, H), [Fi|R]);
+layout_oframe(_I, _Fields, _Sto, X, Y, W, H, R) ->
+    {R,X+W,Y+H}.
+    
+
 
 %% Propagate the resulting size of container frames to its children.
 %%
@@ -983,6 +1072,10 @@ layout_propagate(Fi=#fi{extra=Container=#container{
 				type=hframe,h=H,fields=Fields}}) ->
     Fi#fi{extra=Container#container{
 		  fields=layout_propagate_hframe(Fields, H, [])}};
+layout_propagate(Fi=#fi{extra=Container=#container{
+				type=oframe,w=W,h=H,fields=Fields}}) ->
+    Fi#fi{extra=Container#container{
+		  fields=layout_propagate_oframe(Fields, W, H, [])}};
 layout_propagate(Fi=#fi{}) ->
     Fi.
 
@@ -996,30 +1089,41 @@ layout_propagate_hframe([Fi|Fis], H, R) ->
 layout_propagate_hframe([], _H, R) ->
     list_to_tuple(R).
 
+layout_propagate_oframe([Fi|Fis], W, H, R) ->
+    layout_propagate_oframe(Fis, W, H, [layout_propagate(Fi#fi{w=W,h=H})|R]);
+layout_propagate_oframe([], _W, _H, R) ->
+    list_to_tuple(R).
+
 %%
 %% Create a tuple of the focusable field indexes
 %%
 
-focusable(Fi) -> list_to_tuple(reverse(focusable(Fi, []))).
+focusable(Fi) -> list_to_tuple(reverse(focusable_1(Fi, []))).
 
-focusable(#fi{index=Index,inert=false,disabled=false,
+focusable_1(#fi{index=Index,inert=false,disabled=false,
 	      extra=Container}, R0) ->
     R = [Index|R0],
     case Container of
-	#container{fields=Fields,minimized=Minimized} when Minimized =/= true ->
-	    focusable(1, Fields, R);
+	#container{minimized=true} ->
+	    R;
+	#container{fields=Fields,active=undefined} ->
+	    focusable_2(1, Fields, R);
+	#container{fields=Fields,active=Active} ->
+	    focusable_1(element(Active, Fields), R);
 	_ ->
 	    R
     end;
-focusable(#fi{extra=#container{fields=Fields,minimized=Minimized}}, R)
-  when Minimized =/= true ->
-    focusable(1, Fields, R);
-focusable(_Fi=#fi{}, R) ->
-    R.
+focusable_1(#fi{extra=#container{minimized=true}}, R) ->
+    R;
+focusable_1(#fi{extra=#container{fields=Fields,active=undefined}}, R) ->
+    focusable_2(1, Fields, R);
+focusable_1(#fi{extra=#container{fields=Fields,active=Active}}, R) ->
+    focusable_1(element(Active, Fields), R);
+focusable_1(#fi{}, R) -> R.
 
-focusable(I, Fields, R) when I =< size(Fields) ->
-    focusable(I+1, Fields, focusable(element(I, Fields), R));
-focusable(_I, _Fields, R) -> R.
+focusable_2(I, Fields, R) when I =< size(Fields) ->
+    focusable_2(I+1, Fields, focusable_1(element(I, Fields), R));
+focusable_2(_I, _Fields, R) -> R.
 
 %% Mark all siblings (that can be minimized) of a container to be minimized
 %%
@@ -1203,6 +1307,188 @@ vline(X0, Y0, H, ColLow, ColHigh) ->
     gl:color4fv(ColHigh),
     gl:vertex2f(X+1, Y),
     gl:vertex2f(X+1, Y+H).
+
+%%
+%% Oframe
+%%
+
+oframe_event({redraw,Active}, [Fi=#fi{key=Key,index=I,hook=Hook}|_], Store) ->
+    Oframe = gb_trees:get(-I, Store),
+    DisEnable = hook(Hook, is_disabled, [var(Key, I), I, Store]),
+    oframe_redraw(Active, Fi, Oframe, DisEnable);
+oframe_event(value, [#fi{key=Key,index=I}|_], Store) ->
+    {value,gb_trees:get(var(Key, I), Store)};
+oframe_event(#mousemotion{state=Bst}, _Path, _Store)
+  when (Bst band ?BUTTON_MASK) =:= 0 ->
+    wings_wm:message(""),
+    keep;
+oframe_event(#mousebutton{x=Xb,button=1,state=?SDL_PRESSED}, 
+	    [#fi{x=X,y=Y,key=Key,index=I,hook=Hook}|_], 
+	    Sto0) ->
+    case gb_trees:get(-I, Sto0) of
+	#oframe{style=tabs,titles=Titles} ->
+	    case oframe_which_tab(X, Xb, Titles) of
+		undefined -> keep;
+		Val ->
+		    case hook(Hook, update, [var(Key, I), I, Val, Sto0]) of
+			{store,Sto} -> {layout,Sto};
+			Other -> Other
+		    end
+	    end;
+	#oframe{w=W,style=menu,titles=Titles} ->
+	    Menu = oframe_menu(Titles),
+	    Var = var(Key, I),
+	    Val = gb_trees:get(Var, Sto0),
+	    Disabled = hook(Hook, menu_disabled, [Var, I, Sto0]),
+	    menu_popup(X+10, Y, W, Menu, Val, Disabled)
+    end;
+oframe_event({popup_result,Val}, [#fi{index=I,key=Key,hook=Hook}|_], Sto0) ->
+    case hook(Hook, update, [var(Key, I), I, Val, Sto0]) of
+	{store,Sto} -> {layout,Sto};
+	Other -> Other
+    end;
+oframe_event(_Ev, _Path, _Store) -> keep.
+
+oframe_which_tab(X0, Xb, Titles) when Xb >= X0 -> 
+    oframe_which_tab(X0, Xb, Titles, ?CHAR_WIDTH, 1);
+oframe_which_tab(_X0, _Xb, _Titles) -> undefined.
+
+oframe_which_tab(X0, Xb, Titles, Cw, I) when I =< size(Titles) ->
+    W = Cw + wings_text:width(element(I, Titles)) + Cw,
+    if  Xb < X0+W -> I;
+	true -> oframe_which_tab(X0+W, Xb, Titles, Cw, I+1)
+    end.
+
+oframe_menu(Titles) -> oframe_menu(Titles, 1).
+
+oframe_menu(Titles, N) when N =< size(Titles) -> 
+    [{element(N, Titles),N,[]}|oframe_menu(Titles, N+1)];
+oframe_menu(_Titles, _N) -> [].
+
+oframe_redraw(Active, 
+	      #fi{x=X0,y=Y0,w=W0,h=H0,extra=#container{active=I}},
+	      #oframe{style=menu,w=Wt,h=Ht,titles=Titles},
+	      DisEnable) ->
+    Y = Y0 + Ht div 2 + 3,
+    H = H0 - (Y-Y0) - 4,
+    ColLow = color4_lowlight(),
+    ColHigh = color4_highlight(),
+    blend(fun(_Col) ->
+		  gl:'begin'(?GL_LINES),
+		  hline(X0, Y, 10, ColLow, ColHigh),
+		  hline(X0+Wt-10, Y, W0-Wt+10, ColLow, ColHigh),
+		  hline(X0, Y+H-1, W0-1, ColLow, ColHigh),
+		  vline(X0, Y+1, H-2, ColLow, ColHigh),
+		  vline(X0+W0-2, Y, H, ColLow, ColHigh),
+		  gl:'end'()
+	  end),
+    Title = element(I, Titles),
+    menu_draw(Active, X0+10, Y0+1, Wt, Ht, Title, DisEnable);
+oframe_redraw(Active, 
+	      #fi{x=X0,y=Y0,w=W0,h=H0,extra=#container{active=I}},
+	      #oframe{style=tabs,h=Ht,titles=Titles},
+	      DisEnable) ->
+    Y = Y0+Ht-5,
+    H = H0-Ht,
+    ColLow = color4_lowlight(),
+    ColHigh = color4_highlight(),
+    {X1,X2} = oframe_title_pos(X0, I, Titles),
+    blend(fun(_Col) ->
+		  gl:'begin'(?GL_LINES),
+		  hline(X0, Y, X1-X0, ColLow, ColHigh),
+		  hline(X2, Y, W0-(X2-X0), ColLow, ColHigh),
+		  hline(X0, Y+H-2, W0, ColLow, ColHigh),
+		  vline(X0, Y+1, H-4, ColLow, ColHigh),
+		  vline(X0+W0, Y+1, H-4, ColLow, ColHigh),
+		  gl:'end'()
+	  end),
+    oframe_redraw_titles(X0, Y0, Ht-5, Titles, DisEnable),
+    case Active of false -> DisEnable;
+	true ->
+%%% 	    blend(fun(_Col) ->
+%%% 			  gl:color3fv(color3_text()),
+%%% 			  draw_hat(X1, Y, X2-X1, H, Active)
+%%% 		  end),
+	    DisEnable
+    end.
+
+draw_hat(X, Y, W, H, Double) ->
+    gl:'begin'(?GL_LINES),
+    gl:vertex2f(X, Y), gl:vertex2f(X+W, Y),
+    gl:vertex2f(X, Y), gl:vertex2f(X, Y+H),
+    gl:vertex2f(X+W, Y), gl:vertex2f(X+W, Y+H),
+    case Double of false -> ok;
+	true ->
+	    gl:vertex2f(X-1, Y+1), gl:vertex2f(X-1+W, Y+1),
+	    gl:vertex2f(X-1, Y+1), gl:vertex2f(X-1, Y+H),
+	    gl:vertex2f(X-1+W, Y+1), gl:vertex2f(X+W, Y+H)
+    end,
+    gl:'end'().
+
+oframe_title_pos(X, Active, Titles) ->
+    oframe_title_pos_1(X, Active, Titles, 1, ?CHAR_WIDTH).
+
+oframe_title_pos_1(X, Active, Titles, I, Cw) ->
+    W = Cw + wings_text:width(element(I, Titles)) + Cw,
+    if  I =:= Active ->
+	    {X,X+W};
+	true ->
+	    oframe_title_pos_1(X+W, Active, Titles, I+1, Cw)
+    end.
+
+oframe_redraw_titles(X, Y, H, Titles, DisEnable) -> 
+    Cw = ?CHAR_WIDTH,
+    ColText = color3_text(),
+    ColLow = color4_lowlight(),
+    ColHigh = color4_highlight(),
+    oframe_redraw_titles(X, Y, H, Titles, DisEnable, 
+			 Cw, ColText, ColLow, ColHigh, 1).
+
+oframe_redraw_titles(X, Y, H, Titles, DisEnable, 
+		     Cw, ColText, ColLow, ColHigh, I)
+  when I =< size(Titles) ->
+    Title = element(I, Titles),
+    W = wings_text:width(Title),
+    gl:color3fv(ColText),
+    wings_io:text_at(X+Cw, Y+H-4, Title),
+    X2 = X+Cw+W+Cw,
+    blend(fun(_Col) ->
+%%% 		  if  I =:= 1 -> ok;
+%%% 		      true ->
+%%% 			  gl:color4fv(ColHigh),
+%%% 			  gl:rasterPos2i(X, Y),
+%%% 			  gl:bitmap(8, 4, 3, 4, 0, 0, 
+%%% 				    << 
+%%% 				     2#00001000,
+%%% 				     2#00101100,
+%%% 				     2#11000111,
+%%% 				     2#00000000>>),
+%%% 			  gl:color4fv(ColLow),
+%%% 			  gl:rasterPos2i(X, Y),
+%%% 			  gl:bitmap(8, 4, 3, 4, 0, 0, 
+%%% 				    << 
+%%% 				     2#00010000,
+%%% 				     2#00010000,
+%%% 				     2#00010000,
+%%% 				     2#11111111>>)
+%%% 		  end,
+		  gl:'begin'(?GL_LINES),
+%%% 		  hline(X+4, Y, X2-X-8, ColLow, ColHigh),
+%%% 		  vline(X, Y+3, H-4, ColLow, ColHigh),
+		  hline(X, Y, X2-X, ColLow, ColHigh),
+		  vline(X, Y+1, H-2, ColLow, ColHigh),
+		  gl:'end'()
+	  end),
+    oframe_redraw_titles(X2, Y, H, Titles, DisEnable, 
+			 Cw, ColText, ColLow, ColHigh, I+1);
+oframe_redraw_titles(X, Y, H, _Titles, DisEnable, 
+		     _Cw, _ColText, ColLow, ColHigh, _I) ->
+    blend(fun(_Col) ->
+		  gl:'begin'(?GL_LINES),
+		  vline(X, Y+1, H-2, ColLow, ColHigh),
+		  gl:'end'()
+	  end),
+    DisEnable.
 
 
 
@@ -1445,29 +1731,33 @@ menu(Menu0, Def) ->
     Fun = fun menu_event/3,
     {Fun,false,M,W,?LINE_HEIGHT+4}.
 
-menu_event({redraw,Active}, [Fi=#fi{hook=Hook,key=Key,index=I}|_], Store) ->
+menu_event({redraw,Active}, 
+	   [#fi{hook=Hook,key=Key,index=I,x=X,y=Y,w=W,h=H}|_], Store) ->
     #menu{menu=Menu} = gb_trees:get(-I, Store),
     Var = var(Key, I),
+    Val = gb_trees:get(Var, Store),
     DisEnable = hook(Hook, is_disabled, [Var, I, Store]),
-    menu_draw(Active, Fi, Menu, gb_trees:get(Var, Store), DisEnable);
+    ValStr = [Desc || {Desc,V,_} <- Menu, V =:= Val],
+    menu_draw(Active, X, Y, W, H, ValStr, DisEnable);
 menu_event(init, [#fi{key=Key,index=I}|_], Store) ->
     #menu{def=Def} = gb_trees:get(-I, Store),
     {store,gb_trees:enter(var(Key, I), Def, Store)};
 menu_event(value, [#fi{key=Key,index=I}|_], Store) ->
     {value,gb_trees:get(var(Key, I), Store)};
-menu_event({key,_,_,$\s}, [Fi=#fi{hook=Hook,key=Key,index=I}|_], Store) ->
+menu_event({key,_,_,$\s}, 
+	   [#fi{x=X,y=Y,w=W,hook=Hook,key=Key,index=I}|_], Store) ->
     #menu{menu=Menu} = gb_trees:get(-I, Store),
     Var = var(Key, I),
     Val = gb_trees:get(Var, Store),
     Disabled = hook(Hook, menu_disabled, [Var, I, Store]),
-    menu_popup(Fi, Menu, Val, Disabled);
+    menu_popup(X, Y, W, Menu, Val, Disabled);
 menu_event(#mousebutton{state=?SDL_PRESSED,button=1}, 
-	   [Fi=#fi{hook=Hook,key=Key,index=I}|_], Store) ->
+	   [#fi{x=X,y=Y,w=W,hook=Hook,key=Key,index=I}|_], Store) ->
     #menu{menu=Menu} = gb_trees:get(-I, Store),
     Var = var(Key, I),
     Val = gb_trees:get(Var, Store),
     Disabled = hook(Hook, menu_disabled, [Var, I, Store]),
-    menu_popup(Fi, Menu, Val, Disabled);
+    menu_popup(X, Y, W, Menu, Val, Disabled);
 menu_event({popup_result,Val}, [#fi{index=I,key=Key,hook=Hook}|_], Store) ->
     hook(Hook, update, [var(Key, I), I, Val, Store]);
 menu_event(_Ev, _Path, _Store) -> keep.
@@ -1479,7 +1769,7 @@ menu_width([{D,_,_}|T], W0) ->
     end;
 menu_width([], W) -> W.
 
-menu_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, Menu, Val, DisEnable) ->
+menu_draw(Active, X, Y0, W, H, Text, DisEnable) ->
     FgColor = case DisEnable of
 		  disable -> color3_disabled();
 		  _-> color3_text()
@@ -1495,9 +1785,8 @@ menu_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, Menu, Val, DisEnable) ->
 		  end
 	  end),
     Y = Y0+?CHAR_HEIGHT,
-    ValStr = [Desc || {Desc,V,_} <- Menu, V =:= Val],
     gl:color3fv(FgColor),
-    wings_io:text_at(X+5, Y, ValStr),
+    wings_io:text_at(X+5, Y, Text),
     Xr = X + W-8,
     Arrows = <<
 	      2#00010000,
@@ -1521,7 +1810,7 @@ menu_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, Menu, Val, DisEnable) ->
 	 menu					%Tuple.
 	}).
 
-menu_popup(#fi{x=X0,y=Y0,w=W}, Menu0, Val, Disabled) ->
+menu_popup(X0, Y0, W, Menu0, Val, Disabled) ->
     {X1,Y1} = wings_wm:local2global(X0+?HMARGIN, Y0+?VMARGIN),
     Menu1 = [case proplists:get_value(V, Disabled) of
 		 undefined -> {Desc,V,false,Flags};
@@ -2593,17 +2882,21 @@ hook(Hook, is_disabled, [Var, I, Store]) ->
 	    end
     end;
 hook(Hook, update, [Var, I, Val, Store]) ->
-    case Hook of
-	undefined -> update(Var, Val, Store);
-	_ when is_function(Hook) ->
-	    case Hook(update, {Var,I,Val,Store}) of
-		void -> update(Var, Val, Store);
-		%% Result -> Result % but more paranoid
-		keep -> keep;
-		{store,_}=Result -> Result;
-		done -> done;
-		{done,_}=Result -> Result;
-		{layout,_}=Result -> Result
+    case gb_trees:get(Var, Store) of
+	Val -> keep;
+	_ ->
+	    case Hook of
+		undefined -> {store,gb_trees:update(Var, Val, Store)};
+		_ when is_function(Hook) ->
+		    case Hook(update, {Var,I,Val,Store}) of
+			void -> {store,gb_trees:update(Var, Val, Store)};
+			%% Result -> Result % but more paranoid
+			keep -> keep;
+			{store,_}=Result -> Result;
+			done -> done;
+			{done,_}=Result -> Result;
+			{layout,_}=Result -> Result
+		    end
 	    end
     end;
 hook(Hook, menu_disabled, [Var, I, Store]) ->
@@ -2614,10 +2907,4 @@ hook(Hook, menu_disabled, [Var, I, Store]) ->
 		void -> [];
 		Disabled when is_list(Disabled) -> Disabled
 	    end
-    end.
-
-update(Var, Val, Store) ->
-    case gb_trees:get(Var, Store) of
-	Val -> keep;
-	_ -> {store,gb_trees:update(Var, Val, Store)}
     end.
