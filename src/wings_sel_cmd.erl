@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.43 2003/02/06 06:25:28 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.44 2003/02/27 19:40:17 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -526,7 +526,8 @@ similar(#st{selmode=body}=St) ->
 					 gb_trees:size(Ftab)}|Acc]
 			       end, [], St),
     Template = ordsets:from_list(Template0),
-    wings_sel:make(fun(_, We) -> match_body(Template, We) end, body, St).
+    wings_sel:make(fun(_, We) -> match_body(Template, We) end, body, St);
+similar(_) -> wings_util:error("Only select elements in one object.").
 
 match_body(Template, #we{vp=Vtab,es=Etab,fs=Ftab}) ->
     Sizes = {gb_trees:size(Vtab),gb_trees:size(Etab),gb_trees:size(Ftab)},
