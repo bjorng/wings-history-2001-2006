@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_export.erl,v 1.3 2004/02/08 15:29:32 bjorng Exp $
+%%     $Id: wings_export.erl,v 1.4 2004/03/05 03:56:11 bjorng Exp $
 %%
 
 -module(wings_export).
@@ -31,13 +31,15 @@ export(Exporter, Name, SubDivs, #st{shapes=Shs}=St) ->
     Mat = mat_images(Mat1),
     Contents = #e3d_file{objs=Objs,mat=Mat,creator=Creator},
     wings_pb:update(1.0),
-    Res = wings_pb:done(Exporter(Name, Contents)),
+    Res = wings_pb:done(catch Exporter(Name, Contents)),
     case Res of
 	ok -> ok;
 	{error,Atom} when is_atom(Atom) ->
 	    wings_util:error(file:format_error(Atom));
 	{error,Reason} ->
-	    wings_util:error(Reason)
+	    wings_util:error(Reason);
+	{'EXIT',Reason} ->
+	    wings_util:error("Exporter crashed:\n~P\n", [Reason,20])
     end.
 
 save_images(#e3d_file{mat=Mat0}=E3DFile, Dir, Filetype) ->
