@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_move.erl,v 1.40 2002/08/25 15:10:59 bjorng Exp $
+%%     $Id: wings_move.erl,v 1.41 2002/09/05 19:31:16 bjorng Exp $
 %%
 
 -module(wings_move).
@@ -69,7 +69,7 @@ unit(Type) ->
     unit(Type, []).
 
 unit(free, T) -> [dx,dy,dz|T];
-unit(intrude, T) -> [{distance,{0.025,9.0E307}}|T];
+unit(intrude, T) -> [{distance,{0.0,9.9E307}}|T];
 unit(_, T) -> [distance|T].
 
 flags(free) -> [screen_relative];
