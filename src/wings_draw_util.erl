@@ -8,16 +8,17 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.97 2003/08/03 19:31:11 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.98 2003/08/04 19:34:34 bjorng Exp $
 %%
 
 -module(wings_draw_util).
--export([init/0,delete_dlists/0,tess/0,begin_end/1,begin_end/2,
+-export([init/0,init_cb/1,delete_dlists/0,tess/0,begin_end/1,begin_end/2,
 	 update/2,map/2,fold/2,changed_materials/1,
 	 render/1,call/1,call_one_of/2,
 	 prepare/3,
 	 face/2,flat_face/2,flat_face/3,
 	 uv_face/2,uv_face/3,vcol_face/2,vcol_face/3,
+	 smooth_mat_faces/1,smooth_uv_faces/1,smooth_vcol_faces/1,
 	 force_flat_color/2,consistent_normal/4]).
 
 -define(NEED_OPENGL, 1).
@@ -31,17 +32,14 @@
 	 }).
 
 init() ->
+    ensure_du_loaded(),
     case get(wings_tesselator) of
 	undefined -> ok;
 	OldTess -> glu:deleteTess(OldTess)
     end,
     Tess = glu:newTess(),
     put(wings_tesselator, Tess),
-    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_VERTEX_DATA),
-    glu:tessCallback(Tess, ?GLU_TESS_EDGE_FLAG, ?ESDL_TESSCB_GLEDGEFLAG),
-    glu:tessCallback(Tess, ?GLU_TESS_COMBINE, ?ESDL_TESSCB_COMBINE),
-    glu:tessCallback(Tess, ?GLU_TESS_BEGIN, ?ESDL_TESSCB_NONE),
-    glu:tessCallback(Tess, ?GLU_TESS_END, ?ESDL_TESSCB_NONE),
+    init_cb(Tess),
 
     Dl = case get_dl_data() of
 	     undefined -> [];
@@ -70,6 +68,38 @@ init() ->
 	 16#AA,16#AA,16#AA,16#AA,16#55,16#55,16#55,16#55>>,
     gl:polygonStipple(P).
 
+init_cb(Tess) ->
+    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_VERTEX_DATA),
+    glu:tessCallback(Tess, ?GLU_TESS_EDGE_FLAG, ?ESDL_TESSCB_GLEDGEFLAG),
+    glu:tessCallback(Tess, ?GLU_TESS_COMBINE, ?ESDL_TESSCB_COMBINE),
+    wings__du:init_cb(Tess).
+
+ensure_du_loaded() ->
+    case erlang:function_exported(wings__du, is_quirky_loaded, 0) of
+	false -> load_du();
+	true ->
+	    QuirkyOn = not wings_pref:get_value(display_list_opt),
+	    case {wings__du:is_quirky_loaded(),QuirkyOn} of
+		{Same,Same} -> ok;
+		_ -> load_du()
+	    end
+    end.
+
+load_du() ->
+    case wings_pref:get_value(display_list_opt) of
+	false -> load_du_1("wings__du.quirky.beam");
+	true -> load_du_1("wings__du.beam")
+    end.
+
+load_du_1(Name) ->
+    Dir = filename:dirname(code:which(?MODULE)),
+    Path = filename:join(Dir, Name),
+    {ok,Code} = file:read_file(Path),
+    Mod = wings__du,
+    code:purge(Mod),
+    {module,Mod} = code:load_binary(Mod, Path, Code),
+    ok.
+
 delete_dlists() ->
     case erase(wings_wm:get_prop(display_lists)) of
 	#du{used=Used} ->
@@ -88,14 +118,10 @@ tess() ->
     get(wings_tesselator).
 
 begin_end(Body) ->
-    begin_end(?GL_TRIANGLES, Body).
+    wings__du:begin_end(?GL_TRIANGLES, Body).
 
 begin_end(Type, Body) ->
-    gl:'begin'(Type),
-    Res = Body(),
-    gl:'end'(),
-    gl:edgeFlag(?GL_TRUE),
-    Res.
+    wings__du:begin_end(Type, Body).
 
 get_dl_data() ->
     get(wings_wm:get_prop(display_lists)).
@@ -577,42 +603,7 @@ flat_face_1([V|Vs], Vtab, Acc) ->
 flat_face_1([], _, VsPos) ->
     N = e3d_vec:normal(VsPos),
     gl:normal3fv(N),
-    flat_face_2(N, VsPos).
-
-flat_face_2(_, [A,B,C]) ->
-    gl:vertex3dv(A),
-    gl:vertex3dv(B),
-    gl:vertex3dv(C);
-flat_face_2(N, [A,B,C,D]=VsPos) ->
-    case consistent_normal(A, B, C, N) andalso consistent_normal(A, C, D, N) of
-	false ->
-	    flat_face_3(N, VsPos);
-	true ->
-	    gl:vertex3dv(A),
-	    gl:vertex3dv(B),
-	    gl:edgeFlag(?GL_FALSE),
-	    gl:vertex3dv(C),
-	    gl:vertex3dv(A),
-	    gl:edgeFlag(?GL_TRUE),
-	    gl:vertex3dv(C),
-	    gl:vertex3dv(D)
-    end;
-flat_face_2(N, VsPos) -> flat_face_3(N, VsPos).
-
-flat_face_3(N, VsPos) ->
-    Tess = tess(),
-    {X,Y,Z} = N,
-    glu:tessNormal(Tess, X, Y, Z),
-    glu:tessBeginPolygon(Tess),
-    glu:tessBeginContour(Tess),
-    tess_flat_face(Tess, VsPos).
-
-tess_flat_face(Tess, [P|T]) ->
-    glu:tessVertex(Tess, P),
-    tess_flat_face(Tess, T);
-tess_flat_face(Tess, []) ->
-    glu:tessEndContour(Tess),
-    glu:tessEndPolygon(Tess).
+    wings__du:mat_face(N, VsPos).
 
 %%
 %% Tesselate and draw face. Include UV coordinates.
@@ -632,52 +623,7 @@ uv_face_1([[V|Col]|Vs], Vtab, Nacc, VsAcc) ->
 uv_face_1([], _, Nacc, Vs) ->
     N = e3d_vec:normal(Nacc),
     gl:normal3fv(N),
-    uv_face_2(N, Vs).
-
-uv_face_2(_, [A,B,C]) ->
-    uv_face_vtx(A),
-    uv_face_vtx(B),
-    uv_face_vtx(C);
-uv_face_2(N, [[A0|_]=A,[B0|_]=B,[C0|_]=C,[D0|_]=D]=VsPos) ->
-    case consistent_normal(A0, B0, C0, N) andalso consistent_normal(A0, C0, D0, N) of
-	false ->
-	    uv_face_3(N, VsPos);
-	true ->
-	    uv_face_vtx(A),
-	    uv_face_vtx(B),
-	    gl:edgeFlag(?GL_FALSE),
-	    uv_face_vtx(C),
-	    uv_face_vtx(A),
-	    gl:edgeFlag(?GL_TRUE),
-	    uv_face_vtx(C),
-	    uv_face_vtx(D)
-    end;
-uv_face_2(N, Vs) -> uv_face_3(N, Vs).
-
-uv_face_3(N, Vs) ->
-    Tess = tess(),
-    {X,Y,Z} = N,
-    glu:tessNormal(Tess, X, Y, Z),
-    glu:tessBeginPolygon(Tess),
-    glu:tessBeginContour(Tess),
-    tess_uv_face(Tess, Vs).
-
-tess_uv_face(Tess, [[Pos|{_,_}=UV]|T]) ->
-    glu:tessVertex(Tess, Pos, [{texcoord2,UV}]),
-    tess_uv_face(Tess, T);
-tess_uv_face(Tess, [[Pos|_]|T]) ->
-    glu:tessVertex(Tess, Pos, [{texcoord2,{0.0,0.0}}]),
-    tess_uv_face(Tess, T);
-tess_uv_face(Tess, []) ->
-    glu:tessEndContour(Tess),
-    glu:tessEndPolygon(Tess).
-
-uv_face_vtx([Pos|{U,V}]) ->
-    gl:texCoord2f(U, V),
-    gl:vertex3dv(Pos);
-uv_face_vtx([Pos|_]) ->
-    gl:texCoord2i(0, 0),
-    gl:vertex3dv(Pos).
+    wings__du:uv_face(N, Vs).
 
 %%
 %% Tesselate and draw face. Include vertex colors.
@@ -697,66 +643,21 @@ vcol_face_1([[V|Col]|Vs], Vtab, Nacc, VsAcc) ->
 vcol_face_1([], _, Nacc, Vs) ->
     N = e3d_vec:normal(Nacc),
     gl:normal3fv(N),
-    vcol_face_2(N, Vs).
-
-vcol_face_2(_, [A,B,C]) ->
-    vcol_face_vtx(A),
-    vcol_face_vtx(B),
-    vcol_face_vtx(C);
-vcol_face_2(N, [[A0|_]=A,[B0|_]=B,[C0|_]=C,[D0|_]=D]=VsPos) ->
-    case consistent_normal(A0, B0, C0, N) andalso consistent_normal(A0, C0, D0, N) of
-	false ->
-	    vcol_face_3(N, VsPos);
-	true ->
-	    vcol_face_vtx(A),
-	    vcol_face_vtx(B),
-	    gl:edgeFlag(?GL_FALSE),
-	    vcol_face_vtx(C),
-	    vcol_face_vtx(A),
-	    gl:edgeFlag(?GL_TRUE),
-	    vcol_face_vtx(C),
-	    vcol_face_vtx(D)
-    end;
-vcol_face_2(N, Vs) -> vcol_face_3(N, Vs).
-
-vcol_face_3(N, Vs) ->
-    Tess = tess(),
-    {X,Y,Z} = N,
-    glu:tessNormal(Tess, X, Y, Z),
-    glu:tessBeginPolygon(Tess),
-    glu:tessBeginContour(Tess),
-    tess_vcol_face(Tess, Vs).
-
-tess_vcol_face(Tess, [[Pos|{_,_,_}=Col]|T]) ->
-    glu:tessVertex(Tess, Pos, [{color,Col}]),
-    tess_vcol_face(Tess, T);
-tess_vcol_face(Tess, [[Pos|_]|T]) ->
-    glu:tessVertex(Tess, Pos, [{color,{1.0,1.0,1.0}}]),
-    tess_vcol_face(Tess, T);
-tess_vcol_face(Tess, []) ->
-    glu:tessEndContour(Tess),
-    glu:tessEndPolygon(Tess).
-
-vcol_face_vtx([Pos|{R,G,B}]) ->
-    gl:color3f(R, G, B),
-    gl:vertex3dv(Pos);
-vcol_face_vtx([Pos|_]) ->
-    gl:color3f(1, 1, 1),
-    gl:vertex3dv(Pos).
+    wings__du:vcol_face(N, Vs).
 
 %% consistent_normal(Point1, Point2, Point3, Normal) -> true|false
 %%  Return true if the normal for the triangle Point1-Point2-Point3
 %%  points in approximately the same direction as the normal Normal.
-consistent_normal({V10,V11,V12}, {V20,V21,V22}, {V30,V31,V32}, {X,Y,Z})
-  when is_float(V10), is_float(V11), is_float(V12),
-       is_float(V20), is_float(V21), is_float(V22),
-       is_float(V30), is_float(V31), is_float(V32) ->
-    D10 = V10-V20,
-    D11 = V11-V21,
-    D12 = V12-V22,
-    D20 = V20-V30,
-    D21 = V21-V31,
-    D22 = V22-V32,
+consistent_normal({A0,A1,A2}, {B0,B1,B2}, {C0,C1,C2}, {X,Y,Z})
+  when is_float(A0), is_float(A1), is_float(A2),
+       is_float(B0), is_float(B1), is_float(B2),
+       is_float(C0), is_float(C1), is_float(C2) ->
+    D10 = A0-B0,
+    D11 = A1-B1,
+    D12 = A2-B2,
+    D20 = B0-C0,
+    D21 = B1-C1,
+    D22 = B2-C2,
     X*(D11*D22-D12*D21) + Y*(D12*D20-D10*D22) + Z*(D10*D21-D11*D20) > 0.
 
 %% force_flat_color(OriginalDlist, Color) -> NewDlist.
@@ -786,6 +687,21 @@ force_flat_color(OriginalDlist, {R,G,B}) ->
     gl:popAttrib(),
     gl:endList(),
     {call,Dl,OriginalDlist}.
+
+smooth_mat_faces([{_,{N,Vs}}|Fs]) ->
+    wings__du:smooth_mat_face(N, Vs),
+    smooth_mat_faces(Fs);
+smooth_mat_faces([]) -> ok.
+
+smooth_uv_faces([{_,{N,Vs}}|Fs]) ->
+    wings__du:smooth_uv_face(N, Vs),
+    smooth_uv_faces(Fs);
+smooth_uv_faces([]) -> ok.
+
+smooth_vcol_faces([{_,{N,Vs}}|Fs]) ->
+    wings__du:smooth_vcol_face(N, Vs),
+    smooth_vcol_faces(Fs);
+smooth_vcol_faces([]) -> ok.
 
 %%
 %% Utilities.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.108 2003/08/03 10:34:46 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.109 2003/08/04 19:34:34 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -760,10 +760,7 @@ select_draw_1(#we{perm=Perm}=We) when ?IS_SELECTABLE(Perm) ->
     glu:tessCallback(Tess, ?GLU_TESS_BEGIN, ?ESDL_TESSCB_GLBEGIN),
     glu:tessCallback(Tess, ?GLU_TESS_END, ?ESDL_TESSCB_GLEND),
     select_draw_2(We),
-    glu:tessCallback(Tess, ?GLU_TESS_BEGIN, ?ESDL_TESSCB_NONE),
-    glu:tessCallback(Tess, ?GLU_TESS_END, ?ESDL_TESSCB_NONE),
-    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_VERTEX_DATA),
-    glu:tessCallback(Tess, ?GLU_TESS_EDGE_FLAG, ?ESDL_TESSCB_GLEDGEFLAG),
+    wings_draw_util:init_cb(Tess),
     gl:edgeFlag(?GL_TRUE);
 select_draw_1(_) -> ok.
     

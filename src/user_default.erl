@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: user_default.erl,v 1.12 2003/05/08 07:00:55 bjorng Exp $
+%%     $Id: user_default.erl,v 1.13 2003/08/04 19:34:34 bjorng Exp $
 %% 
 
 -module(user_default).
@@ -43,6 +43,7 @@ wh() ->
 wx() ->
     WingsLib = code:lib_dir(wings),
     WingsEbin = filename:join(WingsLib, "ebin"),
+    file:delete(filename:join(WingsEbin, "wings__du.quirky.beam")),
     xref:start(s),
     xref:set_default(s, [{verbose,false},{warnings,false},{builtins,true}]),
     xref:set_library_path(s, code:get_path() -- [WingsEbin]),

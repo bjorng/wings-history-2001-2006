@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.33 2003/01/20 07:36:55 bjorng Exp $
+#     $Id: Makefile,v 1.34 2003/08/04 19:34:34 bjorng Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -82,6 +82,8 @@ MODULES= \
 	wings_we \
 	wings_wm \
 	wings_wm_toplevel \
+	wings__du \
+	wings__du.quirky \
 	wpa
 
 TARGET_FILES= $(MODULES:%=$(EBIN)/%.beam)
@@ -113,4 +115,8 @@ $(EBIN)/%.beam: $(ESRC)/%.erl
 $(TARGET_FILES): wings.hrl
 
 $(EBIN)/wings_file.beam $(EBIN)/wings_help.beam: ../vsn.mk
+
+$(EBIN)/wings__du.quirky.beam: wings__du.erl
+	$(ERLC) $(ERL_FLAGS) $(ERL_COMPILE_FLAGS) -DQUIRKY_OPENGL=1 wings__du.erl
+	mv wings__du.beam $(EBIN)/wings__du.quirky.beam
 
