@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.55 2002/11/23 20:34:30 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.56 2002/11/25 22:23:07 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -612,12 +612,9 @@ init_drawarea() ->
     HW = (Ow - 4) div 2,
     WingsPort = {0,0,HW,Oh},
     {X2, W2} = {Ow - HW, HW},
-    %% Estimate Icon and message height
-    %% Hard coded yes, but what do I do ??
-    EH1 = 37,  %% Icons and message area height
-    EH2 = 25,  %% Menu bar height
-    {Y2, H2} = {EH1, Oh - EH2 - EH1},
-    Border = 10, %% Showed no pixels around the texturemap
+    EH2 = 25,					% Menu bar height
+    H2 = Oh - EH2,
+    Border = 10,
     
     {X0Y0, XMax, YMax} =
  	if 
@@ -628,7 +625,7 @@ init_drawarea() ->
 		WF = Border / H2,
 		{-WF, 1+WF, H2/W2+WF}
 	    end,
-    {WingsPort, {X2,Y2,W2,H2,X0Y0,XMax,YMax}}.
+    {WingsPort, {X2,0,W2,H2,X0Y0,XMax,YMax}}.
 
 draw_texture(Uvs = #uvstate{dl=undefined,option=Options}) ->
     Materials = (Uvs#uvstate.origst)#st.mat,
