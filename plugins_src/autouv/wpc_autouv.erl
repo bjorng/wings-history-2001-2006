@@ -1,14 +1,15 @@
-%% File    : wpc_autouv.erl
-%% Author  : Dan Gudmundsson <dgud@erix.ericsson.se>
-%% Description : A semi-simple semi-automatic UV-mapping semi-plugin
 %%
-%% Created : 24 Jan 2002 by Dan Gudmundsson <dgud@erix.ericsson.se>
-%%-------------------------------------------------------------------
+%%  wpc_autouv.erl --
+%%
+%%     A semi-simple semi-automatic UV-mapping semi-plugin.
+%%
 %%  Copyright (c) 2002-2004 Dan Gudmundsson, Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.273 2004/11/21 07:52:27 bjorng Exp $
+%%
+%%     $Id: wpc_autouv.erl,v 1.274 2004/11/21 10:18:36 bjorng Exp $
+%%
 
 -module(wpc_autouv).
 
@@ -393,7 +394,7 @@ command_menu(vertex, X, Y) ->
 	     "Move UV coordinates towards average midpoint",
 	     [magnet]},
 	    separator, 
-	    {"Unfold", lsqcm, "Unfold the chart (without moving the selected vertices)"}
+	    {"Unfold",lsqcm,"Unfold the chart (without moving the selected vertices)"}
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu);
 command_menu(_, X, Y) ->
@@ -428,10 +429,11 @@ get_event_nodraw(#st{}=St) ->
     wings_wm:current_state(St),
     {replace,fun(Ev) -> handle_event(Ev, St) end}.
 
-handle_event({crash,_}=Crash, _) ->
-    LogName = wings_util:crash_log(wings_wm:this(), Crash),
-    wings_wm:send(geom, {crash_in_other_window,LogName}),
+handle_event({crash,Crash}, _) ->
+    wings_util:win_crash(Crash),
     delete;
+handle_event({command_error,Error}, _) ->
+    wings_util:message(Error);
 handle_event(redraw, St) ->
     redraw(St),
     get_event_nodraw(St);
@@ -505,7 +507,7 @@ handle_event_3({action,{auv,{remap,Method}}}, St0) ->
     St = remap(Method, St0),
     get_event(St);
 handle_event_3({action,{auv,lsqcm}}, St0) ->
-    St = remap(lsqcm, St0),
+    St = reunfold(St0),
     get_event(St);
 
 %% Others
@@ -1044,26 +1046,43 @@ flip(Flip, We0) ->
     We = wings_we:transform_vs(T, We0),
     wings_we:invert_normals(We).
 
-remap(Method, #st{sel=Sel,selmode=Mode}=St0) ->
+reunfold(#st{sel=Sel,selmode=vertex}=St0) ->
+    %% Check correct pinning.
+    Ch = fun(Vs, _, _) ->
+		 case gb_sets:size(Vs) of
+		     N when N < 2 ->
+			 E = "At least two vertices per chart must be pinned",
+			 wings_util:error(E);
+		     _-> ok
+		 end
+	 end,
+    wings_sel:fold(Ch, ok, St0),
+
+    %% OK. Go ahead and re-unfold.
     wings_pb:start("remapping"),
     wings_pb:update(0.001),
     N = length(Sel),
-    GetUV = fun(V,Vtab) -> 
-		    {S,T,_} = gb_trees:get(V,Vtab),
-		    {V,{S,T}}
-	    end,
-    Remap = 
-	fun(Vs, We = #we{vp=Vtab}, I) ->
-		Msg = "chart " ++ integer_to_list(I),
+    R = fun(Vs, #we{vp=Vtab}=We, I) ->
+		Msg = "chart " ++ integer_to_list(I+1),
 		wings_pb:update(I/N, Msg),
-		Pinned = case Mode of
-			     vertex -> 
-				 [GetUV(V,Vtab) || 
-				     V <- gb_sets:to_list(Vs)];
-			     _ -> none
-			 end,
-		{remap(Method, Pinned, We, St0),I+1}
+		Pinned = [begin
+			      {S,T,_} = gb_trees:get(V, Vtab),
+			      {V,{S,T}}
+			  end || V <- gb_sets:to_list(Vs)],
+		{remap(lsqcm, Pinned, We, St0),I+1}
 	end,
+    {St,_} = wings_sel:mapfold(R, 1, St0),
+    wings_pb:done(update_selected_uvcoords(St)).
+
+remap(Method, #st{sel=Sel}=St0) ->
+    wings_pb:start("remapping"),
+    wings_pb:update(0.001),
+    N = length(Sel),
+    Remap = fun(_, We, I) ->
+		    Msg = "chart " ++ integer_to_list(I+1),
+		    wings_pb:update(I/N, Msg),
+		    {remap(Method, none, We, St0),I+1}
+	    end,
     {St,_} = wings_sel:mapfold(Remap, 1, St0),
     wings_pb:done(update_selected_uvcoords(St)).
 
@@ -1077,10 +1096,8 @@ remap(Type, Pinned, #we{name=Ch}=We0, St) ->
     %% Get 3d positions (even for mapped vs).
     Vs3d = orig_pos(We0, St),
     case auv_mapping:map_chart(Type, We0#we{vp=Vs3d}, Pinned) of
-	{error, Msg} -> 
-	    wings_pb:done(),
-	    wings_util:message(Msg),
-	    We0;
+	{error,Msg} -> 
+	    wings_util:error(Msg);
 	Vs0 -> 
 	    We1 = We0#we{vp=gb_trees:from_orddict(sort(Vs0))},
 	    Fs = wings_we:visible(We1),
