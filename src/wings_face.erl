@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face.erl,v 1.27 2002/12/30 07:48:43 bjorng Exp $
+%%     $Id: wings_face.erl,v 1.28 2003/03/08 17:37:27 bjorng Exp $
 %%
 
 -module(wings_face).
@@ -20,7 +20,7 @@
 	 normal/2,face_normal/2,good_normal/2,
 	 vinfo/2,vinfo/3,
 	 surrounding_vertices/2,surrounding_vertices/3,
-	 bordering_faces/2,
+	 extend_border/2,bordering_faces/2,
 	 inner_edges/2,outer_edges/2,
 	 fold/4,fold_vinfo/4,fold_faces/4,
 	 iterator/2,skip_to_edge/2,skip_to_cw/2,skip_to_ccw/2,
