@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel.erl,v 1.25 2002/01/02 12:21:53 bjorng Exp $
+%%     $Id: wings_sel.erl,v 1.26 2002/01/12 19:23:45 bjorng Exp $
 %%
 
 -module(wings_sel).
@@ -303,13 +303,16 @@ valid_sel(#st{sel=Sel,selmode=Mode}=St) ->
     St#st{sel=valid_sel(Sel, Mode, St)}.
     
 valid_sel(Sel0, Mode, #st{shapes=Shapes}) ->
-    Sel = foldl(fun({Id,Items}, A) ->
-			case gb_trees:lookup(Id, Shapes) of
-			    none -> A;
-			    {value,Shape} ->
-				[{Id,validate_items(Items, Mode, Shape)}|A]
-			end
-		end, [], Sel0),
+    Sel = foldl(
+	    fun({Id,Items}, A) ->
+		    case gb_trees:lookup(Id, Shapes) of
+			none -> A;
+			{value,#we{perm=Perm}} when ?IS_NOT_SELECTABLE(Perm) ->
+			    A;
+			{value,We} ->
+			    [{Id,validate_items(Items, Mode, We)}|A]
+		    end
+	    end, [], Sel0),
     reverse(Sel).
 
 validate_items(Vs, vertex, #we{vs=Vtab}) ->
