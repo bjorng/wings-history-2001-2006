@@ -3,12 +3,12 @@
 %%
 %%     This module handles camera moves (rotation, zooming, and panning).
 %%
-%%  Copyright (c) 2001-2002 Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.62 2003/01/04 16:40:39 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.63 2003/02/14 15:50:26 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -187,7 +187,7 @@ blender_1(#mousebutton{x=X0,y=Y0}, Mod, Redraw) ->
 	true -> next;
 	false ->
 	    Camera = #camera{x=X,y=Y,ox=X,oy=Y},
-	    wings_io:grab(),
+	    grab(),
 	    message(help()),
 	    {seq,push,get_blender_event(Camera, Redraw)}
     end.
@@ -221,7 +221,7 @@ nendo(#mousebutton{button=2,x=X0,y=Y0,state=?SDL_RELEASED}, Redraw) ->
 	Mod when Mod band ?CTRL_BITS == 0 ->
 	    {X,Y} = wings_wm:local2global(X0, Y0),
 	    Camera = #camera{x=X,y=Y,ox=X,oy=Y},
-	    wings_io:grab(),
+	    grab(),
 	    nendo_message(true),
 	    {seq,push,get_nendo_event(Camera, Redraw, true)};
 	_ -> next
@@ -314,7 +314,7 @@ mirai(#mousebutton{button=2,x=X0,y=Y0,state=?SDL_RELEASED}, Redraw) ->
 	Mod when Mod band ?CTRL_BITS == 0 ->
 	    {X,Y} = wings_wm:local2global(X0, Y0),
 	    Camera = #camera{x=X,y=Y,ox=X,oy=Y},
-	    wings_io:grab(),
+	    grab(),
 	    mirai_message(true),
 	    View = wings_view:current(),
 	    {seq,push,get_mirai_event(Camera, Redraw, true, View)};
@@ -400,7 +400,7 @@ mirai_message(false) ->
 tds(#mousebutton{button=2,x=X0,y=Y0,state=?SDL_PRESSED}, Redraw) ->
     {X,Y} = wings_wm:local2global(X0, Y0),
     Camera = #camera{x=X,y=Y,ox=X,oy=Y},
-    wings_io:grab(),
+    grab(),
     message(["[R] Restore view  "|help()]),
     View = wings_view:current(),
     {seq,push,get_tds_event(Camera, Redraw, View)};
@@ -441,7 +441,7 @@ maya(#mousebutton{x=X0,y=Y0,state=?SDL_PRESSED}, Redraw) ->
 	    {X,Y} = wings_wm:local2global(X0, Y0),
 	    sdl_events:eventState(?SDL_KEYUP, ?SDL_ENABLE),
 	    Camera = #camera{x=X,y=Y,ox=X,oy=Y},
-	    wings_io:grab(),
+	    grab(),
 	    message(help()),
 	    {seq,push,get_maya_event(Camera, Redraw)};
 	_Mod -> next
@@ -535,6 +535,7 @@ stop_camera(#camera{ox=OX,oy=OY}) ->
 	    wings_wm:send(geom, view_changed),
 	    pop;
 	no_grab ->
+	    wings_wm:release_focus(),
 	    wings_wm:dirty(),
 	    pop
     end.
@@ -562,3 +563,7 @@ camera_mouse_range(X0, Y0, #camera{x=OX,y=OY, xt=Xt0, yt=Yt0}=Camera) ->
 message(Message) ->
     wings_wm:message(Message),
     wings_wm:message_right([]).
+    
+grab() ->
+    wings_io:grab(),
+    wings_wm:grab_focus().
