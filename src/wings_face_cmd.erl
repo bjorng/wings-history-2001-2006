@@ -8,20 +8,108 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.38 2002/02/22 11:20:58 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.39 2002/03/03 21:44:17 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
--export([extrude/2,extrude_region/2,extract_region/2,
-	 inset/1,dissolve/1,smooth/1,bridge/1,
-	 intrude/1,mirror/1,flatten/2,flatten_move/2,
-	 lift_selection/2,lift/2]).
--export([outer_edge_partition/2]).
+-export([menu/3,command/2]).
+-export([dissolve/1,outer_edge_partition/2]).
 
 -include("wings.hrl").
 -import(lists, [map/2,foldl/3,reverse/1,sort/1,keysort/2,
 		keymember/3,keysearch/3,keydelete/3,
 		member/2,seq/2,last/1]).
+-import(wings_draw, [model_changed/1]).
+
+menu(X, Y, St) ->
+    Dir = wings_menu_util:directions(St),
+    FlattenDir = wings_menu_util:flatten_dir(St),
+    Menu = [{"Face operations",ignore},
+	    separator,
+	    {"Move",{move,Dir}},
+	    {"Rotate",{rotate,Dir}},
+	    wings_menu_util:scale(),
+	    separator,
+	    {"Extrude",{extrude,Dir}},
+	    {"Extrude Region",{extrude_region,Dir}},
+	    {"Extract Region",{extract_region,Dir}},
+	    separator,
+	    {"Flatten",{flatten,FlattenDir}},
+	    {advanced,{"Flatten Move",{flatten_move,FlattenDir}}},
+	    separator,
+	    {"Inset",inset,"Inset a face inside the selected face"},
+	    {"Intrude",intrude,"Carve out interior of object, "
+	     "making selected faces holes"},
+	    {"Bevel",bevel,"Round off edges of selected faces"},
+	    {"Bridge",bridge,"Create a bridge or tunnel between two faces"},
+	    {advanced,separator},
+	    {"Bump",bump,"Create bump of selected faces"},
+	    {advanced,{"Lift",{lift,lift_fun()}}},
+	    separator,
+	    {"Mirror",mirror,"Make mirror of object around selected faces"},
+    	    {"Dissolve",dissolve,"Eliminate all edges between selected faces"},
+	    {"Collapse",collapse,"Delete faces, replacing them with vertices"},
+	    separator,
+	    {"Smooth",smooth,"Subdivide selected faces to smooth them"},
+	    separator,
+	    wings_material:sub_menu(face, St)|wings_vec:menu(St)],
+    wings_menu:popup_menu(X, Y, face, Menu, St).
+
+lift_fun() ->
+    fun(help, _Ns) ->
+	    {"Lift in std. directions",[],
+	     "Lift, rotating face around edge"};
+       (1, Ns) ->
+	    wings_menu_util:directions([normal,free,x,y,z], Ns);
+       (3, _Ns) ->
+	    Funs = lift_selection(rotate),
+	    {vector,{pick_special,Funs}};
+       (_, _) -> ignore
+    end.
+
+command({extrude,Type}, St) ->
+    ?SLOW(extrude(Type, St));
+command({extrude_region,Type}, St) ->
+    ?SLOW(extrude_region(Type, St));
+command({extract_region,Type}, St) ->
+    extract_region(Type, St);
+command(bump, St) ->
+    ?SLOW(wings_extrude_edge:bump(St));
+command({flatten,Plane}, St) ->
+    {save_state,model_changed(flatten(Plane, St))};
+command({flatten_move,Type}, St) ->
+    {save_state,model_changed(flatten_move(Type, St))};
+command(bevel, St) ->
+    ?SLOW(wings_extrude_edge:bevel_faces(St));
+command(inset, St) ->
+    ?SLOW(inset(St));
+command(mirror, St) ->
+    ?SLOW({save_state,model_changed(mirror(St))});
+command(intrude, St) ->
+    ?SLOW(intrude(St));
+command(dissolve, St) ->
+    {save_state,model_changed(dissolve(St))};
+command({material,_}=Cmd, St0) ->
+    case wings_material:command({face,Cmd}, St0) of
+	#st{}=St -> {save_state,model_changed(St)};
+	Other -> Other
+    end;
+command(bridge, St) ->
+    {save_state,model_changed(bridge(St))};
+command(smooth, St) ->
+    ?SLOW({save_state,model_changed(smooth(St))});
+command(auto_smooth, St) ->
+    {save_state,model_changed(wings_body:auto_smooth(St))};
+command({lift,Lift}, St) ->
+    lift(Lift, St);
+command(collapse, St) ->
+    {save_state,model_changed(wings_collapse:collapse(St))};
+command({move,Type}, St) ->
+    wings_move:setup(Type, St);
+command({rotate,Type}, St) ->
+    wings_rotate:setup(Type, St);
+command({scale,Type}, St) ->
+    wings_scale:setup(Type, St).
 
 %%%
 %%% Extrude, Extrude Region, and Inset commands.
@@ -166,24 +254,24 @@ delete_inner(Inner, #we{es=Etab0}=We) ->
     {Vs,We#we{es=Etab}}.
 
 update_outer([Pred|[Edge|Succ]=T], More, Face, WeOrig, Ftab, KeepVs0, Etab0) ->
-    #edge{vs=Va,ve=Vb,lf=Lf,rf=Rf} = R0 = gb_trees:get(Edge, Etab0),
+    #edge{vs=Va,ve=Vb,rf=Rf} = R0 = gb_trees:get(Edge, Etab0),
     Rec = case gb_trees:is_defined(Rf, Ftab) of
 	      true ->
-		  ?ASSERT(false == gb_trees:is_defined(Lf, Ftab)),
+		  ?ASSERT(false == gb_trees:is_defined(R0#edge.lf, Ftab)),
 		  LS = succ(Succ, More),
 		  R0#edge{lf=Face,ltpr=Pred,ltsu=LS};
 	      false ->
-		  ?ASSERT(true == gb_trees:is_defined(Lf, Ftab)),
+		  ?ASSERT(true == gb_trees:is_defined(R0#edge.lf, Ftab)),
 		  RS = succ(Succ, More),
 		  R0#edge{rf=Face,rtpr=Pred,rtsu=RS}
 	  end,
     KeepVs = gb_sets:add(Va, gb_sets:add(Vb, KeepVs0)),
     Etab = gb_trees:update(Edge, Rec, Etab0),
     update_outer(T, More, Face, WeOrig, Ftab, KeepVs, Etab);
-update_outer([_], More, Face, WeOrig, Ftab, KeepVs, Etab) ->
+update_outer([_], _More, _Face, _WeOrig, _Ftab, KeepVs, Etab) ->
     {KeepVs,Etab}.
 
-succ([Succ|_], More) -> Succ;
+succ([Succ|_], _More) -> Succ;
 succ([], [Succ|_]) -> Succ.
 
 update_vtab(Vs, Etab, We, Vtab) ->
@@ -287,7 +375,7 @@ mirror_move_vs({V,#vtx{pos=Pos0}=Vtx}, PlaneNormal, Center, A) ->
     Pos = wings_util:share(e3d_vec:add(Pos0, ToPlane)),
     [{V,Vtx#vtx{pos=Pos}}|A].
 
-mirror_weld(0, IterA0, FaceA, IterB0, FaceB, WeOrig, #we{fs=Ftab0}=We) ->
+mirror_weld(0, _IterA0, FaceA, _IterB0, FaceB, _WeOrig, #we{fs=Ftab0}=We) ->
     Ftab1 = gb_trees:delete(FaceA, Ftab0),
     Ftab = gb_trees:delete(FaceB, Ftab1),
     We#we{fs=Ftab};
@@ -348,11 +436,11 @@ mirror_weld(N, IterA0, FaceA, IterB0, FaceB, WeOrig, We0) ->
 update_edge(New0, Old, FaceP, PrP, SuP, OPrP, OSuP) ->
     New1 = case {element(PrP, Old),element(OSuP, Old)} of
 	       {Pred,Pred} -> New0;
-	       {Pred,OPred} -> setelement(PrP, New0, Pred)
+	       {Pred,_} -> setelement(PrP, New0, Pred)
 	   end,
     New2 = case {element(SuP, Old),element(OPrP, Old)} of
 	       {Succ,Succ} -> New1;
-	       {Succ,OSucc} -> setelement(SuP, New1, Succ)
+	       {Succ,_} -> setelement(SuP, New1, Succ)
 	   end,
     New = setelement(FaceP, New2, element(FaceP, Old)),
     {New,Pred,Succ}.
@@ -386,7 +474,7 @@ replace_vertex(Old, New, We, Etab0) ->
 		      gb_trees:update(Edge, Rec#edge{vs=New}, Et0);
 		  {value,#edge{ve=Old}=Rec} ->
 		      gb_trees:update(Edge, Rec#edge{ve=New}, Et0);
-		  Other -> Et0			%Deleted or already modified.
+		  _Other -> Et0			%Deleted or already modified.
 	      end
       end, Etab0, Old, We).
 
@@ -449,7 +537,7 @@ smooth(Faces0, #we{id=Id,name=Name}=We0, Acc) ->
     We = smooth_connect(NewVs, NewFaces, We1),
     {We,[{Id,NewFaces}|Acc]}.
 
-smooth_regions([Faces0|Rs], #we{es=Etab,he=Htab}=We0) ->
+smooth_regions([Faces0|Rs], #we{he=Htab}=We0) ->
     HardEdges0 = wings_face:outer_edges(Faces0, We0),
     HardEdges = gb_sets:union(gb_sets:from_list(HardEdges0), Htab),
     Faces = gb_sets:to_list(Faces0),
@@ -495,11 +583,11 @@ smooth_connect_2(IterCw0, IterCcw0, V, Face, We0) ->
 		Va when Va =/= V ->
 		    {We,_} = wings_vertex:force_connect(V, Va, Face, We0),
 		    We;
-		Other ->
+		_Other ->
 		    smooth_connect_2(IterCw, IterCcw, V, Face, We0)
 	    end
     end.
-    
+
 %%%
 %%% The Bridge command.
 %%%
@@ -510,14 +598,15 @@ bridge(#st{shapes=Shapes0,sel=[{IdA,FacesA},{IdB,FacesB}]}=St0) ->
 	    #we{next_id=Id}=WeA = gb_trees:get(IdA, Shapes0),
 	    #we{}=WeB0 = gb_trees:get(IdB, Shapes0),
 	    {WeB,[{face,FB}]} = wings_we:renumber(WeB0, Id, [{face,FB0}]),
-	    We = wings_we:merge(WeA, WeB),
+	    Mode = unify_modes(WeA, WeB),
+	    We = (wings_we:merge(WeA, WeB))#we{mode=Mode},
 	    Shapes1 = gb_trees:delete(IdB, Shapes0),
 	    Shapes = gb_trees:update(IdA, We, Shapes1),
 	    Sel = [{IdA,gb_sets:from_list([FA,FB])}],
 	    St1 = wings_sel:set(Sel, St0),
 	    St = St1#st{shapes=Shapes},
 	    bridge(St);
-	Other ->
+	_Other ->
 	    bridge_error()
     end;
 bridge(#st{shapes=Shapes0,sel=[{Id,Faces}]}=St) ->
@@ -527,11 +616,21 @@ bridge(#st{shapes=Shapes0,sel=[{Id,Faces}]}=St) ->
 	    We = bridge(FA, FB, We0),
 	    Shapes = gb_trees:update(Id, We, Shapes0),
 	    St#st{shapes=Shapes,sel=[]};
-	Other ->
+	_Other ->
 	    bridge_error()
     end;
-bridge(St) ->
+bridge(_St) ->
     bridge_error().
+
+unify_modes(#we{mode=Mode}, #we{mode=Mode}) -> Mode;
+unify_modes(#we{mode=ModeA}, #we{mode=ModeB}) ->
+    case sort([ModeA,ModeB]) of
+	[_,vertex] ->
+	    throw({command_error,"An object with vertex colors "
+		   "cannot be bridged with an object with materials "
+		   "and/or textures."});
+	[material,uv] -> uv
+    end.
 
 bridge(FaceA, FaceB, #we{vs=Vtab}=We) ->
     VsA = wings_face:surrounding_vertices(FaceA, We),
@@ -555,7 +654,7 @@ bridge(FaceA, FaceB, #we{vs=Vtab}=We) ->
 	    end
     end.
 
-bridge(FaceA, VsA0, FaceB, VsB0, #we{vs=Vtab}=We0) ->
+bridge(FaceA, VsA0, FaceB, VsB0, We0) ->
     Len = wings_face:vertices(FaceA, We0),
     [Va|_] = VsA0,
     [Vb|_] = VsB0,
@@ -565,7 +664,7 @@ bridge(FaceA, VsA0, FaceB, VsB0, #we{vs=Vtab}=We0) ->
     try_bridge(Len, Len, Va, FaceA, IterA,
 	       Vb, FaceB, IterB, Ids, We, {1.0E250,We}).
 
-try_bridge(0, Len, Va, FaceA, IterA, Vb, FaceB, IterB, Ids, _, {EdgeSum,We}) ->
+try_bridge(0, _Len, _Va, _FaceA, _IterA, _Vb, _FaceB, _IterB, _, _, {_,We}) ->
     We;
 try_bridge(N, Len, Va0, FaceA, IterA0, Vb, FaceB, IterB, Ids, We0,
 	   {EdgeSum0,_}=Best0) ->
@@ -579,7 +678,7 @@ try_bridge(N, Len, Va0, FaceA, IterA0, Vb, FaceB, IterB, Ids, We0,
     try_bridge(N-1, Len, Va, FaceA, IterA,
 	       Vb, FaceB, IterB, Ids, We0, Best).
 
-sum_edge_lens(0, Ids, We, Sum) -> Sum;
+sum_edge_lens(0, _Ids, _We, Sum) -> Sum;
 sum_edge_lens(N, Ids0, #we{es=Etab,vs=Vtab}=We, Sum) ->
     Edge = wings_we:id(0, Ids0),
     #edge{vs=Va,ve=Vb} = gb_trees:get(Edge, Etab),
@@ -596,14 +695,12 @@ force_bridge(FaceA, Va, FaceB, Vb, We0) ->
     IterB = wings_face:skip_to_ccw(Vb, wings_face:iterator(FaceB, We)),
     do_bridge(Len, Va, FaceA, IterA, Vb, FaceB, IterB, Ids, We).
 
-do_bridge(0, Va, FaceA, IterA, Vb, FaceB, IterB, Ids0, #we{fs=Ftab0}=We) ->
+do_bridge(0, _Va, FaceA, _IterA, _Vb, FaceB, _IterB, _, #we{fs=Ftab0}=We) ->
     Ftab1 = gb_trees:delete(FaceA, Ftab0),
     Ftab = gb_trees:delete(FaceB, Ftab1),
     We#we{fs=Ftab};
 do_bridge(N, Va0, FaceA, IterA0, Vb0, FaceB, IterB0, Ids0, We0) ->
     #we{es=Etab0,fs=Ftab0} = We0,
-    LeftEdge = wings_we:id(0, Ids0),
-    LeftFace = wings_we:id(1, Ids0),
     NewEdge = wings_we:id(2, Ids0),
     RightFace = wings_we:id(3, Ids0),
     RightEdge = wings_we:id(4, Ids0),
@@ -667,14 +764,14 @@ are_neighbors(FaceA, FaceB, We) ->
 %%% The Lift command.
 %%%
 
-lift_selection(Dir, OrigSt) ->
+lift_selection(Dir) ->
     {[edge],
      fun(St) ->
 	     wings_io:message("Select edge to work as hinge."),
 	     St#st{selmode=edge,sel=[]}
      end,
      fun(_) -> {none,""} end,
-     fun(X, Y, #st{selmode=Mode,sel=Sel}) ->
+     fun(_X, _Y, #st{selmode=Mode,sel=Sel}) ->
 	     Lift = fun(_, _) -> {face,{lift,{Dir,Mode,Sel}}} end,
 	     {"Lift",Lift}
      end}.
@@ -682,7 +779,7 @@ lift_selection(Dir, OrigSt) ->
 lift({Dir,edge,EdgeSel}, St) ->
     lift_from_edge(Dir, EdgeSel, St);
 lift(Dir, St) ->
-    Funs = lift_selection(Dir, St),
+    Funs = lift_selection(Dir),
     wings_io:putback_event({action,{vector,{pick_special,Funs}}}),
     St.
 
@@ -734,7 +831,7 @@ lift_from_edge_1(Dir, [{Face,Edge}|T], #we{es=Etab}=OrigWe, We0, Tv0) ->
 	   end,
     {We,Tv} = lift_from_edge_2(Dir, Face, Edge, Side, We0, Tv0),
     lift_from_edge_1(Dir, T, OrigWe, We, Tv);
-lift_from_edge_1(Dir, [], OrigWe, We, Tv) -> {We,Tv}.
+lift_from_edge_1(_Dir, [], _OrigWe, We, Tv) -> {We,Tv}.
 
 lift_from_edge_2(Dir, Face, Edge, Side, #we{id=Id,es=Etab}=We0, Tv) ->
     FaceVs0 = ordsets:from_list(wings_face:surrounding_vertices(Face, We0)),
@@ -755,7 +852,7 @@ lift_from_edge_2(Dir, Face, Edge, Side, #we{id=Id,es=Etab}=We0, Tv) ->
 	    Axis = e3d_vec:norm(Axis0),
 	    Rot = wings_rotate:rotate(FaceVs, We, {VaPos,Axis}),
 	    {We,[{Id,Rot}|Tv]};
-	Other ->
+	_Other ->
 	    Vec = wings_util:make_vector(Dir),
 	    Move = wings_move:setup_we(vertex, Vec,
 				       gb_sets:from_list(FaceVs), We),
@@ -797,9 +894,9 @@ collect_outer_edges([], Faces, We, Acc) ->
 outer_edge(Edge, Erec, Face, Faces, Acc) ->
     {V,OtherV,OtherFace} =
 	case Erec of
-	    #edge{vs=Vs,ve=Ve,lf=Face,rf=Other0,ltpr=Next0} ->
+	    #edge{vs=Vs,ve=Ve,lf=Face,rf=Other0} ->
 		{Vs,Ve,Other0};
-	    #edge{vs=Vs,ve=Ve,rf=Face,lf=Other0,rtpr=Next0} ->
+	    #edge{vs=Vs,ve=Ve,rf=Face,lf=Other0} ->
 		{Ve,Vs,Other0}
 	end,
     case gb_sets:is_member(OtherFace, Faces) of
@@ -817,7 +914,6 @@ partition_edges(Es0, Faces, We, Acc) ->
     end.
 
 partition_edges(Va, [{Edge,Va,Vb}], Faces, Es0, We, Acc0) ->
-    %%io:format("line:~w, ~w\n", [?LINE,Va]),
     Acc = [Edge|Acc0],
     case gb_trees:lookup(Vb, Es0) of
 	none ->
@@ -852,13 +948,10 @@ part_try_all_edges(Va, [Val|More], Faces, Es0, We, Acc, Alt0, Path0) ->
 	    part_try_all_edges(Va, More, Faces, Es0, We, Acc, Alt0, Path)
     end;
 part_try_all_edges(Va, [], _, _, _, _, [], {Path,Es}) ->
-    %%io:format("line:~w, ~w\n", [?LINE,Va]),
     {Path,gb_trees:delete(Va, Es)};
 part_try_all_edges(Va, [], _, _, _, _, Alt, {Path,Es}) ->
-    %%io:format("line:~w, ~w\n", [?LINE,Va]),
     {Path,gb_trees:enter(Va, Alt, Es)};
-part_try_all_edges(Va, [], _, _, _, _, Alt, none) ->
-    %%io:format("line:~w, ~w\n", [?LINE,Va]),
+part_try_all_edges(_Va, [], _, _, _, _, _Alt, none) ->
     none.
 
 part_shortest_path(none, Path) -> Path;
