@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.90 2003/08/06 09:06:27 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.91 2003/08/07 05:04:22 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -200,7 +200,7 @@ event({action,{update,I,Fst}}, #s{priv=Priv0}=S) ->
 event(Ev, S) -> field_event(Ev, S).
 
 event_key({key,?SDLK_ESCAPE,_,_}, S) ->
-    delete(S);
+    escape_pressed(S);
 event_key({key,?SDLK_TAB,Mod,_}, S) when Mod band ?SHIFT_BITS =/= 0 ->
     get_event(next_focus(S, -1));
 event_key({key,?SDLK_TAB,_,_}, S) ->
@@ -220,8 +220,29 @@ enter_pressed(Ev, #s{focus=I}=S) ->
 	_ -> return_result(S)
     end.
 
-field_type(I, #s{focus=I,priv=Priv}) ->
+escape_pressed(#s{fi=Fi}=S) ->
+    escape_pressed_1(1, size(Fi), S).
+
+escape_pressed_1(I, Sz, S) when I =< Sz ->
+    case field_type(I, S) of
+	but ->
+	    case member(cancel, field_flags(I, S)) of
+		false ->
+		    escape_pressed_1(I+1, Sz, S);
+		true ->
+		    field_event({key,$\s,$\s,$\s}, S#s{focus=I})
+	    end;
+	_ ->
+	    escape_pressed_1(I+1, Sz, S)
+    end;
+escape_pressed_1(_, _, _) -> keep.
+
+field_type(I, #s{priv=Priv}) ->
     element(1, element(I, Priv)).
+
+field_flags(I, #s{fi=Fi}) ->
+    #fi{flags=Flags} = element(I, Fi),
+    Flags.
 
 delete(#s{level=[_],grab_win=GrabWin}=S) ->
     delete_blanket(S),
@@ -468,9 +489,15 @@ normalize({menu,Alt,VarDef,Flags}, Fi) ->
     normalize_field(menu(none, VarDef, Alt), Flags, Fi);    
 normalize({button,Action}, Fi) when is_atom(Action) ->
     Label = button_label(Action),
-    normalize_field(button(Label, Action), [], Fi);
+    Flags = case Action of
+		cancel -> [cancel];
+		_ -> []
+	    end,
+    normalize_field(button(Label, Action), Flags, Fi);
 normalize({button,Label,Action}, Fi) ->
     normalize_field(button(Label, Action), [], Fi);
+normalize({button,Label,Action,Flags}, Fi) ->
+    normalize_field(button(Label, Action), Flags, Fi);
 normalize({custom,W,H,Custom}, Fi) ->
     normalize_field(custom(W, H, Custom), [], Fi);
 normalize({slider,Field}, Fi) ->

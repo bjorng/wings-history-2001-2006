@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.139 2003/08/05 05:55:32 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.140 2003/08/07 05:04:21 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -149,20 +149,25 @@ init_uvmapping(We, St) ->
 	Faces -> start_edit(Faces, We, St)
     end.
 
-start_edit(Faces, We, St0) ->
-    DefVar = {answer,edit},
-    Qs = [{vframe,[{alt,DefVar,"Edit existing UV mapping",edit},
-		   {alt,DefVar,"Discard existing UV mapping and start over",discard}],
-	   [{title,"Model is already UV-mapped"}]}],
+start_edit(_Faces, We, St0) ->
     This = wings_wm:this(),
-    Ask = fun([edit]) ->
-		  start_edit_1(This, We, St0);
-	     ([discard]) ->
-		  St = discard_uvmap(We, St0),
-		  wings_wm:send(This, {discard_uvs,We#we.id,St}),
-		  ignore
-	  end,
-    wings_ask:dialog("Model Is Already UV-Mapped", Qs, Ask).
+    Prompt = "The object already has UV coordinates.",
+    Qs = {vframe,
+	  [{label,Prompt,[{break,45}]},
+	   {hframe,[{button,"Edit UVs",
+		     fun([]) -> start_edit_1(This, We, St0) end},
+		    {button,"Discard UVs",
+		     fun([]) ->
+			     St = discard_uvmap(We, St0),
+			     wings_wm:send(This, {discard_uvs,We#we.id,St}),
+			     ignore
+		     end},
+		    {button,"Cancel",
+		     fun([]) ->
+			     wings_wm:delete(This),
+			     ignore
+		     end,[cancel]}]}]},
+    wings_ask:dialog("", Qs, fun(_) -> ignore end).
 
 start_edit_1(Win, #we{name=ObjName,fs=Ftab}=We, St) ->
     MatNames0 = wings_material:get_all(We),
