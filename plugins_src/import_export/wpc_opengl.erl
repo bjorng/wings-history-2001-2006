@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.65 2004/03/18 22:58:29 raimo_niskanen Exp $
+%%     $Id: wpc_opengl.erl,v 1.66 2004/03/19 13:46:40 raimo_niskanen Exp $
 
 -module(wpc_opengl).
 
@@ -291,7 +291,8 @@ expand_arealight(Name, Ps, OpenGL0) ->
     Ambient = proplists:get_value(ambient, OpenGL0),
     Specular = proplists:get_value(specular, OpenGL0),
     #e3d_mesh{vs=Vs,fs=Fs} = Mesh = 
-	e3d_mesh:triangulate(proplists:get_value(mesh, OpenGL0)),
+%%% 	e3d_mesh:triangulate(proplists:get_value(mesh, OpenGL0)),
+	proplists:get_value(mesh, OpenGL0),
     OpenGL = proplists_delete_list(
 	       [diffuse,ambient,specular,mesh,cone_angle,spot_exponent], 
 	       OpenGL0),
@@ -307,26 +308,26 @@ expand_arealight(Name, Ps, OpenGL0) ->
 expand_arealight_1(_Name, _Ps, _OpenGL, _I, _Diffuse, _Ambient, _Specular,
 		   _VsT, [], []) -> [];
 expand_arealight_1(Name, Ps, OpenGL, I, Diffuse, Ambient, Specular,
-		   VsT, [#e3d_face{vs=[V1,V2,V3]}|Fs], [A|As]) ->
-    P1 = element(V1+1, VsT),
-    P2 = element(V2+1, VsT),
-    P3 = element(V3+1, VsT),
-    P0 = e3d_vec:average([P1,P2,P3]),
-    P12 = e3d_vec:average(P1, P2),
-    P23 = e3d_vec:average(P2, P3),
-    P31 = e3d_vec:average(P3, P1),
-    P01 = e3d_vec:average(P0, P1),
-    P02 = e3d_vec:average(P0, P2),
-    P03 = e3d_vec:average(P0, P3),
-    case e3d_vec:normal(P1, P2, P3) of
+		   VsT, [#e3d_face{vs=Vs}|Fs], [A|As]) ->
+    Positions = [element(V+1, VsT) || V <- Vs],
+    P0 = e3d_vec:average(Positions),
+%%%     [P1,P2,P3] = Ps,
+%%%     P12 = e3d_vec:average(P1, P2),
+%%%     P23 = e3d_vec:average(P2, P3),
+%%%     P31 = e3d_vec:average(P3, P1),
+%%%     P01 = e3d_vec:average(P0, P1),
+%%%     P02 = e3d_vec:average(P0, P2),
+%%%     P03 = e3d_vec:average(P0, P3),
+    case e3d_vec:normal(Positions) of
 	{0.0,0.0,0.0} -> 
 	    expand_arealight_1(Name, Ps, OpenGL, I+1, 
 			       Diffuse, Ambient, Specular,
 			       VsT, Fs, As);
 	Direction ->
-	    PPs = [{P1,A/36},{P2,A/36},{P3,A/36},
-		   {P12,A/12},{P23,A/12},{P31,A/12},
-		   {P01,A/6},{P02,A/6},{P03,A/6},{P0,A/6}],
+%%% 	    PPs = [{P1,A/36},{P2,A/36},{P3,A/36},
+%%% 		   {P12,A/12},{P23,A/12},{P31,A/12},
+%%% 		   {P01,A/6},{P02,A/6},{P03,A/6},{P0,A/6}],
+	    PPs = [{P0,A}],
 	    expand_arealight_2(Name++"_"++integer_to_list(I), Ps, OpenGL, 1,
 			       Diffuse, Ambient, Specular, Direction, PPs)
 		++expand_arealight_1(Name, Ps, OpenGL, I+1,
