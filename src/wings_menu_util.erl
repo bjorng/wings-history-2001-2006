@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu_util.erl,v 1.29 2003/09/12 20:00:49 bjorng Exp $
+%%     $Id: wings_menu_util.erl,v 1.30 2003/09/26 04:27:47 bjorng Exp $
 %%
 
 -module(wings_menu_util).
@@ -92,7 +92,8 @@ adv_scale_1(Flags, Mode) ->
 uniform_scale(help, _, _) ->
      {"Scale uniformly from midpoint of selection",[],
       "Choose point to scale from"};
-uniform_scale(1, _Ns, Mode) -> {Mode,{scale,{uniform,center}}};
+uniform_scale(1, _Ns, Mode) ->
+    {vector,{pick,[],[center,uniform],[scale,Mode]}};
 uniform_scale(2, _Ns, _) -> ignore;
 uniform_scale(3, Ns, _) -> {vector,{pick,[point],[],Ns}}.
 
