@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.241 2004/05/16 18:30:32 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.242 2004/05/16 18:41:44 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -442,67 +442,70 @@ handle_event({new_state,St}, _) ->
     new_state(St);
 handle_event(Ev, St) ->
     case wings_camera:event(Ev, fun() -> redraw(St) end) of
-	next -> handle_event_0(Ev, St);
-	Other -> Other
-    end.
-
-handle_event_0(Ev, St) ->
-    case wings_pick:event(Ev, St) of
 	next -> handle_event_1(Ev, St);
 	Other -> Other
     end.
 
-handle_event_1({current_state,geom_display_lists,GeomSt}, AuvSt) ->
+handle_event_1(Ev, St) ->
+    case wings_pick:event(Ev, St) of
+	next -> handle_event_2(Ev, St);
+	Other -> Other
+    end.
+
+handle_event_2(Ev, St) ->
+    case wings_hotkey:event(Ev, St) of
+	next -> handle_event_3(Ev, St);
+	Cmd -> wings_wm:later({action,Cmd})
+    end.
+
+handle_event_3({current_state,geom_display_lists,GeomSt}, AuvSt) ->
     new_geom_state(GeomSt, AuvSt);
-handle_event_1(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_RIGHT,x=X0,y=Y0},
+handle_event_3(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_RIGHT,x=X0,y=Y0},
 	       #st{selmode=Mode}) ->
     {X,Y} = wings_wm:local2global(X0, Y0),
     command_menu(Mode, X, Y);
-handle_event_1(#keyboard{state=?SDL_PRESSED,sym=?SDLK_SPACE}, _) ->
-    wings_wm:later({action,{select,deselect}});
-handle_event_1({drop,_,DropData}, St) ->
+handle_event_3({drop,_,DropData}, St) ->
     handle_drop(DropData, St);
-%% Create Texture (see auv_texture)
-handle_event_1({action,{auv,create_texture}},_St) ->
+handle_event_3({action,{auv,create_texture}},_St) ->
     auv_texture:draw_options();
-handle_event_1({action,{auv,{draw_options,Opt}}}, #st{bb=Uvs}=St) ->
+handle_event_3({action,{auv,{draw_options,Opt}}}, #st{bb=Uvs}=St) ->
     #uvstate{st=GeomSt0,matname=MatName0} = Uvs,
     Tx = ?SLOW(auv_texture:get_texture(St, Opt)),
     {GeomSt,MatName} = add_material(Tx, undefined, MatName0, GeomSt0),
     wings_wm:send(geom, {new_state,GeomSt}),
     get_event(St#st{bb=Uvs#uvstate{st=GeomSt,matname=MatName}});
-handle_event_1({action,{auv,{remap,Method}}}, St0) ->
+handle_event_3({action,{auv,{remap,Method}}}, St0) ->
     St = remap(Method, St0),
     get_event(St);
 
 %% Others
-handle_event_1({action,{auv,quit}}, _St) ->
+handle_event_3({action,{auv,quit}}, _St) ->
     cleanup_before_exit(),
     delete;
-handle_event_1({vec_command,Command,_St}, _) when is_function(Command) ->
+handle_event_3({vec_command,Command,_St}, _) when is_function(Command) ->
     %% Use to execute command with vector arguments (see wings_vec.erl).
     catch Command();
-handle_event_1(close, _St) ->
+handle_event_3(close, _St) ->
     cleanup_before_exit(),
     delete;
-handle_event_1({callback,Fun}, _) when is_function(Fun) ->
+handle_event_3({callback,Fun}, _) when is_function(Fun) ->
     Fun();
-handle_event_1({action,{auv,Cmd}}, St) ->
+handle_event_3({action,{auv,Cmd}}, St) ->
     handle_command(Cmd, St);
-handle_event_1({action,{select,Command}}, St0) ->
+handle_event_3({action,{select,Command}}, St0) ->
     case wings_sel_cmd:command(Command, St0) of
 	{save_state,St} -> ok;
 	#st{}=St -> ok
     end,
     new_state(St);
-handle_event_1(got_focus, _) ->
+handle_event_3(got_focus, _) ->
     Msg1 = wings_util:button_format("Select"),
     Msg2 = wings_camera:help(),
     Msg3 = wings_util:button_format([], [], "Show menu"),
     Message = wings_util:join_msg([Msg1,Msg2,Msg3]),
     wings_wm:message(Message),
     wings_wm:dirty();
-handle_event_1(_, _) ->
+handle_event_3(_, _) ->
     keep.
 
 new_state(#st{bb=#uvstate{}=Uvs}=St0) ->
