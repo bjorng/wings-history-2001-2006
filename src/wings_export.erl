@@ -8,14 +8,15 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_export.erl,v 1.1 2004/01/01 15:01:14 bjorng Exp $
+%%     $Id: wings_export.erl,v 1.2 2004/01/04 16:08:36 bjorng Exp $
 %%
 
 -module(wings_export).
--export([export/4]).
+-export([export/4,save_images/3]).
 
 -include("wings.hrl").
 -include("e3d.hrl").
+-include("e3d_image.hrl").
 -import(lists, [foldl/3,keydelete/3,reverse/1]).
 
 export(Exporter, Name, SubDivs, #st{shapes=Shs}=St) ->
@@ -34,6 +35,14 @@ export(Exporter, Name, SubDivs, #st{shapes=Shs}=St) ->
 	{error,Reason} ->
 	    wings_util:error(Reason)
     end.
+
+save_images(#e3d_file{mat=Mat0}=E3DFile, Dir, Filetype) ->
+    Mat = save_images_1(Mat0, Dir, Filetype, []),
+    E3DFile#e3d_file{mat=Mat}.
+
+%%%
+%%% Local functions.
+%%%
 
 export_1(#we{perm=Perm}, _, Acc) when ?IS_NOT_VISIBLE(Perm) -> Acc;
 export_1(#we{name=Name,light=none}=We, SubDivs, Acc) ->
@@ -145,3 +154,28 @@ mat_images_2([{Type,Id}|T], Acc) ->
     Im = wings_image:info(Id),
     mat_images_2(T, [{Type,Im}|Acc]);
 mat_images_2([], Acc) -> Acc.
+
+%%% Save all images.
+
+save_images_1([{Name,Mat0}|T], Dir, Filetype, Acc) ->
+    Mat = save_images_2(Mat0, Dir, Filetype, []),
+    save_images_1(T, Dir, Filetype, [{Name,Mat}|Acc]);
+save_images_1([], _, _, Acc) -> Acc.
+
+save_images_2([{maps,Maps0}|T], Dir, Filetype, Acc) ->
+    Maps = save_images_3(Maps0, Dir, Filetype, []),
+    save_images_2(T, Dir, Filetype, [{maps,Maps}|Acc]);
+save_images_2([H|T], Dir, Filetype, Acc) ->
+    save_images_2(T, Dir, Filetype, [H|Acc]);
+save_images_2([], _, _, Acc) -> Acc.
+
+save_images_3([{Type,#e3d_image{filename=none,name=Name}=Im0}|T],
+	      Dir, Filetype, Acc) ->
+    Filename = filename:absname(Name ++ Filetype, Dir),
+    Im = Im0#e3d_image{filename=Filename},
+    Ps = [{filename,Filename},{image,Im}],
+    wpa:image_write(Ps),
+    save_images_3(T, Dir, Filetype, [{Type,Im}|Acc]);
+save_images_3([H|T], Dir, Filetype, Acc) ->
+    save_images_3(T, Dir, Filetype, [H|Acc]);
+save_images_3([], _, _, Acc) -> Acc.
