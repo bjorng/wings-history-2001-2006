@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.51 2001/11/21 06:58:04 bjorng Exp $
+%%     $Id: wings.erl,v 1.52 2001/11/22 09:02:41 bjorng Exp $
 %%
 
 -module(wings).
@@ -855,8 +855,7 @@ info(#st{shapes=Shapes,selmode=edge,sel=[{Id,Sel}]}) ->
 	    [Edge] = gb_sets:to_list(Sel),
 	    #shape{sh=#we{es=Etab}} = gb_trees:get(Id, Shapes),
 	    #edge{a=A,b=B} = gb_trees:get(Edge, Etab),
-	    flat_format("Edge: ~p (~p, ~p)", [Edge,A,B]);
-%%	    flat_format("Edge: ~p", [Edge]);
+	    flat_format("Edge: ~p", [Edge]);
 	N when N < 5 ->
 	    Faces = gb_sets:to_list(Sel),
 	    item_list(Faces, "Edges");
