@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_image.erl,v 1.15 2003/08/16 20:20:44 bjorng Exp $
+%%     $Id: wpc_image.erl,v 1.16 2003/12/29 09:57:43 bjorng Exp $
 %%
 
 -module(wpc_image).
@@ -39,21 +39,27 @@ image_menu() ->
 
 command({shape,image_plane}, _St) ->
     make_image();
+command({shape,{image_plane,Name}}, _St) ->
+    make_image(Name);
 command(_, _) -> next.
 
 make_image() ->
+    This = wings_wm:this(),
     Ps = [{extensions,wpa:image_formats()}],
-    case wpa:import_filename(Ps) of
-	aborted -> keep;
-	Name ->
-	    Props = [{filename,Name}],
-	    case wpa:image_read(Props) of
-		#e3d_image{}=Image ->
-		    make_image_1(Name, Image);
-		{error,Error} ->
-		    wings_util:error("Failed to load \"~s\": ~s\n",
-				     [Name,file:format_error(Error)])
-	    end
+    Cont = fun(Name) ->
+		   wings_wm:send(This, {action,{shape,{image_plane,Name}}}),
+		   ignore
+	   end,
+    wpa:import_filename(Ps, Cont).
+
+make_image(Name) ->
+    Props = [{filename,Name}],
+    case wpa:image_read(Props) of
+	#e3d_image{}=Image ->
+	    make_image_1(Name, Image);
+	{error,Error} ->
+	    wings_util:error("Failed to load \"~s\": ~s\n",
+			     [Name,file:format_error(Error)])
     end.
 
 make_image_1(Name0, #e3d_image{type=Type}=Image0) ->
