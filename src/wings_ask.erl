@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.20 2002/05/05 07:47:33 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.21 2002/05/05 13:14:11 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -290,13 +290,10 @@ return_result(I, Fis, Priv, #s{common=Common}=S, Acc) when I =< size(Fis) ->
 		    return_result(I+1, Fis, Priv, S, [Res|Acc])
 	    end
     end;
-return_result(_, _, _, #s{call=EndFun,redraw=St}=S, Res) ->
+return_result(_, _, _, #s{call=EndFun}=S, Res) ->
     case catch EndFun(reverse(Res)) of
 	{'EXIT',Reason} ->
 	    exit(Reason);
-	{command_error,Error} ->
-	    wings_util:message(Error, St),
-	    get_event(S);
 	ignore ->
 	    wings_wm:dirty(),
 	    pop;
