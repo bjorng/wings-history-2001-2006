@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.46 2003/04/17 11:43:42 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.47 2003/04/26 05:52:33 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -496,29 +496,32 @@ new_group_name(Name, #st{ssels=Ssels0,selmode=Mode,sel=Sel}=St) ->
 %%% Select Similar.
 %%%
 
-similar(#st{selmode=vertex,sel=[{Id,Sel0}],shapes=Shapes}=St) ->
-    We = gb_trees:get(Id, Shapes),
-    Templates0 = [make_vertex_template(SelI, We) ||
-		     SelI <- gb_sets:to_list(Sel0)],
-    Templates = ordsets:from_list(Templates0),
+similar(#st{selmode=vertex}=St) ->
+    Seed = wings_sel:fold(fun(Sel0, We, A) ->
+				  [make_vertex_template(SelI, We) ||
+				      SelI <- gb_sets:to_list(Sel0)] ++ A
+			  end, [], St),
+    Templates = ordsets:from_list(Seed),
     wings_sel:make(
       fun(V, W) ->
 	      match_templates(make_vertex_template(V, W), Templates)
       end, vertex, St);
-similar(#st{selmode=edge,sel=[{Id,Sel0}],shapes=Shapes}=St) ->
-    We = gb_trees:get(Id, Shapes),
-    Templates0 = [make_edge_template(SelI, We) ||
-		    SelI <- gb_sets:to_list(Sel0)],
-    Templates = ordsets:from_list(Templates0),
+similar(#st{selmode=edge}=St) ->
+    Seed = wings_sel:fold(fun(Sel0, We, A) ->
+				  [make_edge_template(SelI, We) ||
+				      SelI <- gb_sets:to_list(Sel0)] ++ A
+			  end, [], St),
+    Templates = ordsets:from_list(Seed),
     wings_sel:make(
       fun(Edge, W) ->
 	      match_templates(make_edge_template(Edge, W), Templates)
       end, edge, St);
-similar(#st{selmode=face,sel=[{Id,Sel0}],shapes=Shapes}=St) ->
-    We = gb_trees:get(Id, Shapes),
-    Templates0 = [make_face_template(SelI, We) ||
-		     SelI <- gb_sets:to_list(Sel0)],
-    Templates = ordsets:from_list(Templates0),
+similar(#st{selmode=face}=St) ->
+    Seed = wings_sel:fold(fun(Sel0, We, A) ->
+				  [make_face_template(SelI, We) ||
+				      SelI <- gb_sets:to_list(Sel0)] ++ A
+			  end, [], St),
+    Templates = ordsets:from_list(Seed),
     wings_sel:make(
       fun(Face, WeI) ->
 	      match_templates(make_face_template(Face, WeI), Templates)
@@ -530,8 +533,7 @@ similar(#st{selmode=body}=St) ->
 					 gb_trees:size(Ftab)}|Acc]
 			       end, [], St),
     Template = ordsets:from_list(Template0),
-    wings_sel:make(fun(_, We) -> match_body(Template, We) end, body, St);
-similar(_) -> wings_util:error("Only select elements in one object.").
+    wings_sel:make(fun(_, We) -> match_body(Template, We) end, body, St).
 
 match_body(Template, #we{vp=Vtab,es=Etab,fs=Ftab}) ->
     Sizes = {gb_trees:size(Vtab),gb_trees:size(Etab),gb_trees:size(Ftab)},
