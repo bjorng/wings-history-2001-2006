@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_connect_tool.erl,v 1.7 2004/07/15 07:05:47 dgud Exp $
+%%     $Id: wpc_connect_tool.erl,v 1.8 2004/08/28 05:57:38 bjorng Exp $
 %%
 -module(wpc_connect_tool).
 
@@ -382,20 +382,20 @@ draw_connect(#cs{v=[#vi{pos=Pos0,mm=MM}],we=Id}) ->
     {_,X,Y0} = wings_wm:local_mouse_state(),
     Y = H-Y0,
     Matrices = wings_util:get_matrices(Id, MM),
-    Pos1 = setelement(3,obj_to_screen(Matrices, Pos0),0.0),
+    Pos = setelement(3, obj_to_screen(Matrices, Pos0), 0.0),
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     gl:disable(?GL_LIGHTING),
     gl:disable(?GL_DEPTH_TEST),    
     gl:disable(?GL_ALPHA_TEST),
-    gl:color3f(0.0,0.0,0.0),
+    gl:color3f(0, 0, 0),
     gl:matrixMode(?GL_PROJECTION),
     gl:loadIdentity(),
-    glu:ortho2D(0,W,0,H),
+    glu:ortho2D(0, W, 0, H),
     gl:matrixMode(?GL_MODELVIEW),
     gl:loadIdentity(),
     gl:'begin'(?GL_LINES),
-    gl:vertex3fv(Pos1),
-    gl:vertex3fv({float(X),float(Y),0.0}),
+    gl:vertex3fv(Pos),
+    gl:vertex3f(X, Y, 0),
     gl:'end'(),
     gl:popAttrib().
 
@@ -407,7 +407,7 @@ slide(#cs{st=St=#st{shapes=Sh},we=Shape,v=[#vi{id=Id1,mm=MM}|_]},S,E) ->
     Matrices = wings_util:get_matrices(Shape, MM),
     P0 = {P0x,P0y,_} = obj_to_screen(Matrices, Start0),
     P1 = {P1x,P1y,_} = obj_to_screen(Matrices, End0),
-    %% Decide whats up and down
+    %% Decide what's up and down.
     {Dx,Dy,_} = e3d_vec:sub(P1, P0),
     {Start,End} = 
 	if 
