@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.92 2003/02/25 13:33:27 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.93 2003/03/01 07:41:39 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -164,21 +164,35 @@ space_at(X, Y) ->
 
 text_at(X, S) ->
     gl:rasterPos2i(X, 0),
-    text(S).
+    case catch text(S, []) of
+	{newline,More} -> text_at(X, More);
+	Other -> Other
+    end.
 
 text_at(X, Y, S) ->
     gl:rasterPos2i(X, Y),
-    text(S).
+    case catch text(S, []) of
+	{newline,More} -> text_at(X, Y+?LINE_HEIGHT, More);
+	Other -> Other
+    end.
 
 text(S) ->
-    text(S, []).
+    case catch text(S, []) of
+	{newline,More} -> text(More);
+	Other -> Other
+    end.
 
+text([$\n|Cs], []) ->
+    throw({newline,Cs});
+text([$\n|Cs], Acc) ->
+    draw_reverse(Acc),
+    throw({newline,Cs});
+text([C|Cs], Acc) when is_integer(C) ->
+    text(Cs, [C|Acc]);
 text([Atom|Cs], Acc) when is_atom(Atom) ->
     draw_reverse(Acc),
     wings_text:char(Atom),
     text(Cs, []);
-text([C|Cs], Acc) when is_integer(C) ->
-    text(Cs, [C|Acc]);
 text([L|Cs], Acc) when is_list(L) ->
     draw_reverse(Acc),
     text(L, []),

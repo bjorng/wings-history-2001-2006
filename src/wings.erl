@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.223 2003/02/28 07:10:59 bjorng Exp $
+%%     $Id: wings.erl,v 1.224 2003/03/01 07:41:39 bjorng Exp $
 %%
 
 -module(wings).
@@ -733,7 +733,7 @@ measure(Base, #st{selmode=face,sel=[{Id,Fs}],shapes=Shs}) ->
 	    Vs = wings_face:surrounding_vertices(Face, We),
 	    {X,Y,Z} = wings_vertex:center(Vs, We),
 	    #face{mat=Mat} = gb_trees:get(Face, Ftab),
-	    [Base|io_lib:format(". Midpt ~s ~s ~s. Material ~s",
+	    [Base|io_lib:format(". Midpt ~s ~s ~s.\nMaterial ~s",
 				[wings_util:nice_float(X),
 				 wings_util:nice_float(Y),
 				 wings_util:nice_float(Z),
@@ -755,7 +755,7 @@ shape_info(#we{name=Name,fs=Ftab,es=Etab,vp=Vtab,mode=Mode}) ->
     Faces = gb_trees:size(Ftab),
     Edges = gb_trees:size(Etab),
     Vertices = gb_trees:size(Vtab),
-    io_lib:format("Object ~s has ~p polygons, ~p edges, ~p vertices. Mode is ~p",
+    io_lib:format("\"~s\" has ~p polygons, ~p edges, ~p vertices.\nMode is ~p",
 		  [Name,Faces,Edges,Vertices,Mode]).
 
 shape_info(Objs, Shs) ->
