@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.82 2003/08/06 15:58:22 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.83 2003/09/12 13:33:15 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -42,14 +42,14 @@ init() ->
     wings_pref:set_default(magnet_distance_route, shortest),
     wings_pref:set_default(magnet_radius, 1.0).
 
-command({pick,[],[Res],Ns}, St) ->
+command({pick,[],[Res],Ns}, _) ->
     Cmd = wings_menu:build_command(Res, Ns),
     wings_io:putback_event({action,Cmd}),
-    St;
-command({pick,[],Res,Ns}, St) ->
+    keep;
+command({pick,[],Res,Ns}, _) ->
     Cmd = wings_menu:build_command(list_to_tuple(reverse(Res)), Ns),
     wings_io:putback_event({action,Cmd}),
-    St;
+    keep;
 command({pick,PickList,Acc,Names}, St) ->
     [{Type,Desc}|More] = add_help_text(PickList, Names),
     MagnetPossible = magnet_possible(Names, More),
