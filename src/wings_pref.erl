@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.95 2003/09/06 08:34:21 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.96 2003/09/15 16:08:52 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -343,9 +343,10 @@ win32_9816_or_higher(R) ->
 
 win32_9816_or_higher_1(R, [K|Keys], Curr) ->
     ok = win32reg:change_key(R, K),
-    Val = reg_get_default(R),
+    Dir = reg_get_default(R),
     ok = win32reg:change_key(R, Curr),
-    case try_location(Val, ?WIN32_PREFS) of
+    WingsDirs = filelib:wildcard(Dir++"/lib/wings-*"),
+    case try_locations(WingsDirs, ?WIN32_PREFS) of
         none -> win32_9816_or_higher_1(R, Keys, Curr);
         File -> File
     end;
@@ -382,6 +383,13 @@ strip_quotes([$"|T0]) ->
         _ -> T0
     end;
 strip_quotes(S) -> S.
+
+try_locations([D|Ds], File) ->
+    case try_location(D, File) of
+        none -> try_locations(Ds, File);
+        Name -> Name
+    end;
+try_locations([], _) -> none.
 
 try_location(Dir, File) ->
     Name = filename:join(Dir, File),
