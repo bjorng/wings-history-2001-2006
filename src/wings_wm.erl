@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.120 2003/07/21 15:03:58 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.121 2003/07/27 13:40:21 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -24,7 +24,7 @@
 	 callback/1,current_state/1,get_current_state/0,notify/1,
 	 local2global/1,local2global/2,global2local/2,local_mouse_state/0,
 	 translation_change/0,
-	 draw_message/1,draw_completions/1,draw_resizer/2]).
+	 draw_message/1,draw_completions/1]).
 
 %% Window information.
 -export([top_size/0,viewport/0,viewport/1,
@@ -1132,20 +1132,18 @@ message_redraw(Msg, Right) ->
 	_ -> ok
     end,
     case os:type() of
-	{unix,darwin} -> draw_resizer(W-23, -5);
+	{unix,darwin} ->
+	    wings_io:draw_icons(fun() -> wings_io:draw_icon(W-25, -8, resize) end);
 	_ -> ok
     end,
     keep.
-
-draw_resizer(X, Y) ->
-    wings_io:draw_icons(fun() -> wings_io:draw_icon(X, Y, resize) end).
 
 message_setup() ->
     wings_io:ortho_setup(?PANE_COLOR),
     {W,H} = win_size(),
     gl:recti(0, 0, W, H),
     gl:color3i(0, 0, 0),
-    gl:translatef(10, H-5.5, 0),
+    gl:translatef(10, H-5.375, 0),
     {W,H}.
 
 %% Dirty hack to draw in the front buffer.

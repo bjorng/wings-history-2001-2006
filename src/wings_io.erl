@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.111 2003/07/08 12:41:50 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.112 2003/07/27 13:40:21 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -41,10 +41,11 @@
 -define(TX_WIDTH, 256).
 -define(TX_HEIGHT, 128).
 
+-define(EVENT_QUEUE, wings_io_event_queue).
+-define(ACTIVE_TX, wings_io_active_tx).
+
 -record(io,
-	{eq,					%Event queue.
-	 tex=[],				%Textures.
-	 tx=0,					%Active texture.
+	{tex=[],				%Textures.
 	 grab_count=0,				%Number of grabs.
 	 cursors,				%Mouse cursors.
 	 raw_icons				%Raw icon bundle.
@@ -53,7 +54,8 @@
 init() ->
     Cursors = build_cursors(),
     Icons = read_icons(),
-    put_state(#io{eq=queue:new(),raw_icons=Icons,cursors=Cursors}).
+    put(?EVENT_QUEUE, queue:new()),
+    put_state(#io{raw_icons=Icons,cursors=Cursors}).
 
 hourglass() ->
     set_cursor(hourglass).
@@ -295,26 +297,23 @@ put_state(Io) ->
     put(wings_io, Io).
 
 draw_icons(Body) ->
-    Io0 = get_state(),
-    put_state(Io0#io{tx=0}),
     gl:enable(?GL_TEXTURE_2D),
     gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
     Body(),
     gl:bindTexture(?GL_TEXTURE_2D, 0),
     gl:disable(?GL_TEXTURE_2D),
-    Io = get_state(),
-    put_state(Io#io{tx=0}).
+    erase(?ACTIVE_TX).
 
 draw_icon(X, Y, Icon) ->
-    #io{tex=Tex,tx=Tx} = Io = get_state(),
+    #io{tex=Tex} = get_state(),
     case keysearch(Icon, 1, Tex) of
 	false -> ok;
 	{value,{Icon,{Id,W,H,MinU,MinV,MaxU,MaxV}}} ->
-	    case Id of
-		Tx -> ok;
+	    case get(?ACTIVE_TX) of
+		Id -> ok;
 		_ ->
 		    gl:bindTexture(?GL_TEXTURE_2D, Id),
-		    put_state(Io#io{tx=Id})
+		    put(?ACTIVE_TX, Id)
 	    end,
 	    gl:'begin'(?GL_QUADS),
 	    gl:texCoord2f(MinU, MaxV),
@@ -355,10 +354,10 @@ create_textures(Icons) ->
 		  ?TX_WIDTH, ?TX_HEIGHT, 0, ?GL_RGB, ?GL_UNSIGNED_BYTE, Mem),
     create_textures_1(Icons, TxId, 0, 0, 0).
 
-create_textures_1([{_,{W,H,_}}|_]=Icons, Id, U, V, RowH)
+create_textures_1([{_,{3,W,H,_}}|_]=Icons, Id, U, V, RowH)
   when W =< 32, H =< 32, U+W > ?TX_WIDTH ->
     create_textures_1(Icons, Id, 0, V+RowH, 0);
-create_textures_1([{Name,{W,H,Icon}}|T], Id, U, V, RowH0)
+create_textures_1([{Name,{3,W,H,Icon}}|T], Id, U, V, RowH0)
   when W =< 32, H =< 32 ->
     gl:texSubImage2D(?GL_TEXTURE_2D, 0, U, V,
 		     W, H, ?GL_RGB, ?GL_UNSIGNED_BYTE, Icon),
@@ -371,15 +370,19 @@ create_textures_1([{Name,{W,H,Icon}}|T], Id, U, V, RowH0)
 create_textures_1(Icons, _, _, _, _) ->
     create_textures_2(Icons).
 
-create_textures_2([{Name,{W,H,Icon}}|T]) ->
+create_textures_2([{Name,{Bpp,W,H,Icon}}|T]) ->
     [TxId] = gl:genTextures(1),
     gl:bindTexture(?GL_TEXTURE_2D, TxId),
     gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_MAG_FILTER, ?GL_LINEAR),
     gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_MIN_FILTER, ?GL_LINEAR),
     gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_S, ?GL_CLAMP),
     gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_T, ?GL_CLAMP),
-    gl:texImage2D(?GL_TEXTURE_2D, 0, ?GL_RGB,
-		  W, H, 0, ?GL_RGB, ?GL_UNSIGNED_BYTE, Icon),
+    Format = case Bpp of
+		 3 -> ?GL_RGB;
+		 4 -> ?GL_RGBA
+	     end,
+    gl:texImage2D(?GL_TEXTURE_2D, 0, Format,
+		  W, H, 0, Format, ?GL_UNSIGNED_BYTE, Icon),
     [{Name,{TxId,W,H,0,0,1,1}}|create_textures_2(T)];
 create_textures_2([]) -> [].
 
@@ -388,7 +391,7 @@ div_uv(X, X) -> 1;
 div_uv(X, Y) -> X/Y.
 
 create_buttons(Icons0) ->
-    flatmap(fun({Name,{32,28,Icon}}) ->
+    flatmap(fun({Name,{3,32,28,Icon}}) ->
 		    [{{Name,down},create_button(fun active/5, Icon)},
 		     {{Name,up},create_button(fun inactive/5, Icon)}];
 	       (Other) -> [Other]
@@ -400,7 +403,7 @@ create_button(Tr, Icon) ->
 create_button(Tr, T, 32, Y, Acc) ->
     create_button(Tr, T, 0, Y+1, Acc);
 create_button(_Tr, <<>>, _X, _Y, Acc) ->
-    {?ICON_WIDTH,?ICON_HEIGHT,list_to_binary(reverse(Acc))};
+    {3,?ICON_WIDTH,?ICON_HEIGHT,list_to_binary(reverse(Acc))};
 create_button(Tr, <<R:8,G:8,B:8,T/binary>>, X, Y, Acc) ->
     create_button(Tr, T, X+1, Y, [Tr(X, Y, R, G, B)|Acc]).
 
@@ -417,14 +420,14 @@ inactive(_X, _Y, R, G, B) -> [R,G,B].
 %%%
 
 putback_event(Event) ->
-    #io{eq={In,Out}} = Io = get_state(),
-    put_state(Io#io{eq={In,[Event|Out]}}).
+    {In,Out} = get(?EVENT_QUEUE),
+    put(?EVENT_QUEUE, {In,[Event|Out]}).
 
 putback_event_once(Ev) ->
-    #io{eq={In,Out}} = Io = get_state(),
+    {In,Out} = get(?EVENT_QUEUE),
     case member(Ev, In) orelse member(Ev, Out) of
 	true -> ok;
-	false -> put_state(Io#io{eq={In,[Ev|Out]}})
+	false -> put(?EVENT_QUEUE, {In,[Ev|Out]})
     end.
 
 get_event() ->
@@ -434,7 +437,7 @@ get_event() ->
      end.
 
 get_matching_events(Filter) ->
-    #io{eq=Eq} = get_state(),
+    Eq = get(?EVENT_QUEUE),
     get_matching_events_1(Filter, Eq, [], []).
 
 get_matching_events_1(Filter, Eq0, Match, NoMatch) ->
@@ -450,28 +453,23 @@ get_matching_events_1(Filter, Eq0, Match, NoMatch) ->
 	    case Match of
 		[] -> [];
 		_ ->
-		    Io = get_state(),
-		    put_state(Io#io{eq={In,reverse(NoMatch, Out)}}),
+		    put(?EVENT_QUEUE, {In,reverse(NoMatch, Out)}),
 		    Match
 	    end
     end.
 
 poll_event() ->
-    #io{eq=Eq} = get_state(),
+    Eq = get(?EVENT_QUEUE),
     case queue:out(Eq) of
 	{{value,Ev},_} -> Ev;
 	{empty,_} -> none
     end.
 
 get_sdl_event() ->
-    Io0 = get_state(),
-    {Event,Io} = get_sdl_event(Io0),
-    put_state(Io),
-    Event.
-
-get_sdl_event(#io{eq=Eq0}=Io) ->
+    Eq0 = get(?EVENT_QUEUE),
     {Event,Eq} = read_events(Eq0),
-    {Event,Io#io{eq=Eq}}.
+    put(?EVENT_QUEUE, Eq),
+    Event.
 
 read_events(Eq0) ->
     case sdl_events:peepEvents() of

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.35 2003/07/11 10:26:28 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.36 2003/07/27 13:40:21 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -67,7 +67,15 @@ ctrl_create_windows([{toolbar,Create}|Flags], Client) ->
     wings_wm:link(Client, Toolbar),
     ctrl_create_windows(Flags, Client);
 ctrl_create_windows([resizable|Flags], Client) ->
-    Name = ctrl_new_resizer(Client),
+    Name = ctrl_new_resizer(Client, none),
+    wings_wm:link(Client, Name),
+    ctrl_create_windows(Flags, Client);
+ctrl_create_windows([sizeable|Flags], Client) ->
+    Name = ctrl_new_resizer(Client, none),
+    wings_wm:link(Client, Name),
+    ctrl_create_windows(Flags, Client);
+ctrl_create_windows([{sizeable,Color}|Flags], Client) ->
+    Name = ctrl_new_resizer(Client, Color),
     wings_wm:link(Client, Name),
     ctrl_create_windows(Flags, Client);
 ctrl_create_windows([closable|Flags], Client) ->
@@ -449,12 +457,13 @@ have_vertical_overlap(Name, Y, H) ->
 	{state=idle,				%idle|moving
 	 aspect=none,				%Aspect ratio to preserve.
 	 local,
-	 prev_focus				%Previous focus holder.
+	 prev_focus,				%Previous focus holder.
+	 color=none
 	}).
 
-ctrl_new_resizer(Client) ->
+ctrl_new_resizer(Client, Color) ->
     Name = {resizer,Client},
-    Rst = #rsz{},
+    Rst = #rsz{color=Color},
     Z = wings_wm:win_z(Client),
     {X,Y} = resizer_pos(Client),
     wings_wm:new(Name, {X,Y,Z+1}, {13,13},
@@ -464,9 +473,21 @@ ctrl_new_resizer(Client) ->
 get_resize_event(Rst) ->
     {replace,fun(Ev) -> resize_event(Ev, Rst) end}.
 
-resize_event(redraw, _) ->
+resize_event(redraw, #rsz{color=Color}) ->
     wings_io:ortho_setup(),
-    wings_wm:draw_resizer(0, 0),
+    case Color of
+	none -> ok;
+	_ ->
+	    wings_io:set_color(Color),
+	    {W,H} = wings_wm:win_size(),
+	    gl:recti(0, 0, W, H)
+    end,
+    wings_io:draw_icons(fun() ->
+				gl:enable(?GL_ALPHA_TEST),
+				gl:alphaFunc(?GL_GREATER, 0.5),
+				wings_io:draw_icon(0, 0, internal_resize),
+				gl:disable(?GL_ALPHA_TEST)
+			end),
     keep;
 resize_event(got_focus, _) ->
     wings_util:button_message("Resize", "Resize, keeping current aspect ratio"),
