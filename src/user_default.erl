@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: user_default.erl,v 1.10 2002/12/01 10:12:37 bjorng Exp $
+%%     $Id: user_default.erl,v 1.11 2002/12/02 17:07:55 bjorng Exp $
 %% 
 
 -module(user_default).
@@ -52,7 +52,6 @@ wxp() ->
     Dirs = get_plugin_dirs(),
     foldl(fun(D, N) -> 
 		  {ok,Ms} = xref:add_directory(s, D),
-		  io:format("~p\n", [Ms]),
 		  N+length(Ms)
 	  end, 0, Dirs).
 
