@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.106 2003/07/21 05:47:36 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.107 2003/07/21 13:08:09 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -250,7 +250,11 @@ max(_A, B) -> B.
 right_width(Ps) ->
     case have_option_box(Ps) of
 	true -> 1;
-	false -> 0
+	false ->
+	    case proplists:get_value(color, Ps, none) of
+		none -> 0;
+		_  -> 1
+	    end
     end.
 
 %%%
@@ -637,8 +641,7 @@ menu_draw(X, Y, Shortcut, Mw, I, [H|Hs], #mi{menu=Menu,adv=Adv}=Mi) ->
 	separator -> draw_separator(X, Y, Mw);
 	{_,ignore,_,_,Ps} ->
 	    menu_draw_1(Y, Ps, I, Mi,
-			fun() -> wings_io:menu_text(X, Y, Text) end,
-			fun() -> ok end);
+			fun() -> wings_io:menu_text(X, Y, Text) end);
 	{_,{'VALUE',_},Hotkey,_Help,Ps} ->
 	    %% Not a sub-menu.
 	    menu_draw_1(Y, Ps, I, Mi,
@@ -647,17 +650,16 @@ menu_draw(X, Y, Shortcut, Mw, I, [H|Hs], #mi{menu=Menu,adv=Adv}=Mi) ->
 				draw_hotkey(X, Y, Shortcut, Hotkey)
 			end,
 			fun() ->
-				draw_right(X+Mw-5*?CHAR_WIDTH,
-					   Y-?CHAR_HEIGHT div 3, Ps)
+				draw_right(X, Y, Mw, Ps)
 			end);
-	{_,{_,_}=Item,Hotkey,_Help,Ps} ->
+	{_,{_,_}=Sub,Hotkey,_Help,Ps} ->
+	    %% Submenu.
 	    menu_draw_1(Y, Ps, I, Mi,
 			fun() ->
 				wings_io:menu_text(X, Y, Text),
 				draw_hotkey(X, Y, Shortcut, Hotkey)
-			end,
-			fun() -> ok end),
-	    draw_submenu(Adv, Item, X+Mw-5*?CHAR_WIDTH, Y-?CHAR_HEIGHT div 3);
+			end),
+	    draw_submenu(Adv, Sub, X+Mw-5*?CHAR_WIDTH, Y-?CHAR_HEIGHT div 3);
 	{_,_,Hotkey,_Help,Ps} ->
 	    menu_draw_1(Y, Ps, I, Mi,
 			fun() ->
@@ -665,13 +667,14 @@ menu_draw(X, Y, Shortcut, Mw, I, [H|Hs], #mi{menu=Menu,adv=Adv}=Mi) ->
 				draw_hotkey(X, Y, Shortcut, Hotkey)
 			end,
 			fun() ->
-				draw_right(X+Mw-5*?CHAR_WIDTH,
-					   Y-?CHAR_HEIGHT div 3, Ps)
+				draw_right(X, Y, Mw, Ps)
 			end)
     end,
     ?CHECK_ERROR(),
     menu_draw(X, Y+H, Shortcut, Mw, I+1, Hs, Mi).
 
+menu_draw_1(Y, Ps, Sel, Mi, DrawLeft) ->
+    menu_draw_1(Y, Ps, Sel, Mi, DrawLeft, ignore).
 
 menu_draw_1(Y, Ps, Sel, #mi{sel=Sel,sel_side=Side,w=W},
 	    DrawLeft, DrawRight) ->
@@ -687,17 +690,22 @@ menu_draw_1(Y, Ps, Sel, #mi{sel=Sel,sel_side=Side,w=W},
 	    wings_io:set_color(wings_pref:get_value(menu_hilited_text))
     end,
     DrawLeft(),
-    case Side of
-	left ->
-	    wings_io:set_color(wings_pref:get_value(menu_text));
-	right ->
-	    wings_io:set_color(wings_pref:get_value(menu_hilited_text))
-    end,
-    DrawRight();
+    case {DrawRight,Side} of
+	{ignore,_} -> ok;
+	{_,left} ->
+	    wings_io:set_color(wings_pref:get_value(menu_text)),
+	    DrawRight();
+	{_,right} ->
+	    wings_io:set_color(wings_pref:get_value(menu_hilited_text)),
+	    DrawRight()
+    end;
 menu_draw_1(_, _, _, _, DrawLeft, DrawRight) ->
     wings_io:set_color(wings_pref:get_value(menu_text)),
     DrawLeft(),
-    DrawRight().
+    case DrawRight of
+	ignore -> ok;
+	_ -> DrawRight()
+    end.
 
 menu_text({Text,{_,Fun},_,_,_}, true) when is_function(Fun) -> [$.,Text,$.];
 menu_text({Text,Fun,_,_,_}, true) when is_function(Fun) -> [$.,Text,$.];
@@ -734,15 +742,16 @@ help_text_1({Text,{Sub,_},_,_,_}, #mi{adv=false}) when Sub =/= 'VALUE' ->
     %% No specific help text for submenus in basic mode.
     Help = [Text|" submenu"],
     wings_wm:message(Help, "");
-help_text_1({_,{Name,Fun},_,_,Ps}, #mi{ns=Ns,adv=Adv}) when is_function(Fun) ->
+help_text_1({_,{Name,Fun},_,_,Ps}, #mi{ns=Ns,adv=Adv}=Mi)
+  when is_function(Fun) ->
     %% "Submenu" in advanced mode.
     Help0 = Fun(help, [Name|Ns]),
     Help = help_text_2(Help0, Adv),
-    magnet_help(Help, Ps);
-help_text_1({_,_,_,Help0,Ps}, #mi{adv=Adv}) ->
+    magnet_help(Help, Ps, Mi);
+help_text_1({_,_,_,Help0,Ps}, #mi{adv=Adv}=Mi) ->
     %% Plain entry - not submenu.
     Help = help_text_2(Help0, Adv),
-    magnet_help(Help, Ps);
+    magnet_help(Help, Ps, Mi);
 help_text_1(separator, _) -> ok.
 
 help_text_2([_|_]=S, false) -> S;
@@ -761,31 +770,41 @@ help_text_2({S1,S2,S3}, true) ->
     [L," ",S1,"  ",M," ",S2,"  ",R," "|S3];
 help_text_2([]=S, _) -> S.
 
-magnet_help(Msg, Ps) ->
+magnet_help(Msg, Ps, #mi{flags=Flags}) ->
     case have_magnet(Ps) of
 	false ->
 	    wings_wm:message(Msg);
 	true ->
-	    ModName = case wings_camera:free_rmb_modifier() of
-			  ?ALT_BITS -> "Alt";
-			  ?CTRL_BITS -> "Ctrl"
-		      end,
-	    wings_wm:message([Msg,"  [",ModName,"] Magnet"], "")
+	    case have_magnet(Flags) of
+		false ->
+		    ModName = case wings_camera:free_rmb_modifier() of
+				  ?ALT_BITS -> "Alt";
+				  ?CTRL_BITS -> "Ctrl"
+			      end,
+		    wings_wm:message([Msg,"  [",ModName,"] Magnet"], "");
+		true ->
+		    wings_wm:message([Msg,"  "|wings_util:magnet_string()], "")
+	    end
     end.
 
-draw_right(X, Y, Ps) ->
+draw_right(X0, Y0, Mw, Ps) ->
     case have_option_box(Ps) of
-	true -> wings_io:text_at(X, Y, [option_box]);
-	false -> draw_right_1(X, Y, Ps)
+	true ->
+	    X = X0 + Mw - 5*?CHAR_WIDTH,
+	    Y = Y0 - ?CHAR_HEIGHT div 3,
+	    wings_io:text_at(X, Y, [option_box]);
+	false -> draw_right_1(X0, Y0, Mw, Ps)
     end.
 
-draw_right_1(X, Y, Ps) ->
+draw_right_1(X0, Y0, Mw, Ps) ->
     case proplists:get_value(color, Ps, none) of
 	none -> ok;
 	Color ->
-	    wings_io:border(X, Y-7,
-			    ?CHAR_WIDTH, ?CHAR_HEIGHT-1,
-			    Color)
+	    Cw = wings_text:width(),
+	    Ch = wings_text:height(),
+	    X = X0 + Mw - 5*Cw,
+	    Y = Y0 - Ch + 1,
+	    wings_io:border(X, Y, Cw, Ch-1, Color)
     end.
 
 draw_submenu(_Adv, Item, _X, _Y) when is_atom(Item);
@@ -804,8 +823,9 @@ draw_submenu(false, _Item, X, Y) ->
 
 draw_separator(X, Y, Mw) ->
     ?CHECK_ERROR(),
-    LeftX = X-2*?CHAR_WIDTH+0.5,
-    RightX = X+Mw-4*?CHAR_WIDTH+0.5,
+    Cw = wings_text:width(),
+    LeftX = X-2*Cw+0.5,
+    RightX = X+Mw-4*Cw+0.5,
     UpperY = Y-?SEPARATOR_HEIGHT+0.5,
     gl:lineWidth(1),
     gl:color3f(0.10, 0.10, 0.10),

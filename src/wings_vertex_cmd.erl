@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.40 2003/07/21 05:47:36 bjorng Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.41 2003/07/21 13:08:09 bjorng Exp $
 %%
 
 -module(wings_vertex_cmd).
@@ -22,9 +22,9 @@ menu(X, Y, St) ->
     Dir = wings_menu_util:directions(St),
     Menu = [{basic,{"Vertex operations",ignore}},
 	    {basic,separator},
-	    {"Move",{move,Dir}},
-	    wings_menu_util:rotate(),
-	    wings_menu_util:scale(),
+	    {"Move",{move,Dir},[],[magnet]},
+	    wings_menu_util:rotate(St),
+	    wings_menu_util:scale(St),
 	    separator,
 	    {"Extrude",{extrude,Dir}},
 	    separator,

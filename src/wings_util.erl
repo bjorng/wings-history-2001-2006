@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.73 2003/07/12 08:56:45 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.74 2003/07/21 13:08:09 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -18,6 +18,7 @@
 	 button_format/1,button_format/2,button_format/3,
 	 rmb_format/1,
 	 message/1,message/2,
+	 magnet_string/0,
 	 yes_no/2,yes_no/3,yes_no_cancel/3,
 	 get_matrices/2,mirror_matrix/1,
 	 mirror_flatten/2,
@@ -116,6 +117,11 @@ message(Message) ->
 	  [{label,Message},
 	   {hframe,[{button,ok}]}]},
     wings_ask:dialog("", Qs, fun(_) -> ignore end).
+
+magnet_string() ->
+    ["(Magnet route:",
+     atom_to_list(wings_pref:get_value(magnet_distance_route))
+     ,")"].
 
 get_matrices(Id, MM) ->
     wings_view:load_matrices(false),

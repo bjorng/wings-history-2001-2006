@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.71 2003/07/21 06:13:54 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.72 2003/07/21 13:08:09 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -63,11 +63,10 @@ command_1(axis, Msg, More, Acc, Names, MagnetPossible, St0) ->
 		  (exit, {Mod,S}) ->
 		       common_exit(Mod, More, Acc, Names, MagnetPossible, S);
 		  (message, _) ->
-		       common_message(More, Names, MagnetPossible)
+		       common_message(Msg, More, Names, MagnetPossible)
 	       end,
 	     selmodes=Modes,
 	     is_axis=true},
-    command_message(Msg),
     {seq,push,get_event(Ss, wings_sel:reset(St))};
 command_1(point, Msg, More, Acc, Names, MagnetPossible, St0) ->
     pick_init(St0),
@@ -78,10 +77,9 @@ command_1(point, Msg, More, Acc, Names, MagnetPossible, St0) ->
 		  (exit, {Mod,S}) ->
 		       common_exit(Mod, More, Acc, Names, MagnetPossible, S);
 		  (message, _) ->
-		       common_message(More, Names, MagnetPossible)
+		       common_message(Msg, More, Names, MagnetPossible)
 	       end,
 	     selmodes=Modes},
-    command_message(Msg),
     {seq,push,get_event(Ss, wings_sel:reset(St))};
 command_1(magnet, Msg, [], Acc, Names, _, St) ->
     pick_init(St),
@@ -92,10 +90,9 @@ command_1(magnet, Msg, [], Acc, Names, _, St) ->
 		  (exit, {Mod,S}) ->
 		       exit_magnet(Mod, Acc, Names, S);
 		  (message, _) ->
-		       common_message([], Names, active)
+		       magnet_message(Msg, Names)
 	       end,
 	     selmodes=Modes},
-    command_message(Msg),
     {seq,push,get_event(Ss, wings_sel:reset(St#st{selmode=vertex}))}.
 
 add_help_text([{Atom,Desc}|T], Names) when is_atom(Atom) ->
@@ -107,7 +104,7 @@ add_help_text([Type|T], Names) ->
 	   case Type of
 	       axis -> "Pick axis";
 	       point -> "Pick point";
-	       magnet -> "Pick magnet influence";
+	       magnet -> "Pick outer boundary point for magnet influence";
 	       _ -> []
 	   end},
     [Val|add_help_text(T, Names)];
@@ -125,28 +122,28 @@ magnet_possible_1(Pl) ->
 	_ -> inactive
     end.
 
-common_message([], Ns, MagnetPossible) ->
+common_message(Msg, [], Ns, MagnetPossible) ->
     Cmd = [command_name(Ns)|": "],
-    Message = [Cmd,wings_util:button_format("Select ", [], "Execute ")|
-	       magnet_message(MagnetPossible)],
-    wings_wm:message(Message);
-common_message(More, Ns, MagnetPossible) ->
+    Message = [Cmd,wings_util:button_format(Msg, [], "Execute ")|
+	       common_magnet_message(MagnetPossible)],
+    wings_wm:message(Message, "");
+common_message(Msg, [_|_], Ns, MagnetPossible) ->
     Cmd = [command_name(Ns)|": "],
-    Continue = [pick_more_help(More),$\s],
-    Message = [Cmd,wings_util:button_format("Select ", [], Continue)|
-	       magnet_message(MagnetPossible)],
-    wings_wm:message(Message).
+    Message = [Cmd,wings_util:button_format(Msg, [], "Continue")|
+	       common_magnet_message(MagnetPossible)],
+    wings_wm:message(Message, "").
 
-magnet_message(no) -> [];
-magnet_message(inactive) ->
+common_magnet_message(no) -> [];
+common_magnet_message(inactive) ->
     [$\s,wings_util:rmb_format("Magnet")];
-magnet_message(active) ->
-    "  **MAGNET**".
+common_magnet_message(active) ->
+    ["  "|wings_util:magnet_string()].
 
-command_message({Prefix,Ns}) ->
-    wings_wm:message_right(Prefix ++ command_name(Ns));
-command_message(Msg) ->
-    wings_wm:message_right(Msg).
+magnet_message(Msg, Ns) ->
+    Cmd = [command_name(Ns)|": "],
+    Message = [Cmd,wings_util:button_format(Msg, [], "Execute "),
+	       $\s,wings_util:rmb_format("Magnet options")],
+    wings_wm:message(Message, "").
 
 mode_restriction(Modes, #st{selmode=Mode}=St0) ->
     St = wings:clear_temp_sel(St0),
@@ -299,8 +296,7 @@ exit_menu(X, Y, Mod, #ss{f=Exit}=Ss, St) ->
 	    Menu = [{"Cancel",abort,"Cancel current command"}],
 	    wings_menu:popup_menu(X, Y, secondary_selection, Menu);
 	keep ->
-	    wings_wm:dirty(),
-	    pop;
+	    keep;
 	Action ->
 	    set_last_axis(Ss, St),
 	    wings_wm:later({action,Action}),
@@ -327,7 +323,8 @@ common_exit(_, More, Acc, Ns, _, St) ->
     common_exit_1(More, Acc, Ns, St).
 
 add_magnet(More) ->
-    More ++ [{magnet,none,"Pick magnet influence"}].
+    More ++ [{magnet,none,
+	      "Pick outer boundary point for magnet influence"}].
 
 common_exit_1([{point,_,Desc}|More], Acc, Ns, #st{vec={Point,Vec}}) ->
     PickList = [{point,Point,Desc}|More],
@@ -336,13 +333,6 @@ common_exit_1(PickList, Acc, Ns, #st{vec={_,Vec}}) ->
     {vector,{pick,PickList,add_to_acc(Vec, Acc),Ns}};
 common_exit_1(PickList, Acc, Ns, #st{vec=Point}) ->
     {vector,{pick,PickList,add_to_acc(Point, Acc),Ns}}.
-
-pick_more_help([{point,_,_}|_]) ->
-    "Continue to pick point";
-pick_more_help([{axis,_,_}|_]) ->
-    "Continue to pick axis";
-pick_more_help([{magnet,_,_}|_]) ->
-    "Continue to pick magnet influence".
 
 add_to_acc(Vec, [radial]) -> [{radial,Vec}];
 add_to_acc(Vec, Acc) -> [Vec|Acc].
@@ -468,9 +458,15 @@ check_point(St) ->
 exit_magnet(Mod, Acc, Ns, St) ->
     case wings_camera:free_rmb_modifier() of
 	ModRmb when Mod band ModRmb =/= 0 ->
-	    wings_magnet:dialog(fun(Mag) ->
-					{vector,{pick,[],[Mag|Acc],Ns}}
-				end);
+	    Fun = fun(Mag) ->
+			  {vector,{pick,[],[Mag|Acc],Ns}}
+		  end,
+	    case check_point(St) of
+		{none,_} ->
+		    wings_magnet:dialog(Fun);
+		[{Point,_}] ->
+		    wings_magnet:dialog(Point, Fun)
+	    end;
 	_ ->
 	    case check_point(St) of
 		{none,_} ->

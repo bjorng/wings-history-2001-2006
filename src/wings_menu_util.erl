@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu_util.erl,v 1.18 2003/07/21 05:47:36 bjorng Exp $
+%%     $Id: wings_menu_util.erl,v 1.19 2003/07/21 13:08:09 bjorng Exp $
 %%
 
 -module(wings_menu_util).
--export([directions/1,directions/2,scale/0,rotate/0,flatten/0,
-	 magnet_data/0,magnet_props/2,xyz/0,all_xyz/0]).
+-export([directions/1,directions/2,scale/1,rotate/1,flatten/0,
+	 magnet_props/2,xyz/0,all_xyz/0]).
 
 -include("wings.hrl").
 
@@ -64,8 +64,10 @@ all_xyz() ->
 %%% Scale sub-menu.
 %%%
 
-scale() ->
-    {"Scale",{scale,fun scale/2}}.
+scale(#st{selmode=body}) ->
+    {"Scale",{scale,fun scale/2}};
+scale(_) ->
+    {"Scale",{scale,fun scale/2},[],[magnet]}.
 
 scale(help, _) ->
      {"Scale along std. axis","Pick axis for radial scale",
@@ -115,8 +117,10 @@ stringify_dir(Dir) -> wings_util:stringify(Dir).
 %%% Rotate sub-menu.
 %%%
 
-rotate() ->
-    {"Rotate",{rotate,fun rotate/2}}.
+rotate(#st{selmode=body}) ->
+    {"Rotate",{rotate,fun rotate/2}};
+rotate(_) ->
+    {"Rotate",{rotate,fun rotate/2},[],[magnet]}.
 
 rotate(help, _) ->
     {"Rotate along std. axis",[],"Pick axis to rotate around"};
@@ -160,11 +164,7 @@ magnet_scale_rot_fun(Vec, Point) ->
     fun(1, Ns) -> wings_menu:build_command({Vec,Point}, Ns);
        (2, _Ns) -> ignore;
        (3, Ns) -> {vector,{pick,[point],[Vec],Ns}};
-       ({magnet,1}, Ns) -> {vector,{pick,[magnet],[Point,Vec],Ns}};
-       ({magnet,2}, Ns) -> {vector,{pick,[magnet_options],[Point,Vec],Ns}};
-       ({magnet,3}, Ns) ->
-	    Magnet = magnet_data(),
-	    wings_menu:build_command({Vec,Point,Magnet}, Ns)
+       ({magnet,1}, Ns) -> {vector,{pick,[magnet],[Point,Vec],Ns}}
     end.
 
 %%%
@@ -245,11 +245,6 @@ magnet_props(_, [scale|_]) -> [magnet];
 magnet_props(_, [rotate|_]) -> [magnet];
 magnet_props(_, _) -> [].
 
-magnet_data() ->
-    {magnet,wings_pref:get_value(magnet_type),
-     wings_pref:get_value(magnet_distance_route),
-     wings_pref:get_value(magnet_radius)}.
-    
 dir_help(Axis, Ns) when Axis == x; Axis == y; Axis == z ->
     dir_help_1(Ns, "the " ++ wings_util:stringify(Axis) ++ " axis");
 dir_help(last_axis, Ns) ->

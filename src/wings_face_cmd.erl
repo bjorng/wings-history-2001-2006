@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.83 2003/07/20 21:33:08 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.84 2003/07/21 13:08:09 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -25,9 +25,9 @@ menu(X, Y, St) ->
     Dir = wings_menu_util:directions(St),
     Menu = [{basic,{"Face operations",ignore}},
 	    {basic,separator},
-	    {"Move",{move,Dir}},
-	    wings_menu_util:rotate(),
-	    wings_menu_util:scale(),
+	    {"Move",{move,Dir},[],[magnet]},
+	    wings_menu_util:rotate(St),
+	    wings_menu_util:scale(St),
 	    separator,
 	    {"Extrude",{extrude,Dir}},
 	    {"Extrude Region",{extrude_region,Dir}},
@@ -869,7 +869,6 @@ bridge_color(Edge, Face, Iter) ->
 lift_selection(Dir, OrigSt) ->
     {[edge,vertex],
      fun(St) ->
-	     wings_wm:message_right("Pick hinge (edge or vertex)"),
 	     wings_sel:reset(St)
      end,
      fun(check, St) ->
@@ -882,9 +881,10 @@ lift_selection(Dir, OrigSt) ->
 		     error
 	     end;
 	(message, _) ->
+	     Left = "Select edge or vertex to act as hinge",
 	     Message = ["Lift: ",
-			wings_util:button_format("Select ", [],  "Execute")],
-	     wings_wm:message(Message)
+			wings_util:button_format(Left, [],  "Execute")],
+	     wings_wm:message(Message, "")
      end}.
 
 lift_check_selection(#st{selmode=edge,sel=EdgeSel}, OrigSt) ->
@@ -1131,7 +1131,6 @@ put_on(_) ->
 put_on_selection(OrigSt) ->
     {[face,edge,vertex],
      fun(St) ->
-	     wings_wm:message_right("Select element to align to"),
 	     wings_sel:reset(St)
      end,
      fun(check, St) -> put_on_check_selection(St, OrigSt);
@@ -1143,9 +1142,10 @@ put_on_selection(OrigSt) ->
 		     error
 	     end;
 	(message, _) ->
+	     Left = "Select target element on which to put source object",
 	     Message = ["Put On: ",
-			wings_util:button_format("Select ", [],  "Execute")],
-	     wings_wm:message(Message)
+			wings_util:button_format(Left, [],  "Execute")],
+	     wings_wm:message(Message, "")
      end}.
 
 put_on_check_selection(#st{sel=[{Id,_}]}, #st{sel=[{Id,_}]}) ->
@@ -1196,7 +1196,6 @@ clone_on(_) ->
 clone_on_selection() ->
     {[face,edge,vertex],
      fun(St) ->
-	     wings_wm:message_right("Select element to align to"),
 	     wings_sel:reset(St)
      end,
      fun(check, _) ->
@@ -1204,9 +1203,10 @@ clone_on_selection() ->
 	(exit, {_,#st{selmode=Mode,sel=Sel}}) ->
 	     {face,{clone_on,{Mode,Sel}}};
 	(message, _) ->
+	     Left = "Select target elements on which to put clones",
 	     Message = ["Clone On: ",
-			wings_util:button_format("Select ", [],  "Execute")],
-	     wings_wm:message(Message)
+			wings_util:button_format(Left, [],  "Execute")],
+	     wings_wm:message(Message, "")
      end}.
 
 clone_on({Mode,Sel}, #st{sel=[{Id,Faces}],shapes=Shs0}=St) ->
