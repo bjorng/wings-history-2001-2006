@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.131 2003/11/28 18:28:01 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.132 2003/11/30 09:07:48 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -1332,8 +1332,8 @@ oframe_event(#mousemotion{state=Bst}, _Path, _Store)
     wings_wm:message(""),
     keep;
 oframe_event(#mousebutton{x=Xb,button=1,state=?SDL_PRESSED}, 
-	    Path=[#fi{x=X,key=Key,index=I,hook=Hook}|_], 
-	    Sto0) ->
+	     Path=[#fi{x=X,w=W,key=Key,index=I,hook=Hook}|_], 
+	     Sto0) ->
     case gb_trees:get(-I, Sto0) of
 	#oframe{style=tabs,titles=Titles} ->
 	    case oframe_which_tab(X, Xb, Titles) of
@@ -1345,7 +1345,8 @@ oframe_event(#mousebutton{x=Xb,button=1,state=?SDL_PRESSED},
 		    end
 	    end;
 	#oframe{style=buttons,titles=Titles} ->
-	    case oframe_which_tab(X, Xb, Titles) of
+	    #oframe{w=Wt} = gb_trees:get(-I, Sto0),
+	    case oframe_which_tab(X, Xb-(W-Wt) div 2, Titles) of
 		undefined -> keep;
 		Val ->
 		    case hook(Hook, update, [var(Key, I), I, Val, Sto0]) of
@@ -1432,7 +1433,7 @@ oframe_redraw(Active,
     keep;
 oframe_redraw(Active, 
 	      #fi{x=X0,y=Y0,w=W0,h=H0,extra=#container{active=I}},
-	      #oframe{style=buttons,h=Ht,titles=Titles}) ->
+	      #oframe{style=buttons,w=Wt,h=Ht,titles=Titles}) ->
     Y = Y0+((Ht-10+4) div 2),
     H = H0-(Y-Y0+5),
     ColLow = color4_lowlight(),
@@ -1445,7 +1446,7 @@ oframe_redraw(Active,
 		  vline(X0+W0, Y+1, H-4, ColLow, ColHigh),
 		  gl:'end'()
 	  end),
-    oframe_redraw_titles(Active, X0+10, Y0, Ht-5, I, Titles),
+    oframe_redraw_titles(Active, X0+(W0-Wt) div 2, Y0, Ht-5, I, Titles),
     keep.
 
 oframe_redraw_titles(Focus, X, Y, H, Active, Titles) -> 
