@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_vec.erl,v 1.12 2002/06/11 09:34:06 bjorng Exp $
+%%     $Id: e3d_vec.erl,v 1.13 2003/03/28 14:09:23 bjorng Exp $
 %%
 
 -module(e3d_vec).
@@ -155,6 +155,20 @@ normal([{Ax,Ay,Az}|[{Bx,By,Bz}|_]=T], First, Sx0, Sy0, Sz0)
 
 %% average([{X,Y,Z}]) -> {Ax,Ay,Az}
 %%  Average the given list of points.
+average([{V10,V11,V12},B]) ->
+    {V20,V21,V22} = B,
+    V0 = if
+	     V10 =:= V20 -> V10;
+	     is_float(V10) -> 0.5*(V10+V20)
+	 end,
+    V1 = if
+	     V11 =:= V21 -> V11;
+	     is_float(V11) -> 0.5*(V11+V21)
+	 end,
+    if
+	V12 =:= V22 -> {V0,V1,V12};
+	is_float(V12) -> {V0,V1,0.5*(V12+V22)}
+    end;
 average([{V10,V11,V12}|T]=All) ->
     average(T, V10, V11, V12, length(All)).
 
@@ -174,5 +188,5 @@ average([{V10,V11,V12}|T], A0, A1, A2, L)
        is_float(A0), is_float(A1), is_float(A2) ->
     average(T, A0+V10, A1+V11, A2+V12, L);
 average([], A0, A1, A2, L0) ->
-    L = float(L0),
-    {A0/L,A1/L,A2/L}.
+    L = 1.0/float(L0),
+    {A0*L,A1*L,A2*L}.
