@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.17 2003/03/13 13:39:30 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.18 2003/03/14 11:22:55 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -28,7 +28,7 @@
 
 %%% Default values
 
--define(DEF_ENABLED, true).
+-define(DEF_DIALOGS, auto).
 -define(DEF_RENDERER, "yafray").
 -define(DEF_LOAD_IMAGE, true).
 
@@ -67,7 +67,7 @@
 -define(DEF_MOD_SPECULAR, 0.0).
 -define(DEF_MOD_AMBIENT, 0.0).
 -define(DEF_MOD_SHININESS, 0.0).
--define(DEF_MOD_TYPE, jpeg).
+-define(DEF_MOD_TYPE, image).
 -define(DEF_MOD_FILENAME, ".jpg").
 -define(DEF_MOD_COLOR1, {0.0,0.0,0.0,1.0}).
 -define(DEF_MOD_COLOR2, {1.0,1.0,1.0,1.0}).
@@ -80,14 +80,15 @@
 
 init() ->
     init_pref(),
+    set_var(rendering, false),
     true.
 
 menu({file,export}, Menu) ->
-    append_if_enabled(Menu, menu_entry(export));
+    maybe_append(export, Menu, menu_entry(export));
 menu({file,export_selected}, Menu) ->
-    append_if_enabled(Menu, menu_entry(export));
+    maybe_append(export, Menu, menu_entry(export));
 menu({file,render}, Menu) ->
-    append_if_enabled(Menu, menu_entry(render));
+    maybe_append(render, Menu, menu_entry(render));
 menu({edit,plugin_preferences}, Menu) ->
     Menu++menu_entry(pref);
 menu(_, Menu) ->
@@ -108,11 +109,11 @@ command(_Spec, _St) ->
     next.
 
 dialog({material_editor_setup,Name,Mat}, Dialog) ->
-    append_if_enabled(Dialog, material_dialog(Name, Mat));
+    maybe_append(edit, Dialog, material_dialog(Name, Mat));
 dialog({material_editor_result,Name,Mat}, Res) ->
     material_result(Name, Mat, Res);
 dialog({light_editor_setup,Name,Ps}, Dialog) ->
-    append_if_enabled(Dialog, light_dialog(Name, Ps));
+    maybe_append(edit, Dialog, light_dialog(Name, Ps));
 dialog({light_editor_result,Name,Ps0}, Res) ->
     light_result(Name, Ps0, Res);
 dialog(_X, Dialog) ->
@@ -125,30 +126,52 @@ dialog(_X, Dialog) ->
 
 
 init_pref() ->
-    Enabled = get_pref(enabled, ?DEF_ENABLED),
-    E = case Enabled of	
-	    true ->
-		Renderer = get_pref(renderer, ?DEF_RENDERER),
-		case filename:pathtype(Renderer) of
-		    absolute -> true;
-		    _ -> 
-			case os:find_executable(Renderer) of
-			    false -> false;
-			    _Path -> true
-			end
-		end;
-	    false ->
+    Renderer = get_pref(renderer, ?DEF_RENDERER),
+    RendererPath =
+	case filename:pathtype(Renderer) of
+	    absolute -> 
+		Renderer;
+	    _ -> 
+		case os:find_executable(Renderer) of
+		    false ->
+			false;
+		    Path -> 
+			Path
+		end
+	end,
+    case get_pref(dialogs, ?DEF_DIALOGS) of
+	auto ->
+	    set_var(renderer, RendererPath),
+	    set_var(dialogs, case RendererPath of 
+				 false -> false; 
+				 _ -> true 
+			     end);
+	enabled ->
+	    set_var(renderer, RendererPath),
+	    set_var(dialogs, true);
+	disabled ->
+	    set_var(renderer, false),
+	    set_var(dialogs, false)
+    end,
+    ok.
+
+maybe_append(Conditon, Menu, PluginMenu) ->
+    Value =
+	case Conditon of
+	    export ->
+		get_var(dialogs);
+	    edit ->
+		get_var(dialogs);
+	    render ->
+		get_var(renderer);
+	    _ ->
 		false
 	end,
-    put({?MODULE,enabled}, E),
-    E.
-
-append_if_enabled(Menu, PluginMenu) ->
-    case get({?MODULE,enabled}) of
-	true ->
-	    Menu++PluginMenu;
+    case Value of
+	false ->
+	    Menu;
 	_ ->
-	    Menu
+	    Menu++PluginMenu
     end.
 
 menu_entry(render) ->
@@ -162,8 +185,8 @@ menu_entry(pref) ->
 
 command_file(render, Attr, St) when is_list(Attr) ->
     set_pref(Attr),
-    case get({?MODULE,rendering}) of
-	undefined ->
+    case get_var(rendering) of
+	false ->
 	    wpa:export(props(tga), 
 		       fun_export_2(attr(St, [{?TAG_RENDER,true}|Attr])), St);
        _RenderFile ->
@@ -173,12 +196,12 @@ command_file(render, Ask, _St) when is_atom(Ask) ->
     wpa:dialog(Ask, "YafRay Render Options", export_dialog(render),
 	       fun(Attr) -> {file,{render,{?TAG,Attr}}} end);
 command_file(?TAG_RENDER, {Pid,Result,Ack}, _St) ->
-    RenderFile = erase({?MODULE,rendering}),
+    Rendering = set_var(rendering, false),
     Pid ! Ack,
-    case RenderFile of
-	undefined ->
+    case Rendering of
+	false ->
 	    keep;
-	_ ->
+	RenderFile ->
 	    case Result of
 		load_image ->
 		    io:format("Loading rendered image~n"),
@@ -275,7 +298,11 @@ modulator_dialog({modulator,Ps}, M) when list(Ps) ->
     Specular = proplists:get_value(specular, Ps, ?DEF_MOD_SPECULAR),
     Ambient = proplists:get_value(ambient, Ps, ?DEF_MOD_AMBIENT),
     Shininess = proplists:get_value(shininess, Ps, ?DEF_MOD_SHININESS),
-    Type = proplists:get_value(type, Ps, ?DEF_MOD_TYPE),
+    Type = 
+	case proplists:get_value(type, Ps, ?DEF_MOD_TYPE) of
+	    jpeg -> image;
+	    T -> T
+	end,
     Filename = proplists:get_value(filename, Ps, ?DEF_MOD_FILENAME),
     Color1 = proplists:get_value(color1, Ps, ?DEF_MOD_COLOR1),
     Color2 = proplists:get_value(color2, Ps, ?DEF_MOD_COLOR2),
@@ -304,7 +331,7 @@ modulator_dialog({modulator,Ps}, M) when list(Ps) ->
 			 {slider,{text,Specular,[{range,{0.0,1.0}}]}},
 			 {slider,{text,Ambient,[{range,{0.0,1.0}}]}},
 			 {slider,{text,Shininess,[{range,{0.0,1.0}}]}}]}]},
-       {hframe,[{vradio,[{"JPEG",jpeg},{"Clouds",clouds}],TypeTag,Type},
+       {hframe,[{vradio,[{"Image",image},{"Clouds",clouds}],TypeTag,Type},
 		{vframe,[{hframe,[{label,"Filename"},{text,Filename}]},
 			 {hframe,[{label,"Color 1"},{color,Color1},
 				  {label,"Color 2"},{color,Color2},
@@ -388,12 +415,15 @@ light_result(Tail) ->
 
 
 pref_edit(St) ->
-    Enabled = get_pref(enabled, true),
+    Dialogs = get_pref(dialogs, ?DEF_DIALOGS),
     Renderer = get_pref(renderer, ?DEF_RENDERER),
     Dialog =
-	[{hframe,[{"Enabled",Enabled,[{key,enabled}]},
-		  {label,"Command"},
-		  {text,Renderer,[{key,renderer}]}]}],
+	[{vframe,[{menu,[{"Disabled Dialogs",disabled},
+			 {"Automatic Dialogs",auto},
+			 {"Enabled Dialogs",enabled}],
+		   Dialogs,[{key,dialogs}]},
+		  {hframe,[{label,"Rendering Command"},
+			   {text,Renderer,[{key,renderer}]}]}]}],
     wpa:dialog("YafRay Options", Dialog, 
 	       fun (Attr) -> pref_result(Attr,St) end).
 
@@ -513,7 +543,7 @@ export(Attr, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
 			      file:delete(RenderFile),
 			      render(Renderer, ExportFile, Parent, LoadImage) 
 		      end),
-		    put({?MODULE,rendering}, RenderFile),
+		    set_var(rendering, RenderFile),
 		    ok;
 		false ->
 		    ok
@@ -527,7 +557,7 @@ render(Renderer, Filename, Parent, LoadImage) ->
     Dirname = filename:dirname(Filename),
     Basename = filename:basename(Filename),
     Cmd = Renderer++" "++Basename,
-    Opts = [{line,8},{cd,Dirname},eof,stderr_to_stdout],
+    Opts = [{line,8},{cd,Dirname},eof,exit_status,stderr_to_stdout],
     io:format("Rendering Job started ~p:~n>~s~n", [self(),Cmd]),
     case catch open_port({spawn,Cmd}, Opts) of
 	Port when port(Port) ->
@@ -620,11 +650,19 @@ export_shader(F, Name, Mat) ->
 			  N+1;
 		      _ ->
 			  case proplists:get_value(type, Ps) of
+			      image ->
+				  Filename = 
+				      proplists:get_value(filename, Ps, 
+							  ?DEF_MOD_FILENAME),
+				  export_texture_image(F, [Name,$_|format(N)], 
+						      Filename),
+				  println(F),
+				  N+1;
 			      jpeg ->
 				  Filename = 
 				      proplists:get_value(filename, Ps, 
 							  ?DEF_MOD_FILENAME),
-				  export_texture_jpeg(F, [Name,$_|format(N)], 
+				  export_texture_image(F, [Name,$_|format(N)], 
 						      Filename),
 				  println(F),
 				  N+1;
@@ -678,8 +716,8 @@ export_shader(F, Name, Mat) ->
 	  end, 1, Modulators),
     println(F, "</shader>").
 
-export_texture_jpeg(F, Name, Filename) ->
-    println(F, "<texture type=\"jpeg\" name=\"~s\">~n"++
+export_texture_image(F, Name, Filename) ->
+    println(F, "<texture type=\"image\" name=\"~s\">~n"++
 	    "    <filename value=\"~s\"/>~n"++
 	    "</texture>", [Name,Filename]).
 
@@ -1065,6 +1103,19 @@ set_pref(Attr) ->
 
 get_pref(Key, Def) ->
     wpa:pref_get(?MODULE, Key, Def).
+
+
+
+set_var(Name, undefined) ->
+    erase_var(Name);
+set_var(Name, Value) ->
+    put({?MODULE,Name}, Value).
+
+get_var(Name) ->
+    get({?MODULE,Name}).
+
+erase_var(Name) ->
+    erase({?MODULE,Name}).
 
 
 
