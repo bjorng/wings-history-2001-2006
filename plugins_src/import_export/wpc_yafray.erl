@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.21 2003/03/19 16:22:03 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.22 2003/03/26 22:31:41 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -16,6 +16,8 @@
 -export([init/0,menu/2,dialog/2,command/2]).
 
 
+
+-include_lib("kernel/include/file.hrl").
 
 -include("e3d.hrl").
 -include("e3d_image.hrl").
@@ -133,7 +135,7 @@ init_pref() ->
 	    absolute -> 
 		Renderer;
 	    _ -> 
-		case os:find_executable(Renderer) of
+		case find_executable(Renderer) of
 		    false ->
 			false;
 		    Path -> 
@@ -1166,3 +1168,83 @@ count_equal([H|T], C, H, R) ->
     count_equal(T, C+1, H, R);
 count_equal([H|T], C, K, R) ->
     count_equal(T, 1, H, [{C,K}|R]).
+
+
+
+find_executable(Name) ->
+    case os:find_executable(Name) of
+	false ->
+	    false;
+	Filename ->
+	    case os:type() of
+		{win32,_} ->
+		    case lowercase(filename:extension(Filename)) of
+			".bat" ->
+			    find_in_bat(Filename);
+			_ ->
+			    Filename
+		    end;
+		_ ->
+		    Filename
+	    end
+    end.
+
+find_in_bat(Filename) ->
+    case file:open(Filename, [read]) of
+	{ok,F} ->
+	    R = scan_bat(F),
+	    file:close(F),
+	    R;
+	_ ->
+	    false
+    end.
+
+scan_bat(F) ->
+    case io:get_line(F, "") of
+	"@echo"++[C|_] when C==$ ; C==$\t; C==$\n ->
+	    scan_bat(F);
+	"echo"++[C|_] when C==$ ; C==$\t; C==$\n ->
+	    scan_bat(F);
+	"@set"++[C|_] when C==$ ; C==$\t; C==$\n ->
+	    scan_bat(F);
+	"set"++[C|_] when C==$ ; C==$\t; C==$\n ->
+	    scan_bat(F);
+	[$@,Line] ->
+	    rscan_line(F, lists:reverse(Line));
+	Line when list(Line) ->
+	    rscan_line(F, lists:reverse(Line));
+	_ ->
+	    false
+    end.
+
+rscan_line(F, []) ->
+    scan_bat(F);
+rscan_line(F, [C|T])  when C==$ ; C==$\t; C==$\n ->
+    rscan_line(F, T);
+rscan_line(F, [C,$%|T]) when C >= $0, C =< $9 ->
+    rscan_line(F, T);
+rscan_line(F, Rcmd) ->
+    Filename = lists:reverse(Rcmd),
+    case file:read_file_info(Filename) of
+	{ok,#file_info{type=regular,access=A,mode=M}} ->
+	    case A of
+		read when (M band 8#500) == 8#500 ->
+		    Filename;
+		read_write when (M band 8#500) == 8#500 ->
+		    Filename;
+		_ ->
+		    scan_bat(F)
+	    end;
+	_ ->
+	    scan_bat(F)
+    end.
+
+
+
+lowercase([]) ->
+    [];
+lowercase([C|T]) when C >= $A, C =< $Z ->
+    [(C + $a - $A)|lowercase(T)];
+lowercase([C|T]) ->
+    [C|lowercase(T)].
+
