@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.91 2002/12/10 07:44:55 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.92 2002/12/14 10:06:48 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -58,7 +58,7 @@ menu(_) ->
      {"Save",save},
      {"Save As...",save_as},
      {"Save Selected...",save_selected},
-     {"Save Incrementally...",save_incr},
+     {"Save Incrementally",save_incr},
      separator,
      {"Revert",revert},
      separator,
