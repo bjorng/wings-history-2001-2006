@@ -8,14 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.37 2003/09/18 13:16:39 dgud Exp $
+%%     $Id: wings_light.erl,v 1.38 2003/10/01 05:03:55 bjorng Exp $
 %%
 
 -module(wings_light).
 -export([light_types/0,menu/3,command/2,is_any_light_selected/1,info/1,
 	 create/2,update_dynamic/2,update_matrix/2,update/1,render/1,
 	 modeling_lights/2,global_lights/0,camera_lights/0,
-	 export/1,import/2]).
+	 export/1,export_camera_lights/0,import/2]).
 
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
@@ -543,27 +543,27 @@ export(#st{shapes=Shs}) ->
 		      [get_light(We)|A];
 		 (_, A) -> A
 	      end, [], gb_trees:values(Shs)),
-    case L of
-	[] -> %% Camera lights 
-	    Amb = {"Ambient", camera_ambient()},
-	    Ls = case wings_pref:get_value(number_of_lights) of
-		     1 -> [{"Infinite",camera_infinite_1_0()}];
-		     2 -> [{"Infinite1",camera_infinite_2_0()},
-			   {"Infinite2",camera_infinite_2_1()}]
-		 end,
-	    #view{origin=Aim} = wings_view:current(),
-	    CameraPos = wings_view:eye_point(),
-	    GL = fun({Name,Li = #light{aim=Diff}}) ->
-			 LPos = e3d_vec:add(CameraPos,Diff),
-			 We = #we{name = Name,
-				  vp = gb_trees:from_orddict([{1, LPos}]),
-				  light = Li#light{aim=Aim}},
-			 get_light(We)
-		 end,
-	    [GL(Light) || Light <- [Amb|Ls]];
-	_ ->
-	    reverse(L)
-    end.
+    reverse(L).
+
+export_camera_lights() ->
+    Amb = {"Ambient", camera_ambient()},
+    Ls = case wings_pref:get_value(number_of_lights) of
+	     1 ->
+		 [{"Infinite",camera_infinite_1_0()}];
+	     2 ->
+		 [{"Infinite1",camera_infinite_2_0()},
+		  {"Infinite2",camera_infinite_2_1()}]
+	 end,
+    #view{origin=Aim} = wings_view:current(),
+    CameraPos = wings_view:eye_point(),
+    GL = fun({Name,Li = #light{aim=Diff}}) ->
+		 LPos = e3d_vec:add(CameraPos,Diff),
+		 We = #we{name = Name,
+			  vp = gb_trees:from_orddict([{1, LPos}]),
+			  light = Li#light{aim=Aim}},
+		 get_light(We)
+	 end,
+    [GL(Light) || Light <- [Amb|Ls]].
 
 get_light(#we{name=Name,perm=P}=We) ->
     Ps0 = get_light_1(We),

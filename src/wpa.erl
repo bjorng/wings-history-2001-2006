@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.32 2003/08/21 05:46:13 bjorng Exp $
+%%     $Id: wpa.erl,v 1.33 2003/10/01 05:03:55 bjorng Exp $
 %%
 -module(wpa).
 -export([ask/3,ask/4,dialog/3,dialog/4,error/1,
@@ -292,7 +292,10 @@ camera_info([], _) -> [].
 %%%
 
 lights(St) ->
-    wings_light:export(St).
+    case wings_light:export(St) of
+	[] -> wings_light:export_camera_lights();
+	L -> L
+    end.
 
 import_lights(Lights, St) ->
     wings_light:import(Lights, St).
@@ -331,4 +334,3 @@ quadrangulate(We) ->
 
 quadrangulate(Faces, We) ->
     wings_tesselation:quadrangulate(Faces, We).
-
