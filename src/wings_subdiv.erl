@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.24 2002/12/26 09:47:09 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.25 2002/12/26 17:28:24 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -121,7 +121,7 @@ smooth_faces([{Face,#face{mat=Mat}}|Faces], Id, FacePos,
 	     EsAcc0, Ftab0, Vtab0, #we{es=Etab0}=We0) ->
     {NewV,We1} = wings_we:new_id(We0),
     {Center,Color,NumIds} = gb_trees:get(Face, FacePos),
-    {Ids,We} = wings_we:new_wrap_range(NumIds, 2, We1),
+    {Ids,We} = wings_we:new_wrap_range(NumIds, 1, We1),
     Vtab = [{NewV,Center}|Vtab0],
     {Etab,EsAcc,Ftab,_} =
 	wings_face:fold(
@@ -138,11 +138,10 @@ smooth_faces([], _, _, Es, Ftab0, NewVs, #we{es=Etab0}=We) ->
 
 smooth_edge(Face, Edge, Rec0, NewV, Color, Id, Mat,
 	    {Etab0,Es0,Ftab0,Ids0}) ->
-    LeftEdge = wings_we:id(0, Ids0),
-    RFace = wings_we:id(1, Ids0),
-    NewEdge = wings_we:id(2, Ids0),
-    LFace = wings_we:id(3, Ids0),
-    RightEdge = wings_we:id(4, Ids0),
+    LeftEdge = RFace = wings_we:id(0, Ids0),
+    NewEdge = wings_we:id(1, Ids0),
+    LFace = wings_we:id(1, Ids0),
+    RightEdge = wings_we:id(2, Ids0),
     case Rec0 of
 	#edge{ve=Vtx,b=OldCol,rf=Face} when Vtx >= Id ->
 	    Ids = Ids0,
