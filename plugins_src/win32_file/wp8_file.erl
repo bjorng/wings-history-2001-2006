@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp8_file.erl,v 1.10 2002/11/14 08:49:58 bjorng Exp $
+%%     $Id: wp8_file.erl,v 1.11 2002/11/16 12:18:54 bjorng Exp $
 %%
 
 -module(wp8_file).
@@ -109,7 +109,7 @@ file_filters_1([{Ext,Desc}|T], Acc0) ->
     file_filters_1(T, Acc);
 file_filters_1([], Acc) -> [Acc,0].
     
-file_add_all([_]=Exts) -> Exts;
+file_add_all([_]) -> [];
 file_add_all(Exts) ->
     All0 = ["*"++E || {E,_} <- Exts],
     All = file_add_semicolons(All0),
