@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_ndo.erl,v 1.5 2001/11/09 07:01:24 bjorng Exp $
+%%     $Id: wings_ff_ndo.erl,v 1.6 2001/11/10 10:26:33 bjorng Exp $
 %%
 
 -module(wings_ff_ndo).
@@ -184,8 +184,8 @@ shape(#shape{name=Name,sh=We0}, Acc) ->
     Vis = 1,
     Sense = 1,
     Shaded = 1,
-    Unknown = 0,
-    Header = <<Vis:8,Sense:8,Shaded:8,Unknown:8,0:72/unit:8>>,
+    EnableColors = 1,
+    Header = <<Vis:8,Sense:8,Shaded:8,EnableColors:8,0:72/unit:8>>,
     We = wings_we:renumber(We0, 0),
     #we{vs=Vs,es=Etab,fs=Ftab,he=Htab} = We,
     EdgeChunk = write_edges(gb_trees:to_list(Etab), Htab, []),
