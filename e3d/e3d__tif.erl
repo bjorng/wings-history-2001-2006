@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__tif.erl,v 1.6 2002/02/25 10:58:16 dgud Exp $
+%%     $Id: e3d__tif.erl,v 1.7 2002/02/25 12:38:03 dgud Exp $
 %%
 
 -module(e3d__tif).
@@ -160,7 +160,7 @@ load_image(Enc, IFDs, Orig) ->
 
 save_image(Image, Compress, Offset1) ->
     W = <<?ImageWidth:16, (type2type(long)):16, 1:32, (Image#e3d_image.width):32>> , 
-    H = <<?ImageLength:16, (type2type(long)):16, 1:32, (Image#e3d_image.height):32>> , 
+    H = <<?ImageLength:16, (type2type(long)):16, 1:32, (Image#e3d_image.height):32>>,
     BPS = <<?BitsPerSample:16, (type2type(short)):16, (Image#e3d_image.bytes_pp):32, Offset1:32>> ,
     BPSBin =  %% Should be placed on Offset1
 	if 
@@ -188,11 +188,11 @@ save_image(Image, Compress, Offset1) ->
 			PaddSz = (4-I)*8,  %% word align
 			Padd = <<0:PaddSz>> ,
 			Padd
-   	        end,    			  
+   	        end,
     Offset3 = Offset2 + size(Strips) + size(StripPadd),
-    SPP  = <<?SamplesPerPixel:16, (type2type(short)):16, 1:32, (Image#e3d_image.bytes_pp):16, 0:16>> ,
-    RPS  = <<?RowsPerStrip:16, (type2type(long)):16, 1:32, (Image#e3d_image.width):32>> ,
-    STBC =  <<?StripByteCounts:16, (type2type(long)):16, 1:32, (size(Strips)):32>> ,
+    SPP  = <<?SamplesPerPixel:16, (type2type(short)):16, 1:32, (Image#e3d_image.bytes_pp):16, 0:16>>,
+    RPS  = <<?RowsPerStrip:16, (type2type(long)):16, 1:32, (Image#e3d_image.height):32>>,
+    STBC =  <<?StripByteCounts:16, (type2type(long)):16, 1:32, (size(Strips)):32>>,
 
     %% I don't know what to put here but they are requried fields so I add
     %% some stolen values..
@@ -352,19 +352,13 @@ decompress([CompStrip|Rest], Comp = 5, Tif, Acc) -> %% LZW-Compression
 	    _ -> %% No differencing
 		Decomp
 	end,
-    
     %% Some pictures seem to fail to create correct size in rows per strip
     Size = Tif#tif.w * Tif#tif.rps * Tif#tif.bpp div 8,
+    TSize = length(lists:flatten(Decomp)),
+    io:format("Size of decompressed strip ~p~n", [{Size, TSize,  Tif#tif.w, Tif#tif.rps, Tif#tif.bpp div 8}]),
+
     <<StripBin:Size/binary, _/binary>> = list_to_binary(lists:reverse(Differented)),
 
-%    %% Debug ..
-%    TSize = length(lists:flatten(Decomp)),
-%    io:format("Size of decompressed strip ~p~n", [{Size, TSize}]),
-%    case TSize of
-%	Size -> ok;
-%	Else -> exit({TSize, Size, CompStrip})
-%    end,    
-%    %% Debug
     decompress(Rest, Comp, Tif, [StripBin|Acc]);
 decompress([CompStrip|Rest], Comp = 32773, Tif, Acc) ->  %% PackBits
     W = Tif#tif.w * (Tif#tif.bpp div 8),
