@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_region.erl,v 1.3 2002/02/07 11:49:07 bjorng Exp $
+%%     $Id: wpc_region.erl,v 1.4 2002/02/18 06:35:49 bjorng Exp $
 %%
 
 -module(wpc_region).
@@ -78,7 +78,7 @@ move_region(Faces, We) ->
 move_region([Fs|Regs], We, Acc0) ->
     Acc = case wpa:face_outer_vertices(Fs, We) of
 	      [OuterVs] -> move_region(OuterVs, Fs, We, Acc0);
-	      Other -> Acc0
+	      Other -> region_error()
 	  end,
     move_region(Regs, We, Acc);
 move_region([], We, Acc) -> Acc.
@@ -98,7 +98,7 @@ scale_region(Faces, We) ->
 scale_region([Fs|Regs], We, Acc0) ->
     Acc = case wpa:face_outer_vertices(Fs, We) of
 	      [OuterVs] -> scale_region(OuterVs, Fs, We, Acc0);
-	      Other -> Acc0
+	      Other -> region_error()
 	  end,
     scale_region(Regs, We, Acc);
 scale_region([], We, Acc) -> Acc.
@@ -124,7 +124,7 @@ rotate_region(Faces, We, Acc) ->
 rotate_region_1([Fs|Regs], We, Acc0) ->
     Acc = case wpa:face_outer_vertices(Fs, We) of
 	      [OuterVs] -> rotate_region(OuterVs, Fs, We, Acc0);
-	      Other -> Acc0
+	      Other -> region_error()
 	  end,
     rotate_region_1(Regs, We, Acc);
 rotate_region_1([], We, Acc) -> Acc.
@@ -162,7 +162,7 @@ flatten_region(Faces, We) ->
 flatten_region_1([Fs|Regs], We0) ->
     We = case wpa:face_outer_vertices(Fs, We0) of
 	     [OuterVs] -> flatten_region_2(OuterVs, We0);
-	     Other -> We0
+	     Other -> region_error()
 	 end,
     flatten_region_1(Regs, We);
 flatten_region_1([], We) -> We.
@@ -170,3 +170,10 @@ flatten_region_1([], We) -> We.
 flatten_region_2(Vs, We) ->
     PlaneNormal = wings_face:face_normal(Vs, We),
     wpa:vertex_flatten(Vs, PlaneNormal, We).
+
+%%%
+%%% Utilities.
+%%%
+
+region_error() ->
+    wpa:error("Each must region must have exactly one edge loop.").
