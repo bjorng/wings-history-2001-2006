@@ -2,7 +2,7 @@
 #
 # Script for creating a self-contained Wings package for Windows.
 #
-# $Id: wings_package_win32,v 1.6 2002/11/18 19:12:20 bjorng Exp $
+# $Id: wings_package_win32,v 1.7 2002/11/21 08:57:11 bjorng Exp $
 #
 
 # Configurable stuff.
@@ -27,6 +27,7 @@ done
 WINGS_VSN=`echo "$latest_wings" | sed -e 's/.*wings-//'`
 
 (cd $latest_wings; nmake -nologo -f Makefile.win32)
+(cd $latest_wings/win32; nmake -nologo -f Makefile.win32)
 
 dest=$DEST_ROOT
 
@@ -37,6 +38,7 @@ cd $latest_wings
 $INSTALL -c -m 644 README AUTHORS license.terms vsn.mk $dest
 $INSTALL -c -m 644 wings2.nsi $dest
 $INSTALL -c -m 644 ebin/* $dest/ebin
+$INSTALL -c -m 644 win32/Wings3D.exe $dest
 
 $INSTALL -d $dest/plugins/import_export $dest/plugins/commands $dest/plugins/primitives $dest/plugins/win32_file $dest/plugins/autouv
 $INSTALL -c -m 644 plugins/wp9_dialogs.beam $dest/plugins
