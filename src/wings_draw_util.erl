@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.22 2002/05/12 17:36:01 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.23 2002/05/13 06:58:40 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -358,24 +358,13 @@ draw_normals(#dlo{normals=Ns}) ->
     call(Ns).
 
 %%
-%% Tesselate and draw faces.
+%% Tesslelate and draw face. Include vertex colors or UV coordinates.
 %%
 
 face(Face, #we{fs=Ftab}=We) ->
     #face{edge=Edge} = gb_trees:get(Face, Ftab),
     face(Face, Edge, We).
 
-face(Face, Edge, #we{mode=material,vs=Vtab}=We) ->
-    Vs = wings_face:surrounding_vertices(Face, Edge, We),
-    VsPos = vspos(Vs, Vtab, []),
-    N = e3d_vec:normal(VsPos),
-    gl:normal3fv(N),
-    {X,Y,Z} = N,
-    Tess = tess(),
-    glu:tessNormal(Tess, X, Y, Z),
-    glu:tessBeginPolygon(Tess),
-    glu:tessBeginContour(Tess),
-    tess_face(Tess, VsPos);
 face(Face, Edge, We) ->
     Vs = wings_face:draw_info(Face, Edge, We),
     {X,Y,Z} = N = wings_face:draw_normal(Vs),
@@ -394,13 +383,6 @@ tess_face_vtxcol(Tess, [{Pos,{_,_,_}=Col}|T]) ->
 				?GL_AMBIENT_AND_DIFFUSE,Col}]),
     tess_face_vtxcol(Tess, T);
 tess_face_vtxcol(Tess, []) ->
-    glu:tessEndContour(Tess),
-    glu:tessEndPolygon(Tess).
-
-tess_face(Tess, [P|T]) ->
-    glu:tessVertex(Tess, P),
-    tess_face(Tess, T);
-tess_face(Tess, []) ->
     glu:tessEndContour(Tess),
     glu:tessEndPolygon(Tess).
 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.47 2002/05/12 17:36:01 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.48 2002/05/13 06:58:40 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -167,7 +167,7 @@ hilit_draw_sel(body, _, #we{fs=Ftab}=We) ->
     wings_draw_util:begin_end(
       fun() ->
 	      foreach(fun({Face,#face{edge=Edge}}) ->
-			      wings_draw_util:face(Face, Edge, We)
+			      wings_draw_util:flat_face(Face, Edge, We)
 		      end, gb_trees:to_list(Ftab))
       end).
 

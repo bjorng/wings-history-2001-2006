@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.79 2002/05/12 17:36:01 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.80 2002/05/13 06:58:39 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -65,7 +65,7 @@ init_1(Tvs0, Drag0, St) ->
     S = sofs:relation(Tvs0, [{id,info}]),
     F = sofs:relation_to_family(S),
     Tvs = sofs:to_external(F),
-    break_apart(Tvs),
+    break_apart(Tvs, St),
     Drag = Drag0#drag{st=St},
     wings_io:grab(),
     {drag,Drag}.
@@ -75,13 +75,16 @@ init_1(Tvs0, Drag0, St) ->
 %% (not moved during drag) and dynamic (part of objects actually
 %% moved).
 %%
-break_apart(Tvs) ->
-    wings_draw_util:map(fun break_apart/2, Tvs).
-break_apart(#dlo{src_we=#we{id=Id}=We}=D0, [{Id,TvList}|Tvs]) ->
+break_apart(Tvs, St) ->
+    wings_draw_util:map(fun(D, Data) ->
+				break_apart(D, Data, St)
+			end, Tvs).
+
+break_apart(#dlo{src_we=#we{id=Id}=We}=D0, [{Id,TvList}|Tvs], St) ->
     {Vs,FunList} = combine_tvs(TvList, We),
-    {D,SplitData} = wings_draw:split(D0, Vs),
+    {D,SplitData} = wings_draw:split(D0, Vs, St),
     {D#dlo{drag={FunList,SplitData}},Tvs};
-break_apart(D, Tvs) -> {D,Tvs}.
+break_apart(D, Tvs, _) -> {D,Tvs}.
 
 combine_tvs(TvList, #we{vs=Vtab}) ->
     {FunList,VecVs0} = split_tv(TvList, [], []),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.55 2002/05/12 17:36:01 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.56 2002/05/13 06:58:40 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -49,8 +49,8 @@ menu(X, Y, St) ->
 	     crossmark(orthogonal_view)},
 	    {one_of(L == 1, "Two lights", "One light"),toggle_lights},
 	    separator,
-% 	    {"Show Colors",show_colors,crossmark(show_colors)},
-% 	    {"Show Materials",show_materials,crossmark(show_materials)},
+ 	    {"Show Colors",show_colors,crossmark(show_colors)},
+ 	    {"Show Materials",show_materials,crossmark(show_materials)},
 	    {"Show Textures",show_textures,crossmark(show_textures)},
 	    separator,
 	    {"View Along",{along,[{"+X",x},
@@ -102,6 +102,27 @@ command(orthogonal_view, St) ->
     St;
 command(show_textures, St) ->
     toggle_option(show_textures),
+    wings_draw_util:map(
+      fun(#dlo{src_we=#we{mode=uv}}=D, _) ->
+	      D#dlo{work=none,smooth=none,smoothed=none};
+	 (D, _) -> D
+      end, []),
+    St;
+command(show_materials, St) ->
+    toggle_option(show_materials),
+    wings_draw_util:map(
+      fun(#dlo{src_we=#we{mode=material}}=D, _) ->
+	      D#dlo{work=none,smooth=none,smoothed=none};
+	 (D, _) -> D
+      end, []),
+    St;
+command(show_colors, St) ->
+    toggle_option(show_colors),
+    wings_draw_util:map(
+      fun(#dlo{src_we=#we{mode=vertex}}=D, _) ->
+	      D#dlo{work=none,smooth=none,smoothed=none};
+	 (D, _) -> D
+      end, []),
     St;
 command(aim, St) ->
     aim(St),

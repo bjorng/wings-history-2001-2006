@@ -8,6 +8,9 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+%%
+%%     $Id: wpc_tweak.erl,v 1.2 2002/05/13 06:58:38 bjorng Exp $
+%%
 
 -module(wpc_tweak).
 
@@ -46,7 +49,8 @@ command({tools, tweak_end, #tweak{st=St}}, _) -> St;
 command(_, _) -> next.
 
 help() ->
-    [lmb] ++ " Drag vertices freely   " ++ [rmb] ++ " Exit tweak mode".
+    [lmb] ++ " Drag vertices freely  " ++ [rmb] ++ " Exit tweak mode  " ++
+	wings_camera:help().
 
 %% Event handler for tweak mode
 
@@ -103,13 +107,24 @@ handle_tweak_event1(#mousemotion{state=?SDL_RELEASED},
 handle_tweak_event1(#mousebutton{button=3,state=?SDL_RELEASED}, T) ->
     wings_io:putback_event({action,{tools,tweak_end,T}}),
     pop;
-handle_tweak_event1(Ev, #tweak{st=St}=T) ->
-    case wings_hotkey:event(Ev, St) of
+handle_tweak_event1(Ev, #tweak{st=St0}=T) ->
+    case wings_hotkey:event(Ev, St0) of
+	{view,auto_rotate} -> keep;
 	{view,Cmd} ->
-	    St1 = wings_view:command(Cmd,St),
-	    update_tweak_handler(T#tweak{st=St1});
+	    St = wings_view:command(Cmd, St0),
+	    refresh_dlists(Cmd, St),
+	    update_tweak_handler(T#tweak{st=St});
 	_ -> keep
     end.
+
+refresh_dlists(wireframe_selected, _) -> ok;
+refresh_dlists(shade_selected, _) -> ok;
+refresh_dlists(orthogonal_view, _) -> ok;
+refresh_dlists(aim, _) -> ok;
+refresh_dlists(frame, _) -> ok;
+refresh_dlists({along,_}, _) -> ok;
+refresh_dlists({toggle_lights,_}, _) -> ok;
+refresh_dlists(_, St) -> wings_draw:update_dlists(St).
 
 redraw(St) ->
     wings_draw:update_sel_dlist(),
@@ -119,14 +134,16 @@ redraw(St) ->
 
 begin_drag(MM, St) ->
     wings_draw:update_dlists(St),
-    wings_draw_util:map(fun begin_drag_fun/2, MM).
+    wings_draw_util:map(fun(D, _) ->
+				begin_drag_fun(D, MM, St)
+			end, []).
 
-begin_drag_fun(#dlo{src_sel={vertex,Vs0},src_we=#we{vs=Vtab}}=D0, MM) ->
+begin_drag_fun(#dlo{src_sel={vertex,Vs0},src_we=#we{vs=Vtab}}=D0, MM, St) ->
     [V] = Vs = gb_sets:to_list(Vs0),
     Vtx = gb_trees:get(V, Vtab),
-    {D,SplitData} = wings_draw:split(D0, Vs),
-    {D#dlo{drag={V,Vtx,MM,SplitData}},MM};
-begin_drag_fun(D, _) -> D.
+    {D,SplitData} = wings_draw:split(D0, Vs, St),
+    D#dlo{drag={V,Vtx,MM,SplitData}};
+begin_drag_fun(D, _, _) -> D.
 
 end_drag(#tweak{st=St0}=T) ->
     St = wings_draw_util:map(fun end_drag/2, St0),
@@ -135,11 +152,12 @@ end_drag(#tweak{st=St0}=T) ->
     update_tweak_handler(T#tweak{tmode=wait,st=St}).
 
 end_drag(#dlo{src_we=#we{id=Id},drag={V,Vtx,_,_}}=D, #st{shapes=Shs0}=St0) ->
-    #we{vs=Vtab0} = We = gb_trees:get(Id, Shs0),
+    #we{vs=Vtab0} = We0 = gb_trees:get(Id, Shs0),
     Vtab = gb_trees:update(V, Vtx, Vtab0),
-    Shs = gb_trees:update(Id, We#we{vs=Vtab}, Shs0),
+    We = We0#we{vs=Vtab},
+    Shs = gb_trees:update(Id, We, Shs0),
     St = St0#st{shapes=Shs},
-    {D#dlo{vs=none,sel=none,drag=none},St};
+    {D#dlo{vs=none,sel=none,drag=none,src_we=We},St};
 end_drag(D, St) -> {D,St}.
 
 do_tweak(DX, DY) ->

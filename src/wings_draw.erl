@@ -8,13 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.78 2002/05/12 17:36:01 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.79 2002/05/13 06:58:40 bjorng Exp $
 %%
 
 -module(wings_draw).
 -export([update_dlists/1,update_sel_dlist/0,
-	 split/2,update_dynamic/3,
-	 draw_faces/2,
+	 split/3,update_dynamic/3,
 	 smooth_faces/2,
 	 render/1]).
 
@@ -88,10 +87,10 @@ sel_fun(#dlo{src_we=#we{id=Id},src_sel=SrcSel}=D, [{Id,Items}|Sel], Mode) ->
 sel_fun(D, Sel, _) ->
     {D#dlo{sel=none,src_sel=none},Sel}.
 
-update_fun(#dlo{work=none,src_we=We}=D, St) ->
+update_fun(#dlo{work=none,src_we=#we{fs=Ftab}=We}=D, St) ->
     List = gl:genLists(1),
     gl:newList(List, ?GL_COMPILE),
-    draw_faces(We, St),
+    draw_faces(gb_trees:to_list(Ftab), We, St),
     gl:endList(),
     update_fun(D#dlo{work=List}, St);
 update_fun(#dlo{vs=none,src_we=#we{vs=Vtab}}=D, #st{selmode=vertex}=St) ->
@@ -254,7 +253,7 @@ update_mirror(D, _) -> D.
 %%% Splitting of objects into two display lists.
 %%%
 
-split(#dlo{wire=W,mirror=M,src_sel=Sel,src_we=We0}, Vs0) ->
+split(#dlo{wire=W,mirror=M,src_sel=Sel,src_we=We0}, Vs0, St) ->
     Vs = sofs:set(Vs0, [vertex]),
     Etab0 = foldl(fun(#edge{vs=Va,ve=Vb,lf=Lf,rf=Rf}, A) ->
 			  [{Va,Lf},{Va,Rf},{Vb,Lf},{Vb,Rf}|A]
@@ -265,146 +264,138 @@ split(#dlo{wire=W,mirror=M,src_sel=Sel,src_we=We0}, Vs0) ->
     
     List = gl:genLists(1),
     gl:newList(List, ?GL_COMPILE),
-    Ftab = gb_trees:to_list(We0#we.fs),
-    draw_static(Ftab, sofs:to_external(Faces), We0),
+    Ftab = sofs:from_external(gb_trees:to_list(We0#we.fs), [{face,data}]),
+    StaticFtab = sofs:to_external(sofs:drestriction(Ftab, Faces)),
+    draw_faces(StaticFtab, We0, St),
     gl:endList(),
 
-    FtabDyn0 = sofs:from_external(Ftab, [{face,data}]),
-    FtabDyn1 = sofs:restriction(FtabDyn0, Faces),
-    FtabDyn2 = sofs:to_external(FtabDyn1),
-    FtabDyn = dyn_faces(FtabDyn2, We0),
-    WeDyn = We0#we{fs=gb_trees:from_orddict(FtabDyn2),vs=We0#we.vs},
+    FtabDyn0 = sofs:restriction(Ftab, Faces),
+    FtabDyn = sofs:to_external(FtabDyn0),
+    WeDyn = We0#we{fs=gb_trees:from_orddict(FtabDyn)},
 
     StaticVs0 = sofs:to_external(sofs:difference(AllVs, Vs)),
     StaticVs = sort(insert_vtx_data(StaticVs0, We0#we.vs, [])),
-    SplitData = {StaticVs,FtabDyn},
+    SplitData = {StaticVs,FtabDyn,St},
     {#dlo{work=[List],wire=W,mirror=M,
 	  src_sel=Sel,src_we=WeDyn},SplitData}.
 
-update_dynamic(#dlo{work=[Work|_],src_we=We}=D, {StaticVs,Flist}, Vtab0) ->
+update_dynamic(#dlo{work=[Work|_],src_we=We0}=D, {StaticVs,Ftab,St}, Vtab0) ->
     Vtab = gb_trees:from_orddict(merge([sort(Vtab0),StaticVs])),
+    We = We0#we{vs=Vtab},
     List = gl:genLists(1),
     gl:newList(List, ?GL_COMPILE),
-    draw_flat_faces(Flist, Vtab),
+    draw_faces(Ftab, We, St),
     gl:endList(),
-    D#dlo{work=[Work,List],src_we=We#we{vs=Vtab}}.
-
-dyn_faces(Flist, We) ->
-    foldl(fun({Face,#face{edge=Edge}}, A) ->
-		  Vs = wings_face:surrounding_vertices(Face, Edge, We),
-		  [Vs|A]
-	  end, [], Flist).
-
-draw_static(Ftab, Faces, We) ->
-    gl:materialfv(?GL_FRONT, ?GL_AMBIENT_AND_DIFFUSE, {1.0,1.0,1.0}),
-    wings_draw_util:begin_end(
-		 fun() ->
-			 draw_static_1(Ftab, Faces, We)
-		 end).
-
-draw_static_1([{Face,_}|T], [Face|Fs], We) ->
-    draw_static_1(T, Fs, We);
-draw_static_1([{Face,#face{edge=Edge}}|T], Fs, We) ->
-    wings_draw_util:face(Face, Edge, We),
-    draw_static_1(T, Fs, We);
-draw_static_1([], [], _) -> ok.
+    D#dlo{work=[Work,List],src_we=We}.
 
 insert_vtx_data([V|Vs], Vtab, Acc) ->
     insert_vtx_data(Vs, Vtab, [{V,gb_trees:get(V, Vtab)}|Acc]);
 insert_vtx_data([], _, Acc) -> Acc.
 
-draw_flat_faces(Flist, Vtab) ->
-    wings_draw_util:begin_end(
-      fun() ->
-	      Tess = wings_draw_util:tess(),
-	      draw_flat_faces_1(Tess, Flist, Vtab)
-      end).
-
-draw_flat_faces_1(Tess, [Vs|T], Vtab) ->
-    VsPos = [pos(V, Vtab) || V <- Vs],
-    {X,Y,Z} = N = e3d_vec:normal(VsPos),
-    gl:normal3fv(N),
-    glu:tessNormal(Tess, X, Y, Z),
-    glu:tessBeginPolygon(Tess),
-    glu:tessBeginContour(Tess),
-    tess_flat_face(Tess, VsPos),
-    draw_flat_faces_1(Tess, T, Vtab);
-draw_flat_faces_1(_, [], _) -> ok.
-
-tess_flat_face(Tess, [P|T]) ->
-    glu:tessVertex(Tess, P),
-    tess_flat_face(Tess, T);
-tess_flat_face(Tess, []) ->
-    glu:tessEndContour(Tess),
-    glu:tessEndPolygon(Tess).
-
 %%%
 %%% Drawing routines.
 %%%
-    
-draw_faces(#we{mode=uv}=We, #st{mat=Mtab}=St) ->
+
+draw_faces(Ftab, #we{mode=uv}=We, #st{mat=Mtab}) ->
     case wings_pref:get_value(show_textures) of
 	true ->
-	    MatFaces = mat_faces(We),
+	    MatFaces = mat_faces(Ftab),
 	    draw_uv_faces(MatFaces, We, Mtab);
 	false ->
-	    draw_faces(We#we{mode=none}, St)
+	    draw_mat_faces([{default,Ftab}], We, Mtab)
     end;
-draw_faces(#we{fs=Ftab}=We, _St) ->
-    gl:materialfv(?GL_FRONT, ?GL_AMBIENT_AND_DIFFUSE, {1,1,1,1}),
-    wings_draw_util:begin_end(
-      fun() ->
-	      draw_faces_1(gb_trees:to_list(Ftab), We)
-      end).
+draw_faces(Ftab, #we{mode=material}=We, #st{mat=Mtab}) ->
+    MatFaces = case wings_pref:get_value(show_materials) of
+		   true -> mat_faces(Ftab);
+		   false -> [{default,Ftab}]
+	       end,
+    draw_mat_faces(MatFaces, We, Mtab);
+draw_faces(Ftab, #we{mode=vertex}=We, #st{mat=Mtab}) ->
+    MatFaces = [{default,Ftab}],
+    case wings_pref:get_value(show_colors) of
+	true -> draw_uv_faces(MatFaces, We, Mtab);
+	false -> draw_mat_faces(MatFaces, We, Mtab)
+    end.
 
-draw_faces_1([{Face,#face{edge=Edge}}|Fs], We) ->
-    wings_draw_util:face(Face, Edge, We),
-    draw_faces_1(Fs, We);
-draw_faces_1([], _) -> ok.
+mat_faces(Ftab) ->
+    mat_faces(Ftab, []).
+
+mat_faces([{_,#face{mat=Mat}}=Rec|Fs], Acc) ->
+    mat_faces(Fs, [{Mat,Rec}|Acc]);
+mat_faces([], Faces0) ->
+    Faces1 = sofs:relation(Faces0),
+    Faces = sofs:relation_to_family(Faces1),
+    sofs:to_external(Faces).
 
 draw_uv_faces([{Mat,Faces}|T], We, Mtab) ->
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     wings_material:apply_material(Mat, Mtab),
     wings_draw_util:begin_end(
       fun() ->
-	      draw_uv_faces_1(Faces, We)
+	      draw_attr_faces(Faces, We)
       end),
     gl:popAttrib(),
     draw_uv_faces(T, We, Mtab);
 draw_uv_faces([], _We, _Mtab) -> ok.
 
-draw_uv_faces_1([{Face,Edge}|Fs], We) ->
+draw_attr_faces([{Face,#face{edge=Edge}}|Fs], We) ->
     wings_draw_util:face(Face, Edge, We),
-    draw_uv_faces_1(Fs, We);
-draw_uv_faces_1([], _We) -> ok.
+    draw_attr_faces(Fs, We);
+draw_attr_faces([], _We) -> ok.
 
-mat_faces(#we{fs=Ftab}) ->
-    mat_faces(gb_trees:to_list(Ftab), []).
+draw_mat_faces([{Mat,Ftab}|T], We, Mtab) ->
+    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
+    wings_material:apply_material(Mat, Mtab),
+    wings_draw_util:begin_end(
+      fun() ->
+	      draw_plain_faces(Ftab, We)
+      end),
+    gl:popAttrib(),
+    draw_mat_faces(T, We, Mtab);
+draw_mat_faces([], _We, _Mtab) -> ok.
 
-mat_faces([{Face,#face{mat=Mat,edge=Edge}}|Fs], Acc) ->
-    mat_faces(Fs, [{Mat,{Face,Edge}}|Acc]);
-mat_faces([], Faces0) ->
+draw_plain_faces([{Face,#face{edge=Edge}}|Fs], We) ->
+    wings_draw_util:flat_face(Face, Edge, We),
+    draw_plain_faces(Fs, We);
+draw_plain_faces([], _We) -> ok.
+
+%%%
+%%% Smooth drawing.
+%%%
+
+smooth_faces(We, #st{mat=Mtab}) ->
+    Flist = wings_we:normals(We),
+    smooth_faces(Flist, We, Mtab).
+
+smooth_faces(Faces, #we{mode=vertex}, _Mtab) ->
+    case wings_pref:get_value(show_colors) of
+	false -> draw_smooth_plain(Faces);
+	true ->
+	    gl:enable(?GL_COLOR_MATERIAL),
+	    gl:colorMaterial(?GL_FRONT, ?GL_AMBIENT_AND_DIFFUSE),
+	    wings_draw_util:begin_end(fun() ->
+					      draw_smooth_vcolor(Faces)
+				      end),
+	    gl:disable(?GL_COLOR_MATERIAL)
+    end;
+smooth_faces(Faces0, #we{mode=material}, Mtab) ->
     Faces1 = sofs:relation(Faces0),
-    Faces = sofs:relation_to_family(Faces1),
-    sofs:to_external(Faces).
-
-smooth_faces(#we{mode=vertex}=We, _St) ->
-    Faces = wings_we:normals(We),
-    gl:enable(?GL_COLOR_MATERIAL),
-    gl:colorMaterial(?GL_FRONT, ?GL_AMBIENT_AND_DIFFUSE),
-    wings_draw_util:begin_end(fun() -> draw_smooth_vcolor(Faces) end),
-    gl:disable(?GL_COLOR_MATERIAL);
-smooth_faces(#we{mode=Mode}=We, #st{mat=Mtab}) ->
-    Faces0 = wings_we:normals(We),
+    Faces = case wings_pref:get_value(show_materials) of
+		false ->
+		    [{default,sofs:to_external(sofs:range(Faces1))}];
+		true ->
+		    sofs:to_external(sofs:relation_to_family(Faces1))
+	    end,
+    draw_smooth_1(Faces, Mtab);
+smooth_faces(Faces0, #we{mode=uv}, Mtab) ->
     Faces1 = sofs:relation(Faces0),
-    Faces2 = sofs:relation_to_family(Faces1),
-    Faces = sofs:to_external(Faces2),
-    case wings_pref:get_value(show_textures) of
-	false when Mode == uv ->
-	    draw_smooth_plain(Faces0);
-	_Other ->
-	    draw_smooth_1(Faces, Mtab)
-    end.
+    Faces = case wings_pref:get_value(show_textures) of
+		false ->
+		    [{default,sofs:to_external(sofs:range(Faces1))}];
+		true ->
+		    sofs:to_external(sofs:relation_to_family(Faces1))
+	    end,
+    draw_smooth_1(Faces, Mtab).
     
 draw_smooth_1([{Mat,Faces}|T], Mtab) ->
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
@@ -456,9 +447,9 @@ draw_smooth_plain(Faces) ->
 	      draw_smooth_plain_1(Faces)
       end).
 
-draw_smooth_plain_1([{_,Vs}|T]) ->
+draw_smooth_plain_1([{_,{{X,Y,Z},Vs}}|T]) ->
     Tess = wings_draw_util:tess(),
-    glu:tessNormal(Tess, 0, 0, 0),
+    glu:tessNormal(Tess, X, Y, Z),
     glu:tessBeginPolygon(Tess),
     glu:tessBeginContour(Tess),
     foreach(fun({P,{_,N}}) ->
