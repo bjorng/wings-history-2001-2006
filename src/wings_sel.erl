@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel.erl,v 1.35 2002/08/18 10:26:00 bjorng Exp $
+%%     $Id: wings_sel.erl,v 1.36 2002/08/30 11:53:43 bjorng Exp $
 %%
 
 -module(wings_sel).
@@ -149,6 +149,11 @@ make(Filter, Mode, #st{shapes=Shapes}=St) ->
 
 make_1([#we{perm=Perm}|Shs], Filter, Mode) when ?IS_NOT_SELECTABLE(Perm) ->
     make_1(Shs, Filter, Mode);
+make_1([#we{id=Id}=We|Shs], Filter, body) ->
+    case Filter(0, We) of
+	false -> make_1(Shs, Filter, body);
+	true -> [{Id,gb_sets:singleton(0)}|make_1(Shs, Filter, body)]
+    end;
 make_1([#we{id=Id,vs=Vtab,es=Etab,fs=Ftab}=We|Shs], Filter, Mode) ->
     Tab = case Mode of
 	      vertex -> Vtab;

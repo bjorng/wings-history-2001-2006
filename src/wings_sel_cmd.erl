@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.18 2002/07/26 17:43:54 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.19 2002/08/30 11:53:44 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -57,6 +57,7 @@ menu(X, Y, St) ->
 					  {"90%",90}]}},
 		       {"Short edges",short_edges,[option]},
 		       {"Id",id}]}},
+	    {"Lights",lights},
 	    separator,
 	    {sel_all_str(St),all},
 	    separator,
@@ -100,6 +101,9 @@ command(less, St) ->
     select_less(St);
 command(all, St) ->
     {save_state,select_all(St)};
+command(lights, #st{selmode=Mode}=St0) ->
+    St = wings_sel:make(fun(_, We) -> ?IS_LIGHT(We) end, Mode, St0),
+    {save_state,St};
 command({by,Command}, St) ->
     by_command(Command, St);
 command(similar, St) ->
