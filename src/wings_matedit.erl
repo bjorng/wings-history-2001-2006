@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_matedit.erl,v 1.6 2001/11/21 12:39:07 dgud Exp $
+%%     $Id: wings_matedit.erl,v 1.7 2001/11/21 13:57:03 bjorng Exp $
 %%
 
 -module(wings_matedit).
@@ -17,6 +17,8 @@
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
 -include("wings.hrl").
+-define(E, 2.71828).
+-define(LOG_BASE, 10000.0).
 
 %% Material record.
 -record(mat,
@@ -34,7 +36,7 @@
 
 -record(s, {ambient, diffuse, specular, shininess = 0.0, transp = 1.0,
 	    prev, %% Prev color used in cancel
-	    x,y,w,h, bgc = {0.6, 0.6, 0.5},
+	    x,y,w,h, bgc,
 	    orig_w, orig_h,
 	    mouse, key
 	   }). %% Windows stuff
@@ -62,38 +64,20 @@
 
 -define(Checker, <<16#F0,16#F0,16#F0,16#F0,16#F0,16#F0,16#F0,16#F0,
 		  16#0F,16#0F,16#0F,16#0F,16#0F,16#0F,16#0F,16#0F>>).
-go() ->
-    sdl:init(?SDL_INIT_VIDEO),
-    sdl_video:gl_setAttribute(?SDL_GL_DOUBLEBUFFER, 1),
-    sdl_video:setVideoMode(800, 400, 16, ?SDL_OPENGL),
-    sdl_events:eventState(?SDL_ALLEVENTS ,?SDL_ENABLE),
-    sdl_events:eventState(?SDL_MOUSEMOTION, ?SDL_IGNORE),
-    gl:clearColor(0.2,0.2,0.1,1.0),   %% Remove me
-    TestMat = 
-	{mat,{0.724019,2.37462e-2,0.730000},
-         {0.760000,0.319200,0.319200},
-         {1,1,1},
-         0.627778,
-         0.494444,
-         false,
-         none,
-         none,
-         [],
-         undefined},
-    Res = edit(200, 150, TestMat),
-    sdl:quit(),
-    Res.
 
-edit(X, Y, PC) when record(PC, mat) ->
+edit(PC) when record(PC, mat) ->
     Amb  = convert_material(PC#mat.ambient),
     Diff = convert_material(PC#mat.diffuse),
     Spec = convert_material(PC#mat.specular),
 
-    [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
-    S = #s{x = X, y = Y, w = 550, h = 200, orig_w=W, orig_h=H},
-%%    gl:viewport(X,Y,S#s.w, S#s.h),
-%%  gl:matrixMode(?GL_PROJECTION),
-%%%     gl:pushMatrix(),
+    [X0,Y0,W,H] = gl:getIntegerv(?GL_VIEWPORT),
+    WinW = 550,
+    WinH = 200,
+    X = X0 + W div 2 - WinW div 2,
+    Y = Y0 + H div 2 - WinH div 2,
+
+    S = #s{x = X, y = Y, w = WinW, h = WinH, orig_w=W, orig_h=H,
+	   bgc = {0.75,0.75,0.75}},
     gl:loadIdentity(),
 
     NS = S#s{ambient = Amb#c{name = "Ambient", 
@@ -118,8 +102,6 @@ edit(X, Y, PC) when record(PC, mat) ->
     gl:disable(?GL_BLEND),
     gl:shadeModel(?GL_SMOOTH),
 
-%    gl:disable (?GL_DITHER),
-%    gl:disable (?GL_FOG),
     gl:disable (?GL_LIGHTING),
     gl:disable(?GL_COLOR_MATERIAL),    
     gl:disable(?GL_LIGHT0),
@@ -128,11 +110,8 @@ edit(X, Y, PC) when record(PC, mat) ->
     gl:lightfv(?GL_LIGHT6, ?GL_POSITION, {0.5, 0.5, -2, 1}),
     gl:lightfv(?GL_LIGHT6, ?GL_AMBIENT,  {0.3, 0.3, 0.3, 1}),
     gl:lightfv(?GL_LIGHT6, ?GL_DIFFUSE,  {0.9, 0.9, 0.9, 1}),
-    gl:lightfv(?GL_LIGHT6, ?GL_SPECULAR, {0.9, 0.9, 0.9, 1}),
+    gl:lightfv(?GL_LIGHT6, ?GL_SPECULAR, {1.0, 1.0, 1.0, 1}),
 
-%    gl:disable (?GL_TEXTURE_1D),
-%    gl:disable (?GL_TEXTURE_2D),
-%    gl:disable (?GL_TEXTURE_3D),
     gl:shadeModel (?GL_SMOOTH),
     case catch color_picker_loop(NS) of
 	{'EXIT',normal} ->
@@ -152,8 +131,6 @@ restore_state(#s{orig_w=W,orig_h=H}) ->
     gl:enable(?GL_LIGHT0),
     gl:enable(?GL_LIGHT1),
     gl:disable(?GL_LIGHT6),
-%%  gl:matrixMode(?GL_PROJECTION),
-%%  gl:popMatrix().
     gl:popAttrib(),
     ok.
 
@@ -164,7 +141,6 @@ color_picker_loop(S) ->
     glu:ortho2D(0, S#s.w, 0, S#s.h),
     gl:matrixMode(?GL_MODELVIEW),
     gl:loadIdentity(),	  
-%%    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
 
     %%% Draw Window..
     gl:color3fv(S#s.bgc),  %% Get clear color from preferences
@@ -247,7 +223,7 @@ color_picker_loop(S) ->
  
     %% Transparency Indicator
     TiPosX = ?BORDER_W + S#s.transp * TandSXLen,
-    SiPosX = STextX + S#s.shininess * TandSXLen,
+    SiPosX = STextX + inv_scale_pos_log(S#s.shininess) * TandSXLen,
     draw_centered_box(TiPosX, TandSY - ?LSCALEX/2, 4, ?LSCALEX + 6, black),
     %% Shininess Indicator
     draw_centered_box(SiPosX, TandSY - ?LSCALEX/2, 4, ?LSCALEX + 6, black),
@@ -302,7 +278,7 @@ color_picker_loop(S) ->
     Obj = glu:newQuadric(),
     glu:quadricDrawStyle(Obj, ?GLU_FILL),
     glu:quadricNormals(Obj, ?GLU_SMOOTH),
-    glu:sphere(Obj, 1, 50, 50),
+    glu:sphere(Obj, 0.9, 50, 50),
     glu:deleteQuadric(Obj),
     gl:disable(?GL_LIGHTING),
     gl:disable(?GL_BLEND),
@@ -374,7 +350,7 @@ update_selected(X0, Y0, S) ->
 	    X = scale_pos(X0, Xs, Size, 1),
 	    S#s{transp = X};
 	{shininess, Xs, Size} ->
-	    X = scale_pos(X0, Xs, Size, 1),
+	    X = scale_pos_log(X0, Xs, Size, 1),
 	    S#s{shininess = X};	    
 	Else ->
 	    io:format("~p ~p: internal error ~p ~n", [?MODULE, ?LINE, Else]),
@@ -456,6 +432,19 @@ scale_pos(X0, X1, Scale, Constraint) ->
        Len > Constraint -> Constraint;
        true -> Len
     end.
+
+scale_pos_log(X0, X1, Scale, Constraint) ->
+    Len = ((X0 - X1) / Scale)*(?LOG_BASE-1)+1.0,
+    if Len < 1.0 -> 0.0;
+       Len > ?LOG_BASE -> 1.0;
+       true -> log(Len, ?LOG_BASE)
+    end.
+
+log(X, Base) ->
+    math:log(X)/math:log(Base).
+
+inv_scale_pos_log(X) ->
+    (math:pow(?LOG_BASE, X)-1.0) / (?LOG_BASE-1).
 
 scale_pos(X0,Y0,X1,Y1, Scale, Constraint) ->
     X = (X0 - X1) / Scale,
