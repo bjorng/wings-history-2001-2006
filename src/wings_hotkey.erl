@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_hotkey.erl,v 1.27 2002/08/03 18:22:53 bjorng Exp $
+%%     $Id: wings_hotkey.erl,v 1.28 2002/08/13 17:38:35 bjorng Exp $
 %%
 
 -module(wings_hotkey).
@@ -280,10 +280,15 @@ default_keybindings() ->
      {face,$\b,		{face,dissolve}},
      {body,$\b,		{body,delete}},
 
-     {vertex,{?SDLK_DELETE,[]},	{vertex,collapse}},
+     {vertex,{?SDLK_DELETE,[]},	{vertex,dissolve}},
      {edge,{?SDLK_DELETE,[]},	{edge,dissolve}},
      {face,{?SDLK_DELETE,[]},	{face,dissolve}},
      {body,{?SDLK_DELETE,[]},	{body,delete}},
+
+     {vertex,{?SDLK_KP_PERIOD,[]},{vertex,dissolve}},
+     {edge,{?SDLK_KP_PERIOD,[]},  {edge,dissolve}},
+     {face,{?SDLK_KP_PERIOD,[]},  {face,dissolve}},
+     {body,{?SDLK_KP_PERIOD,[]},  {body,delete}},
 
      {face,$s,		{face,smooth}},
      {body,$s,		{body,smooth}}
