@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.96 2003/02/19 15:21:50 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.97 2003/02/19 22:45:33 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -93,7 +93,7 @@ start_uvmap_1(#st{sel=[{Id,_}],shapes=Shs}=St0) ->
     St = St1#st{sel=[],selmode=face,shapes=gb_trees:from_orddict([{Id,We}])},
     Ss = seg_init_message(#seg{selmodes=Modes,st=St,we=We0}),
     wings_wm:callback(fun() ->
-			      wings_util:menu_restriction(geom,[view,select])
+			      wings_util:menu_restriction(geom,[view,select,window])
 		      end),
     {seq,push,get_seg_event(Ss)}.
 
@@ -203,6 +203,14 @@ seg_event_6({action,{select,Cmd}}, #seg{st=St0}=Ss) ->
 	#st{}=St -> filter_sel_command(Ss, St);
 	Other -> Other
     end;
+seg_event_6({action,{window,geom_viewer}}, #seg{st=St0}=Ss) ->
+    keep;
+seg_event_6({action,{window,Cmd}}, #seg{st=St0}=Ss) ->
+    case wings:command({window,Cmd}, St0) of
+	St0 -> keep;
+	#st{}=St -> get_seg_event(Ss#seg{st=St});
+	Other -> Other
+    end;
 seg_event_6({action,{material,Cmd}}, #seg{st=St0}=Ss) ->
     case wings_material:command(Cmd, St0) of
 	St0 -> keep;
@@ -220,7 +228,7 @@ seg_event_6(#mousemotion{}, _) -> keep;
 seg_event_6(#mousebutton{}, _) -> keep;
 seg_event_6(#keyboard{}, _) -> keep;
 seg_event_6(_Ev, _) ->
-    ?DBG("~w\n", [_Ev]),
+%%    ?DBG("~w\n", [_Ev]),
     keep.
 
 translate_key(#keyboard{keysym=KeySym}) ->
@@ -666,6 +674,7 @@ draw_texture(#uvstate{dl=undefined,option=Options,areas=As}=Uvs) ->
     gl:endList(),
     draw_texture(Uvs#uvstate{dl=Dl});
 draw_texture(Uvs = #uvstate{dl=DL, sel=Sel}) ->
+    gl:enable(?GL_DEPTH_TEST),
     gl:callList(DL),
     case Sel of 
 	[] -> ignore;
@@ -673,10 +682,10 @@ draw_texture(Uvs = #uvstate{dl=DL, sel=Sel}) ->
 	    {R,G,B} = wings_pref:get_value(selected_color),
 	    gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
 	    gl:enable(?GL_BLEND),
-	    gl:disable(?GL_DEPTH_TEST),
+	    gl:translatef(0.0,0.0,0.1),
 	    DrawArea = fun({_,A}) -> 
 			       draw_area(A, #setng{color = {R,G,B,0.7}, 
-						   edges = no_edges}, []) 
+						   edges = all_edges}, []) 
 		       end,
 	    lists:foreach(DrawArea, Sel),
 	    gl:disable(?GL_BLEND)
@@ -690,19 +699,24 @@ setup_view({Left,Right,Bottom,Top}, Uvs) ->
     gl:disable(?GL_CULL_FACE),
     gl:disable(?GL_LIGHTING),
 
-    {_,_,W,H} = wings_wm:viewport(),
+    wings_wm:viewport(),
     wings_io:ortho_setup(),
     gl:depthFunc(?GL_ALWAYS),    
 
-    gl:color3f(1, 1, 1),
-    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
-    gl:recti(0, H, W, 0),
-
     gl:matrixMode(?GL_PROJECTION),
     gl:loadIdentity(),
+
+
     glu:ortho2D(Left, Right, Bottom, Top),
     gl:matrixMode(?GL_MODELVIEW),
     gl:loadIdentity(),
+    gl:color3f(1, 1, 1),
+
+    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
+    gl:pushMatrix(),
+    gl:translatef(0.0,0.0,-0.99),
+    gl:rectf(Left, Bottom, Right, Top),
+    gl:translatef(0.0,0.0,+0.01),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
     gl:color3b(0, 0, 0),
     gl:'begin'(?GL_LINE_LOOP),
@@ -712,6 +726,7 @@ setup_view({Left,Right,Bottom,Top}, Uvs) ->
     gl:vertex2f(1-D, 1-D),
     gl:vertex2f(D, 1-D),
     gl:'end'(),    
+    gl:popMatrix(),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
     gl:color3f(1.0, 1.0, 1.0),   %%Clear
     case TexBg of
@@ -726,6 +741,7 @@ setup_view({Left,Right,Bottom,Top}, Uvs) ->
     gl:texCoord2f(1,1),    gl:vertex3f(1,1,-0.9),
     gl:texCoord2f(0,1),    gl:vertex3f(0,1,-0.9),
     gl:'end'(), 
+
     gl:depthFunc(?GL_LESS),
     gl:disable(?GL_TEXTURE_2D),
     gl:shadeModel(?GL_SMOOTH).
@@ -931,7 +947,7 @@ edge_option_menu(#uvstate{option = Option}) ->
 		   {alt,DefVar,"Don't Draw Edges",  no_edges}],
 	   [{title,"Edge Options"}]},
 	  {vframe,[{"Use Face/Vertex Color on Border Edges", Option#setng.edge_color},
-		   {label_column, [{"Border Edge width",  {text, Option#setng.edge_width}}]}],
+		   {label_column, [{"Edge width",  {text, Option#setng.edge_width}}]}],
 	   [{title, "Overdraw options"}]},
 	  {vframe,[{"Show Colors (or texture)",Option#setng.color},
 		   {"Texture Background (if available)", Option#setng.texbg}],
@@ -1625,13 +1641,13 @@ draw_area(#ch{fs=Fs,center={CX,CY},scale=Scale,rotate=R,be=Tbe, we=We},
     gl:translatef(CX, CY, 0.0),
     gl:scalef(Scale, Scale, 1.0),
     gl:rotatef(float(trunc(R)),0,0,1),
+    gl:lineWidth(Options#setng.edge_width),
     %% Draw Materials and Vertex Colors
     if
 	EdgeMode == border_edges ->
 	    %% Draw outer edges only
 	    #we{es=Etab,vp=Vtab}=We,
 	    gl:pushMatrix(),
-	    gl:lineWidth(Options#setng.edge_width),
 	    DrawEdge = 
 		case We#we.mode of
 		    material when Options#setng.edge_color == true -> 
@@ -1667,9 +1683,12 @@ draw_area(#ch{fs=Fs,center={CX,CY},scale=Scale,rotate=R,be=Tbe, we=We},
 	    gl:glEnd(),
 	    gl:popMatrix();
 	EdgeMode == all_edges ->
+	    gl:pushMatrix(),
+	    gl:translatef(0,0,0.9),
 	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
 	    gl:color3f(0.6, 0.6, 0.6),
-	    draw_faces(Fs, We#we{mode=material});
+	    draw_faces(Fs, We#we{mode=material}),
+	    gl:popMatrix();
 	EdgeMode == no_edges ->
 	    ok
     end,
