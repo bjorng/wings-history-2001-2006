@@ -3,12 +3,12 @@
 %%
 %%     The main module of Wings 3D.
 %%
-%%  Copyright (c) 2001 Bjorn Gustavsson
+%%  Copyright (c) 2001-2002 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.102 2002/02/02 12:26:01 bjorng Exp $
+%%     $Id: wings.erl,v 1.103 2002/02/03 07:26:27 bjorng Exp $
 %%
 
 -module(wings).
@@ -576,10 +576,10 @@ vertex_menu(X, Y, St) ->
 	    {advanced,{"Flatten Move",{flatten_move,flatten_dir(St)}}},
 	    separator,
 	    {"Connect",connect,
-	     "Create a new edge to connect selected vertices."},
+	     "Create a new edge to connect selected vertices"},
 	    {"Tighten",tighten},
-	    {"Bevel",bevel,"Create faces of selected vertices."},
-	    {"Collapse",collapse,"Delete selected vertices."},
+	    {"Bevel",bevel,"Create faces of selected vertices"},
+	    {"Collapse",collapse,"Delete selected vertices"},
 	    separator,
 	    wings_magnet:sub_menu(St),
 	    {"Deform",wings_deform:sub_menu(St)}|wings_vec:menu(St)],
@@ -595,20 +595,18 @@ edge_menu(X, Y, St) ->
 	    separator,
 	    {"Extrude",{extrude,Dir}},
 	    separator,
-	    {"Cut",{cut,[{"2",2},
-			 {"3",3},
-			 {"4",4},
-			 {"5",5}]}},
-	    {"Connect",connect,"Create a new edge to connect selected edges."},
-	    {"Bevel",bevel},
+	    {"Cut",{cut,cut_fun()}},
+	    {"Connect",connect,"Create a new edge to connect selected edges"},
+	    {"Bevel",bevel,"Round off selected edges"},
 	    separator,
-	    {"Dissolve",dissolve},
-	    {"Collapse",collapse},
+	    {"Dissolve",dissolve,"Eliminate selected edges"},
+	    {"Collapse",collapse,"Delete edges, replacing them with vertices"},
 	    separator,
 	    {"Hardness",{hardness,[{"Soft",soft},
 				   {"Hard",hard}]}},
 	    separator,
-	    {"Loop Cut",loop_cut}|wings_vec:menu(St)],
+	    {"Loop Cut",loop_cut,"Cut into two objects along edge loop"} |
+	    wings_vec:menu(St)],
     wings_menu:popup_menu(X, Y, edge, Menu, St).
 
 face_menu(X, Y, St) ->
@@ -626,18 +624,21 @@ face_menu(X, Y, St) ->
 	    {"Flatten",{flatten,flatten_dir(St)}},
 	    {advanced,{"Flatten Move",{flatten_move,flatten_dir(St)}}},
 	    separator,
-	    {"Inset",inset},
-	    {"Intrude",intrude},
-	    {"Bevel",bevel},
-	    {"Bridge",bridge},
-	    {"Bump",bump},
-	    {advanced,{"Lift",lift_fun(St)}},
+	    {"Inset",inset,"Inset a face inside the selected face"},
+	    {"Intrude",intrude,"Carve out interior of object, "
+	     "making selected faces holes"},
+	    {"Bevel",bevel,"Round off edges of selected faces"},
+	    {"Bridge",bridge,"Create a bridge or tunnel between two faces"},
+	    {advanced,separator},
+	    {"Bump",bump,"Create bump of selected faces"},
+	    {advanced,{"Lift",lift_fun(St),
+		       "Lifts selected face, with one one edge pinned down"}},
 	    separator,
-	    {"Mirror",mirror},
-    	    {"Dissolve",dissolve},
-	    {"Collapse", collapse},
+	    {"Mirror",mirror,"Make mirror of object around selected faces"},
+    	    {"Dissolve",dissolve,"Eliminate all edges between selected faces"},
+	    {"Collapse",collapse,"Delete faces, replacing them with vertices"},
 	    separator,
-	    {"Smooth",smooth},
+	    {"Smooth",smooth,"Subdivide selected faces to smooth them"},
 	    separator,
 	    wings_material:sub_menu(face, St)|wings_vec:menu(St)],
     wings_menu:popup_menu(X, Y, face, Menu, St).
@@ -727,7 +728,7 @@ scale_fun(Dir) ->
 	   (3, Ns) -> {vector,{pick_new,[Dir|Ns]}}
 	end,
     Help0 = dir_help(Dir, [scale]),
-    Help = {Help0,"Scale to named vector.","Pick vector to scale to."},
+    Help = {Help0,"Scale to named vector","Pick vector to scale to"},
     {DirString,F,Help,[]}.
 
 %%%
@@ -764,35 +765,35 @@ direction(Dir, Ns) ->
     {stringify(Dir),Dir,Help}.
 
 dir_help(Axis, Ns) when Axis == x; Axis == y; Axis == z ->
-    dir_help_1(Ns, "the " ++ stringify(Axis) ++ " axis.");
+    dir_help_1(Ns, "the " ++ stringify(Axis) ++ " axis");
 dir_help(radial_x, Ns) ->
-    dir_help_1(Ns, [around|"around the X axis."]);
+    dir_help_1(Ns, [around|"around the X axis"]);
 dir_help(radial_y, Ns) ->
-    dir_help_1(Ns, [around|"around the Y axis."]);
+    dir_help_1(Ns, [around|"around the Y axis"]);
 dir_help(radial_z, Ns) ->
-    dir_help_1(Ns, [around|"around the Z axis."]);
+    dir_help_1(Ns, [around|"around the Z axis"]);
 dir_help(normal, Ns) ->
-    dir_help_1(Ns, [normal|"along its normal."]);
+    dir_help_1(Ns, [normal|"along its normal"]);
 dir_help(free, Ns) ->
-    dir_help_1(Ns, [free|"freely in all directions."]);
+    dir_help_1(Ns, [free|"freely in all directions"]);
 dir_help(uniform, [scale]) ->
-    "Scale equally in all directions.".
+    "Scale equally in all directions".
 
 %% Normal/Free.
 dir_help_1([move|_], [NF|Text]) when NF == normal; NF == free ->
     "Move each element " ++ Text;
 dir_help_1([rotate|_], [free|Text]) ->
-    "Rotate freely.";
+    "Rotate freely";
 dir_help_1([rotate|_], [normal|Text]) ->
-    "Rotate around each element's normal.";
+    "Rotate around each element's normal";
 dir_help_1([extrude|_], [NF|Text]) when NF == normal; NF == free ->
     "Extrude each element, then move it " ++ Text;
 dir_help_1([extrude_region|_], [normal|_]) ->
-    "Extrude faces as region, then move faces along the region's normal.";
+    "Extrude faces as region, then move faces along the region's normal";
 dir_help_1([extrude_region|_], [free|Text]) ->
     "Extrude faces as region, then move faces " ++ Text;
 dir_help_1([flatten|_], [normal|Text]) ->
-    "Flatten elements to normal plane.";
+    "Flatten elements to normal plane";
 
 %% Axis
 dir_help_1([move|_], Text) ->
@@ -814,13 +815,29 @@ dir_help_1([flatten_move|_], Text) ->
 dir_help_1(_, _) -> "".
 
 lift_fun(St) ->
-    fun(help, Ns) -> "no help yet";
+    fun(help, Ns) -> "";
        (1, Ns) ->
 	    Funs = wings_face_cmd:lift_selection(St),
 	    {vector,{pick_special,Funs}};
        (_, _) -> ignore
     end.
 
+cut_fun() ->
+    fun(help, Ns) -> "";
+       (1, Ns) ->
+	    [cut_entry(2),
+	     cut_entry(3),
+	     cut_entry(4),
+	     cut_entry(5),
+	     separator,
+	     cut_entry(10)];
+       (_, _) -> ignore
+    end.
+
+cut_entry(N) ->
+    Str = integer_to_list(N),
+    {Str,N,"Cut into " ++ Str ++ " edges of equal length"}.
+    
 patches() ->
     case wings_start:get_patches() of
 	none -> [];
