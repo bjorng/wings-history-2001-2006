@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.80 2003/01/25 08:51:34 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.81 2003/01/27 13:57:49 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -48,8 +48,8 @@ command({body,?MODULE}, St) ->
 command({body,{?MODULE,do_edit,{We,MatName,Faces}}}, St) ->
     do_edit(MatName, Faces, We, St);
 command({body,{?MODULE,show_map,Info}}, St) ->
-    {MappedCharts,We,Vmap,OrigWe} = Info,
-    init_show_maps(MappedCharts, We, Vmap, OrigWe, St);
+    {MappedCharts,Vmap,OrigWe} = Info,
+    init_show_maps(MappedCharts, Vmap, OrigWe, St);
 command({body,{?MODULE,uvmap_done,QuitOp,Uvs}}, St0) ->
     #uvstate{areas=Current,sel=Sel,vmap=Vmap,matname=MatName0,orig_we=OrWe} = Uvs,
     Charts = add_areas(Sel, Current),
@@ -57,7 +57,7 @@ command({body,{?MODULE,uvmap_done,QuitOp,Uvs}}, St0) ->
 	case QuitOp of
 	    quit_uv_tex ->
 		Tx = ?SLOW(get_texture(Uvs)),
-		add_material(Tx, MatName0, OrWe#we.name, St0);
+		add_material(Tx, OrWe#we.name, MatName0, St0);
 	    quit_uv -> {St0,MatName0}
 	end,
     St = ?SLOW(insert_uvcoords(Charts,OrWe#we.id,MatName,Vmap,St1)),
@@ -309,33 +309,36 @@ seg_map_charts(Method, #seg{st=#st{shapes=Shs},we=OrigWe}=Ss) ->
     [{_,#we{he=Cuts0}=We0}] = gb_trees:to_list(Shs),
     Charts0 = auv_segment:segment_by_material(We0),
     {Charts1,Cuts} = auv_segment:normalize_charts(Charts0, Cuts0, We0),
-    {Charts,MWe,Vmap} = auv_segment:cut_model(Charts1, Cuts, OrigWe),
+    {Charts,Vmap} = auv_segment:cut_model(Charts1, Cuts, OrigWe),
     N = length(Charts),
-    seg_map_charts_1(Charts, Method, {MWe, OrigWe,Vmap}, 1, N, [], Ss).
+    seg_map_charts_1(Charts, Method, {OrigWe,Vmap}, 1, N, [], Ss).
 
 seg_map_charts_1(Cs, Type, Extra, I, N, Acc, Ss) when I =< N ->
     MapChart = fun() -> seg_map_chart(Cs, Type, Extra, I, N, Acc, Ss) end,
     wings_io:putback_event({callback,MapChart}),
     Msg = io_lib:format("Mapping chart ~w of ~w", [I,N]),
     get_seg_event(Ss#seg{msg=Msg});
-seg_map_charts_1(_, _, {We,OrigWe,Vmap}, _, _, MappedCharts, _) ->
-    Info = {MappedCharts,We,Vmap,OrigWe},
+seg_map_charts_1(_, _, {OrigWe,Vmap}, _, _, MappedCharts, _) ->
+    Info = {MappedCharts,Vmap,OrigWe},
     wings_io:putback_event({action,{body,{?MODULE,show_map,Info}}}),
     pop.
 
-seg_map_chart([{Fs,We}|Cs], Type, Extra, I, N, Acc0, Ss) ->
+seg_map_chart([{Fs,We0}|Cs], Type, Extra, I, N, Acc0, Ss) ->
 %%    io:format("map_chart ~p ~p ~p~n", [I, Fs, MergedWe]),
-    case auv_mapping:map_chart(Type, Fs, We) of
+    case auv_mapping:map_chart(Type, Fs, We0) of
 	{error,Message} ->
 	    seg_error(Message, Ss);
 	Vs ->
-%	    #we{fs=Fp,vp=Vp} = We,
-%	    VsK = [Key || {Key,_} <- Vs],
+	    #we{fs=Fp,vp=Vp} = We0,
+	    VsK = [Key || {Key,_} <- Vs],
+	    [] = gb_trees:keys(Vp) -- VsK, %% Assert
 %	    io:format("~w ~w ~p~n", 
 %		      [gb_trees:keys(Fp) -- Fs,
 %		       gb_trees:keys(Vp) -- VsK,
 %		       {length(Fs),length(VsK)}]),
-	    Acc = [#ch{fs=Fs,vpos=Vs,we=We}|Acc0],
+	    BackFace = gb_trees:keys(Fp) -- Fs,
+	    We  = We0#we{vp = gb_trees:from_orddict(sort(Vs))},
+	    Acc = [#ch{we=We, bf=BackFace}|Acc0],
 	    seg_map_charts_1(Cs, Type, Extra, I+1, N, Acc, Ss)
     end.
 
@@ -423,7 +426,9 @@ do_edit(MatName0, Faces, We, St) ->
     {Edges,Areas,Vmap,MatName} = init_edit(MatName0, Faces, We),
     {{X,Y,W,H},Geom} = init_drawarea(),
     TexSz = get_texture_size(MatName, St),
-    Uvs = #uvstate{st=wings_select_faces([], St),
+    Id = We#we.id,
+    Uvs = #uvstate{st=wings_select_faces([], Id, St),
+		   id=Id,
 		   origst=St,
 		   areas=Areas,
 		   geom=Geom, 
@@ -472,31 +477,33 @@ assign_materials([], #we{id=Id}=We, _, _, #st{shapes=Shs0}=St) ->
 
 %%%%%%
 
- replace_uvs(Map) when is_list(Map) ->
-    lists:map(fun(Chart) -> replace_uv(Chart) end, Map);
-replace_uvs(Map) ->
-    replace_uvs(gb_trees:to_list(Map)).
+% replace_uvs(Map) when is_list(Map) ->
+%     lists:map(fun(Chart) -> replace_uv(Chart) end, Map);
+% replace_uvs(Map) ->
+%     replace_uvs(gb_trees:to_list(Map)).
 
-replace_uv({Id,Ch = #ch{vpos=Vpos, we=We}}) ->
-    Vtab = foldl(fun({V,Pos}, Vt) ->
-			 gb_trees:update(V, Pos, Vt)
-		 end, We#we.vp, Vpos),    
-    {Id,Ch#ch{we=We#we{vp=Vtab}}}.
+% replace_uv({Id,Ch = #ch{vpos=Vpos, we=We}}) ->
+%     Vtab = foldl(fun({V,Pos}, Vt) ->
+% 			 gb_trees:update(V, Pos, Vt)
+% 		 end, We#we.vp, Vpos),    
+%     {Id,Ch#ch{we=We#we{vp=Vtab}}}.
 
-find_boundary_edges([{Id,#ch{fs=Fs,we=We}=C}|Cs], Acc) ->
+find_boundary_edges([{Id,#ch{bf=Bf,we=We}=C}|Cs], Acc) ->
+    Fs = gb_trees:keys(We#we.fs) -- Bf,
     Be = auv_util:outer_edges(Fs, We),
     find_boundary_edges(Cs, [{Id,C#ch{be=Be}}|Acc]);
 find_boundary_edges([], Acc) -> sort(Acc).
 
-init_show_maps(Map0, _We0, Vmap, OrigWe, St0) ->
+init_show_maps(Map0, Vmap, OrigWe, St0) ->
     Map1 = auv_placement:place_areas(Map0),
-    Map2 = replace_uvs(Map1),
-    Map3 = find_boundary_edges(Map2, []),
-    Map = gb_trees:from_orddict(Map3),
+    Map3 = find_boundary_edges(Map1, []),
+    Map  = gb_trees:from_orddict(Map3),
     Edges = gb_trees:keys(OrigWe#we.es),
     {{X,Y,W,H},Geom} = init_drawarea(),
-    Uvs = #uvstate{st=wings_select_faces([], St0),
+    Id=OrigWe#we.id,
+    Uvs = #uvstate{st=wings_select_faces([], Id, St0),
 		   origst=St0,
+		   id=Id,
 		   areas=Map,
 		   geom=Geom,
 		   orig_we=OrigWe,
@@ -522,17 +529,21 @@ insert_uvcoords_1(We0, Cs0,MatName,Vmap) ->
     We#we{mode=uv}.
 
 insert_material(Cs, MatName, #we{fs=Ftab0}=We) ->
-    Faces = lists:append([Fs || #ch{fs=Fs} <- Cs]),
+    Faces = lists:append([gb_trees:keys(ChFt) -- Bf || 
+			     #ch{we=#we{fs=ChFt},bf=Bf} <- Cs]),
     Ftab = foldl(fun(Face, A) ->
 			 case gb_trees:get(Face, A) of
-			     #face{mat=MatName} -> A;
-			     Rec -> gb_trees:update(Face, Rec#face{mat=MatName}, A)
+			     #face{mat=MatName} -> 
+				 A;
+			     Rec -> 
+				 gb_trees:update(Face,Rec#face{mat=MatName},A)
 			 end
 		 end, Ftab0, Faces),
     We#we{fs=Ftab}.
 
-gen_uv_pos([#ch{fs=Fs,center={CX,CY},scale=Sc,we=We}|T], Acc) ->
+gen_uv_pos([#ch{bf=Bf,center={CX,CY},scale=Sc,we=We}|T], Acc) ->
     Vpos0 = auv_util:moveAndScale(gb_trees:to_list(We#we.vp), CX, CY, Sc, []),
+    Fs = gb_trees:keys(We#we.fs) -- Bf,
     VFace0 = wings_face:fold_faces(
 	       fun(Face, V, _, _, A) ->
 		       [{V,Face}|A]
@@ -565,15 +576,14 @@ insert_coords([], _, We) -> We.
 init_edit(MatName, Faces, We0) ->
     FvUvMap = auv_segment:fv_to_uv_map(Faces, We0),
     {Charts1,Cuts} = auv_segment:uv_to_charts(Faces, FvUvMap, We0),
-    {Charts,We1,Vmap} = auv_segment:cut_model(Charts1, Cuts, We0),
-    Map1 = auv_util:number(build_map(Charts, Vmap, FvUvMap, We1, []), 1),
-    Map2 = replace_uvs(Map1),
-    Map3 = find_boundary_edges(Map2, []),
+    {Charts,Vmap} = auv_segment:cut_model(Charts1, Cuts, We0),
+    Map1 = build_map(Charts, Vmap, FvUvMap, 1, []),
+    Map3 = find_boundary_edges(Map1, []),
     Map  = gb_trees:from_orddict(Map3),
     Edges= gb_trees:keys(We0#we.es),
     {Edges,Map,Vmap,MatName}.
 
-build_map([{Fs,We}|T], Vmap, FvUvMap, MergedWe, Acc) ->
+build_map([{Fs,We0}|T], Vmap, FvUvMap, No, Acc) ->
     %% XXX Because auv_segment:cut_model/3 distorts the UV coordinates
     %% (bug in wings_vertex_cmd), we must fetch the UV coordinates
     %% from the original object.
@@ -582,7 +592,7 @@ build_map([{Fs,We}|T], Vmap, FvUvMap, MergedWe, Acc) ->
 		     OrigV = auv_segment:map_vertex(V, Vmap),
 		     UV = gb_trees:get({F,OrigV}, FvUvMap),
 		     [{V,UV}|A]
-	     end, [], Fs, MergedWe),
+	     end, [], Fs, We0),
     UVs1 = lists:usort(UVs0),
     %% Assertion.
     true = sofs:is_a_function(sofs:relation(UVs1, [{atom,atom}])),
@@ -590,8 +600,10 @@ build_map([{Fs,We}|T], Vmap, FvUvMap, MergedWe, Acc) ->
     CX = BX0 + (BX1-BX0) / 2,
     CY = BY0 + (BY1-BY0) / 2,
     UVs = [{V,{X-CX,Y-CY,0.0}} || {V,{X,Y}} <- UVs1],
-    Chart = #ch{fs=Fs,vpos=UVs,we=We,center={CX,CY},size={BX1-BX0,BY1-BY0}},
-    build_map(T, Vmap, FvUvMap, MergedWe, [Chart|Acc]);
+    BackFace = gb_trees:keys(We0#we.fs) -- Fs,
+    We = We0#we{id=No,vp=gb_trees:from_orddict(UVs)},
+    Chart = #ch{we=We,bf=BackFace,center={CX,CY},size={BX1-BX0,BY1-BY0}},
+    build_map(T, Vmap, FvUvMap, No+1, [{No,Chart}|Acc]);
 build_map([], _, _, _, Acc) -> Acc.
 
 %%%%% Material handling
@@ -975,6 +987,7 @@ handle_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,
 	     #uvstate{geom=ViewP,
 		      mode=Mode,
 		      op=Op,
+		      id=Id,
 		      sel=Sel0,
 		      areas=Curr0} = Uvs0)
   when Op == undefined; 
@@ -996,7 +1009,7 @@ handle_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,
 		    false ->
 			update_selection([hd(Hits)], Sel0, Curr0)
 		end,
-	    WingsSt = wings_select_faces(Sel1, Uvs0#uvstate.st),
+	    WingsSt = wings_select_faces(Sel1, Id, Uvs0#uvstate.st),
 	    wings_wm:send(geom, {new_state,WingsSt}),
 	    get_event(reset_dl(Uvs0#uvstate{sel = Sel1,
 					    st=WingsSt,
@@ -1007,6 +1020,7 @@ handle_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,x=MX,y=MY}
 	     #uvstate{geom=ViewP,
 		      mode = Mode,
 		      op = Op,
+		      id = Id,
 		      sel = Sel0,
 		      areas=Curr0}=Uvs0) ->
     {_,_,_,OH} = wings_wm:viewport(),
@@ -1025,7 +1039,7 @@ handle_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,x=MX,y=MY}
 		    get_event(Uvs0#uvstate{op = undefined});
 		Hits -> 
 		    {Sel1,Curr1} = update_selection(Hits, Sel0, Curr0),
-		    WingsSt = wings_select_faces(Sel1, Uvs0#uvstate.st),
+		    WingsSt = wings_select_faces(Sel1, Id, Uvs0#uvstate.st),
 		    wings_wm:send(geom, {new_state,WingsSt}),
 		    Uvs = Uvs0#uvstate{op=undefined,
 				       sel=Sel1,
@@ -1062,10 +1076,10 @@ handle_event(#mousebutton{state=?SDL_PRESSED,button=?SDL_BUTTON_LEFT,x=MX,y=MY},
 	    end
     end;
 handle_event(#keyboard{state=?SDL_PRESSED,keysym=Sym}, 
-	     #uvstate{st=St}=Uvs0) ->
+	     #uvstate{st=St,id=Id}=Uvs0) ->
     case Sym of
 	#keysym{sym=?SDLK_SPACE} ->
-	    wings_wm:send(geom, {new_state,wings_select_faces([], St)}),
+	    wings_wm:send(geom, {new_state,wings_select_faces([],Id,St)}),
 	    keep;
 	#keysym{sym = ?SDLK_F5} ->
 	    import_file(default, Uvs0); 
@@ -1288,8 +1302,8 @@ update_selection_1(face, Faces, #uvstate{sel=Sel,areas=As0}=Uvs) ->
 update_selection_1(_, _, Uvs) ->
     get_event_nodraw(Uvs).
 
-update_selection_2([{K,#ch{fs=Fs}=C}|Cs], Faces, Uvs, NonSel, Sel) ->
-    case ordsets:intersection(Fs, Faces) of
+update_selection_2([{K,#ch{we=#we{fs=FTab}}=C}|Cs],Faces,Uvs,NonSel,Sel) ->
+    case ordsets:intersection(gb_trees:keys(FTab), Faces) of
 	[] -> update_selection_2(Cs, Faces, Uvs, [{K,C}|NonSel], Sel);
 	_ -> update_selection_2(Cs, Faces, Uvs, NonSel, [{[K],C}|Sel])
     end;
@@ -1367,14 +1381,14 @@ select(Mode, X,Y, W, H, Objects0, {XYS,XM,XYS,YM}) ->
 
 select_draw([{Co,A}|R], Mode) ->
 %%    ?DBG("Co ~p\n",[Co]),
-    #ch{fs=Fs,center={CX,CY},scale=Scale,rotate=Rot,we=We} = A,
+    #ch{bf=Bf,center={CX,CY},scale=Scale,rotate=Rot,we=We} = A,
     gl:pushMatrix(),
     gl:pushName(0),
     gl:loadName(Co),
     gl:translatef(CX,CY,0.0),
     gl:scalef(Scale, Scale, 1.0),
     gl:rotatef(Rot,0,0,1),
-    select_draw1(Mode, Fs, We#we{mode=material}),
+    select_draw1(Mode, gb_trees:keys(We#we.fs)--Bf, We#we{mode=material}),
     gl:popName(),
     gl:popMatrix(),
     select_draw(R, Mode);
@@ -1442,12 +1456,14 @@ find_selectable(X,Y, [_H|R], Acc) ->
 find_selectable(_X,_Y, [], Acc) ->
     reverse(Acc).
 
-wings_select_faces([], St) ->
+wings_select_faces([],_,St) ->
     wpa:sel_set(face, [], St);
-wings_select_faces(As = [{_Id,#ch{we=We}}|_], St) ->
-    Id = We#we.id,
-    Faces = [A#ch.fs || {_,A} <- As],
-    wpa:sel_set(face, [{Id,gb_sets:from_list(lists:append(Faces))}], St).
+wings_select_faces(As, Id, St) ->
+    Faces = foldl(fun({_, #ch{bf=Bf,we=#we{fs=FTab}}}, Set) ->
+			  S0 = gb_sets:from_ordset(gb_trees:keys(FTab)--Bf),
+			  gb_sets:union(S0, Set)
+		  end, gb_sets:empty(), As),
+    wpa:sel_set(face, [{Id,Faces}], St).
 
 %%%% GUI Operations
 
@@ -1557,8 +1573,9 @@ broken_event(Ev, _) ->
 %%%
 %%% Draw routines.
 %%%
-draw_area(#ch{fs=Fs,center={CX,CY},scale=Scale,rotate=R,be=Tbe, we=We}, 
+draw_area(#ch{bf=BF,center={CX,CY},scale=Scale,rotate=R,be=Tbe, we=We}, 
 	  Options = #setng{color = ColorMode, edges = EdgeMode}, Materials) -> 
+    Fs = gb_trees:keys(We#we.fs) -- BF,
     gl:pushMatrix(),
     gl:translatef(CX, CY, 0.0),
     gl:scalef(Scale, Scale, 1.0),

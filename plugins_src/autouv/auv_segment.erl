@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.42 2003/01/24 15:48:05 dgud Exp $
+%%     $Id: auv_segment.erl,v 1.43 2003/01/27 13:57:49 dgud Exp $
 
 -module(auv_segment).
 
@@ -676,17 +676,15 @@ map_vertex(V0, Vmap) ->
 %%% Cutting along hard edges.
 %%%
 
-cut_model(Charts, Cuts, #we{mode=Mode}=We0) ->
+cut_model(Charts, Cuts, We0) ->
     Map0 = gb_trees:empty(),
     Empty = sofs:empty_set(),
     InUse0 = {Empty,Empty},
     {Chs,{Map,_,_}} = mapfoldl(fun(Keep, {M,W,InUse}) ->
 				       cut_one_chart(Keep, Cuts, W, M, InUse)
 			       end, {Map0,We0,InUse0}, Charts),
-    MWe = ?TC(wings_we:force_merge([WeX || {_,WeX} <- Chs])),
     ?DBG("Map size: ~p\n", [gb_trees:size(Map)]),
-    ?VALIDATE_MODEL(MWe),
-    {Chs,MWe#we{mode=Mode},Map}.
+    {Chs,Map}.
 
 cut_one_chart(Keep0, Cuts, We0, Map0, InUse0) ->
     Keep = gb_sets:from_list(Keep0),

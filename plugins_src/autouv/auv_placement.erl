@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_placement.erl,v 1.14 2003/01/24 15:48:05 dgud Exp $
+%%     $Id: auv_placement.erl,v 1.15 2003/01/27 13:57:49 dgud Exp $
 
 -module(auv_placement).
 
@@ -22,16 +22,18 @@
 
 %% Returns a gb_tree with areas...
 place_areas(Areas0) ->
-    Rotate = fun(A, {C, BBs}) ->
-		     VL = rotate_area(A#ch.fs,A#ch.vpos,A#ch.we),
+    Rotate = fun(A = #ch{we=We, bf=Bf}, {C, BBs}) ->
+		     VL = rotate_area(Bf,We),
 		     {{_,Xmin},{_,Xmax},{_,Ymin},{_,Ymax}} = 
 			 auv_util:maxmin(VL),
 		     Dx = Xmax - Xmin,
 		     Dy = Ymax - Ymin,
 		     CX = Xmin + Dx / 2,
 		     CY = Ymin + Dy / 2,
-		     Vs3 = auv_util:moveAndScale(VL, -CX, -CY, 1, []),
-		     NewA = A#ch{vpos=Vs3, size={Dx,Dy}},
+		     Vs = auv_util:moveAndScale(VL, -CX, -CY, 1, []),
+		     NewA = A#ch{we=We#we{id = C,
+					  vp = gb_trees:from_orddict(Vs)},
+				 size={Dx,Dy}},
 		     {NewA, {C+1, [{Dx,Dy,C}|BBs]}}
 	     end,
     {Areas1, {_,Sizes0}} = lists:mapfoldl(Rotate, {1,[]}, Areas0),
@@ -120,29 +122,26 @@ move_and_scale_areas([Area|RA], [{C,{Cx,Cy}}|RP], S, Acc) ->
 move_and_scale_areas([],[],_,Acc) ->
     Acc.
 
-rotate_area(Fs, Vs0, We) ->
-    NewVs = lists:foldl(fun({No, Pos}, Tree) ->
-				gb_trees:update(No, Pos, Tree)
-			end, We#we.vp, Vs0),
-    [{_,Eds3}|_] = group_edge_loops(Fs,We#we{vp=NewVs}),
-    Eds4 = make_convex(reverse(Eds3), [], NewVs),
+rotate_area(BackFace,We = #we{vp=VTab,fs=FTab}) ->
+    Fs = gb_trees:keys(FTab) -- BackFace,
+    Vs = gb_trees:to_list(VTab),
+    [{_,Eds3}|_] = group_edge_loops(Fs,We),
+    Eds4 = make_convex(reverse(Eds3), [], VTab),
 
-%    Vs1  = [{V1,(gb_trees:get(V1, NewVs))#vtx.pos}||{V1,_,_,_}<-Eds4],
-%    Angle = angle_to_min_area(Vs1,NewVs),
     [{LV1,LV2,_,_Dist}|_] = lists:reverse(lists:keysort(4, Eds4)),
-    LV1P = gb_trees:get(LV1, NewVs),
-    LV2P = gb_trees:get(LV2, NewVs),
+    LV1P = gb_trees:get(LV1, VTab),
+    LV2P = gb_trees:get(LV2, VTab),
     Angle = math:atan2(element(2,LV2P)-element(2,LV1P),
 		       element(1,LV2P)-element(1,LV1P)),
 %    ?DBG("Angle ~p ~p P1 ~p P2 ~p~n", 
 %	[Angle, _Dist, {LV1, LV1P}, {LV2,LV2P}]),
     if true ->
 	    Rot = e3d_mat:rotate(-(Angle*180/math:pi()), {0.0,0.0,1.0}),
-	    Res = [{Id,e3d_mat:mul_point(Rot, Vtx)} || {Id,Vtx} <- Vs0],
+	    Res = [{Id,e3d_mat:mul_point(Rot, Vtx)} || {Id,Vtx} <- Vs],
 %	    ?DBG("Rot angle ~p ~p~n", [Angle*180/math:pi(), Res]),
 	    Res;
        true ->
-	    Vs0
+	    Vs
     end.
 
 -define(X(Vtx), element(1,element(2,Vtx))).
@@ -267,7 +266,7 @@ make_convex([This],Acc, Vs) ->
     end.
 
 calc_dir({V11,V12,_E1,_},{V12,V22,_E2,_}, Vs) ->    
-    C = gb_trees:get(V12, Vs),
+    C  = gb_trees:get(V12, Vs),
     V1 = gb_trees:get(V11, Vs),
     V2 = gb_trees:get(V22, Vs),
     {X1,Y1,_} = e3d_vec:sub(V1, C),

@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_util.erl,v 1.2 2002/11/12 15:27:45 dgud Exp $
+%%     $Id: auv_util.erl,v 1.3 2003/01/27 13:57:49 dgud Exp $
 
 -module(auv_util).
 
@@ -28,7 +28,7 @@ moveAndScale([{Id, {X0, Y0,_}}|R], XD, YD, Scale, Acc) ->
     moveAndScale(R, XD,YD, Scale, 
 		 [{Id, {X0*Scale+XD,Y0*Scale+YD,0.0}}|Acc]);
 moveAndScale([],_,_,_,Acc) ->
-    Acc.
+    reverse(Acc).
 
 maxmin([{Id, {X,Y,_}}|Rest]) ->
     maxmin(Rest, {Id, X},{Id, X},{Id, Y},{Id, Y});

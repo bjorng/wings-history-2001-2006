@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv.hrl,v 1.12 2003/01/24 15:48:04 dgud Exp $
+%%     $Id: auv.hrl,v 1.13 2003/01/27 13:57:49 dgud Exp $
 
 %% Chart record (one for each chart).
 -record(ch,
@@ -17,20 +17,10 @@
 	 scale = 1.0,
 	 rotate = 0.0,
 	 size,
-	 fs,					%Faces in chart.
-	 vpos,					%UV coordinates.
-	 be,					%Boundary edges.
-	 we         % A try, on making a we per chart
+	 be,				%Boundary edges.
+	 bf = [],                       % Backface created from cut.
+	 we                             % We per chart
 	}).
-
-% -record(areas,
-% 	{as,
-% 	 matname,
-% 	 we,					%Working We.
-% 	 orig_we,				%Original We.
-% 	 edges,					%Edge numbers.
-% 	 vmap	       %Map for going back to original vertex numbers.
-% 	}).
 
 -record(setng, {texsz = {512, 512},   %% Texture size
 		texbg = false,        %% Texture background
@@ -47,13 +37,12 @@
 	  geom,             %% Window geom
 	  last_file = "",   %% Export/Imported texture filename
 	  dl,               %% Display list for non selected areas
-	  %% Data
+%% Data
 	  sel = [],         %% Selected areas
 	  areas,            %% The charts 
 %%
-	  name,
+	  id,               %% We Id of orig_we.
 	  matname,
-%%	  we,		    % Working We.
 	  orig_we,	    % Original We.
 	  edges,	    % Edge numbers.
 	  vmap,	            % Map for going back to original vertex numbers.
