@@ -8,13 +8,19 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp8_file.erl,v 1.5 2001/11/14 11:23:02 bjorng Exp $
+%%     $Id: wp8_file.erl,v 1.6 2001/12/11 07:46:51 bjorng Exp $
 %%
 
 -module(wp8_file).
--author('patrik@ELLA').
 
 -export([menus/0, init/1]).
+
+%% Operations supported by driver.
+-define(OP_QUESTION, 0).
+-define(OP_READ, 1).
+-define(OP_WRITE, 2).
+-define(OP_MESSAGE, 3).
+-define(OP_SERIOUS_QUESTION, 4).
 
 menus() ->
     [].
@@ -43,30 +49,34 @@ init(Next) ->
 fileop({file,overwrite,Prop},_Next) ->
     yes; %Fixed in dialog instead
 
-fileop({file,ask_save_changes,Prop},_Next) ->
-    question("Save changes?","Do you want to save your current "
-		             "changes?");
+fileop({question,Question}, _Next) ->
+    list_to_atom(erlang:port_control(wp8_file_port, ?OP_QUESTION,
+				     ["Wings 3D",0,Question,0]));
 
-fileop({quit,ask_save_changes,Prop},_Next) ->
-    question("Save changes?","Do you want to save your current "
-		             "changes before quitting?");
+fileop({serious_question,Question}, _Next) ->
+    list_to_atom(erlang:port_control(wp8_file_port, ?OP_SERIOUS_QUESTION,
+				     ["Wings 3D",0,Question,0]));
+
+fileop({message,Message}, _Next) ->
+    Title = "Wings 3D",
+    erlang:port_control(wp8_file_port, ?OP_MESSAGE, [Title,0,Message,0]);
 
 fileop({file,open,Prop}, _Next) ->
-    file_dialog(1,Prop,"Open Wings 3D file");
+    file_dialog(?OP_READ, Prop, "Open Wings 3D file");
 
 fileop({file,save,Prop}, _Next) ->
-    file_dialog(2,Prop,"Save Wings 3D file");
+    file_dialog(?OP_WRITE, Prop, "Save Wings 3D file");
 
 fileop({file,import,Prop}, _Next) ->
-    file_dialog(1,Prop,"Import file into Wings 3D");
+    file_dialog(?OP_READ, Prop, "Import file into Wings 3D");
 
 fileop({file,export,Prop}, _Next) ->
-    file_dialog(2,Prop,"Export file from Wings 3D");
+    file_dialog(?OP_WRITE, Prop, "Export file from Wings 3D");
 
 fileop({file,merge,Prop}, _Next) ->
-    file_dialog(1,Prop,"Merge Wings 3D file");
+    file_dialog(?OP_READ, Prop, "Merge Wings 3D file");
 
-fileop(What,Next) ->
+fileop(What, Next) ->
 %     io:format("Default called for ~p~n",[What]),
 %     Ret=Next(What),
 %     io:format("Default returned ~p~n",[Ret]),
@@ -92,8 +102,3 @@ file_dialog(Type, Prop, Title) ->
 	    put(wp8_file_defdir,filename:dirname(Else)),
 	    filename:absname(Else) % Happens to turn windows slashes...
     end.
-
-question(Title,Prompt) ->
-    list_to_atom(erlang:port_control(wp8_file_port,0,
-				     [Title,0,Prompt,0])).	
-

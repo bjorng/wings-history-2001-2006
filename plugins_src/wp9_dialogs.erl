@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp9_dialogs.erl,v 1.4 2001/11/12 07:22:59 bjorng Exp $
+%%     $Id: wp9_dialogs.erl,v 1.5 2001/12/11 07:46:51 bjorng Exp $
 %%
 
 -module(wp9_dialogs).
@@ -23,8 +23,6 @@ init(Next) ->
 ui({file,merge,Prop}, Next) ->
     Ext = property_lists:get_value(ext, Prop, ".wings"),
     wings_getline:filename("Merge file: ", Ext);
-ui({file,ask_save_changes,Prop}, Next) ->
-    wings_getline:yes_no("Do you want to save changes to your model?");
 ui({file,open,Prop}, Next) ->
     Ext = property_lists:get_value(ext, Prop, ".wings"),
     wings_getline:filename("Open file: ", Ext);
@@ -40,11 +38,15 @@ ui({file,export,Prop}, Next) ->
 ui({file,overwrite,Prop}, Next) ->
     File = property_lists:get_value(existing_file, Prop),
     wings_getline:yes_no("File \"" ++ File ++ "\" exists; overwrite?");
-ui({quit,ask_save_changes,Prop}, Next) ->
-    wings_getline:yes_no("Do you want to save before quitting?");
 ui({failure,Message,Prop}, Next) ->
     wings_io:message(Message),
     aborted;
+ui({message,Message}, Next) ->
+    wings_io:message(Message);
+ui({question,Question}, Next) ->
+    wings_getline:yes_no(Question);
+ui({serious_question,Question}, Next) ->
+    wings_getline:yes_no(Question);
 ui({ask,Qs}, Next) ->
     ask(Qs);
 ui(What, Next) -> Next(What).

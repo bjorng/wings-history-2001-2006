@@ -8,12 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.17 2001/12/10 18:39:58 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.18 2001/12/11 07:46:51 bjorng Exp $
 %%
 
 -module(wings_util).
--export([share/1,share/3,make_vector/1,ask/3,upper/1,
-	 fold_shape/3,fold_face/3,fold_vertex/3,fold_edge/3,
+-export([share/1,share/3,make_vector/1,
+	 message/1,yes_no/1,serious_yes_no/1,ask/3,
+	 upper/1,fold_shape/3,fold_face/3,fold_vertex/3,fold_edge/3,
 	 average_normals/1,
 	 tc/1,crasch_log/1,validate/1]).
 -export([check_error/2,dump_we/2]).
@@ -41,6 +42,15 @@ make_vector(free) -> free;
 make_vector(normal) -> normal;
 make_vector(intrude) -> normal.
 
+message(Message) ->
+    wings_plugin:call_ui({message,Message}).
+
+yes_no(Question) ->
+    wings_plugin:call_ui({question,Question}).
+
+serious_yes_no(Question) ->
+    wings_plugin:call_ui({serious_question,Question}).
+    
 ask(false, Qs, Fun) ->
     Ns = [Def || {_,Def,_,_} <- Qs],
     Fun(Ns);

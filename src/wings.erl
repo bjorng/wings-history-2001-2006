@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.65 2001/12/10 18:39:58 bjorng Exp $
+%%     $Id: wings.erl,v 1.66 2001/12/11 07:46:51 bjorng Exp $
 %%
 
 -module(wings).
@@ -222,7 +222,11 @@ execute_or_ignore(Cmd, St) -> return_to_top({Cmd,St}).
     
 do_command(Cmd, St0) ->
     St1 = remember_command(Cmd, St0),
-    case do_command_1(Cmd, St1) of
+    case catch do_command_1(Cmd, St1) of
+	{'EXIT',Reason} -> exit(Reason);
+	{command_error,Error} ->
+	    wings_util:message(Error),
+	    main_loop(St0);
 	#st{drag=none}=St -> main_loop(St);
 	#st{}=StDrag ->
 	    St = model_changed(St1#st{drag=none}),
@@ -450,13 +454,8 @@ command({face,dissolve}, St) ->
     {save_state,model_changed(wings_face_cmd:dissolve(St))};
 command({face,{material,Mat}}=Cmd, St) ->
     {save_state,model_changed(wings_material:command(Cmd, St))};
-command({face,bridge}, St0) ->
-    case wings_face_cmd:bridge(St0) of
-	{error,Message} ->
-	    wings_io:message(Message),
-	    St0;
-	St -> {save_state,model_changed(St)}
-    end;
+command({face,bridge}, St) ->
+    {save_state,model_changed(wings_face_cmd:bridge(St))};
 command({face,smooth}, St) ->
     {save_state,model_changed(wings_face_cmd:smooth(St))};
     
@@ -487,8 +486,8 @@ command({vertex,bevel}, St) ->
     wings_vertex_cmd:bevel(St);
 command({vertex,{extrude,Type}}, St) ->
     wings_vertex_cmd:extrude(Type, St);
-command({vertex,{deform,Deform}}, St) ->
-    wings_deform:command(Deform, St);
+command({vertex,{deform,Deform}}, St0) ->
+    wings_deform:command(Deform, St0);
 
 %% Magnetic commands.
 command({_,{magnet,{Type,Dir}}}, St) ->

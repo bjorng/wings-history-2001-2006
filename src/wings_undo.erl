@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_undo.erl,v 1.4 2001/12/10 07:29:01 bjorng Exp $
+%%     $Id: wings_undo.erl,v 1.5 2001/12/11 07:46:51 bjorng Exp $
 %%
 
 -module(wings_undo).
@@ -50,7 +50,7 @@ redo(#st{undone=[StOld|Undone]}=St0) ->
 redo(St) -> St.
 
 purge(St) ->
-    case wings_getline:yes_no("Are you sure (NOT undoable)? ") of
+    case wings_util:serious_yes_no("Are you sure (NOT undoable)?") of
 	yes -> init(St);
 	Other -> St
     end.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.16 2001/11/25 15:48:11 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.17 2001/12/11 07:46:51 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -594,13 +594,9 @@ bridge(#st{shapes=Shapes0,sel=[{Id,Faces}]}=St) ->
     case gb_sets:to_list(Faces) of
 	[FA,FB] ->
 	    #shape{sh=#we{}=We0}=Sh = gb_trees:get(Id, Shapes0),
-	    case bridge(FA, FB, We0) of
-		{error,_}=Error ->
-		    Error;
-		We ->
-		    Shapes = gb_trees:update(Id, Sh#shape{sh=We}, Shapes0),
-		    St#st{shapes=Shapes,sel=[]}
-	    end;
+	    We = bridge(FA, FB, We0),
+	    Shapes = gb_trees:update(Id, Sh#shape{sh=We}, Shapes0),
+	    St#st{shapes=Shapes,sel=[]};
 	Other ->
 	    bridge_error()
     end;
@@ -612,17 +608,17 @@ bridge(FaceA, FaceB, #we{vs=Vtab}=We) ->
     VsB = wings_face:surrounding_vertices(FaceB, We),
     if
 	length(VsA) =/= length(VsB) ->
-	    {error,"Faces must have the same number of vertices."};
+	    bridge_error("Faces must have the same number of vertices.");
 	true ->
 	    An = wings_face:face_normal(VsA, Vtab),
 	    Bn = wings_face:face_normal(VsB, Vtab),
 	    case e3d_vec:dot(An, Bn) of
 		Dot when Dot > 0.99 ->
-		    {error,"Faces must not point in the same direction."};
+		    bridge_error("Faces must not point in the same direction.");
 		Dot ->
 		    case are_neighbors(FaceA, FaceB, We) of
 			true ->
-			    {error,"Faces must not be neighbors."};
+			    bridge_error("Faces must not be neighbors.");
 			false ->
 			    bridge(FaceA, VsA, FaceB, VsB, We)
 		    end
@@ -724,7 +720,10 @@ get_edge(Edge, Etab) ->
     end.
 
 bridge_error() ->
-    {error,"Exactly two faces must be selected."}.
+    bridge_error("Exactly two faces must be selected.").
+
+bridge_error(Error) ->
+    throw({command_error,Error}).
 
 %% Test if two faces are neighbors.
 are_neighbors(FaceA, FaceB, We) ->

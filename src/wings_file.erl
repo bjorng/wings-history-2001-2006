@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.33 2001/11/25 13:47:14 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.34 2001/12/11 07:46:51 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -102,7 +102,8 @@ command(Key, St) when is_integer(Key) ->
 
 quit(#st{saved=true}) -> quit;
 quit(St) ->
-    case wings_plugin:call_ui({quit,ask_save_changes,[]}) of
+    case wings_util:yes_no("Do you want to save your changes before "
+			   "quitting?") of
 	no -> quit;
 	yes ->
 	    case save(St) of
@@ -113,7 +114,7 @@ quit(St) ->
     end.
 
 new(#st{saved=false}=St0) ->
-    case wings_plugin:call_ui({file,ask_save_changes,[]}) of
+    case wings_util:yes_no("Do you want to save your changes?") of
 	no ->
 	    new(St0#st{saved=true});
 	yes ->
