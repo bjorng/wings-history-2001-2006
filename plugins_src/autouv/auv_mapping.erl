@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.22 2002/10/27 17:41:34 bjorng Exp $
+%%     $Id: auv_mapping.erl,v 1.23 2002/11/02 09:44:10 bjorng Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -426,15 +426,15 @@ minimize_cg(A, X0, B, Method) ->
     minimize_cg(M_inv, At, A, AtB, Delta_max, 
 		Delta, I, D, R, X0).
 
-minimize_cg(_, At, A, _, _, 
-	    _, 0, D, _, X) ->
+minimize_cg(_, _At, _A, _, _, 
+	    _, 0, _D, _, X) ->
     ?DBG("minimize_cg() sizes were ~p ~p ~p~n", 
-	 [auv_matrix:dim(At), auv_matrix:dim(A), auv_matrix:dim(D)]),
+	 [auv_matrix:dim(_At), auv_matrix:dim(_A), auv_matrix:dim(_D)]),
     {stopped, X};
-minimize_cg(_, At, A, _, Delta_max, 
-	    Delta, _, D, _, X) when Delta < Delta_max ->
+minimize_cg(_, _At, _A, _, Delta_max, 
+	    Delta, _, _D, _, X) when Delta < Delta_max ->
     ?DBG("minimize_cg() sizes were ~p ~p ~p~n", 
-	 [auv_matrix:dim(At), auv_matrix:dim(A), auv_matrix:dim(D)]),
+	 [auv_matrix:dim(_At), auv_matrix:dim(_A), auv_matrix:dim(_D)]),
     {ok, X};
 minimize_cg(M_inv, At, A, AtB, Delta_max, 
 	    Delta, I, D, R, X) ->
