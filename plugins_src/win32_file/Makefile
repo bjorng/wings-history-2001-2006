@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.13 2004/01/18 18:11:15 bjorng Exp $
+#     $Id: Makefile,v 1.14 2004/10/29 16:28:17 bjorng Exp $
 #
 LIBDIR = ../../plugins/win32_file
 
@@ -28,13 +28,6 @@ $(LIBDIR)/%.beam: %.erl
 	install -d $(LIBDIR)
 	$(ERLC) $(ERLC_FLAGS) $<
 
-$(LIBDIR)/wings_file_drv.dll: wings_file_drv.c \
-  erl_driver.h erl_win_dyn_driver.h
+$(LIBDIR)/wings_file_drv.dll: wings_file_drv.c
 	install -d $(LIBDIR)
-	mingw32-gcc -o $(LIBDIR)/wings_file_drv.dll wings_file_drv.c $(LIBS)
-
-erl_driver.h: $(ERL_INC)/erl_driver.h
-	cp $(ERL_INC)/erl_driver.h .
-
-erl_win_dyn_driver.h: $(ERL_INC)/erl_win_dyn_driver.h
-	sed 's,##Params, Params,g' "$(ERL_INC)/erl_win_dyn_driver.h" > erl_win_dyn_driver.h
+	mingw32-gcc -I$(ERL_INC) -o $(LIBDIR)/wings_file_drv.dll wings_file_drv.c $(LIBS)
