@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.44 2003/03/09 11:43:54 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.45 2003/03/09 11:50:00 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -138,6 +138,7 @@ lights() ->
     help_window("Light Basics", Help).
 
 opengl_info() ->
+    gl:getError(),			%Clear any previous error.
     Help = [
 	    "Vendor: " ++ gl:getString(?GL_VENDOR) ++ "\n" ++
 	    "Renderer: " ++ gl:getString(?GL_RENDERER) ++ "\n" ++
@@ -176,7 +177,10 @@ deep_info([]) -> [].
 
 get_info([{Label,Attr}|T]) ->
     Val = gl:getIntegerv(Attr),
-    ValStr = integer_to_list(hd(Val)),
+    ValStr = case catch gl:getError() of
+        0 -> integer_to_list(hd(Val));
+        _ -> "---"
+    end,
     Label ++ ": " ++ ValStr ++ "\n" ++ get_info(T);
 get_info([]) -> [].
 
