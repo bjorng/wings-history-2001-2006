@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.108 2004/12/24 12:24:40 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.109 2004/12/24 20:05:06 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -485,11 +485,7 @@ hardness(hard, St) ->
 			  We#we{he=Htab}
 		  end, St).
 
-hardness(Edge, soft, Htab) ->
-    case gb_sets:is_member(Edge, Htab) of
-	true -> gb_sets:delete(Edge, Htab);
-	false -> Htab
-    end;
+hardness(Edge, soft, Htab) -> gb_sets:delete_any(Edge, Htab);
 hardness(Edge, hard, Htab) -> gb_sets:add(Edge, Htab).
 
 %%%
