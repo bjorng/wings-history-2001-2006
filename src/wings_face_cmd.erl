@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.112 2004/12/18 19:36:20 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.113 2004/12/19 09:56:45 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -17,7 +17,7 @@
 	 set_color/2, force_bridge/5]).
 
 -include("wings.hrl").
--import(lists, [map/2,foldl/3,reverse/1,sort/1,keysort/2,
+-import(lists, [map/2,foldl/3,reverse/1,reverse/2,sort/1,keysort/2,
 		keymember/3,keysearch/3,keydelete/3,
 		member/2,seq/2,last/1]).
 
@@ -1235,10 +1235,13 @@ set_color_1([F|Fs], Color, #we{es=Etab0}=We) ->
     set_color_1(Fs, Color, We#we{es=Etab});
 set_color_1([], _, We) -> We.
 
-    
 %% outer_edge_partition(FaceSet, WingedEdge) -> [[Edge]].
-%%  Partition all outer edges. Outer edges are all edges
-%%  between one face in the set and one outside.
+%%  Partition the outer edges of the FaceSet. Each partion
+%%  of edges form a closed loop with no repeated vertices.
+%%    Outer edges are edges that have one face in FaceSet
+%%  and one outside.
+%%    It is assumed that FaceSet consists of one region returned by
+%%  wings_sel:face_regions/2.
 
 outer_edge_partition(Faces, We) when is_list(Faces) ->
     collect_outer_edges(Faces, gb_sets:from_list(Faces), We);
@@ -1259,56 +1262,67 @@ collect_outer_edges(Fs, Faces, We) ->
 		   end
 	   end, [], Fs, We),
     F = gb_trees:from_orddict(wings_util:rel2fam(F0)),
-    partition_edges(F, Faces, We, []).
+    partition_edges(F, []).
 
-partition_edges(Es0, Faces, We, Acc) ->
+partition_edges(Es0, Acc) ->
     case gb_trees:is_empty(Es0) of
 	true -> Acc;
 	false ->
-	    {Key,Val,Es1} = gb_trees:take_smallest(Es0),
-	    {Part,Es} = partition_edges(Key, Val, Faces, Es1, We, []),
-	    partition_edges(Es, Faces, We, [Part|Acc])
+ 	    {Key,Val,Es1} = gb_trees:take_smallest(Es0),
+	    {Cycle,Es} = part_collect_cycle(Key, Val, Es1, []),
+	    partition_edges(Es, [Cycle|Acc])
     end.
 
-partition_edges(Va, [{Edge,Va,Vb}], Faces, Es0, We, Acc0) ->
+%% part_collect_cycle(Vertex, VertexInfo, EdgeInfo, Acc0) ->
+%%    none | {[Edge],EdgeInfo}
+%%  Collect the cycle starting with Vertex.
+%%
+%%  Note: This function can only return 'none' when called
+%%  recursively.
+
+part_collect_cycle(_, [{repeated,_,_}], _, _) ->
+    %% Repeated vertex - we are not allowed to go this way.
+    %% Can only happen if we were called recursively because
+    %% a fork was encountered.
+    none;
+part_collect_cycle(Va, [{Edge,Va,Vb}], Es0, Acc0) ->
+    %% Basic case. Only one way to go.
     Acc = [Edge|Acc0],
     case gb_trees:lookup(Vb, Es0) of
 	none ->
 	    {Acc,Es0};
 	{value,Val} ->
 	    Es = gb_trees:delete(Vb, Es0),
-	    partition_edges(Vb, Val, Faces, Es, We, Acc)
+	    part_collect_cycle(Vb, Val, Es, Acc)
     end;
-partition_edges(Va, [Val|More], Faces, Es0, We, []) ->
-    Es = gb_trees:insert(Va, More, Es0),
-    partition_edges(Va, [Val], Faces, Es, We, []);
-partition_edges(Va, Edges, Faces, Es, We, Acc) ->
-    part_try_all_edges(Va, Edges, Faces, Es, We, Acc, [], none).
+part_collect_cycle(Va, [Val|More], Es0, []) ->
+    %% No cycle started yet and we have multiple choice of
+    %% edges out from this vertex. It doesn't matter which
+    %% edge we follow, so we'll follow the first one.
+    {Cycle,Es} = part_collect_cycle(Va, [Val], Es0, []),
+    {Cycle,gb_trees:insert(Va, More, Es)};
+part_collect_cycle(Va, Edges, Es0, Acc) ->
+    %% We have a partially collected cycle and we have a
+    %% fork (multiple choice of edges). Here we must choose
+    %% an edge that closes the cycle without passing Va
+    %% again (because repeated vertices are not allowed).
+    Es = gb_trees:insert(Va, [{repeated,fake,fake}], Es0),
+    part_fork(Va, Edges, Es, Acc, []).
     
-%% Here we have multiple choices of edges. Use the shortest path
-%% that don't return us to the Va vertex.
-%% (We want edge loops without repeated vertices.)
-part_try_all_edges(Va, [Val|More], Faces, Es0, We, Acc, Done0, Path0) ->
-    Es1 = gb_trees:insert(Va, [{repeated,Va,fake}], Es0),
-    Done = [Val|Done0],
-    case partition_edges(Va, [Val], Faces, Es1, We, Acc) of
+part_fork(Va, [Val|More], Es0, Acc, Tried) ->
+    %% Try to complete the cycle by following this edge.
+    case part_collect_cycle(Va, [Val], Es0, Acc) of
 	none ->
-	    part_try_all_edges(Va, More, Faces, Es0, We, Acc, Done, Path0);
-	{[repeated|_],_} ->
-	    part_try_all_edges(Va, More, Faces, Es0, We, Acc, Done, Path0);
-	{_,_}=Found ->
-	    Path1 = part_shortest_path(Path0, Found),
-	    Path = {Path1,Done0,More},
-	    part_try_all_edges(Va, More, Faces, Es0, We, Acc, Done, Path)
+	    %% Failure - try the next edge.
+	    part_fork(Va, More, Es0, Acc, [Val|Tried]);
+	{Cycle,Es} ->
+	    %% Found a cycle. Update the vertex information
+	    %% with all edges remaining.
+	    {Cycle,gb_trees:update(Va, reverse(Tried, More), Es)}
     end;
-part_try_all_edges(Va, [], _, _, _, _, _, {{Path,Es},Alt0,Alt1}) ->
-    case Alt0++Alt1 of
-	[] -> {Path,gb_trees:delete(Va, Es)};
-	Alt -> {Path,gb_trees:enter(Va, Alt, Es)}
-    end;
-part_try_all_edges(_Va, [], _, _, _, _, _Alt, none) -> none.
+part_fork(_, [], _, _, _) ->
+    %% None of edges were possible. Can only happen if this function
+    %% was called recursively (i.e. if we hit another fork while
+    %% processing a fork).
+    none.
 
-part_shortest_path(none, Path) -> Path;
-part_shortest_path({{AccA,_},_,_}=A, {{AccB,_},_,_})
-  when length(AccA) < length(AccB) -> A;
-part_shortest_path(_, B) -> B.
