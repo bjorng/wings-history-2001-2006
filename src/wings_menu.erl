@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.69 2002/12/01 11:21:22 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.70 2002/12/20 14:28:24 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -590,11 +590,14 @@ help_text_1({[_|_]=S,_,_}, false) -> S;
 help_text_1([_|_]=S, true) ->
     ["[L] "|S];
 help_text_1({S1,S2}, true) ->
-    ["[L] ",S1,"  [M] "|S2];
+    {_,M,_} = wings_camera:button_names(),
+    ["[L] ",S1,"  ",M," "|S2];
 help_text_1({S1,[],S2}, true) ->
-    ["[L] ",S1,"  [R] "|S2];
+    {_,_,R} = wings_camera:button_names(),
+    ["[L] ",S1,"  ",R," "|S2];
 help_text_1({S1,S2,S3}, true) ->
-    ["[L] ",S1,"  [M] ",S2,"  [R] "|S3];
+    {_,M,R} = wings_camera:button_names(),
+    ["[L] ",S1,"  ",M," ",S2,"  ",R," "|S3];
 help_text_1([]=S, _) -> S.
 
 draw_right(X, Y, Ps) ->

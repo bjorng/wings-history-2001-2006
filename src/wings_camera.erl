@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.55 2002/12/14 14:24:30 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.56 2002/12/20 14:28:24 bjorng Exp $
 %%
 
 -module(wings_camera).
 -export([init/0,sub_menu/1,command/2,help/0,event/2]).
--export([desc/1,free_rmb_modifier/0]).
+-export([desc/1,button_names/0,free_rmb_modifier/0]).
 
 -define(NEED_ESDL, 1).
 -define(NEED_OPENGL, 1).
@@ -133,6 +133,17 @@ help() ->
 	    "[Alt]+[M] Tumble  [M] Track  [Ctrl]+[Alt]+[M] Dolly";
 	maya ->
 	    "[Alt]+[L] Tumble  [Alt]+[M] Track  [Alt]+[R] Dolly"
+    end.
+
+button_names() ->
+    case wings_pref:get_value(num_buttons) of
+	3 -> {"[L]","[M]","[R]"};
+	2 ->
+	    case wings_pref:get_value(camera_mode) of
+		blender -> {"[L]","[Alt]+[L]","[R]"};
+		nendo -> {"[L]","[Ctrl]+[R]","[R]"}
+	    end;
+	1 -> {"[L]","[Alt]+[L]","[Ctrl]+[L]"}
     end.
 
 free_rmb_modifier() ->
