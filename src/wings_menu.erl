@@ -3,12 +3,12 @@
 %%
 %%     Implementation of pulldown and popup menus.
 %%
-%%  Copyright (c) 2001-2002 Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.76 2003/01/12 19:55:46 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.77 2003/01/20 19:17:30 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -300,6 +300,9 @@ button_pressed(Button, X, Y, #mi{ns=Names,menu=Menu,adv=Adv}=Mi0) ->
 	none -> get_menu_event(Mi);
 	Item when integer(Item) ->
 	    case element(Item, Menu) of
+		{_,{value,Act0},_,_,Ps} ->
+		    Act = check_option_box(Act0, X, Ps, Mi),
+		    do_action(build_command(Act, Names), Mi);
 		{_,{Name,Submenu},_,_,_} when Adv == true ->
 		    popup_submenu(Button, X, Y, Name, Submenu, Mi);
 		{_,{Name,Submenu},_,_,_} when Adv == false ->
@@ -529,17 +532,25 @@ build_command(Name, Names) ->
 menu_draw(_X, _Y, _Shortcut, _Mw, _I, [], _Mi) -> ok;
 menu_draw(X, Y, Shortcut, Mw, I, [H|Hs], #mi{menu=Menu,adv=Adv}=Mi) ->
     ?CHECK_ERROR(),
-    case element(I, Menu) of
+    Elem = element(I, Menu),
+    Text = menu_text(Elem, Adv),
+    case Elem of
 	separator -> draw_separator(X, Y, Mw);
-	{Text,ignore,_,_,Ps} ->
+	{_,ignore,_,_,Ps} ->
 	    item_colors(Y, Ps, I, Mi),
 	    wings_io:menu_text(X, Y, Text);
-	{Text,{_,_}=Item,Hotkey,_Help,Ps} ->
+	{_,{value,_},Hotkey,_Help,Ps} ->
+	    %% Not a sub-menu.
+	    item_colors(Y, Ps, I, Mi),
+	    draw_menu_text(X, Y, Text, Ps),
+	    draw_hotkey(X, Y, Shortcut, Hotkey),
+	    draw_right(X+Mw-5*?CHAR_WIDTH, Y-?CHAR_HEIGHT div 3, Ps);
+	{_,{_,_}=Item,Hotkey,_Help,Ps} ->
 	    item_colors(Y, Ps, I, Mi),
 	    wings_io:menu_text(X, Y, Text),
 	    draw_hotkey(X, Y, Shortcut, Hotkey),
 	    draw_submenu(Adv, Item, X+Mw-5*?CHAR_WIDTH, Y-?CHAR_HEIGHT div 3);
-	{Text,_,Hotkey,_Help,Ps} ->
+	{_,_,Hotkey,_Help,Ps} ->
 	    item_colors(Y, Ps, I, Mi),
 	    draw_menu_text(X, Y, Text, Ps),
 	    draw_hotkey(X, Y, Shortcut, Hotkey),
@@ -547,6 +558,11 @@ menu_draw(X, Y, Shortcut, Mw, I, [H|Hs], #mi{menu=Menu,adv=Adv}=Mi) ->
     end,
     ?CHECK_ERROR(),
     menu_draw(X, Y+H, Shortcut, Mw, I+1, Hs, Mi).
+
+menu_text({Text,{_,Fun},_,_,_}, true) when is_function(Fun) -> [$.,Text,$.];
+menu_text({Text,Fun,_,_,_}, true) when is_function(Fun) -> [$.,Text,$.];
+menu_text({Text,_,_,_,_}, _) -> Text;
+menu_text(separator, _) -> [].
 
 draw_hotkey(_, _, _, []) -> ok;
 draw_hotkey(X, Y, Pos, Hotkey) ->
@@ -655,8 +671,7 @@ draw_submenu(_Adv, Item, _X, _Y) when is_atom(Item);
 				      is_integer(Item);
 				      is_list(Item) ->
     ok;
-draw_submenu(true, _Item, X, Y) ->
-    wings_io:menu_text(X, Y, [submenu]);
+draw_submenu(true, _Item, _X, _Y) -> ok;
 draw_submenu(false, _Item, X, Y) ->
     ?CHECK_ERROR(),
     gl:'begin'(?GL_TRIANGLES),

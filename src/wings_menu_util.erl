@@ -3,12 +3,12 @@
 %%
 %%     Menu utilities and helpers.
 %%
-%%  Copyright (c) 2002 Bjorn Gustavsson
+%%  Copyright (c) 2002-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu_util.erl,v 1.15 2002/12/23 07:56:19 bjorng Exp $
+%%     $Id: wings_menu_util.erl,v 1.16 2003/01/20 19:17:30 bjorng Exp $
 %%
 
 -module(wings_menu_util).
@@ -228,10 +228,9 @@ directions([], Ns) ->
 direction(Dir, Ns) ->
     Str = wings_util:stringify(Dir),
     Help = dir_help(Dir, Ns),
-    Ps = magnet_props(Dir, Ns),
-    case Ps of
-	[] -> {Str,Dir,Help,Ps};
-	_ ->
+    case magnet_props(Dir, Ns) of
+	[] -> {Str,Dir,Help,[]};
+	Ps ->
 	    F = move_magnet_fun(Dir, Ns),
 	    {Str,F,Help,Ps}
     end.
@@ -239,8 +238,14 @@ direction(Dir, Ns) ->
 move_axis_fun(Axis, Ns) ->
     {_,Vec} = wings_pref:get_value(Axis),
     Help = dir_help(Axis, Ns),
-    F = move_magnet_fun(Vec, Ns),
-    {wings_util:stringify(Axis),F,Help,magnet_props(Axis, Ns)}.
+    Str = wings_util:stringify(Axis),
+    case magnet_props(Axis, Ns) of
+	[] ->
+	    {Str,{value,Vec},Help,[]};
+	Ps ->
+	    F = move_magnet_fun(Vec, Ns),
+	    {Str,F,Help,Ps}
+    end.
 
 move_magnet_fun(Vec, Ns) ->
     fun(1, _) -> wings_menu:build_command(Vec, Ns);

@@ -3,12 +3,12 @@
 %%
 %%     This module contains the Deform commands for vertices.
 %%
-%%  Copyright (c) 2001-2002 Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_deform.erl,v 1.32 2003/01/01 12:55:32 bjorng Exp $
+%%     $Id: wings_deform.erl,v 1.33 2003/01/20 19:17:28 bjorng Exp $
 %%
 
 -module(wings_deform).
@@ -21,19 +21,16 @@
 
 sub_menu(_St) ->
     InflateHelp = {"Inflate elements",[],"Pick center and radius"},
-    {deform,fun(help, _Ns) -> "";
-	       (1, _Ns) ->
-		    [{"Crumple",{crumple,crumple_dirs()},
-		      "Randomly move vertices"},
-		     {"Inflate",inflate_fun(),InflateHelp,[]},
-		     {"Taper",{taper,
-			       [taper_item(x),
-				taper_item(y),
-				taper_item(z)]}},
-		     {"Twist",{twist,dirs(twist)}},
-		     {"Torque",{torque,dirs(torque)}}];
-	       (_, _Ns) -> ignore
-	    end}.
+    {deform,[{"Crumple",{crumple,crumple_dirs()},
+	      "Randomly move vertices"},
+	     {"Inflate",inflate_fun(),InflateHelp,[]},
+	     {"Taper",{taper,
+		       [taper_item(x),
+			taper_item(y),
+			taper_item(z)]}},
+	     {"Twist",{twist,dirs(twist)}},
+	     {"Torque",{torque,dirs(torque)}}],
+     "Deform selected vertices in various ways"}.
 
 crumple_dirs() ->
     [{"Random",random,"Move each vertex a random amount "
