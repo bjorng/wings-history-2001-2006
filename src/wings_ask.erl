@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.135 2003/12/02 14:44:53 raimo_niskanen Exp $
+%%     $Id: wings_ask.erl,v 1.136 2003/12/02 15:55:05 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -1407,8 +1407,7 @@ oframe_redraw(Active,
 		  gl:'end'()
 	  end),
     Title = element(I, Titles),
-    Xt = oframe_title_pos(X0, W0, W1),
-    menu_draw(Active, Xt, Y0, Wt, Ht-10+4, Title, keep);
+    menu_draw(Active, 10, Y0, Wt, Ht-10+4, Title, keep);
 oframe_redraw(Active,
 	      #fi{x=X0,y=Y0,w=W0,h=H0,extra=#container{active=I}},
 	      #oframe{style=buttons,w=Wt,h=Ht,titles=Titles}) ->
