@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.93 2003/09/25 14:50:39 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.94 2003/10/18 07:38:12 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -54,7 +54,7 @@ menu(X, Y, St) ->
     	    {"Dissolve",dissolve,"Eliminate all edges between selected faces"},
 	    {"Collapse",collapse,"Delete faces, replacing them with vertices"},
 	    {"Smooth",smooth,"Subdivide selected faces to smooth them (Catmull-Clark)"},
-	    {"Subdivide",{subdivide,wings_tesselation:submenu()}},
+	    {"Tesselate",{subdivide,wings_tesselation:submenu()}},
 	    separator|wings_material:material_menu(St)],
     wings_menu:popup_menu(X, Y, face, Menu).
 
