@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.51 2002/10/02 15:10:34 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.52 2002/10/28 18:24:04 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -72,9 +72,11 @@ command({edit,{material,Mat}}, St) ->
     edit(Mat, St).
 
 material_list(#st{mat=Mat0}) ->
-    map(fun(Id) ->
-		{atom_to_list(Id),Id}
-	end, gb_trees:keys(Mat0)).
+    map(fun({Id,Mp}) ->
+		OpenGL = prop_get(opengl, Mp),
+		Color = prop_get(diffuse, OpenGL),
+		{atom_to_list(Id),Id,[],[{color,Color}]}
+	end, gb_trees:to_list(Mat0)).
 
 set_material(Mat, St) ->
     wings_sel:map(

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.60 2002/10/13 19:11:42 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.61 2002/10/28 18:24:04 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -619,15 +619,27 @@ draw_right(X, Y, Ps) ->
 	    wings_io:sunken_rect(X, Y-3,
 				 ?CHAR_WIDTH, ?CHAR_WIDTH,
 				 ?MENU_COLOR);
-	false ->
-	    case have_magnet(Ps) of
-		true ->
-		    gl:color3f(1, 0, 0),
-		    wings_io:text_at(X, Y, [magnet_red]),
-		    gl:color3f(0, 0, 0),
-		    wings_io:text_at(X, Y, [magnet_black]);
-		false -> ok
-	    end
+	false -> draw_right_1(X, Y, Ps)
+    end.
+
+draw_right_1(X, Y, Ps) ->
+    case have_magnet(Ps) of
+	true ->
+	    gl:color3f(1, 0, 0),
+	    wings_io:text_at(X, Y, [magnet_red]),
+	    gl:color3f(0, 0, 0),
+	    wings_io:text_at(X, Y, [magnet_black]);
+	false -> draw_right_2(X, Y, Ps)
+    end.
+
+draw_right_2(X, Y, Ps) ->
+    case proplists:get_value(color, Ps, none) of
+	none -> ok;
+	Color ->
+	    wings_io:border(X, Y-7,
+			    ?CHAR_WIDTH, ?CHAR_HEIGHT-1,
+			    Color);
+	false -> draw_right_2(X, Y, Ps)
     end.
 
 draw_submenu(_Adv, Item, _X, _Y) when is_atom(Item);
