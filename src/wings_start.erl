@@ -8,15 +8,18 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_start.erl,v 1.1 2002/01/17 13:20:40 bjorng Exp $
+%%     $Id: wings_start.erl,v 1.2 2002/03/15 13:17:32 bjorng Exp $
 %%
 
 -module(wings_start).
--export([start/0,start_halt/0,start_halt/1]).
+-export([start/0,start/1,start_halt/0,start_halt/1]).
 -export([get_patches/0,enable_patches/0,disable_patches/0]).
 
 start() ->
     common_start(fun(Root) -> wings:start(Root) end).
+
+start(Args) ->
+    common_start(fun(Root) -> wings:start_halt(Args, Root) end).
 
 start_halt() ->
     common_start(fun(Root) -> wings:start_halt(Root) end).
