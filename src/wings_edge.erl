@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.75 2003/10/17 05:50:34 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.76 2003/10/17 07:03:53 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -697,7 +697,7 @@ select_region_1([[AnEdge|_]|Ps], Edges, #we{es=Etab}=We, Acc) ->
     select_region_1(Ps, Edges, We, [{Left,AnEdge},{Right,AnEdge}|Acc]);
 select_region_1([], _Edges, _We, Acc) ->
     %% Now we have all collections of faces sandwhiched between
-    %% one or more edge loops. Using the face collection as keys,
+    %% one or more edge loops. Using the face collections as keys,
     %% we will partition the edge loop identifiers into groups.
 
     Rel0 = [{gb_sets:to_list(Set),Edge} || {Set,Edge} <- Acc],
@@ -729,13 +729,22 @@ select_region_1([], _Edges, _We, Acc) ->
     Part = sofs:to_external(sofs:partition(SetFun, Rel)),
 
     %% We finally have one partition for each sub-object.
-    %% For each partition (sub-object), we want to retaining
-    %% only the face collection with the smallest number of faces.
-
-    Sel0 = [sort([{length(Fs),Fs} || {Fs,_} <- Plist]) || Plist <- Part],
-    Sel1 = [Fs || [{_,Fs}|_] <- Sel0],
-    Sel = lists:merge(Sel1),
+    
+    Sel0 = [select_region_2(P) || P <- Part],
+    Sel = lists:merge(Sel0),
     gb_sets:from_ordset(Sel).
+
+select_region_2(P0) ->
+    P1 = sofs:from_external(P0, [{faces,edge}]),
+    P2 = sofs:relation_to_family(P1),
+    P = sofs:to_external(P2),
+    case [Fs || {Fs,[_]} <- P] of
+	[] ->
+	    [{_,Fs}|_] = sort([{length(Fs),Fs} || {Fs,_} <- P]),
+	    Fs;
+	Fss ->
+	    lists:merge(Fss)
+    end.
 
 make_digraph(G, [Es|T]) ->
     make_digraph_1(G, Es),
