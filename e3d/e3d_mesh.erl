@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mesh.erl,v 1.27 2003/03/05 17:59:12 bjorng Exp $
+%%     $Id: e3d_mesh.erl,v 1.28 2003/05/09 14:19:30 bjorng Exp $
 %%
 
 -module(e3d_mesh).
 -export([clean_faces/1,orient_normals/1,transform/1,transform/2,
-	 triangulate/1,quadrangulate/1,
+	 merge_vertices/1,triangulate/1,quadrangulate/1,
 	 make_quads/1,vertex_normals/1,renumber/1,partition/1]).
 -export([triangulate_face/2,triangulate_face_with_holes/3]).
 -export([quadrangulate_face/2,quadrangulate_face_with_holes/3]).
@@ -66,6 +66,17 @@ make_quads(#e3d_mesh{type=triangle,fs=Fs0}=Mesh) ->
     Fs = gb_trees:values(Ftab),
     Mesh#e3d_mesh{type=polygon,fs=Fs};
 make_quads(Mesh) -> Mesh.
+
+%% merge_vertices(Mesh0) -> Mesh
+%%  Combine vertices that have exactly the same position,
+%%  then renumber the mesh.
+merge_vertices(#e3d_mesh{fs=Fs0,vs=Vs0}=Mesh) ->
+    R = sofs:relation(append_index(Vs0), [{pos,old_vertex}]),
+    S = sofs:range(sofs:relation_to_family(R)),
+    CR = sofs:canonical_relation(S),
+    Map = gb_trees:from_orddict(sofs:to_external(CR)),
+    Fs = map_faces(Fs0, Map),
+    renumber(Mesh#e3d_mesh{fs=Fs}).
 
 %%%
 %%% Mesh triangulation.
@@ -485,6 +496,19 @@ strip_index(Fs) ->
 strip_index([{_,Data}|T], Acc) ->
     strip_index(T, [Data|Acc]);
 strip_index([], Acc) -> reverse(Acc).
+
+append_index(L) -> append_index(L, 0, []).
+append_index([H|T], I, Acc) -> append_index(T, I+1, [{H,I}|Acc]);
+append_index([], _I, Acc) -> Acc.
+
+map_faces(Fs, Map) ->
+    map_faces(Fs, Map, []).
+
+map_faces([#e3d_face{vs=Vs0}=Face|Fs], Map, Acc) ->
+    Vs = [begin [V|_] = gb_trees:get(V0, Map), V end || V0 <- Vs0],
+    map_faces(Fs, Map, [Face#e3d_face{vs=Vs}|Acc]);
+map_faces([], _Map, Acc) -> reverse(Acc).
+
 
 %%%
 %%% Common help functions.
