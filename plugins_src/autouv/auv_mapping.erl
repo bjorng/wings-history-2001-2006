@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.43 2003/08/12 10:25:40 bjorng Exp $
+%%     $Id: auv_mapping.erl,v 1.44 2003/08/16 14:58:37 bjorng Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -41,7 +41,7 @@
 -export([lsq/2, lsq/3, find_pinned/2]). % Debug entry points
 -export([stretch_opt/2, area2d2/3,area3d/3]).
 
--compile(export_all).
+%%-compile(export_all).
 
 -ifdef(lsq_standalone).
 -define(DBG(Fmt,Args), io:format(?MODULE_STRING++":~p: "++(Fmt), 
