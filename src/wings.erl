@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.309 2004/10/08 06:02:27 dgud Exp $
+%%     $Id: wings.erl,v 1.310 2004/10/08 14:33:06 dgud Exp $
 %%
 
 -module(wings).
@@ -50,12 +50,12 @@ halt_loop(Wings) ->
 	{'EXIT',Wings,{window_crash,Name,Reason}} ->
 	    Log = wings_util:crash_log(Name, Reason),
 	    io:format("\n\n"),
-	    io:format("Fatal internal error - log written to ~s\n", [Log]),
+	    io:format(?STR(halt_loop,1,"Fatal internal error - log written to ~s\n"), [Log]),
 	    ok;
 	{'EXIT',Wings,Reason} ->
-	    Log = wings_util:crash_log("<Unknown Window Name>", Reason),
+	    Log = wings_util:crash_log(?STR(halt_loop,2,"<Unknown Window Name>"), Reason),
 	    io:format("\n\n"),
-	    io:format("Fatal internal error - log written to ~s\n", [Log]),
+	    io:format(?STR(halt_loop,3,"Fatal internal error - log written to ~s\n"), [Log]),
 	    ok;
 	_Other ->				%Can't happen.
 	    halt_loop(Wings)
@@ -88,9 +88,8 @@ init(File) ->
 			"to locate TCP/IP parameters are normal.\n"
 			"It is done to prevent Erlang from contacting "
 			"DNS name servers on the Internet\n"
-			"(harmless, but no need for Wings to do it)\n\n"));
-         
-     _-> ok
+			"(harmless, but no need for Wings to do it)\n\n"));         
+	_-> ok
     end,
 
     group_leader(wings_console:start(), self()),
@@ -1052,7 +1051,7 @@ crash_handler(redraw, Log, _St) ->
 		     ?STR(crash_handler,1,"Internal error - log written to ") ++ Log),
     wings_io:text_at(10, 4*?LINE_HEIGHT,
 		     ?STR(crash_handler,2,"Click a mouse button to continue working")),
-    wings_wm:message(?STR(define_command,3,"Do you want to define \""), ""),
+    wings_wm:message(?STR(crash_handler,3,"[L] Continue working"), ""),
     keep;
 crash_handler(#mousebutton{}, _, St) ->
     wings_wm:message(""),

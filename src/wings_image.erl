@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.40 2004/10/08 06:02:29 dgud Exp $
+%%     $Id: wings_image.erl,v 1.41 2004/10/08 14:33:07 dgud Exp $
 %%
 
 -module(wings_image).
@@ -647,14 +647,15 @@ draw_image(X, Y, W, H, TxId) ->
 create_image() ->
     Qs = [{?STR(create_image,1,"Width"),256,[{range,{8,1024}}]},
 	  {?STR(create_image,2,"Height"),256,[{range,{8,1024}}]},
-	  {?STR(create_image,3,"Pattern"),{menu,[{"Grid",grid},
-			    {?STR(create_image,4,"Grid"),checkerboard},
-			    {?STR(create_image,5,"Checkerboard"),vbars},
-			    {?STR(create_image,6,"Vertical Bars"),hbars},
-			    {?STR(create_image,7,"Horizontal Bars"),white},
-			    {?STR(create_image,8,"White"),black}],
-		      grid}}],
-		wings_ask:ask(?STR(create_image,9,"Black"), Qs,
+	  {?STR(create_image,3,"Pattern"),
+	   {menu,[{?STR(create_image,4,"Grid"),grid},
+		  {?STR(create_image,5,"Checkerboard"),checkerboard},
+		  {?STR(create_image,6,"Vertical Bars"),vbars},
+		  {?STR(create_image,7,"Horizontal Bars"),hbars},
+		  {?STR(create_image,8,"White"),white},
+		  {?STR(create_image,9,"Black"),black}],
+	    grid}}],
+    wings_ask:ask(?STR(create_image,10,"Create Image"), Qs,
 		  fun([W,H,Pattern]) ->
 			  create_image_1(Pattern, W, H),
 			  ignore

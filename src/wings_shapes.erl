@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shapes.erl,v 1.33 2004/10/08 06:02:31 dgud Exp $
+%%     $Id: wings_shapes.erl,v 1.34 2004/10/08 14:33:07 dgud Exp $
 %%
 
 -module(wings_shapes).
@@ -242,7 +242,7 @@ grid(Ask, _) when is_atom(Ask) ->
 grid([Size], St) ->
     Vs = grid_vertices(Size),
     Fs = grid_faces(Size),
-    build_shape(?STR(grid,1,"grid"), Fs, Vs, St).
+    build_shape(?STR(grid,2,"grid"), Fs, Vs, St).
 
 grid_vertices(Size) ->
     {Low,High} = case Size rem 2 of

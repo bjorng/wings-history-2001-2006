@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_deform.erl,v 1.40 2004/10/08 06:02:28 dgud Exp $
+%%     $Id: wings_deform.erl,v 1.41 2004/10/08 14:33:07 dgud Exp $
 %%
 
 -module(wings_deform).
@@ -94,7 +94,7 @@ effect_menu(z) -> [xy,x,y].
 expand_effects([H|T], Acc) ->
     Effect = wings_util:upper(H),
     Help = {?STR(taper_item,7,"Effect on ")++Effect,[],
-	    ?STR(taper_item,4, "Pick axis center location")},
+	    ?STR(taper_item,5, "Pick axis center location")},
     Item = {Effect,effect_fun(H),Help,[]},
     expand_effects(T, [Item|Acc]);
 expand_effects([], Acc) -> reverse(Acc).
@@ -433,6 +433,7 @@ twister_fun(Vs, Tf, Min, Range, We) ->
 
 check_range(Range, Axis0) when Range < 0.01 ->
     Axis = wings_util:upper(atom_to_list(Axis0)),
-    Error = lists:concat([?STR(check_range,1,"Extent along "),Axis,?STR(check_range,2,"axis is too short.")]),
+    Error = lists:concat([?STR(check_range,1,"Extent along "),Axis,
+			  ?STR(check_range,2,"axis is too short.")]),
     wings_util:error(Error);
 check_range(_Range, _Axis) -> ok.

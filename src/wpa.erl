@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.54 2004/10/08 06:02:32 dgud Exp $
+%%     $Id: wpa.erl,v 1.55 2004/10/08 14:33:07 dgud Exp $
 %%
 -module(wpa).
 -export([ask/3,ask/4,dialog/3,dialog/4,error/1,
@@ -120,7 +120,7 @@ do_import(Importer, Name, St0) ->
 import_filename(Ps0, Cont) ->
     This = wings_wm:this(),
     Dir = wings_pref:get_value(current_directory),
-    Ps = Ps0 ++ [{title,?STR(import_filename,1,"Import")},{directory,Dir}],
+    Ps = Ps0 ++ [{title,?STR(import_filename,2,"Import")},{directory,Dir}],
     Fun = fun(Name) ->
 		  case catch Cont(Name) of
 		      {command_error,Error} ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.72 2004/10/08 06:02:31 dgud Exp $
+%%     $Id: wings_shape.erl,v 1.73 2004/10/08 14:33:07 dgud Exp $
 %%
 
 -module(wings_shape).
@@ -176,17 +176,17 @@ help(-1, _) -> wings_wm:message("");
 help(_, name) ->
     wings_util:button_message(?STR(help,1,"Select"), [],?STR(help,2,"Show menu"));
 help(_, visibility) ->
-    help_1(?STR(help,2,"Show menu"),
-	   ?STR(help,3,"Toggle visibility of active object"));
+    help_1(?STR(help,3,"Toggle visibility of active object"),
+	   ?STR(help,4,"Toggle visibility of all other objects"));
 help(_, lock) ->
-    help_1(?STR(help,4,"Toggle visibility of all other objects"),
-	   ?STR(help,5,"Lock/unlock active object"));
+    help_1(?STR(help,5,"Lock/unlock active object"),
+	   ?STR(help,6,"Lock/unlock all objects"));
 help(_, selection) ->
-    help_1(?STR(help,6,"Lock/unlock all objects"),
-	   ?STR(help,7,"Toggle selection for active object"));
+    help_1(?STR(help,7,"Toggle selection for active object"),
+	   ?STR(help,8,"Toggle selection for all other objects"));
 help(_, wire) ->
-    help_1(?STR(help,8,"Toggle shaded/wireframe for active object"),
-	   ?STR(help,9,"Toggle shaded/wireframe for all other objects")).
+    help_1(?STR(help,9,"Toggle shaded/wireframe for active object"),
+	   ?STR(help,10,"Toggle shaded/wireframe for all other objects")).
 
 help_1(OneMsg, ThreeMsg) ->
     wings_util:button_message(OneMsg, [], ThreeMsg).
