@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.98 2003/10/22 15:41:55 raimo_niskanen Exp $
+%%     $Id: wings_ask.erl,v 1.99 2003/10/23 13:31:41 raimo_niskanen Exp $
 %%
 
 -module(wings_ask).
@@ -779,7 +779,7 @@ cb_event({redraw,Active}, #fi{key=Key,hook=Hook}=Fi, I, Store) ->
     Ck = ck(Key, I),
     Cb = gb_trees:get(-I, Store),
     Val = gb_trees:get(Ck, Store),
-    DisEnable = hook_is_disabled(Hook, Ck, I, Store),
+    DisEnable = hook(Hook, is_disabled, [Ck, I, Store]),
     cb_draw(Active, Fi, Cb, Val, DisEnable);
 cb_event({key,_,_,$\s}, #fi{key=Key}, I, Store) ->
     Ck = ck(Key, I),
@@ -849,7 +849,7 @@ rb_event(init, _Fi, I, Store) ->
     end;
 rb_event({redraw,Active}, #fi{hook=Hook}=Fi, I, Store) ->
     #rb{var=Var} = Rb = gb_trees:get(-I, Store),
-    DisEnable = hook_is_disabled(Hook, Var, I, Store),
+    DisEnable = hook(Hook, is_disabled, [Var, I, Store]),
     rb_draw(Active, Fi, Rb, gb_trees:get(Var, Store), DisEnable);
 rb_event(value, _Fi, I, Store) ->
     #rb{var=Var,val=Val} = gb_trees:get(-I, Store),
@@ -938,7 +938,7 @@ menu(Var, Def, Menu) ->
 menu_event({redraw,Active}, #fi{hook=Hook}=Fi, I, Store) ->
     #menu{var=Var} = M = gb_trees:get(-I, Store),
     Ck = ck(Var, I),
-    DisEnable = hook_is_disabled(Hook, Ck, I, Store),
+    DisEnable = hook(Hook, is_disabled, [Ck, I, Store]),
     menu_draw(Active, Fi, M, gb_trees:get(Ck, Store), DisEnable);
 menu_event(init, _Fi, I, Store) ->
     #menu{var=Var,def=Def} = gb_trees:get(-I, Store),
@@ -950,14 +950,14 @@ menu_event({key,_,_,$\s}, #fi{hook=Hook}=Fi, I, Store) ->
     #menu{var=Var} = M = gb_trees:get(-I, Store),
     Ck = ck(Var, I),
     Val = gb_trees:get(Ck, Store),
-    Disabled = hook_menu_disabled(Hook, Ck, I, Store),
+    Disabled = hook(Hook, menu_disabled, [Ck, I, Store]),
     menu_popup(Fi, M, Val, Disabled);
 menu_event(#mousebutton{button=1,state=?SDL_PRESSED}, #fi{hook=Hook}=Fi, 
 	   I, Store) ->
     #menu{var=Var} = M = gb_trees:get(-I, Store),
     Ck = ck(Var, I),
     Val = gb_trees:get(Ck, Store),
-    Disabled = hook_menu_disabled(Hook, Ck, I, Store),
+    Disabled = hook(Hook, menu_disabled, [Ck, I, Store]),
     menu_popup(Fi, M, Val, Disabled);
 menu_event({popup_result,Val}, _Fi, I, Store) ->
     #menu{var=Var} = gb_trees:get(-I, Store),
@@ -1143,7 +1143,7 @@ button_label(S) when is_list(S) -> S;
 button_label(Act) -> wings_util:cap(atom_to_list(Act)).
 
 button_event({redraw,Active}, #fi{key=Key,hook=Hook}=Fi, I, Store) ->
-    DisEnable = hook_is_disabled(Hook, ck(Key, I), I, Store),
+    DisEnable = hook(Hook, is_disabled, [ck(Key, I), I, Store]),
     button_draw(Active, Fi, gb_trees:get(-I, Store), DisEnable);
 button_event(value, _, _, _) ->
     none;
@@ -1198,7 +1198,7 @@ color(RGB) ->
 
 col_event({redraw,Active}, #fi{key=Key,hook=Hook}=Fi, I, Store) ->
     Var = ck(Key, I),
-    DisEnable = hook_is_disabled(Hook, Var, I, Store),
+    DisEnable = hook(Hook, is_disabled, [Var, I, Store]),
     col_draw(Active, Fi, gb_trees:get(Var, Store), DisEnable);
 col_event(init, #fi{key=Key}, I, Store) ->
     #col{val=RGB} = gb_trees:get(-I, Store),
@@ -1467,11 +1467,11 @@ string_to_float(Str0) ->
     end.
 
 gen_text_handler({redraw,true}, #fi{key=Key,hook=Hook}=Fi, I, Store) ->
-    DisEnable = hook_is_disabled(Hook, ck(Key, I), I, Store),
+    DisEnable = hook(Hook, is_disabled, [ck(Key, I), I, Store]),
     draw_text_active(Fi, gb_trees:get(-I, Store), DisEnable);
 gen_text_handler({redraw,false}, #fi{key=Key,hook=Hook}=Fi, I, Store) ->
     Var = ck(Key, I),
-    DisEnable = hook_is_disabled(Hook, Var, I, Store),
+    DisEnable = hook(Hook, is_disabled, [Var, I, Store]),
     Val = gb_trees:get(Var, Store),
     draw_text_inactive(Fi, gb_trees:get(-I, Store), Val, DisEnable);
 gen_text_handler(value, #fi{key=Key}, I, Store) ->
@@ -1739,7 +1739,7 @@ slider_event(init, #fi{key=Key,flags=Flags}, I, Store) ->
 slider_event({redraw,Active}, #fi{key=Key,hook=Hook}=Fi, I, Store) ->
     Sl = gb_trees:get(-I, Store),
     Val = gb_trees:get(sk(Key, I), Store),
-    DisEnable = hook_is_disabled(Hook, Sl, I, Store),
+    DisEnable = hook(Hook, is_disabled, [Sl, I, Store]),
     slider_redraw(Active, Fi, Sl, Val, Store, DisEnable);
 slider_event(value, #fi{flags=Flags,key=Key}, I, Store) ->
     case proplists:get_value(value, Flags) of
@@ -1802,7 +1802,7 @@ slider_event_move(Xb, #fi{x=X,key=Key,hook=Hook}, I, Store) ->
 slider_update(Hook, Val, Key, I, Store) ->
     Sk = sk(Key, I),
     ?DEBUG_DISPLAY([Val,Sk]),
-    hook_update(Hook, Sk, I, Val, Store).
+    hook(Hook, update, [Sk, I, Val, Store]).
 
 slider_redraw(Active, Fi, #sl{color={T,K1,K2}}=Sl, Val, Store, DisEnable) ->
     V1 = gb_trees:get(K1, Store),
@@ -1926,7 +1926,7 @@ sk(0, I) when is_integer(I), I > 0 ->
 sk(Key, I) when not is_integer(Key), is_integer(I) ->
     Key.
 
-hook_is_disabled(Hook, Var, I, Store) ->
+hook(Hook, is_disabled, [Var, I, Store]) ->
     case Hook of
 	undefined -> keep;
 	_ when is_function(Hook) ->
@@ -1935,25 +1935,24 @@ hook_is_disabled(Hook, Var, I, Store) ->
 		true -> disable;
 		false -> enable
 	    end
-    end.
-
-hook_update(Hook, Var, I, Val, Store) ->
+    end;
+hook(Hook, update, [Var, I, Val, Store]) ->
     case Hook of
 	undefined ->
 	    {store,gb_trees:update(Var, Val, Store)};
 	_ when is_function(Hook) ->
 	    case Hook(update, {Var,I,Val,gb_trees:update(Var, Val, Store)}) of
 		void -> keep;
-		Result -> Result
+		keep -> keep;
+		{store,_}=Result -> Result
 	    end
-    end.
-
-hook_menu_disabled(Hook, Var, I, Store) ->
+    end;
+hook(Hook, menu_disabled, [Var, I, Store]) ->
     case Hook of
-	undefined -> keep;
+	undefined -> [];
 	_ when is_function(Hook) ->
 	    case Hook(menu_disabled, {Var,I,Store}) of
 		void -> [];
-		Result -> Result
+		Disabled when list(Disabled) -> Disabled
 	    end
     end.

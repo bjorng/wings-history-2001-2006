@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.87 2003/10/22 15:41:56 raimo_niskanen Exp $
+%%     $Id: wings_camera.erl,v 1.88 2003/10/23 13:31:41 raimo_niskanen Exp $
 %%
 
 -module(wings_camera).
@@ -57,26 +57,10 @@ command(camera_mode, _St) ->
     PanSpeed0 = wings_pref:get_value(pan_speed),
     View0 = wings_wm:get_prop(Active, current_view),
     #view{fov=Fov0,hither=Hither0,yon=Yon0} = View0,
-    Qs = [{vframe,
-	   [{menu,[{"One",1},{"Two",2},{"Three",3}],
-	     wings_pref:get_value(num_buttons),
-	    [{hook,fun (menu_disabled, {_Var,I,Sto}) ->
-			   Mode = gb_trees:get(I+2, Sto),
-			   case lists:member(Mode, [mirai,maya,tds,mb]) of
-			       true -> [1,2];
-			       _ ->
-				   case Mode of
-				       blender -> [1];
-				       nendo -> []
-				   end
-			   end;
-		       (_, _) -> void
-		   end}]}],
-	   [{title,"Mouse Buttons"}]},
-	  {vframe,camera_modes(-2),[{title,"Camera Mode"}]},
+    Qs = [{vframe,[mouse_buttons(2)],[{title,"Mouse Buttons"}]},
+	  {vframe,[camera_modes(-2)],[{title,"Camera Mode"}]},
 	  {vframe,
-	   [{hframe,[{slider,{text,PanSpeed0,
-			      [{range,{1,50}}]}}]}],
+	   [{hframe,[{slider,{text,PanSpeed0,[{range,{1,50}}]}}]}],
 	   [{title,"Pan Speed"}]},
 	  {vframe,
 	   [{"Wheel Zooms",ZoomFlag0},
@@ -100,7 +84,6 @@ command(camera_mode, _St) ->
     wings_ask:dialog("Camera Settings", Qs,
 		     fun([Buttons,Mode,PanSpeed,ZoomFlag,ZoomFactor,
 			  Fov,Hither,Yon]) ->
-			     validate(Buttons, Mode),
 			     wings_pref:set_value(camera_mode, Mode),
 			     wings_pref:set_value(num_buttons, Buttons),
 			     wings_pref:set_value(pan_speed, PanSpeed),
@@ -112,30 +95,41 @@ command(camera_mode, _St) ->
 			     ignore
 		     end).
 
-validate(3, _) -> ok;
-validate(2, nendo) -> ok;
-validate(2, blender) -> ok;
-validate(2, Mode) -> again(Mode, 3);
-validate(1, nendo) -> ok;
-validate(1, blender) -> again(blender, 2);
-validate(1, Mode) -> again(Mode, 3).
+mouse_buttons(DI) ->
+    {menu,[{"One",1},{"Two",2},{"Three",3}],
+     wings_pref:get_value(num_buttons),
+     [{hook,fun (is_disabled, {_Var,I,Sto}) ->
+		    case gb_trees:get(I+DI, Sto) of
+			nendo -> false;
+			blender -> false;
+			_ -> true
+		    end;
+		(menu_disabled, {_Var,I,Sto}) ->
+			   case gb_trees:get(I+2, Sto) of
+			       nendo -> [];
+			       blender -> [1];
+			       _ -> [1,2]
+			   end;
+		(_, _) -> void
+	    end}]}.
 
-again(Mode, Buttons) ->
-    wings_util:error("The " ++ desc(Mode) ++ " camera mode requires at least " ++
-		     integer_to_list(Buttons) ++ " buttons.").
-      
 camera_modes(DI) ->
     Modes = [mirai,nendo,maya,tds,blender,mb],
-    [{menu,[{desc(Mode),Mode} || Mode <- Modes],
-      wings_pref:get_value(camera_mode),
-      [{hook,fun (menu_disabled, {_Var,I,Sto}) ->
-		     case gb_trees:get(I+DI, Sto) of
-			 1 -> [mirai,maya,tds,blender,mb];
-			 2 -> [mirai,maya,tds,mb];
-			 3 -> []
-		     end;
-		 (_, _) -> void
-	     end}]}].
+    {menu,[{desc(Mode),Mode} || Mode <- Modes],
+     wings_pref:get_value(camera_mode),
+     [{hook,fun (is_disabled, {_Var,I,Sto}) ->
+		    case gb_trees:get(I+DI, Sto) of
+			1 -> true;
+			_ -> false
+		    end;
+		(menu_disabled, {_Var,I,Sto}) ->
+		    case gb_trees:get(I+DI, Sto) of
+			1 -> [mirai,maya,tds,blender,mb];
+			2 -> [mirai,maya,tds,mb];
+			3 -> []
+		    end;
+		(_, _) -> void
+	    end}]}.
 
 desc(blender) -> "Blender";
 desc(nendo) -> "Nendo";
