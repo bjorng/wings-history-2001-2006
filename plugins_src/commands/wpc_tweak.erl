@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.61 2005/01/26 13:26:50 dgud Exp $
+%%     $Id: wpc_tweak.erl,v 1.62 2005/01/26 21:53:27 dgud Exp $
 %%
 
 -module(wpc_tweak).
@@ -122,17 +122,17 @@ handle_tweak_event1(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED},
     case wpa:pick(X, Y, St0) of
 	{add,MM,St} ->
 	    begin_drag(MM, St, T0),
-	    do_tweak(0.0, 0.0),
+	    do_tweak(0.0, 0.0, false),
 	    T = T0#tweak{tmode=drag,ox=X,oy=Y,cx=X,cy=Y},
 	    update_tweak_handler(T);
 	_ ->
 	    update_tweak_handler(T0)
     end;
-handle_tweak_event1(#mousemotion{x=X,y=Y,state=?SDL_PRESSED},
+handle_tweak_event1(#mousemotion{x=X,y=Y,state=?SDL_PRESSED,mod=Mod},
 		    #tweak{tmode=drag,cx=CX,cy=CY}=T0) ->
     DX = float(X-CX),
     DY = float(Y-CY),
-    do_tweak(DX, DY),
+    do_tweak(DX, DY, (Mod band wings_msg:free_lmb_modifier()) =/= 0),
     T = T0#tweak{cx=X,cy=Y},
     update_tweak_handler(T);
 handle_tweak_event1(#mousebutton{button=1,state=?SDL_RELEASED},
@@ -301,30 +301,50 @@ end_drag(D, St) -> {D,St}.
     
 sel_to_vs(vertex, Vs, _) -> Vs;
 sel_to_vs(edge, Es, We) -> wings_vertex:from_edges(Es, We);
-sel_to_vs(face, Fs, We) -> wings_vertex:from_faces(Fs, We).
+sel_to_vs(face, [Face], We) -> wings_face:vertices_cw(Face, We).
 
-do_tweak(DX, DY) ->
+do_tweak(DX, DY, Normal) ->
     wings_dl:map(fun(D, _) ->
-			 do_tweak(D, DX, DY)
+			 do_tweak(D, DX, DY, Normal)
 		 end, []).
     				
-do_tweak(#dlo{drag={matrix,Pos0,Matrix0,_},
-	      src_we=#we{id=Id}}=D, DX, DY) ->
+do_tweak(#dlo{drag={matrix,Pos0,Matrix0,_},src_we=#we{id=Id}}=D0,
+	 DX,DY,_AlongNormal) ->
     Matrices = wings_u:get_matrices(Id, original),
     {Xs,Ys,Zs} = obj_to_screen(Matrices, Pos0),
     Pos = screen_to_obj(Matrices, {Xs+DX,Ys-DY,Zs}),
     Move = e3d_vec:sub(Pos, Pos0),
     Matrix = e3d_mat:mul(e3d_mat:translate(Move), Matrix0),
-    D#dlo{drag={matrix,Pos,Matrix,e3d_mat:expand(Matrix)}};
-do_tweak(#dlo{drag=#drag{pos=Pos0,mag=Mag0,mm=MM}=Drag,
-	      src_we=#we{id=Id}}=D0, DX, DY) ->
+    D0#dlo{drag={matrix,Pos,Matrix,e3d_mat:expand(Matrix)}};
+do_tweak(#dlo{drag=#drag{vs=Vs,pos=Pos0,mag=Mag0,mm=MM}=Drag,
+	      src_we=We=#we{id=Id}}=D0,DX,DY,AlongNormal) ->
     Matrices = wings_u:get_matrices(Id, MM),
     {Xs,Ys,Zs} = obj_to_screen(Matrices, Pos0),
-    Pos = screen_to_obj(Matrices, {Xs+DX,Ys-DY,Zs}),
+    TweakPos = screen_to_obj(Matrices, {Xs+DX,Ys-DY,Zs}),    
+    Pos = case AlongNormal of
+	      false -> 
+		  TweakPos;
+	      true ->
+		  Dist = dir(DX,DY)*e3d_vec:dist(Pos0, TweakPos),
+		  case Vs of 
+		      [V] ->     % Vertex mode	       
+			  Normal = wings_vertex:normal(V,We),
+			  e3d_vec:add(Pos0,e3d_vec:mul(Normal,Dist));
+		      [V1,V2] -> % Edge mode
+			  N1 = wings_vertex:normal(V1,We),
+			  N2 = wings_vertex:normal(V2,We),
+			  Normal = e3d_vec:norm(e3d_vec:add(N1,N2)),
+			  e3d_vec:add(Pos0,e3d_vec:mul(Normal,Dist));
+		      _ ->      %  Face mode
+			  VsPos = [wings_vertex:pos(V,We) || V <- Vs],
+			  Normal = e3d_vec:normal(VsPos), 
+			  e3d_vec:add(Pos0,e3d_vec:mul(Normal,Dist))
+		  end
+	  end,
     {Vtab,Mag} = magnet_tweak(Mag0, Pos),
     D = D0#dlo{sel=none,drag=Drag#drag{pos=Pos,mag=Mag}},
     wings_draw:update_dynamic(D, Vtab);
-do_tweak(D, _, _) -> D.
+do_tweak(D, _, _, _) -> D.
 
 obj_to_screen({MVM,PM,VP}, {X,Y,Z}) ->
     glu:project(X, Y, Z, MVM, PM, VP).
@@ -332,14 +352,28 @@ obj_to_screen({MVM,PM,VP}, {X,Y,Z}) ->
 screen_to_obj({MVM,PM,VP}, {Xs,Ys,Zs}) ->
     glu:unProject(Xs, Ys, Zs, MVM, PM, VP).
 
+dir(X,Y) ->
+    if 
+	X =:= 0.0,Y =:= 0.0 -> 0.0;
+	abs(X) > abs(Y) -> X/abs(X);
+	true -> -Y/abs(Y)
+    end.
+
 help(#tweak{magnet=false}) ->
-    Msg1 = wings_msg:button_format("Drag element freely"),
+    Msg1 = wings_msg:button_format("Drag freely"),
     Msg2 = wings_camera:help(),
     Msg3 = wings_msg:button_format([], [], "Exit tweak mode"),
-    Msg = wings_msg:join([Msg1,Msg2,Msg3]),
+    FreeMod = wings_msg:free_lmb_modifier(),
+    ModName = wings_msg:mod_name(FreeMod),
+    Msg4 = [ModName,$+,wings_msg:button_format("Along Normal")],
+    Msg = wings_msg:join([Msg1,Msg4,Msg2,Msg3]),
     wings_wm:message(Msg, "[1] Magnet On");
 help(#tweak{magnet=true,mag_type=Type}) ->
-    Msg = wings_msg:button_format("Drag", [], "Exit"),
+    FreeMod = wings_msg:free_lmb_modifier(),
+    ModName = wings_msg:mod_name(FreeMod),
+    Norm = [ModName,$+,wings_msg:button_format("Along Normal")],
+    Drag = wings_msg:join(["Drag", Norm]),
+    Msg = wings_msg:button_format(Drag, [], "Exit"),
     Types = help_1(Type, [{2,dome},{3,straight},{4,spike}]),
     MagMsg = wings_msg:join(["[1] Magnet Off",
 			     "[+]/[-] Tweak R",
@@ -401,7 +435,7 @@ setup_magnet(#tweak{tmode=drag}=T) ->
     wings_dl:map(fun(D, _) ->
 			 setup_magnet_fun(D, T)
 		 end, []),
-    do_tweak(0.0, 0.0),
+    do_tweak(0.0, 0.0, false),
     wings_wm:dirty(),
     T;
 setup_magnet(T) -> T.
