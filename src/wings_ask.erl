@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.170 2004/02/11 23:40:19 raimo_niskanen Exp $
+%%     $Id: wings_ask.erl,v 1.171 2004/02/18 11:52:06 raimo_niskanen Exp $
 %%
 
 -module(wings_ask).
@@ -36,21 +36,29 @@
 
 -import(lists, [reverse/1,reverse/2,duplicate/2,keysearch/3,member/2,map/2]).
 
-%%%-define(DEBUG, [event,tree,other]).
+%%%-define(DEBUG_CATEGORIES, [event,other]).
+-ifdef(DEBUG_CATEGORIES).
+-define(DEBUG, true).
+-endif.
+
 -ifdef(DEBUG).
+-ifndef(DEBUG_CATEGORIES).
+-define(DEBUG_CATEGORIES, []). % [event,other]
+-endif.
+
 -define(DEBUG_DISPLAY(Cat,X),
-	case lists:member(Cat,?DEBUG) of
+	case lists:member(Cat,?DEBUG_CATEGORIES) of
 	    true -> io:format("~p~n", [{?MODULE,?LINE,(X)}]), true;
 	    false -> true
 	end).
 -define(DEBUG_FORMAT(Cat,Fmt,Args),
-	case lists:member(Cat,?DEBUG) of
+	case lists:member(Cat,?DEBUG_CATEGORIES) of
 	    true -> io:format(?MODULE_STRING":"++integer_to_list(?LINE)++" "
 			      ++Fmt, Args);
 	    false -> ok
 	end).
 -define(DMPTREE(Cat,Fi), 
-	case lists:member(Cat,?DEBUG) of
+	case lists:member(Cat,?DEBUG_CATEGORIES) of
 	    true -> 
 		io:format("~p~n", [{?MODULE,?LINE}]), 
 		dmptree(Fi), 
