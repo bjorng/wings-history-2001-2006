@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.166 2004/01/28 23:45:06 raimo_niskanen Exp $
+%%     $Id: wings_ask.erl,v 1.167 2004/02/09 15:53:00 dgud Exp $
 %%
 
 -module(wings_ask).
@@ -18,7 +18,7 @@
 
 %% Debug exports
 -export([binsearch/2]).
-
+-export([eval/1]).
 -import(wings_util, [min/2,max/2]).
 
 -define(NEED_OPENGL, 1).
@@ -2229,7 +2229,7 @@ button_event({key,_,_,$\s},
     #but{action=Action} = gb_trees:get(-I, Store0),
     case hook(Hook, update, [var(Key, I),I,true,Store0,Flags]) of
 	keep -> Action;
-	{store,Store} = Result when Action == keep -> Result;
+	{store,_Store} = Result when Action == keep -> Result;
 	{store,Store} -> {Action,Store};
 	Result -> Result
     end;
@@ -2783,8 +2783,8 @@ all_chars(_) -> true.
 
 integer_range(Min, Max) ->
     fun(Str) ->
-	    case catch list_to_integer(Str) of
-		{'EXIT',_} -> integer_to_list(Min);
+	    case eval_integer(Str) of
+		error -> integer_to_list(Min);
 		Int when Int < Min -> integer_to_list(Min);
 		Int when Int > Max -> integer_to_list(Max);
 		Int when is_integer(Int) -> ok
@@ -2793,7 +2793,7 @@ integer_range(Min, Max) ->
 
 float_range(Min, Max) ->
     fun(Str) ->
-	    case string_to_float(Str) of
+	    case eval_float(Str) of
 		error -> wings_util:nice_float(Min);
 		Float when Float < Min -> wings_util:nice_float(Min);
 		Float when Float > Max -> wings_util:nice_float(Max);
@@ -2803,35 +2803,102 @@ float_range(Min, Max) ->
 
 accept_all(_) -> ok.
 
-
 text_get_val(#text{last_val=OldVal}=Ts) when is_integer(OldVal) ->
-    case catch list_to_integer(get_text(validate_string(Ts))) of
-	{'EXIT',_} -> OldVal;
-	Val -> Val
-    end;
+    eval_integer(get_text(validate_string(Ts)), OldVal);
 text_get_val(#text{last_val=OldVal}=Ts) when is_float(OldVal) ->
-    case string_to_float(get_text(validate_string(Ts))) of
-	error -> OldVal;
-	Val -> Val
-    end;
+    eval_float(get_text(validate_string(Ts)), OldVal);
 text_get_val(#text{last_val=Val}=Ts) when is_list(Val) ->
     get_text(Ts).
 
-string_to_float(Str0) ->
-    Str = case Str0 of
-	      [$.|_]=T -> [$0|T];
-	      [$-|[$.|_]=T] -> [$-,$0|T];
-	      [$+|[$.|_]=T] -> [$+,$0|T];
-	      T -> T
-	  end,
-    case catch list_to_float(Str) of
-	Float when is_float(Float) -> Float;
-	_Other ->
-	    case catch list_to_integer(Str) of
-		Int when is_integer(Int) -> float(Int);
-		_Crash -> error
-	    end
+eval_integer(Str) ->
+    eval_integer(Str,error).
+eval_integer(Str, Default) ->
+    case eval(Str) of
+	X when is_float(X) -> round(X);
+	X when is_integer(X) -> X;
+	_ -> Default
     end.
+eval_float(Str) ->
+    eval_float(Str, error).    
+eval_float(Str, Default) ->
+    case eval(Str) of
+	X when is_float(X) -> X;
+	X when is_integer(X) -> float(X);
+	_ -> Default
+    end.
+
+eval(Str0) ->
+    Str = fix_expr(Str0, []),
+    case catch eval_1(Str) of
+	{'EXIT', {{badmatch,{error,{1,erl_parse, [What, Where]}}},_}} ->
+	    io:format("Error: ~s ~s~n", [What,Where]),
+	    error;
+	{'EXIT', {{ParseErr, [{erl_eval,_,_}|_]},_}} ->
+	    io:format("Parse Error: ~p~n", [ParseErr]),
+	    error;
+	{'EXIT', Reason} ->
+	    io:format("Error: ~p~n", [Reason]),
+	    error;
+	Val -> Val
+    end.
+
+eval_1("") -> %% Get's called with the empty string sometimes strange..
+    error;
+eval_1(Str) ->
+    {ok, Tokens, _} = erl_scan:string(Str),
+    {ok, Forms} = erl_parse:parse_exprs(Tokens),    
+    Bindings = erl_eval:new_bindings(),
+    Eval = fun(Form0, {_, Bind}) ->
+		   %%	io:format("Eval Form ~p~n", [Form0]),
+		   Form = check_form(Form0),
+		   {value, Res, NewBind} = erl_eval:expr(Form, Bind),
+		   {Res, NewBind}
+	   end,
+    {Res, _} = 	lists:foldl(Eval, {error,Bindings}, Forms),
+    Res.
+
+check_form({call,_Line,{remote,_Line2,{atom,_Line3,erlang},{atom,_Line4,_}},_As0}) ->
+    exit({forbidden, erlang});
+check_form({call,_Line,{remote,_Line2,{atom,_Line3,wings},{atom,_Line4,_}},_As0}) ->
+    exit({forbidden, wings});
+check_form({call,_Line,{remote,_Line2,{atom,_Line3,esdl},{atom,_Line4,_}},_As0}) ->
+    exit({forbidden, esdl});
+check_form(Call = {call,Line, {atom,Line3, Func},As0}) ->
+    case erlang:is_builtin(math,Func,length(As0)) of
+	true -> % Fix math funcs
+	    {call,Line,{remote,Line,{atom,Line,math},{atom,Line3,Func}},
+	     check_form(As0)};
+	false ->
+	    Call
+    end;
+check_form(T) when is_tuple(T) ->
+    list_to_tuple(check_form_list(tuple_to_list(T)));
+check_form(L) when is_list(L) ->
+    check_form_list(L);
+check_form(AnyOther) ->
+    AnyOther.
+
+check_form_list([H|T]) ->
+    [check_form(H)|check_form_list(T)];
+check_form_list([]) ->
+    [].
+
+fix_expr([],Acc)   -> lists:reverse([$.|Acc]);
+fix_expr([$.],Acc) -> lists:reverse([$.|Acc]);
+fix_expr([$.|T], [X|_]=Acc) when X >= $0, X =< $9 ->
+    fix_expr(T, [$.|Acc]);
+fix_expr([$.|T], Acc)  ->
+    fix_expr(T, [$.,$0|Acc]);
+						% Some math simplifications
+fix_expr("math:" ++ T, Acc) -> fix_expr(T, Acc);
+fix_expr("pi" ++ T, Acc) -> fix_expr(T, "ip:htam" ++ Acc);
+%% Some extra function
+fix_expr("deg2rad" ++ T, Acc) -> 
+    fix_expr(T, lists:reverse("math:pi()/180*") ++ Acc);
+fix_expr("rad2deg" ++ T, Acc) -> 
+    fix_expr(T, lists:reverse("180/math:pi()*") ++ Acc);
+fix_expr([H|T],Acc) ->
+    fix_expr(T,[H|Acc]).
 
 gen_text_handler({redraw,Active,DisEnabled}, 
 		 [Fi=#fi{key=Key,index=I}|_], Store) ->
