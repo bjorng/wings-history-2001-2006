@@ -8,10 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.30 2003/05/09 06:12:04 bjorng Exp $
+%%     $Id: wpa.erl,v 1.31 2003/07/12 08:56:31 bjorng Exp $
 %%
 -module(wpa).
--export([ask/3,ask/4,dialog/3,dialog/4,error/1,yes_no/1,
+-export([ask/3,ask/4,dialog/3,dialog/4,error/1,
+	 yes_no/2,yes_no/3,yes_no_cancel/3,
 	 bind_unicode/2,bind_virtual/3,
 	 import/2,import/3,import_filename/2,
 	 export/3,export_selected/3,export_filename/2,
@@ -58,9 +59,14 @@ dialog(Bool, Title, Qs, Fun) ->
 error(String) ->
     wings_util:error(String).
 
-%% Ask yes/no question. Returns yes|no|aborted.
-yes_no(Question) ->
-    wings_util:yes_no(Question).
+yes_no(Question, Yes) ->
+    wings_util:yes_no(Question, Yes).
+
+yes_no(Question, Yes, No) ->
+    wings_util:yes_no(Question, Yes, No).
+
+yes_no_cancel(Question, Yes, No) ->
+    wings_util:yes_no_cancel(Question, Yes, No).
 
 bind_unicode(Key, Command) ->
     wings_hotkey:bind_unicode(Key, Command, plugin).
