@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.10 2002/02/11 21:50:57 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.11 2002/02/17 20:01:56 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -168,6 +168,15 @@ handle_event_5(redraw, Ss, St) ->
     gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
     wings:redraw(St),
     keep;
+handle_event_5({action,{select,Cmd}}, Ss, St0) ->
+    case wings_sel_cmd:command(Cmd, St0) of
+	St0 -> keep;
+	{save_state,St} -> filter_sel_command(Ss, St);
+	St -> filter_sel_command(Ss, St)
+    end;
+handle_event_5({action,{view,Cmd}}, Ss, St0) ->
+    St = wings_view:command(Cmd, St0),
+    get_event(Ss, St);
 handle_event_5({action,{secondary_selection,abort}}, Ss, St) ->
     wings_io:clear_message(),
     wings_io:putback_event(redraw),
@@ -176,12 +185,6 @@ handle_event_5({action,Cmd}, Ss, St) ->
     wings_io:clear_message(),
     wings_io:putback_event({action,Cmd}),
     pop;
-handle_event_5({action,{select,Cmd}}, Ss, St0) ->
-    case wings_sel_cmd:command(Cmd, St0) of
-	St0 -> keep;
-	{save_state,St} -> filter_sel_command(Ss, St);
-	St -> filter_sel_command(Ss, St)
-    end;
 handle_event_5(quit, Ss, St0) ->
     wings_io:putback_event(quit),
     pop;
