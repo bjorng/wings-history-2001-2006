@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.21 2002/02/12 19:45:33 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.22 2002/02/22 11:14:16 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -135,7 +135,7 @@ tighten(_, #we{vs=Vtab}=We, A) ->
 
 smooth(St) ->
     wings_sel:map(
-      fun(_, #we{name=Name,fs=Ftab,he=Htab}=We) ->
+      fun(_, #we{name=Name}=We) ->
 	      wings_io:progress("Smoothing \"" ++ Name ++ "\""),
 	      wings_subdiv:smooth(We)
       end, St).
@@ -206,7 +206,7 @@ auto_smooth_1(_, #we{es=Etab,he=Htab0}=We) ->
 auto_smooth(Edge, #edge{lf=Lf,rf=Rf}, H0, We) ->
     Ln = wings_face:normal(Lf, We),
     Lr = wings_face:normal(Rf, We),
-    case e3d_vec:is_zero(Ln) or e3d_vec:is_zero(Lr) of
+    case e3d_vec:is_zero(Ln) orelse e3d_vec:is_zero(Lr) of
 	true -> H0;				%Ignore this edge.
 	false ->
 	    case e3d_vec:dot(Ln, Lr) of
