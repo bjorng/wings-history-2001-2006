@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.48 2002/05/13 06:58:40 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.49 2002/05/29 10:12:18 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -72,7 +72,7 @@ pick(X, Y, St0) ->
     if 
 	Mod band (?SHIFT_BITS bor ?CTRL_BITS) =/= 0 ->
 	    Pick = #marquee{ox=X,oy=Y,st=St0},
-	    marquee_mode(Pick);
+	    clear_hilite_marquee_mode(Pick);
 	true ->
 	    case do_pick(X, Y, St0) of
 		none ->
@@ -174,16 +174,33 @@ hilit_draw_sel(body, _, #we{fs=Ftab}=We) ->
 %%
 %% Marquee picking.
 %%
+clear_hilite_marquee_mode(#marquee{st=St}=Pick) ->
+    wings_wm:dirty(),
+    {seq,{push,dummy},
+     fun(redraw) ->
+	     wings:redraw(St),
+	     wings_io:putback_event(now_enter_marquee_mode),
+	     keep;
+	(now_enter_marquee_mode) ->
+	     init_marquee_mode(),
+	     get_marquee_event(Pick);
+	(Ev) ->
+	     wings_io:putback_event(),
+	     keep
+     end}.
 
 marquee_mode(Pick) ->
+    init_marquee_mode(),
+    {seq,{push,dummy},get_marquee_event(Pick)}.
+
+init_marquee_mode() ->
     wings_io:setup_for_drawing(),
     wings_io:draw_message(
       fun() ->
 	      Message = "[Ctrl] Deselect  "
 		  "[Shift] (De)select only elements wholly inside marquee",
 	      wings_io:text_at(0, Message)
-      end),
-    {seq,{push,dummy},get_marquee_event(Pick)}.
+      end).
 
 get_marquee_event(Pick) ->
     {replace,fun(Ev) -> marquee_event(Ev, Pick) end}.
