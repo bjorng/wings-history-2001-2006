@@ -8,21 +8,23 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.184 2004/04/12 09:04:49 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.185 2004/04/12 18:34:39 bjorng Exp $
 %%
 
 -module(wings_draw).
 -export([refresh_dlists/1,
 	 invalidate_dlists/1,
 	 update_sel_dlist/0,
-	 changed_we/2,split/3,original_we/1,update_dynamic/2,join/1]).
+	 changed_we/2,split/3,original_we/1,update_dynamic/2,join/1,
+	 face_ns_data/1]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
 -include("wings.hrl").
+-include("e3d.hrl").
 
 -import(lists, [foreach/2,last/1,reverse/1,reverse/2,member/2,
-		foldl/3,merge/1,sort/1,any/2]).
+		foldl/3,merge/1,sort/1,any/2,seq/2]).
 
 -record(split,
 	{static_vs,
@@ -144,27 +146,32 @@ update_normals_2([{Face,Edge}|Fs], [{Face,Data}=Pair|Ns], We, Acc) ->
     case Data of
 	[_|Ps] ->
 	    update_normals_2(Fs, Ns, We, [Pair|Acc]);
-	{_,Ps} ->
+	{_,_,Ps} ->
 	    update_normals_2(Fs, Ns, We, [Pair|Acc]);
 	_ ->
-	    N = e3d_vec:normal(Ps),
-	    update_normals_2(Fs, Ns, We, [{Face,face_ns_data(N, Ps)}|Acc])
+	    update_normals_2(Fs, Ns, We, [{Face,face_ns_data(Ps)}|Acc])
     end;
 update_normals_2([{Fa,_}|_]=Fs, [{Fb,_}|Ns], We, Acc) when Fa > Fb ->
     update_normals_2(Fs, Ns, We, Acc);
 update_normals_2([{Face,Edge}|Fs], Ns, We, Acc) ->
     Ps = wings_face:vertex_positions(Face, Edge, We),
-    N = e3d_vec:normal(Ps),
-    update_normals_2(Fs, Ns, We, [{Face,face_ns_data(N, Ps)}|Acc]);
+    update_normals_2(Fs, Ns, We, [{Face,face_ns_data(Ps)}|Acc]);
 update_normals_2([], _, _, Acc) -> gb_trees:from_orddict(reverse(Acc)).
 
-face_ns_data(N, [_,_,_]=Ps) -> [N|Ps];
-face_ns_data(N, [A,B,C,D]=Ps) ->
+face_ns_data([_,_,_]=Ps) ->
+    [e3d_vec:normal(Ps)|Ps];
+face_ns_data([A,B,C,D]=Ps) ->
+    N = e3d_vec:normal(Ps),
     case wings_draw_util:good_triangulation(N, A, B, C, D) of
-	false -> {N,Ps};
+	false -> {N,[{1,2,4},{4,2,3}],Ps};
 	true -> [N|Ps]
     end;
-face_ns_data(N, Ps) -> {N,Ps}.
+face_ns_data(Ps) ->
+    Vs = seq(0, length(Ps)-1),
+    N = e3d_vec:normal(Ps),
+    Fs0 = e3d_mesh:triangulate_face(#e3d_face{vs=Vs}, N, Ps),
+    Fs = [{A+1,B+1,C+1} || #e3d_face{vs=[A,B,C]} <- Fs0],
+    {N,Fs,Ps}.
 
 update_mirror(#dlo{mirror=none,src_we=#we{mirror=none}}=D) -> D;
 update_mirror(#dlo{mirror=none,src_we=#we{fs=Ftab,mirror=Face}=We}=D) ->
@@ -360,7 +367,7 @@ make_edge_dl_2([F|Fs], Ns, Mode) ->
 	    gl:vertex3fv(C),
 	    gl:vertex3fv(D),
 	    make_edge_dl_2(Fs, Ns, ?GL_QUADS);
-	{_,VsPos} ->
+	{_,_,VsPos} ->
 	    maybe_end(Mode),
 	    gl:'begin'(?GL_POLYGON),
 	    foreach(fun(V) -> gl:vertex3fv(V) end, VsPos),
@@ -819,35 +826,35 @@ draw_vtx_faces_3([], _) -> ok.
 %%% Set material and draw faces.
 %%%
 
-mat_faces(List, We, #st{mat=Mtab}) ->
-    mat_faces_1(List, We, Mtab);
-mat_faces(List, We, Mtab) ->
-    mat_faces_1(List, We, Mtab).
+mat_faces(List, #dlo{}=D, #st{mat=Mtab}) ->
+    mat_faces_1(List, D, Mtab);
+mat_faces(List, D, Mtab) ->
+    mat_faces_1(List, D, Mtab).
     
-mat_faces_1([{Mat,Faces}|T], We, Mtab) ->
+mat_faces_1([{Mat,Faces}|T], D, Mtab) ->
     gl:pushAttrib(?GL_TEXTURE_BIT),
     case wings_material:apply_material(Mat, Mtab) of
 	false ->
 	    gl:'begin'(?GL_TRIANGLES),
-	    draw_mat_faces(Faces, We),
+	    draw_mat_faces(Faces, D),
 	    gl:'end'();
 	true ->
 	    gl:'begin'(?GL_TRIANGLES),
-	    draw_uv_faces(Faces, We),
+	    draw_uv_faces(Faces, D),
 	    gl:'end'()
     end,
     gl:popAttrib(),
-    mat_faces_1(T, We, Mtab);
+    mat_faces_1(T, D, Mtab);
 mat_faces_1([], _, _) -> ok.
 
-draw_mat_faces([{Face,Edge}|Fs], We) ->
-    wings_draw_util:plain_face(Face, Edge, We),
-    draw_mat_faces(Fs, We);
+draw_mat_faces([{Face,_Edge}|Fs], D) ->
+    wings_draw_util:plain_face(Face, D),
+    draw_mat_faces(Fs, D);
 draw_mat_faces([], _) -> ok.
 
-draw_uv_faces([{Face,Edge}|Fs], We) ->
-    wings_draw_util:uv_face(Face, Edge, We),
-    draw_uv_faces(Fs, We);
+draw_uv_faces([{Face,Edge}|Fs], D) ->
+    wings_draw_util:uv_face(Face, Edge, D),
+    draw_uv_faces(Fs, D);
 draw_uv_faces([], _) -> ok.
 
 %%%
@@ -856,7 +863,7 @@ draw_uv_faces([], _) -> ok.
 
 smooth_dlist(#dlo{src_we=#we{he=Htab0,fs=Ftab,mirror=Face}=We,ns=Ns0}=D, St) ->
     Ns1 = foldl(fun({F,[N|_]}, A) -> [{F,N}|A];
-		   ({F,{N,_}}, A) -> [{F,N}|A]
+		   ({F,{N,_,_}}, A) -> [{F,N}|A]
 		end, [], gb_trees:to_list(Ns0)),
     Ns = reverse(Ns1),
     case gb_trees:is_defined(Face, Ftab) of

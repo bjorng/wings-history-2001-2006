@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.131 2004/04/12 09:04:49 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.132 2004/04/12 18:34:43 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -539,7 +539,7 @@ best_face_hit_2(#we{id=Id,vp=Vtab}=We, Ns, Ray, {[{Id,Id,Face}|Hits],Hit0,T0})
 best_face_hit_2(#we{id=AbsId}=We, Ns, Ray, {[{AbsId,Id,Face}|Hits],Hit0,T0}) ->
     case gb_trees:get(Face, Ns) of
 	[N|[P0|_]] -> ok;
-	{N,[P0|_]} -> ok
+	{N,_,[P0|_]} -> ok
     end,
     P = if 
 	    Id < 0 ->
@@ -814,38 +814,18 @@ draw_1(_) -> ok.
 
 face([_|[A,B,C]]) ->
     gl:'begin'(?GL_TRIANGLES),
-    gl:vertex3dv(A),
-    gl:vertex3dv(B),
-    gl:vertex3dv(C),
+    gl:vertex3fv(A),
+    gl:vertex3fv(B),
+    gl:vertex3fv(C),
     gl:'end'();
 face([_|[A,B,C,D]]) ->
     gl:'begin'(?GL_QUADS),
-    gl:vertex3dv(A),
-    gl:vertex3dv(B),
-    gl:vertex3dv(C),
-    gl:vertex3dv(D),
-    gl:'end'();
-face({_,[A,B,C,D]}) ->
-    gl:'begin'(?GL_TRIANGLES),
     gl:vertex3fv(A),
-    gl:vertex3fv(B),
-    gl:vertex3fv(D),
     gl:vertex3fv(B),
     gl:vertex3fv(C),
     gl:vertex3fv(D),
     gl:'end'();
-face({N,VsPos}) ->
-    Vs = seq(0, length(VsPos)-1),
-    Fs = e3d_mesh:triangulate_face(#e3d_face{vs=Vs}, N, VsPos),
+face({_,Fs,VsPos}) ->
     gl:'begin'(?GL_TRIANGLES),
-    face_1(Fs, list_to_tuple(VsPos)).
-
-face_1([#e3d_face{vs=[A0,B0,C0]}|Fs], Vtab) ->
-    A = A0+1, B = B0+1, C = C0+1,
-    gl:vertex3fv(element(A, Vtab)),
-    gl:vertex3fv(element(B, Vtab)),
-    gl:vertex3fv(element(C, Vtab)),
-    face_1(Fs, Vtab);
-face_1([_|Fs], Vtab) ->
-    face_1(Fs, Vtab);
-face_1([], _) -> gl:'end'().
+    wings__du:plain_face(Fs, VsPos),
+    gl:'end'().

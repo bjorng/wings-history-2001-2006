@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.129 2004/04/12 09:04:49 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.130 2004/04/12 18:34:43 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -16,7 +16,7 @@
 	 update/2,map/2,fold/2,changed_materials/1,
 	 render/1,call/1,
 	 prepare/3,
-	 plain_face/2,plain_face/3,uv_face/3,vcol_face/2,vcol_face/3,
+	 plain_face/2,uv_face/3,vcol_face/2,vcol_face/3,
 	 smooth_plain_faces/2,smooth_uv_faces/2,smooth_vcol_faces/2,
 	 unlit_face/2,unlit_face/3,
 	 force_flat_color/2,force_flat_color/3,good_triangulation/5,
@@ -580,37 +580,21 @@ plain_face(Face, #dlo{ns=Ns}) ->
 	[N|VsPos] ->
 	    gl:normal3fv(N),
 	    wings__du:plain_face(VsPos);
-	{N,VsPos} ->
+	{N,Fs,VsPos} ->
 	    gl:normal3fv(N),
-	    wings__du:plain_face(N, VsPos)
+	    wings__du:plain_face(Fs, VsPos)
     end;
 plain_face(Face, #we{fs=Ftab}=We) ->
     Edge = gb_trees:get(Face, Ftab),
-    plain_face(Face, Edge, We).
-
-plain_face(Face, _, #dlo{}=D) ->
-    plain_face(Face, D);
-plain_face(Face, Edge, #we{vp=Vtab}=We) ->
-    Vs = wings_face:vertices_cw(Face, Edge, We),
-    plain_face_1(Vs, Vtab, []).
-
-plain_face_1([V|Vs], Vtab, Acc) ->
-    plain_face_1(Vs, Vtab, [gb_trees:get(V, Vtab)|Acc]);
-plain_face_1([], _, [_,_,_]=VsPos) ->
-    N = e3d_vec:normal(VsPos),
-    gl:normal3fv(N),
-    wings__du:plain_face(VsPos);
-plain_face_1([], _, [A,B,C,D]=VsPos) ->
-    N = e3d_vec:normal(VsPos),
-    gl:normal3fv(N),
-    case good_triangulation(N, A, B, C, D) of
-	false -> wings__du:plain_face(N, VsPos);
-	true -> wings__du:plain_face(VsPos)
-    end;
-plain_face_1([], _, VsPos) ->
-    N = e3d_vec:normal(VsPos),
-    gl:normal3fv(N),
-    wings__du:plain_face(N, VsPos).
+    Ps = wings_face:vertex_positions(Face, Edge, We),
+    case wings_draw:face_ns_data(Ps) of
+	[N|VsPos] ->
+	    gl:normal3fv(N),
+	    wings__du:plain_face(VsPos);
+	{N,Fs,VsPos} ->
+	    gl:normal3fv(N),
+	    wings__du:plain_face(Fs, VsPos)
+    end.
 
 %%
 %% Tesselate and draw face. Include UV coordinates.
@@ -622,32 +606,10 @@ uv_face(Face, Edge, #dlo{src_we=We,ns=Ns}) ->
 	[N|VsPos] ->
 	    gl:normal3fv(N),
 	    wings__du:uv_face(VsPos, UVs);
-	{N,VsPos} ->
+	{N,Fs,VsPos} ->
 	    gl:normal3fv(N),
-	    wings__du:uv_face(N, VsPos, UVs)
-    end;
-uv_face(Face, Edge, #we{vp=Vtab}=We) ->
-    Vs0 = wings_face:vinfo_cw(Face, Edge, We),
-    uv_face_1(Vs0, Vtab, [], []).
-
-uv_face_1([[V|Col]|Vs], Vtab, Nacc, VsAcc) ->
-    Pos = gb_trees:get(V, Vtab),
-    uv_face_1(Vs, Vtab, [Pos|Nacc], [Col|VsAcc]);
-uv_face_1([], _, [_,_,_]=VsPos, UVs) ->
-    N = e3d_vec:normal(VsPos),
-    gl:normal3fv(N),
-    wings__du:uv_face(VsPos, UVs);
-uv_face_1([], _, [A,B,C,D]=VsPos, UVs) ->
-    N = e3d_vec:normal(VsPos),
-    gl:normal3fv(N),
-    case good_triangulation(N, A, B, C, D) of
-	false -> wings__du:uv_face(N, VsPos, UVs);
-	true -> wings__du:uv_face(VsPos, UVs)
-    end;
-uv_face_1([], _, VsPos, UVs) ->
-    N = e3d_vec:normal(VsPos),
-    gl:normal3fv(N),
-    wings__du:uv_face(N, VsPos, UVs).
+	    wings__du:uv_face(Fs, VsPos, UVs)
+    end.
 
 %%
 %% Tesselate and draw face. Include vertex colors.
@@ -659,43 +621,20 @@ vcol_face(Face, #dlo{src_we=We,ns=Ns}) ->
 	[N|VsPos] ->
 	    gl:normal3fv(N),
 	    wings__du:vcol_face(VsPos, Cols);
-	{N,VsPos} ->
+	{N,Fs,VsPos} ->
 	    gl:normal3fv(N),
-	    wings__du:vcol_face(N, VsPos, Cols)
-    end;
-vcol_face(Face, #we{fs=Ftab,vp=Vtab}=We) ->
-    Edge = gb_trees:get(Face, Ftab),
-    Vs0 = wings_face:vinfo_cw(Face, Edge, We),
-    vcol_face_1(Vs0, Vtab, [], []).
+	    wings__du:vcol_face(Fs, VsPos, Cols)
+    end.
 
 vcol_face(Face, #dlo{ns=Ns}, Cols) ->
     case gb_trees:get(Face, Ns) of
 	[N|VsPos] ->
 	    gl:normal3fv(N),
 	    wings__du:vcol_face(VsPos, Cols);
-	{N,VsPos} ->
+	{N,Fs,VsPos} ->
 	    gl:normal3fv(N),
-	    wings__du:vcol_face(N, VsPos, Cols)
+	    wings__du:vcol_face(Fs, VsPos, Cols)
     end.
-
-vcol_face_1([[V|Col]|Vs], Vtab, Nacc, VsAcc) ->
-    Pos = gb_trees:get(V, Vtab),
-    vcol_face_1(Vs, Vtab, [Pos|Nacc], [Col|VsAcc]);
-vcol_face_1([], _, [_,_,_]=VsPos, Cols) ->
-    N = e3d_vec:normal(VsPos),
-    gl:normal3fv(N),
-    wings__du:vcol_face(VsPos, Cols);
-vcol_face_1([], _, [A,B,C,D]=VsPos, Cols) ->
-    N = e3d_vec:normal(VsPos),
-    gl:normal3fv(N),
-    case good_triangulation(N, A, B, C, D) of
-	false -> wings__du:vcol_face(N, VsPos, Cols);
-	true -> wings__du:vcol_face(VsPos, Cols)
-    end;
-vcol_face_1([], _, VsPos, Cols) ->
-    N = e3d_vec:normal(VsPos),
-    gl:normal3fv(N),
-    wings__du:vcol_face(N, VsPos, Cols).
 
 %% good_triangulation(Normal, Point1, Point2, Point3, Point4) -> true|false
 %%  Return true if triangulation by connecting Point1 to Point3 is OK.
@@ -746,24 +685,30 @@ force_flat_color(OriginalDlist, {R,G,B}, DrawExtra) ->
 
 smooth_plain_faces([{Face,VsInfo}|Fs], Ns) ->
     case gb_trees:get(Face, Ns) of
-	[_|Pos] -> wings__du:smooth_plain_face(Pos, VsInfo);
-	{N,Pos} -> wings__du:smooth_plain_face(N, Pos, VsInfo)
+	[_|Pos] ->
+	    wings__du:smooth_plain_face(Pos, VsInfo);
+	{_,TriFs,Pos} ->
+	    wings__du:smooth_plain_face(TriFs, Pos, VsInfo)
     end,
     smooth_plain_faces(Fs, Ns);
 smooth_plain_faces([], _) -> ok.
 
 smooth_uv_faces([{Face,VsInfo}|Fs], Ns) ->
     case gb_trees:get(Face, Ns) of
-	[_|Pos] -> wings__du:smooth_uv_face(Pos, VsInfo);
-	{N,Pos} -> wings__du:smooth_uv_face(N, Pos, VsInfo)
+	[_|Pos] ->
+	    wings__du:smooth_uv_face(Pos, VsInfo);
+	{_,TriFs,Pos} ->
+	    wings__du:smooth_uv_face(TriFs, Pos, VsInfo)
     end,
     smooth_uv_faces(Fs, Ns);
 smooth_uv_faces([], _) -> ok.
 
 smooth_vcol_faces([{Face,VsInfo}|Fs], Ns) ->
     case gb_trees:get(Face, Ns) of
-	[_|Pos] -> wings__du:smooth_vcol_face(Pos, VsInfo);
-	{N,Pos} -> wings__du:smooth_vcol_face(N, Pos, VsInfo)
+	[_|Pos] ->
+	    wings__du:smooth_vcol_face(Pos, VsInfo);
+	{_,TriFs,Pos} ->
+	    wings__du:smooth_vcol_face(TriFs, Pos, VsInfo)
     end,
     smooth_vcol_faces(Fs, Ns);
 smooth_vcol_faces([], _) -> ok.
@@ -772,29 +717,18 @@ smooth_vcol_faces([], _) -> ok.
 unlit_face(Face, #dlo{ns=Ns}) ->
     case gb_trees:get(Face, Ns) of
 	[_|VsPos] -> wings__du:plain_face(VsPos);
-	{N,VsPos} -> wings__du:plain_face(N, VsPos)
+	{_,Fs,VsPos} -> wings__du:plain_face(Fs, VsPos)
     end;
 unlit_face(Face, #we{fs=Ftab}=We) ->
     Edge = gb_trees:get(Face, Ftab),
     unlit_face(Face, Edge, We).
 
-unlit_face(Face, Edge, #we{vp=Vtab}=We) ->
-    Vs = wings_face:vertices_cw(Face, Edge, We),
-    unlit_face_1(Vs, Vtab, []).
-
-unlit_face_1([V|Vs], Vtab, Acc) ->
-    unlit_face_1(Vs, Vtab, [gb_trees:get(V, Vtab)|Acc]);
-unlit_face_1([], _, [_,_,_]=VsPos) ->
-    wings__du:plain_face(VsPos);
-unlit_face_1([], _, [A,B,C,D]=VsPos) ->
-    N = e3d_vec:normal(VsPos),
-    case good_triangulation(N, A, B, C, D) of
-	false -> wings__du:plain_face(N, VsPos);
-	true -> wings__du:plain_face(VsPos)
-    end;
-unlit_face_1([], _, VsPos) ->
-    N = e3d_vec:normal(VsPos),
-    wings__du:plain_face(N, VsPos).
+unlit_face(Face, Edge, We) ->
+    Ps = wings_face:vertex_positions(Face, Edge, We),
+    case wings_draw:face_ns_data(Ps) of
+	[_|VsPos] -> wings__du:plain_face(VsPos);
+	{_,Fs,VsPos} -> wings__du:plain_face(Fs, VsPos)
+    end.
 
 %%
 %% Utilities.
