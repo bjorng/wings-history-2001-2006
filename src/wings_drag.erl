@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.55 2002/02/11 12:26:28 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.56 2002/02/11 21:50:57 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -41,7 +41,8 @@
 	 sel,					%Massaged selection.
 	 matrices=none,				%Transformation matrices.
 	 falloff,				%Magnet falloff.
-	 st					%Saved st record.
+	 st,					%Saved st record.
+	 done=false				%Drag is done.
 	}).
 
 -record(dlist,					%Display list.
@@ -198,7 +199,7 @@ handle_drag_event_1(#mousemotion{x=X,y=Y}, Drag0) ->
 handle_drag_event_1(#mousebutton{button=1,x=X,y=Y,state=?SDL_RELEASED},
 		    #drag{st=St0}=Drag0) ->
     wings_io:ungrab(),
-    {Drag,Move} = ?SLOW(motion(X, Y, Drag0)),
+    {Drag,Move} = ?SLOW(motion(X, Y, Drag0#drag{done=true})),
     cleanup(Drag),
     St = normalize(Drag),
     DragEnded = {drag_ended,St#st{args=Move}},
@@ -206,7 +207,7 @@ handle_drag_event_1(#mousebutton{button=1,x=X,y=Y,state=?SDL_RELEASED},
     pop;
 handle_drag_event_1({drag_arguments,Move}, #drag{st=St0}=Drag0) ->
     wings_io:ungrab(),
-    Drag = motion_update(Move, Drag0),
+    Drag = ?SLOW(motion_update(Move, Drag0#drag{done=true})),
     cleanup(Drag),
     St = normalize(Drag),
     DragEnded = {drag_ended,St#st{args=Move}},
@@ -408,19 +409,25 @@ motion_update(Move, #drag{tvs={matrix,Tvs}}=Drag) ->
     gl:callList(?DL_DYNAMIC_FACES),
     gl:endList(),
     Drag#drag{matrices=Mtxs};
-motion_update(Move, #drag{tvs=Tvs,sel=Sel}=Drag) ->
+motion_update(Move, #drag{tvs=Tvs,sel=Sel,done=Done}=Drag) ->
     progress(Move, Drag),
     gl:newList(?DL_DYNAMIC_FACES, ?GL_COMPILE),
     New = motion_update_1(Tvs, Move, Drag, []),
     gl:endList(),
-    make_sel_dlist(New, Sel),
+    if
+	Done == true -> ok;
+	true -> make_sel_dlist(New, Sel)
+    end,
     Drag#drag{new=New}.
 
-motion_update_1([{Tv,StaticVs,Id,We0}|Tvs], Move, Drag, A) ->
+motion_update_1([{Tv,StaticVs,Id,We0}|Tvs], Move, #drag{done=Done}=Drag, A) ->
     Vtab0 = transform_vs(Tv, Move, Drag, StaticVs),
     Vtab = gb_trees:from_orddict(sort(Vtab0)),
     We = We0#we{vs=Vtab},
-    draw_flat_faces(We),
+    if
+	Done == true -> ok;
+	true -> draw_flat_faces(We)
+    end,
     motion_update_1(Tvs, Move, Drag, [{Id,We}|A]);
 motion_update_1([], Move, Drag, A) -> A.
 

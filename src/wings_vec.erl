@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.9 2002/02/10 18:17:11 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.10 2002/02/11 21:50:57 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -120,8 +120,7 @@ handle_event(Event, Ss, St) ->
     end.
 
 handle_event_0(Event, Ss, St) ->
-    Redraw = fun() -> wings:redraw(St) end,
-    case wings_camera:event(Event, Redraw) of
+    case wings_camera:event(Event, St) of
 	next -> handle_event_1(Event, Ss, St);
 	Other -> Other
     end.
