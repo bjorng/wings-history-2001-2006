@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.20 2002/10/24 20:17:28 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.21 2002/10/25 07:59:32 bjorng Exp $
 
 -module(auv_segment).
 
@@ -581,29 +581,23 @@ segment_by_cluster(Rel0, We) ->
 %%% Cutting along hard edges.
 %%%
 
-get_border_vs(Faces, We) ->
-    BordersEdgs = wings_face:outer_edges(Faces,We),
-    foldl(fun(Edge, Acc) -> 
-		  #edge{vs = Va, ve = Vb} = gb_trees:get(Edge, We#we.es),
-		  [Va,Vb|Acc] end,
-	  [], BordersEdgs).
-
 cut_model(Cuts, [Faces], We) ->
     Vs = wings_face:to_vertices(Faces, We),
-    Bvs = get_border_vs(Faces,We),
+    Bvs = wpa:face_outer_vertices(Faces, We),
     Map = reverse(foldl(fun(V, A) -> [{V,V}|A] end, [], Vs)),
     cut_model_1(Cuts, [{We,Map}], gb_sets:from_list(Bvs));
 cut_model(Cuts, Clusters, We) ->
     AllFaces = wings_sel:get_all_items(face, We),
-    {WMs0,{_,Bvs}} = mapfoldl(fun(Keep0, {W0,Bvs}) ->
-				      Keep = gb_sets:from_list(Keep0),
-				      Del = gb_sets:difference(AllFaces, Keep),
-				      W1 = wpa:face_dissolve(Del, W0),
-				      {W,InvVmap} = cut_renumber(Keep, W1),
-				      Bvs2 = get_border_vs(Keep0, W),
-				      Next = lists:max([W0#we.next_id,W#we.next_id]),
-				      {{W,InvVmap},{W0#we{next_id=Next}, Bvs2 ++ Bvs}}
-			      end, {We, []}, Clusters),
+    {WMs0,{_,Bvs}} =
+	mapfoldl(fun(Keep0, {W0,B0}) ->
+			 Keep = gb_sets:from_list(Keep0),
+			 Del = gb_sets:difference(AllFaces, Keep),
+			 W1 = wpa:face_dissolve(Del, W0),
+			 {W,InvVmap} = cut_renumber(Keep, W1),
+			 B = wpa:face_outer_vertices(Keep, W),
+			 Next = lists:max([W0#we.next_id,W#we.next_id]),
+			 {{W,InvVmap},{W0#we{next_id=Next},B++B0}}
+		 end, {We, []}, Clusters),
     cut_model_1(Cuts, WMs0, gb_sets:from_list(Bvs)).
 
 cut_model_1(Cuts, WMs0, Bvs) ->
@@ -619,12 +613,9 @@ cut_model_1(Cuts, WMs0, Bvs) ->
     wings_util:validate(We),
     InvVmap0 = sofs:union_of_family(WMs1),
     InvVmap1 = sofs:converse(InvVmap0),
-    Imap0a = [sofs:to_external(sofs:family_to_relation(sofs:family([F]))) ||
-		 F <- Imap0],
-    Imap0b = lists:concat(Imap0a),
-    Imap0c = sofs:relation(Imap0b),
-    Imap1 = sofs:relation_to_family(Imap0c),
-    Imap2 = sofs:converse(sofs:family_to_relation(Imap1)),
+    ?DBG("~p\n", [Imap0]),
+    Imap1 = sofs:relation(Imap0),
+    Imap2 = sofs:converse(Imap1),
     Imap  = sofs:composite(Imap2, InvVmap1),
     InvVmap2 = sofs:union(InvVmap1, Imap),
     InvVmap = sofs:to_external(InvVmap2),
@@ -703,7 +694,7 @@ new_vertex(V, G, Edges, {We0,F0}=Acc) ->
 		       end, We0, Es),
 	    NewVs = gb_sets:to_list(wings_we:new_items(vertex, We0, We)),
 	    io:format("V,NewVs: ~w\n", [{V,NewVs}]),
-	    {We,[{V,NewVs}|F0]}
+	    {We,add_new_vs(V, NewVs, F0)}
     end.
 
 filter_edges(Es, EdgeSet) ->
@@ -793,12 +784,12 @@ connect_inner({endpoint,V}, [Last], Face, We0, Vmap) ->
     {We,Vmap};
 connect_inner({endpoint,V}, [A|Next], Face, We0, Vmap0) ->
     {We1,Current} = connect_one_inner(V, A, Face, We0),
-    Vmap1 = [{A,[Current]}|Vmap0],
+    Vmap1 = add_new_vs(A, [Current], Vmap0),
     {We,Vmap} = connect_inner(Current, Next, Face, We1, Vmap1),
     {We,Vmap};
 connect_inner(Current0, [V|[_|_]=Next], Face, We0, Vmap0) ->
     {We,Current} = connect_one_inner(Current0, V, Face, We0),
-    Vmap = [{V,[Current]}|Vmap0],
+    Vmap = add_new_vs(V, [Current], Vmap0),
     connect_inner(Current, Next, Face, We, Vmap);
 connect_inner(C, [{endpoint,V}], Face, We0, Vmap) ->
     {We,_} = wings_vertex:force_connect(V, C, Face, We0),
@@ -835,3 +826,6 @@ remove_winged_vs(Cs0) ->
     P = sofs:partition(fun(C) -> sofs:domain(C) end, Cs),
     G = sofs:specification(fun(L) -> sofs:no_elements(L) =:= 1 end, P),
     sofs:to_external(sofs:union(G)).
+
+add_new_vs(OldV, NewVs, A) ->
+    [{OldV,NewV} || NewV <- NewVs] ++ A.
