@@ -3,12 +3,13 @@
 %%
 %%     OpenGL renderer.
 %%
-%%  Copyright (c) 2002-2003 Bjorn Gustavsson
+%%  Copyright (c) 2002-2004 Bjorn Gustavsson
+%%		  2003-2004 Dan Gudmundsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.62 2004/02/10 22:58:22 dgud Exp $
+%%     $Id: wpc_opengl.erl,v 1.63 2004/02/11 05:29:53 bjorng Exp $
 
 -module(wpc_opengl).
 
@@ -169,7 +170,7 @@ do_render(Attr, St) ->
 	    data=Data,mat=St#st.mat,
 	    no_l=NOL,amb=Amb,lights=Lights,
 	    mask = RenderAlpha, shadow=RenderShadow},
-    wings_pb:paus(),
+    wings_pb:pause(),
     render_redraw(Rr),
     wings_pb:done(),
     render_exit(Rr).
@@ -221,15 +222,15 @@ prepare_mesh(We0=#we{light=none},SubDiv,RenderAlpha,RenderBumps,Wes,Shapes,St) -
 		 We2 = sub_divide(SubDiv, We1),
 		 wpa:triangulate(We2)
 	 end,
-    wings_pb:paus(),
+    wings_pb:pause(),
     Fast = dlist_mask(RenderAlpha, We),
-    wings_pb:update(Step+Start, "Generate mesh data"),
+    wings_pb:update(Step+Start, "Generating mesh data"),
     FN0	     = [{Face,wings_face:normal(Face, We)} || Face <- gb_trees:keys(We#we.fs)],
     FVN	     = wings_we:normals(FN0, We),  %% gb_tree of {Face, [VInfo|Normal]}
     MatFs0   = wings_material:mat_faces(FVN, We), %% sorted by mat..
     MatFs    = patch_tangent_space(MatFs0, We, []),
     PAble = programmable(),
-    wings_pb:paus(),
+    wings_pb:pause(),
     Rtype = if
 		RenderBumps and PAble -> 
 		    load_shaders(),
@@ -260,7 +261,7 @@ create_dls(St0, Attr, Shadows, Bumps) ->
 		 Ls0  = wpa:lights(St),
 		 Mats = St#st.mat,
 		 wings_pb:update(0.95, "Generating shadows and bump data per light "),
-		 wings_pb:paus(),
+		 wings_pb:pause(),
 		 create_light_data(Ls0, Ds, 0, Mats, Bumps, Shadows, none, []);
 	     true ->
 		 {0,none,[]}

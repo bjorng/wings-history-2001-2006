@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pb.erl,v 1.8 2004/02/10 22:58:27 dgud Exp $
+%%     $Id: wings_pb.erl,v 1.9 2004/02/11 05:29:53 bjorng Exp $
 %%
 
 -module(wings_pb).
@@ -16,7 +16,7 @@
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
 
--export([start/1,update/1,update/2,paus/0,
+-export([start/1,update/1,update/2,pause/0,
 	 done/0,done/1,done_stat/0,done_stat/1]).
 
 -export([init/0,loop/1]).
@@ -33,8 +33,8 @@ update(Percent) when is_float(Percent) ->
 update(Percent, Msg) when is_list(Msg), is_float(Percent) -> 
     cast({update,Msg,Percent}).
 
-paus() ->
-    call(paus).
+pause() ->
+    call(pause).
 
 done() ->
     call(done).
@@ -116,7 +116,7 @@ loop(#state{refresh=After,level=Level}=S0) ->
 	    draw_position(S),
 	    reply(Pid, fun() -> print_stats(S) end),
 	    loop(#state{});
-	{Pid,?PB,paus} ->
+	{Pid,?PB,pause} ->
 	    S = draw_position(calc_position(S0)),
 	    reply(Pid, ok),
 	    loop(S#state{refresh=infinity});
