@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_placement.erl,v 1.17 2003/02/07 14:59:06 dgud Exp $
+%%     $Id: auv_placement.erl,v 1.18 2003/07/16 04:18:01 bjorng Exp $
 
 -module(auv_placement).
 
@@ -22,12 +22,11 @@
 
 %% Returns a gb_tree with areas...
 place_areas(Areas0) ->
-    Rotate = fun(A = #ch{we=We,fs=Fs}, {C, BBs}) ->
-		     {Size = {Dx,Dy}, Vs} = center_rotate(Fs, We),
-		     NewA = A#ch{we=We#we{id = C,
-					  vp = gb_trees:from_orddict(Vs)},
-				 size=Size},
-		     {NewA, {C+1, [{Dx,Dy,C}|BBs]}}
+    Rotate = fun(#we{name=#ch{fs=Fs}=Ch0}=We0, {C, BBs}) ->
+		     {{Dx,Dy}=Size, Vs} = center_rotate(Fs, We0),
+		     Ch = Ch0#ch{size=Size},
+		     We = We0#we{id=C,vp=gb_trees:from_orddict(Vs),name=Ch},
+		     {We,{C+1, [{Dx,Dy,C}|BBs]}}
 	     end,
     {Areas1, {_,Sizes0}} = lists:mapfoldl(Rotate, {1,[]}, Areas0),
 %    ?DBG("~p~n",[Sizes0]),    
@@ -119,12 +118,10 @@ fill_area([], _,_, _,_, Unused,Res) ->
     {reverse(Unused), Res}.
 
 %%%%%%%%%%%%%%%%
-move_and_scale_areas([Area|RA], [{C,{Cx,Cy}}|RP], S, Acc) ->
-    {SX, SY} = Area#ch.size,
-    New = Area#ch{center = {Cx*S,Cy*S}, size={SX*S,SY*S}, scale=S},
-    move_and_scale_areas(RA, RP, S, [{C,New}|Acc]);
-move_and_scale_areas([],[],_,Acc) ->
-    Acc.
+move_and_scale_areas([#we{name=#ch{size={Sx,Sy}}=Ch0}=We|RA], [{C,{Cx,Cy}}|RP], S, Acc) ->
+    Ch = Ch0#ch{center={Cx*S,Cy*S},size={Sx*S,Sy*S},scale=S},
+    move_and_scale_areas(RA, RP, S, [{C,We#we{name=Ch}}|Acc]);
+move_and_scale_areas([], [], _, Acc) -> Acc.
 
 rotate_area(Fs, #we{vp=VTab}=We) ->
     Vs = gb_trees:to_list(VTab),

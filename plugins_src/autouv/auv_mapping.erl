@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.41 2003/07/11 20:42:56 bjorng Exp $
+%%     $Id: auv_mapping.erl,v 1.42 2003/07/16 04:18:01 bjorng Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -881,35 +881,37 @@ t() ->
 %% From 'Texture Mapping Progressive Meshes' by
 %% Pedro V. Sander, John Snyder Steven J. Gortler, Hugues Hoppe
 
-stretch_opt(Ch=#ch{fs=Fs,we=We0}, OVs) ->
-    {_,R1,R2} = now(),
-    random:seed(R2,R1,128731),
-    Be = wings_face:outer_edges(Fs, We0),
-    Bv0 = lists:foldl(fun(Edge,Acc) -> #edge{vs=Vs,ve=Ve} = 
-					   gb_trees:get(Edge,We0#we.es),
-				       [Vs,Ve|Acc]
-		      end, [], Be),
-    Bv = gb_sets:from_list(Bv0),
-    %% {FaceToStretchMean, FaceToStretchWorst,FaceToVerts,VertToFaces,VertToUvs}
-    {{F2S2,_F2S8,F2Vs,V2Fs,Uvs},S} = stretch_setup(Fs,We0,OVs),
-    ?DBG("F2S2 ~w~n",[gb_trees:to_list(F2S2)]),
-%     ?DBG("F2S8 ~w~n",[gb_trees:to_list(F2S8)]),
-%     ?DBG("F2Vs ~w~n",[gb_trees:to_list(F2Vs)]),
-%     ?DBG("UVs ~w~n", [gb_trees:to_list(Uvs)]),
-    S2V = stretch_per_vertex(model_l2,gb_trees:to_list(V2Fs),F2S2,F2Vs,OVs,Bv,
-			     gb_trees:empty()),
-    MaxI = 100,   %% Max iterations
-    MinS = 0.001, %% Min Stretch
-    {SUvs0,_F2S2} = stretch_iter(S2V,1,MaxI,MinS,F2S2,F2Vs,V2Fs,Uvs,OVs,Bv),    
-    SUvs1 = gb_trees:to_list(SUvs0),
-%    ?DBG("SUvs ~p ~n", [SUvs1]),
-    Suvs = [{Id,{S0/S,T0/S,0.0}} || {Id,{S0,T0}} <- SUvs1],
-    Res = Ch#ch{we=We0#we{vp=gb_trees:from_orddict(Suvs)}},
+stretch_opt(_, _) ->
+    erlang:fault(nyi).
+%stretch_opt(Ch=#ch{fs=Fs,we=We0}, OVs) ->
+%     {_,R1,R2} = now(),
+%     random:seed(R2,R1,128731),
+%     Be = wings_face:outer_edges(Fs, We0),
+%     Bv0 = lists:foldl(fun(Edge,Acc) -> #edge{vs=Vs,ve=Ve} = 
+% 					   gb_trees:get(Edge,We0#we.es),
+% 				       [Vs,Ve|Acc]
+% 		      end, [], Be),
+%     Bv = gb_sets:from_list(Bv0),
+%     %% {FaceToStretchMean, FaceToStretchWorst,FaceToVerts,VertToFaces,VertToUvs}
+%     {{F2S2,_F2S8,F2Vs,V2Fs,Uvs},S} = stretch_setup(Fs,We0,OVs),
+%     ?DBG("F2S2 ~w~n",[gb_trees:to_list(F2S2)]),
+% %     ?DBG("F2S8 ~w~n",[gb_trees:to_list(F2S8)]),
+% %     ?DBG("F2Vs ~w~n",[gb_trees:to_list(F2Vs)]),
+% %     ?DBG("UVs ~w~n", [gb_trees:to_list(Uvs)]),
+%     S2V = stretch_per_vertex(model_l2,gb_trees:to_list(V2Fs),F2S2,F2Vs,OVs,Bv,
+% 			     gb_trees:empty()),
+%     MaxI = 100,   %% Max iterations
+%     MinS = 0.001, %% Min Stretch
+%     {SUvs0,_F2S2} = stretch_iter(S2V,1,MaxI,MinS,F2S2,F2Vs,V2Fs,Uvs,OVs,Bv),    
+%     SUvs1 = gb_trees:to_list(SUvs0),
+% %    ?DBG("SUvs ~p ~n", [SUvs1]),
+%     Suvs = [{Id,{S0/S,T0/S,0.0}} || {Id,{S0,T0}} <- SUvs1],
+%     Res = Ch#ch{we=We0#we{vp=gb_trees:from_orddict(Suvs)}},
 
-    _Mean2  = model_l2(gb_trees:keys(_F2S2), _F2S2, F2Vs, OVs,0.0, 0.0),
-%%    io:format("After Stretch sum (mean) ~p ~n",  [_Mean2]),
-    stretch_setup(Fs, Res#ch.we,OVs),
-    Res.
+%     _Mean2  = model_l2(gb_trees:keys(_F2S2), _F2S2, F2Vs, OVs,0.0, 0.0),
+% %%    io:format("After Stretch sum (mean) ~p ~n",  [_Mean2]),
+%     stretch_setup(Fs, Res#ch.we,OVs),
+%     Res.
 
 stretch_setup(Fs, We0, OVs) ->
     Tris0 = triangulate(Fs,-1,We0,[]),

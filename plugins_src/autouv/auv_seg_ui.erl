@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_seg_ui.erl,v 1.8 2003/07/11 19:40:40 bjorng Exp $
+%%     $Id: auv_seg_ui.erl,v 1.9 2003/07/16 04:18:01 bjorng Exp $
 
 -module(auv_seg_ui).
 -export([start/3]).
@@ -279,7 +279,7 @@ seg_map_chart([{Fs,Vmap,#we{id=Id}=We0}|Cs], Type, I, N, Acc0, #seg{st=St0}=Ss) 
 	    get_seg_event(seg_init_message(Ss#seg{st=St}));
 	Vs ->
 	    We = We0#we{vp=gb_trees:from_orddict(sort(Vs))},
-	    Acc = [#ch{we=We,fs=Fs,vmap=Vmap}|Acc0],
+	    Acc = [We#we{name=#ch{fs=Fs,vmap=Vmap}}|Acc0],
 	    seg_map_charts_1(Cs, Type, I+1, N, Acc, Ss)
     end.
 
