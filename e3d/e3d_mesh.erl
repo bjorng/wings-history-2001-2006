@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mesh.erl,v 1.26 2002/12/02 15:15:47 bjorng Exp $
+%%     $Id: e3d_mesh.erl,v 1.27 2003/03/05 17:59:12 bjorng Exp $
 %%
 
 -module(e3d_mesh).
@@ -391,16 +391,27 @@ renumber_ftab([], _, _, _, Acc) -> reverse(Acc).
 
 renumber_hard_edges([{Va0,Vb0}|T], VsMap, Acc) ->
     Va = map_vtx(Va0, VsMap),
-    case map_vtx(Vb0, VsMap) of
-	Vb when Va < Vb ->
+    Vb = map_vtx(Vb0, VsMap),
+    if
+	Va == none; Vb == none ->		%No longer an edge.
+	    renumber_hard_edges(T, VsMap, Acc);
+	Va < Vb ->
 	    renumber_hard_edges(T, VsMap, [{Va,Vb}|Acc]);
-	Vb ->
+	true ->
 	    renumber_hard_edges(T, VsMap, [{Vb,Va}|Acc])
     end;
 renumber_hard_edges([], _, Acc) -> reverse(Acc).
 
-map_vtx(V, {map,Low,_}) -> V-Low;
-map_vtx(V, Map) -> gb_trees:get(V, Map).
+map_vtx(V0, {map,Low,N}) ->
+    case V0-Low of
+	V when V < N -> V;
+	_ -> none
+    end;
+map_vtx(V0, Map) ->
+    case gb_trees:lookup(V0, Map) of
+	{value,V} -> V;
+	none -> none
+    end.
 
 rn_remove_unused(Vs, {map,Low,N}) ->
     lists:sublist(Vs, Low+1, N);
