@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.1 2003/01/20 07:36:55 bjorng Exp $
+%%     $Id: wings_image.erl,v 1.2 2003/01/21 13:40:36 bjorng Exp $
 %%
 
 -module(wings_image).
@@ -113,7 +113,8 @@ handle(init_opengl, #ist{images=Images}=S) ->
 		    make_texture(Id, Image)
 	    end, gb_trees:to_list(Images)),
     S;
-handle({new,Name,E3D,Filename}, #ist{next=Id,images=Images0}=S) ->
+handle({new,Name0,E3D,Filename}, #ist{next=Id,images=Images0}=S) ->
+    Name = make_unique(Name0, Images0),
     Im = #im{name=Name,file=Filename,im=E3D},
     Images = gb_trees:insert(Id, Im, Images0),
     make_texture(Id, E3D),
@@ -209,4 +210,8 @@ do_update(Id, #e3d_image{width=W,height=H,image=Bits}, #ist{images=Images0}=S) -
     gl:texSubImage2D(?GL_TEXTURE_2D, 0, 0, 0,
 		     W, H, ?GL_RGB, ?GL_UNSIGNED_BYTE, Bits),
     S#ist{images=Images}.
+
+make_unique(Name, Images0) ->
+    Images = [N || #im{name=N} <- gb_trees:values(Images0)],
+    wings_util:unique_name(Name, Images).
 
