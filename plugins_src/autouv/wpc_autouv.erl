@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.67 2002/12/11 13:49:55 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.68 2002/12/12 18:04:42 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -1460,7 +1460,9 @@ finish_rotate({Id,Area = #ch{rotate = R, vpos = Vs0, scale = S}}) ->
 verify_state(St, Uvs) ->
     case same_topology(St, Uvs) of
 	true -> keep;
-	false -> {seq,push,get_broken_event(Uvs)}
+	false ->
+	    wings_wm:dirty(),
+	    {seq,push,get_broken_event(Uvs)}
     end.
 
 same_topology(#st{shapes=Shs},
