@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.123 2003/11/16 12:04:14 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.124 2003/11/16 12:24:56 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -668,16 +668,16 @@ warp(X, Y) ->
 %%%
 
 build_cursors() ->
-    [{stop,build_cursor(stop_data())},
-     {pointing_hand,build_cursor(pointing_hand_data(), 16, 16)},
-     {closed_hand,build_cursor(closed_hand_data(), 16, 16)}|
+    [{stop,build_cursor(stop_data(), 8, 8)},
+     {pointing_hand,build_cursor(pointing_hand_data(), 8, 8)},
+     {closed_hand,build_cursor(closed_hand_data(), 8, 8)}|
      case os:type() of
 	 {unix,darwin} ->
 	     [{arrow,sdl_mouse:getCursor()},
 	      {hourglass,none},
 	      {eyedropper,build_cursor(eyedropper_data(), 0, 15)}];
 	 _ ->
-	     [{arrow,build_cursor(arrow_data())},
+	     [{arrow,build_cursor(eyedropper_data(), 0, 15)},
 	      {hourglass,build_cursor(hourglass_data())},
 	      {eyedropper,build_cursor(eyedropper_data(), 0, 15)}]
      end].
@@ -691,7 +691,7 @@ build_cursor(Data0, HotX, HotY) ->
   	    build_cursor_1(Data0, {HotX,HotY}, 0, 0);
 	_ when length(Data0) =:= 256 ->
 	    Data = build_cursor_dup(Data0, 0, []),
-	    build_cursor_1(Data, {HotX div 2,HotY div 2}, 0, 0);
+	    build_cursor_1(Data, {2*HotX,2*HotY}, 0, 0);
 	_ ->
 	    build_cursor_1(Data0, {HotX,HotY}, 0, 0)
     end.
