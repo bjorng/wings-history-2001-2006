@@ -8,13 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.57 2003/01/21 11:02:36 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.58 2003/02/05 06:38:36 bjorng Exp $
 %%
 
 -module(wings_util).
 -export([error/1,error/2,share/1,share/3,make_vector/1,
 	 validate_mirror/1,rel2fam/1,
 	 button_message/1,button_message/2,button_message/3,
+	 button_format/1,button_format/2,button_format/3,
 	 message/1,message/2,yes_no/1,
 	 get_matrices/2,mirror_matrix/1,
 	 cap/1,upper/1,stringify/1,add_vpos/2,update_vpos/2,
@@ -69,20 +70,28 @@ button_message(MsgOne, MsgTwo) ->
     button_message(MsgOne, MsgTwo, []).
     
 button_message(MsgOne, MsgTwo, MsgThree) ->
+    wings_wm:message(button_format(MsgOne, MsgTwo, MsgThree)).
+
+button_format(MsgOne) ->
+    button_format(MsgOne, [], []).
+
+button_format(MsgOne, MsgTwo) ->
+    button_format(MsgOne, MsgTwo, []).
+    
+button_format(MsgOne, MsgTwo, MsgThree) ->
     {One,Two,Three} = wings_camera:button_names(),
-    Msg = [if
-	       MsgOne =/= [] -> [One,$\s|MsgOne];
-	       true -> []
-	   end,
-	   if
-	       MsgTwo =/= [] -> [$\s,Two,$\s|MsgTwo];
-	       true -> []
-	   end,
-	   if
-	       MsgThree =/= [] -> [$\s,Three,$\s|MsgThree];
-	       true -> []
-	   end],
-    wings_wm:message(Msg).
+    [if
+	 MsgOne =/= [] -> [One,$\s|MsgOne];
+	 true -> []
+     end,
+     if
+	 MsgTwo =/= [] -> [$\s,Two,$\s|MsgTwo];
+	 true -> []
+     end,
+     if
+	 MsgThree =/= [] -> [$\s,Three,$\s|MsgThree];
+	 true -> []
+     end].
 
 message(Message, _) ->
     message(Message).
