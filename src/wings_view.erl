@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.133 2003/11/30 18:01:00 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.134 2003/12/06 08:39:44 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -390,8 +390,12 @@ auto_rotate_redraw(#tim{st=#st{}=St}) ->
     wings_draw_util:render(St).
 
 auto_rotate_help() ->
-    Help = ["[L] Stop rotating ",wings_camera:help()],
-    wings_wm:message(Help, "[+] Increase speed [-] Decrease speed").
+    Msg1 = wings_util:button_format("Stop rotating"),
+    Msg2 = wings_camera:help(),
+    Message = wings_util:join_msg([Msg1,Msg2,
+				   "[+] Increase speed",
+				   "[-] Decrease speed"]),
+    wings_wm:message(Message).
 
 set_auto_rotate_timer(#tim{delay=Delay}=Tim) when Delay < 0 ->
     set_auto_rotate_timer(Tim#tim{delay=0});
