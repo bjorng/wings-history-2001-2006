@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.260 2004/06/19 06:35:19 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.261 2004/07/08 10:43:16 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -478,9 +478,6 @@ handle_event_3({action,{auv,{remap,Method}}}, St0) ->
     get_event(St);
 
 %% Others
-handle_event_3({action,{auv,quit}}, _St) ->
-    cleanup_before_exit(),
-    delete;
 handle_event_3({vec_command,Command,_St}, _) when is_function(Command) ->
     %% Use to execute command with vector arguments (see wings_vec.erl).
     catch Command();
@@ -489,6 +486,9 @@ handle_event_3(close, _St) ->
     delete;
 handle_event_3({callback,Fun}, _) when is_function(Fun) ->
     Fun();
+handle_event_3({action,{auv,quit}}, _St) ->
+    cleanup_before_exit(),
+    delete;
 handle_event_3({action,{auv,Cmd}}, St) ->
     handle_command(Cmd, St);
 handle_event_3({action,{select,Command}}, St0) ->
@@ -503,6 +503,22 @@ handle_event_3({action,{edit,undo}}=Act, _) ->
     wings_wm:send(geom, Act);
 handle_event_3({action,{edit,redo}}=Act, _) ->
     wings_wm:send(geom, Act);
+handle_event_3({action,Ev}, St) ->
+    case Ev of
+	{_, {move,_}} ->
+	    handle_command(move,St);
+	{_, {rotate,_}} ->
+	    handle_command({rotate,free},St);
+	{_, {scale,{x,_}}} ->
+	    handle_command({scale,scale_x},St);
+	{_, {scale,{y,_}}} ->
+	    handle_command({scale,scale_y},St);
+	{_, {scale,_}} ->
+	    handle_command({scale,scale_uniform},St);
+	_ ->
+%%	    io:format("MissEvent ~p~n", [Ev]),
+	    keep
+    end;
 handle_event_3(got_focus, _) ->
     Msg1 = wings_util:button_format("Select"),
     Msg2 = wings_camera:help(),
