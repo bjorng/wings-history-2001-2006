@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_placement.erl,v 1.10 2002/11/08 10:45:25 dgud Exp $
+%%     $Id: auv_placement.erl,v 1.11 2002/11/08 15:13:03 dgud Exp $
 
 
 -module(auv_placement).
@@ -238,12 +238,16 @@ group_edge_loops(Fs, We) ->
 	    lists:reverse(lists:sort(SumLoops))
     end.
 
+-define(PI, 3.141592).
+-define(ALMOSTPI, (?PI-(0.5/180*?PI))). %% cluster together straight lines
+
 make_convex([This, Next|Rest], Acc, Vs) ->
-    case calc_dir(This,Next,Vs) > math:pi() of
+    case calc_dir(This,Next,Vs) >= ?ALMOSTPI of
 	true ->
+
 	    New = {element(1,This), element(2,Next), 
 		   [element(3,This),element(3,Next)],
-		   dist(element(1,This),element(1,Next),Vs)}, 
+		   dist(element(1,This),element(2,Next),Vs)}, 
 	    if Acc == [] ->
 		    make_convex([New|Rest], Acc, Vs);
 	       true ->
@@ -254,18 +258,18 @@ make_convex([This, Next|Rest], Acc, Vs) ->
     end;
 make_convex([This],Acc, Vs) ->
     [Next|Acc2] = lists:reverse(Acc),
-    case calc_dir(This,Next,Vs) > math:pi() of
+    case calc_dir(This,Next,Vs) >= ?ALMOSTPI of
 	true ->
 	    New = {element(1,This), element(2,Next), 
 		   [element(3,This),element(3,Next)],
-		   dist(element(1,This),element(1,Next),Vs)},
+		   dist(element(1,This),element(2,Next),Vs)},
 	    Acc3 = reverse(Acc2),
 	    make_convex([hd(Acc3),New], tl(Acc3), Vs);
 	false ->
 	    [This|Acc]
     end.
 
-calc_dir({V11,V12,_E1,_},{V12,V22,_,_}, Vs) ->    
+calc_dir({V11,V12,_E1,_},{V12,V22,_E2,_}, Vs) ->    
     C = gb_trees:get(V12, Vs),
     V1 = gb_trees:get(V11, Vs),
     V2 = gb_trees:get(V22, Vs),
@@ -277,8 +281,8 @@ calc_dir({V11,V12,_E1,_},{V12,V22,_,_}, Vs) ->
 		A -> 
 		    2 * math:pi() + A
 	    end,
-%    ?DBG("Angle Vertex ~p Edges ~p : ~p-~p = ~p ~n",
-%	      [V12,{E1,E2},math:atan2(Y1,X1), math:atan2(Y2,X2),Angle]),
+%    ?DBG("Angle Vertex ~p Edges ~w : ~p-~p = ~p ~n",
+%	[V12,{_E1,_E2},math:atan2(Y1,X1), math:atan2(Y2,X2),Angle]),
     Angle.
 
 dist(V1,V2,Vs) ->    
