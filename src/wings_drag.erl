@@ -3,12 +3,12 @@
 %%
 %%     This module handles interactive commands.
 %%
-%%  Copyright (c) 2001-2002 Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.125 2003/01/20 18:05:03 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.126 2003/01/31 17:20:49 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -261,7 +261,7 @@ help_message_right(#drag{magnet=none,falloff=Falloff}) ->
     Help = "[Tab] Numeric entry  [Shift] and/or [Ctrl] Constrain",
     case Falloff of
 	none -> Help;
-	_ -> ["[+] or [-] Tweak R  "|Help]
+	_ -> ["[+] or [-] Adjust Radius  "|Help]
     end;
 help_message_right(#drag{magnet=Type}) -> wings_magnet:drag_help(Type).
 

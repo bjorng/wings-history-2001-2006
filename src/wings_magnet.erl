@@ -3,12 +3,12 @@
 %%
 %%     This module implements the Magnet command.
 %%
-%%  Copyright (c) 2001-2002 Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_magnet.erl,v 1.42 2002/12/28 22:10:28 bjorng Exp $
+%%     $Id: wings_magnet.erl,v 1.43 2003/01/31 17:20:51 bjorng Exp $
 %%
 
 -module(wings_magnet).
@@ -86,7 +86,7 @@ menu_help() ->
     wings_wm:message(Msg, ["Route: "|Route]).
     
 drag_help(Type) ->
-    "[+] or [-] Tweak R  " ++
+    "[+] or [-] Adjust Radius  " ++
 	help_1(Type, [{1,bell},{2,dome},{3,straight},{4,spike}]).
 
 help_1(Type, [{Digit,Type}|T]) ->
