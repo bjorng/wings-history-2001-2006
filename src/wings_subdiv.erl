@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.39 2003/05/31 20:07:54 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.40 2003/05/31 20:16:55 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -34,14 +34,14 @@ smooth(Fs, Htab, #we{vp=Vtab,es=Etab}=We) ->
 
 smooth(Fs, Vs, Es, Htab, #we{vp=Vp,next_id=Id}=We0) ->
     FacePos0 = face_centers(Fs, We0),
-    FacePos = gb_trees:from_orddict(FacePos0),
 
     %% First do all topological changes to the edge table.
-    We1 = cut_edges(Es, FacePos, Htab, We0#we{vc=undefined}),
+    We1 = cut_edges(Es, Htab, We0#we{vc=undefined}),
     We2 = smooth_materials(Fs, FacePos0, We1),
     We = smooth_faces(FacePos0, Id, We2),
 
     %% Now calculate all vertex positions.
+    FacePos = gb_trees:from_orddict(FacePos0),
     {UpdatedVs,Mid} = update_edge_vs(Es, We0, FacePos, Htab, Vp, Id),
     NewVs = smooth_new_vs(FacePos0, Mid),
     Vtab = smooth_move_orig(Vs, FacePos, Htab, We0, UpdatedVs ++ NewVs),
@@ -86,15 +86,15 @@ face_centers([], _We, Acc) -> reverse(Acc).
 %%% Updating of the topology (edge and hard edge tables).
 %%%
 
-cut_edges(Es, FacePos, Hard, #we{es=Etab0,he=Htab0,next_id=Id0}=We) ->
+cut_edges(Es, Hard, #we{es=Etab0,he=Htab0,next_id=Id0}=We) ->
     Etab1 = {Id0,Etab0,gb_trees:empty()},
     {Id,{_,Etab2,Etab3},Htab} =
-	cut_edges_1(Es, FacePos, Hard, Id0, Etab1, Htab0),
+	cut_edges_1(Es, Hard, Id0, Etab1, Htab0),
     Etab = gb_trees:from_orddict(gb_trees:to_list(Etab2) ++
 				 gb_trees:to_list(Etab3)),
     We#we{es=Etab,he=Htab,next_id=Id}.
 
-cut_edges_1([Edge|Es], FacePos, Hard, NewEdge, Etab0, Htab0) ->
+cut_edges_1([Edge|Es], Hard, NewEdge, Etab0, Htab0) ->
     Rec = edge_get(Edge, Etab0),
     Etab = fast_cut(Edge, Rec, NewEdge, Etab0),
     case gb_sets:is_member(Edge, Hard) of
@@ -103,11 +103,11 @@ cut_edges_1([Edge|Es], FacePos, Hard, NewEdge, Etab0, Htab0) ->
 		       true -> gb_sets:insert(NewEdge, Htab0);
 		       false -> Htab0
 		   end,
-	    cut_edges_1(Es, FacePos, Hard, NewEdge+1, Etab, Htab);
+	    cut_edges_1(Es, Hard, NewEdge+1, Etab, Htab);
 	false ->
-	    cut_edges_1(Es, FacePos, Hard, NewEdge+1, Etab, Htab0)
+	    cut_edges_1(Es, Hard, NewEdge+1, Etab, Htab0)
     end;
-cut_edges_1([], _FacePos, _Hard, Id, Etab, Htab) ->
+cut_edges_1([], _Hard, Id, Etab, Htab) ->
     {Id,Etab,Htab}.
 
 fast_cut(Edge, Template, NewV=NewEdge, Etab0) ->
