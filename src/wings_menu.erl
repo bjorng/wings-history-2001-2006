@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.127 2004/10/08 06:02:30 dgud Exp $
+%%     $Id: wings_menu.erl,v 1.128 2004/11/13 08:49:57 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -51,6 +51,10 @@
 %%%
 %%%   separator      OR
 %%%   {Text,Name,Hotkey,Help,Properties}
+%%%
+%%%   The Help field is normalized to
+%%%      String       for basic menu mode
+%%%      {L,M,R}      for advanced menu
 %%%
 
 is_popup_event(#mousebutton{button=3,x=X0,y=Y0,state=State,mod=Mod}) ->
@@ -197,7 +201,8 @@ normalize_menu([Elem0|Els], Hotkeys, Adv, Acc) ->
 		    Props = [],
 		    separator
 	    end,
-    Elem = norm_add_hotkey(Name, Elem1, Hotkeys, Props),
+    Elem2 = norm_add_hotkey(Name, Elem1, Hotkeys, Props),
+    Elem = norm_help(Elem2, Adv),
     normalize_menu(Els, Hotkeys, Adv, [Elem|Acc]);
 normalize_menu([], _Hotkeys, _Adv, Acc) -> list_to_tuple(reverse(Acc)).
 
@@ -245,6 +250,33 @@ reduce_ask_1({[],[Res]}) -> Res;
 reduce_ask_1({[],Res}) ->
     list_to_tuple(reverse(Res));
 reduce_ask_1(_) -> none.
+
+norm_help(separator=Item, _) -> Item;
+norm_help(Item, false) -> norm_help_basic(Item);
+norm_help(Elem, true) ->  norm_help_adv(Elem, {[],[],[]}).
+
+norm_help_basic({_,_,_,Help,_}=Item) when is_list(Help) ->
+    Item;
+norm_help_basic({T,N,Hot,Help,Ps}) when is_tuple(Help), size(Help) > 0 ->
+    {T,N,Hot,element(1, Help),Ps}.
+
+norm_help_adv({T,N,Hot,[],Ps}, Empty)  ->
+    norm_help_adv({T,N,Hot,Empty,Ps}, Empty);
+norm_help_adv({T,N,Hot,[_|_]=L,Ps}, Empty)  ->
+    norm_help_adv({T,N,Hot,{L,[],[]},Ps}, Empty);
+norm_help_adv({T,N,Hot,{L},Ps}, Empty)  ->
+    norm_help_adv({T,N,Hot,{L,[],[]},Ps}, Empty);
+norm_help_adv({T,N,Hot,{L,M},Ps}, Empty)  ->
+    norm_help_adv({T,N,Hot,{L,M,[]},Ps}, Empty);
+norm_help_adv({_,_,_,{_,_,[_|_]},_}=Item, _) ->
+    Item;
+norm_help_adv({T,N,Hot,{Hl,Hm,[]},Ps}=Item, _) ->
+    case have_option_box(Ps) of
+	false -> Item;
+	true ->
+	    Hr = ?STR(norm_help_adv, 1, "Open option dialog"),
+	    {T,N,Hot,{Hl,Hm,Hr},Ps}
+    end.
 
 menu_dims(Menu) ->
     menu_dims(Menu, size(Menu), 0, 0, 0, []).
@@ -351,7 +383,7 @@ button_pressed(Button, Mod, X, Y, #mi{ns=Names,menu=Menu,adv=Adv}=Mi0) ->
 	Item when is_integer(Item) ->
 	    case element(Item, Menu) of
 		{_,{'VALUE',Act0},_,_,Ps} ->
-		    Act = check_option_box(Act0, X, Ps, Mi),
+		    Act = was_option_hit(Button, Act0, X, Ps, Mi),
 		    do_action(Act, Names, Ps, Mi);
 		{_,{Name,Submenu},_,_,_} when Adv == true ->
 		    popup_submenu(Button, X, Y, Name, Submenu, Mi);
@@ -360,7 +392,7 @@ button_pressed(Button, Mod, X, Y, #mi{ns=Names,menu=Menu,adv=Adv}=Mi0) ->
 		{_,Act0,_,_,Ps} when is_function(Act0) ->
 		    call_action(Act0, Button, Names, Ps, Mi);
 		{_,Act0,_,_,Ps} when is_atom(Act0); is_integer(Act0) ->
-		    Act = check_option_box(Act0, X, Ps, Mi),
+		    Act = was_option_hit(Button, Act0, X, Ps, Mi),
 		    do_action(Act, Names, Ps, Mi)
 	    end
     end.
@@ -625,14 +657,14 @@ update_highlight(X, Y, #mi{menu=Menu,sel=OldSel,sel_side=OldSide,w=W}=Mi0) ->
 	    Mi
     end.
 
-check_option_box(Act, X, Ps, Mi) ->
+was_option_hit(Button, Act, X, Ps, Mi) ->
     case have_option_box(Ps) of
 	false -> Act;
-	true -> {Act,hit_right(X, Mi)}
+	true -> {Act,hit_right(Button, X, Mi)}
     end.
 
-hit_right(X, #mi{w=W}) ->
-    X >= W-3*?CHAR_WIDTH.
+hit_right(B, _, #mi{adv=true}) when B > 1 -> true;
+hit_right(_, X, #mi{w=W}) -> X >= W-3*?CHAR_WIDTH.
 
 selected_item(Y, #mi{adv=Adv,ymarg=Margin,h=H,menu=Menu}=Mi) ->
     %% The tests are simplified because we know that the mouse cursor
@@ -802,30 +834,20 @@ help_text_1({Text,{Sub,_},_,_,_}, #mi{adv=false}) when Sub =/= 'VALUE' ->
     %% No specific help text for submenus in basic mode.
     Help = [Text|?STR(help_text_1,1," submenu")],
     wings_wm:message(Help, "");
-help_text_1({_,{Name,Fun},_,_,Ps}, #mi{ns=Ns,adv=Adv}=Mi)
+help_text_1({_,{Name,Fun},_,_,Ps}, #mi{ns=Ns}=Mi)
   when is_function(Fun) ->
     %% "Submenu" in advanced mode.
     Help0 = Fun(help, [Name|Ns]),
-    Help = help_text_2(Help0, Adv),
+    Help = help_text_2(Help0),
     magnet_help(Help, Ps, Mi);
-help_text_1({_,_,_,Help0,Ps}, #mi{adv=Adv}=Mi) ->
+help_text_1({_,_,_,Help0,Ps}, Mi) ->
     %% Plain entry - not submenu.
-    Help = help_text_2(Help0, Adv),
+    Help = help_text_2(Help0),
     magnet_help(Help, Ps, Mi);
 help_text_1(separator, _) -> ok.
 
-help_text_2([_|_]=S, false) -> S;
-help_text_2({[_|_]=S,_}, false) -> S;
-help_text_2({[_|_]=S,_,_}, false) -> S;
-help_text_2([_|_]=S, true) ->
-    wings_util:button_format(S);
-help_text_2({S1,S2}, true) ->
-    wings_util:button_format(S1, S2);
-help_text_2({S1,[],S2}, true) ->
-    wings_util:button_format(S1, [], S2);
-help_text_2({S1,S2,S3}, true) ->
-    wings_util:button_format(S1, S2, S3);
-help_text_2([]=S, _) -> S.
+help_text_2({S1,S2,S3}) -> wings_util:button_format(S1, S2, S3);
+help_text_2(Help) -> Help.
 
 magnet_help(Msg0, Ps, #mi{flags=Flags}) ->
     case have_magnet(Ps) of

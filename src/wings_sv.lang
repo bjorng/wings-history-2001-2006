@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sv.lang,v 1.37 2004/11/13 04:39:26 bjorng Exp $
+%%     $Id: wings_sv.lang,v 1.38 2004/11/13 08:49:57 bjorng Exp $
 %%
 
 {wings,
@@ -996,7 +996,9 @@
   {help_text_1,
    [{1," undermeny"}]},
   {magnet_help,
-   [{2,"Tryck för magnet"}]}]}.
+   [{2,"Tryck för magnet"}]},
+  {norm_help_adv,
+   [{1,"Öppna optionsdialog"}]}]}.
 {wings_menu_util,
  [
   {adv_scale_1,
