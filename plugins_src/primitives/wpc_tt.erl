@@ -55,8 +55,8 @@ command({shape,{text,Ask}}, _St) -> make_text(Ask);
 command(_, _) -> next.
 
 make_text(Ask) when is_atom(Ask) ->
-    DefFontName = wpa:pref_get(wpc_tt, fontname, "Arial"),
     DefFontDir = wpa:pref_get(wpc_tt, fontdir, sysfontdir()),
+    DefFontName = wpa:pref_get(wpc_tt, fontname, default_font(DefFontDir)),
     DefText = wpa:pref_get(wpc_tt, text, "A"),
     DefBisect = wpa:pref_get(wpc_tt, bisections, 0),
     wpa:ask(Ask, "Create Text",
@@ -69,23 +69,23 @@ make_text([T,F,D,N]) ->
     gen(F, D, T, N).
 
 gen(Font, Dir, Text, Nsubsteps) ->
-	File = font_file(Font, Dir),
-	case catch trygen(File, Text, Nsubsteps) of
+    File = font_file(Font, Dir),
+    case catch trygen(File, Text, Nsubsteps) of
 	S = {new_shape,_,_,_} ->
-		wpa:pref_set(wpc_tt, fontname, Font),
-		wpa:pref_set(wpc_tt, fontdir, Dir),
-		wpa:pref_set(wpc_tt, text, Text),
-		wpa:pref_set(wpc_tt, bisections, Nsubsteps),
-		S;
+	    wpa:pref_set(wpc_tt, fontname, Font),
+	    wpa:pref_set(wpc_tt, fontdir, Dir),
+	    wpa:pref_set(wpc_tt, text, Text),
+	    wpa:pref_set(wpc_tt, bisections, Nsubsteps),
+	    S;
 	{error,Reason} ->
-		wpa:error("Text failed: " ++ Reason);
+	    wpa:error("Text failed: " ++ Reason);
 	_ ->
-		wpa:error("Text failed: internal error")
-	end.
+	    wpa:error("Text failed: internal error")
+    end.
 
 trygen(File, Text, Nsubsteps) ->
-	case file:read_file(File) of
-	    {ok,<<16#00010000:32,Rest/binary>>} ->
+    case file:read_file(File) of
+	{ok,<<16#00010000:32,Rest/binary>>} ->
 		Ttf = parsett(Rest),
 		Pa = getpolyareas(Text, Ttf, Nsubsteps),
 		{Vs,Fs} = polyareas_to_faces(Pa),
@@ -99,71 +99,102 @@ trygen(File, Text, Nsubsteps) ->
 % Try to map a Name to a font file using registry
 % and in any case, concatenate Dir in front of it (if Dir != "")
 font_file(Name, Dir) ->
-	case os:type() of
+    case os:type() of
 	{win32,_} ->
-		Name1 = case winregval("Fonts", Name ++ " (TrueType)") of
+	    Name1 = case winregval("Fonts", Name ++ " (TrueType)") of
 			none -> Name;
 			Fname -> Fname
-			end,
-		case Dir of
+		    end,
+	    case Dir of
 		"" -> Name1;
 		_ -> filename:absname(Dir ++ "\\" ++ Name1)
-		end;
+	    end;
 	_ ->
-		case Dir of
+	    case Dir of
 		"" -> Name;
 		_ -> filename:absname(Dir ++ "/" ++ Name)
-		end
-	end.
+	    end
+    end.
 
 % Look up value with Name in Windows registry,
 % first changing to key K under the "CurrentVersion" for Windows.
 % Return value as string, or the token "none" if any problems.
 winregval(K, Name) ->
-	case os:type() of
+    case os:type() of
 	{win32,Wintype} ->
-		case win32reg:open([read]) of
+	    case win32reg:open([read]) of
 		{ok, RH} ->
-			W = case Wintype of nt -> "Windows NT" ; _ -> "Windows" end,
-			CVK = "\\hklm\\SOFTWARE\\Microsoft\\" ++ W
-				++ "\\CurrentVersion",
-			K1 = case K of
-				"" -> CVK;
-				_ -> CVK ++ "\\" ++ K
-				end,
-			Val = case win32reg:change_key(RH, K1) of
-				ok ->
-					case win32reg:value(RH, Name) of
-					{ok, V} -> V;
-					_ -> none
-					end;
-				_ -> none
-				end,
-			win32reg:close(RH),
-			Val;
+		    W = case Wintype of nt -> "Windows NT" ; _ -> "Windows" end,
+		    CVK = "\\hklm\\SOFTWARE\\Microsoft\\" ++ W
+			++ "\\CurrentVersion",
+		    K1 = case K of
+			     "" -> CVK;
+			     _ -> CVK ++ "\\" ++ K
+			 end,
+		    Val = case win32reg:change_key(RH, K1) of
+			      ok ->
+				  case win32reg:value(RH, Name) of
+				      {ok, V} -> V;
+				      _ -> none
+				  end;
+			      _ -> none
+			  end,
+		    win32reg:close(RH),
+		    Val;
 		_ -> none
-		end;
+	    end;
 	_ ->
-		none
-	end.
+	    none
+    end.
 
 % Try to find default system directory for fonts
 sysfontdir() ->
-	case os:type() of
+    case os:type() of
 	{win32,Wintype} ->
-		SR = case winregval("", "SystemRoot") of
-			none ->
-				case Wintype of
-				nt -> "C:\\winnt";
-				_ -> "C:\\windows"
-				end;
-			Val -> Val
-			end,
-		SR ++ "\\Fonts";
+	    SR = case winregval("", "SystemRoot") of
+		     none ->
+			 case Wintype of
+			     nt -> "C:\\winnt";
+			     _ -> "C:\\windows"
+			 end;
+		     Val -> Val
+		 end,
+	    SR ++ "\\Fonts";
+	{unix,linux} -> 
+	    Dir = "/usr/lib/X11/fonts/TTF/",
+	    case file:list_dir(Dir) of
+		{error, _} -> 
+		    "/YOUR/PATH/TO/TTF_FONTS/";
+		_ ->
+		    Dir
+	    end;
 	_ ->
-		"/usr/lib/font"		% guess for non-windows, likely to be wrong
-	end.
+	    "/usr/lib/font"		% guess for non-windows, likely to be wrong
+    end.
 
+default_font(Dir) ->
+    Def = "InsertTTFFontFileHere.ttf",
+    case os:type() of
+	{win32,_Wintype} ->
+	    "Arial";
+	{unix,linux} -> 	     
+	    case file:list_dir(Dir) of
+		{error, _} ->
+		    Def;
+		{ok, List} ->
+		    Find = fun(File) -> 
+				   filename:extension(File) /= ".ttf" 
+			   end,
+		    case lists:dropwhile(Find, List) of
+			[H|_] ->
+			    H;
+			[] -> 
+			    Def
+		    end
+	    end;
+	_ ->
+	    Def
+    end.
 
 % Return {Vs,Fs} corresponding to list of polyareas,
 % where Vs is list of coords and Fs is list of list of
