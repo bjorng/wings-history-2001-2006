@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.43 2002/11/07 18:06:52 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.44 2002/11/07 20:12:32 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -559,14 +559,12 @@ get_texture_size(MatName, #st{mat=Materials}) ->
 	{W,H,_} -> {W,H}
     end.	     
 
-textureId(MatName, _Materials) ->
-    gb_trees:get(MatName, get(wings_material)).
-get_material(Face, Materials, We) ->
-    MatName = (gb_trees:get(Face, We#we.fs))#face.mat,
+get_material(Face, Materials, #we{fs=Ftab}) ->
+    #face{mat=MatName} = gb_trees:get(Face, Ftab),
     Mat = gb_trees:get(MatName, Materials),
     proplists:get_value(diffuse, proplists:get_value(opengl, Mat)).
 
-add_material(create_mat, none, St0, Areas = #areas{matname = MatName}) ->
+add_material(create_mat, none, St0, #areas{matname=MatName}=Areas) ->
     Mat = {MatName, [{opengl, []},{maps, []}]},
     case wings_material:add_materials([Mat], St0) of
 	{St1, []} ->
@@ -574,42 +572,9 @@ add_material(create_mat, none, St0, Areas = #areas{matname = MatName}) ->
 	{St1, [{MatName,NewName}]} ->
 	    {St1, Areas#areas{matname = NewName}}
     end;
-add_material(edit, Tx = {TxW,TxH,TxBin}, St0, As = #areas{matname = MatName}) ->
-    Mats = St0#st.mat,
-    Mat = gb_trees:get(MatName, Mats),
-    Maps = proplists:get_value(maps, Mat),
-    case proplists:get_value(diffuse, Maps, none) of
-	none -> 
-	    [TxId] = gl:genTextures(1),
-	    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
-	    gl:pixelStorei(?GL_UNPACK_ALIGNMENT, 1),
-	    gl:enable(?GL_TEXTURE_2D),
-	    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_MODULATE),
-	    gl:bindTexture(?GL_TEXTURE_2D, TxId),
-	    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_MAG_FILTER,
-			     ?GL_LINEAR),
-	    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_MIN_FILTER,
-			     ?GL_LINEAR),
-	    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_S, ?GL_REPEAT),
-	    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_T, ?GL_REPEAT),
-	    gl:texImage2D(?GL_TEXTURE_2D, 0, ?GL_RGB,
-			  TxW, TxH, 0, ?GL_RGB, ?GL_UNSIGNED_BYTE, TxBin),
-	    gl:popAttrib(),
-	    TxDict0 = get(wings_material),
-	    TxDict = gb_trees:enter(MatName, TxId, TxDict0),
-	    put(wings_material, TxDict);
-	_Else ->
-	    TxId = textureId(MatName, Mats),
-	    gl:bindTexture(?GL_TEXTURE_2D, TxId),
-	    gl:texImage2D(?GL_TEXTURE_2D, 0, ?GL_RGB,
-			  TxW, TxH, 0, ?GL_RGB, ?GL_UNSIGNED_BYTE, TxBin)
-    end,
-    Maps0 = lists:keydelete(diffuse,1,Maps),
-    NewMaps = [{diffuse, Tx}|Maps0],
-    NewMat = lists:keyreplace(maps, 1, Mat, {maps, NewMaps}),
-    NewMats = gb_trees:update(MatName, NewMat, Mats),
-    
-    {St0#st{mat = NewMats}, As}.
+add_material(edit, Tx, St0, #areas{matname=MatName}=As) ->
+    St = wings_material:replace_map(MatName, diffuse, Tx, St0),
+    {St,As}.
 
 moveAndScale([{Id, {X0, Y0,_}}|R], XD, YD, Scale, Acc) ->
     moveAndScale(R, XD,YD, Scale, 
@@ -761,16 +726,7 @@ setup_view({X0,Y0,W,H,X0Y0,XM,YM}, Part, Uvs) ->
     gl:'end'(),    
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
     gl:color3f(1.0, 1.0, 1.0),   %%Clear
-    case has_texture(MatN, Mats) of
-	false -> ignore;
-	true when (Uvs#uvstate.option)#setng.texbg == false -> 
-	    Id = textureId(MatN, Mats),
-	    gl:bindTexture(?GL_TEXTURE_2D, Id);
-	true ->
-	    Id = textureId(MatN, Mats),
-	    gl:bindTexture(?GL_TEXTURE_2D, Id),
-	    gl:enable(?GL_TEXTURE_2D)
-    end,
+    wings_material:apply_material(MatN, Mats),
     gl:'begin'(?GL_QUADS),
     gl:texCoord2f(0,0),    gl:vertex3f(0,0,-0.9),
     gl:texCoord2f(1,0),    gl:vertex3f(1,0,-0.9),
