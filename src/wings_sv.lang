@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sv.lang,v 1.53 2005/03/03 06:54:24 bjorng Exp $
+%%     $Id: wings_sv.lang,v 1.54 2005/03/04 09:31:05 dgud Exp $
 %%
 
 {wings,
@@ -1968,7 +1968,14 @@
   {dialog_template,
    [{1,"Skifta Y- och Z-axlar"},
     {6,"Utjämningsnivåer"},
-    {7,"Filtyp för texturer "}]},
+    {7,"Filtyp för texturer "},
+    {uv,"Exportera UV-koordinater"},
+    {tess,"Dela upp ytor i"},
+    {tess4,"Kvadrater"},
+    {tess3,"Trianglar"},
+    {tess0,"Ignorera"},
+    {norms,"Exportera normaler/utjämningsgrupper"},
+    {color,"Exportera punktfärger"}]},
   {do_import,
    [{1,"Läser fil"}]},
   {export_scale_s,
