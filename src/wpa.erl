@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.9 2002/02/06 16:57:48 bjorng Exp $
+%%     $Id: wpa.erl,v 1.10 2002/02/07 11:45:29 bjorng Exp $
 %%
 -module(wpa).
 -export([ask/3,error/1,message/1,yes_no/1,
@@ -17,6 +17,7 @@
 	 pref_get/2,pref_get/3,pref_set/3,pref_delete/2,
 	 sel_get/1,sel_set/2,sel_set/3,sel_map/2,sel_fold/3,sel_convert/3,
 	 sel_edge_regions/2,sel_face_regions/2,
+	 drag/3,drag/4,
 	 vertices/1,vertex_pos/2,vertex_flatten/3,vertex_center/2,
 	 faces/1,face_vertices/2,face_outer_vertices/2,face_outer_edges/2,
 	 edge_loop_vertices/2,
@@ -98,26 +99,26 @@ sel_get(#st{sel=Sel}) ->
     Sel.
 
 sel_map(F, St) ->
-    wings_sel:map(
-      fun(Items, We) ->
-	      F(gb_sets:to_list(Items), We)
-      end, St).
+    wings_sel:map(F, St).
 
 sel_fold(F, Acc, St) ->
-    wings_sel:fold(
-      fun(Items, We, A) ->
-	      F(gb_sets:to_list(Items), We, A)
-      end, Acc, St).
+    wings_sel:fold(F, Acc, St).
 
 sel_convert(F, Mode, St) ->
     Sel = wings_sel:fold(
 	    fun(Items0, #we{id=Id}=We, A) ->
-		    case F(gb_sets:to_list(Items0), We) of
+		    case F(Items0, We) of
 			[] -> A;
-			Items -> [{Id,gb_sets:from_list(Items)}|A]
+			[_|_]=Items ->
+			    [{Id,gb_sets:from_list(Items)}|A];
+			Items ->
+			    case gb_sets:is_empty(Items) of
+				true -> A;
+				false -> [{Id,Items}|A]
+			    end
 		    end
 	    end, [], St),
-    St#st{selmode=Mode,sel=reverse(Sel)}.
+    wings_sel:set(Mode, Sel).
 
 sel_edge_regions(Edges, We) ->
     wings_sel:edge_regions(Edges, We).
@@ -125,7 +126,19 @@ sel_edge_regions(Edges, We) ->
 sel_face_regions(Faces, We) ->
     wings_sel:face_regions(Faces, We).
 
-%%% Vertices.
+%%%
+%%% Dragging support
+%%%
+
+drag(Tvs, Units, St) ->
+    wings_drag:setup(Tvs, Units, [], St).
+
+drag(Tvs, Units, Flags, St) ->
+    wings_drag:setup(Tvs, Units, Flags, St).
+
+%%%
+%%% Vertex functions.
+%%%
 
 vertices(#we{vs=Vtab}) -> gb_trees:keys(Vtab).
 
