@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex.erl,v 1.38 2003/03/12 19:13:50 bjorng Exp $
+%%     $Id: wings_vertex.erl,v 1.39 2003/03/13 20:20:04 bjorng Exp $
 %%
 
 -module(wings_vertex).
@@ -420,7 +420,6 @@ try_connect({Va,Vb}, Face, We) ->
     end.
 
 try_connect_1(Va, Vb, Face, We0) ->
-    io:format("~p\n", [{Va,Vb,Face}]),
     {We,NewFace} = Res = force_connect(Va, Vb, Face, We0),
     case wings_face:good_normal(Face, We) andalso
 	wings_face:good_normal(NewFace, We) of
