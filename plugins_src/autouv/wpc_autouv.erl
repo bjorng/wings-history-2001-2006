@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.97 2003/02/19 22:45:33 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.98 2003/02/20 16:13:04 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -45,6 +45,8 @@ menu(_, Menu) -> Menu.
 
 command({body,?MODULE}, St) ->
     start_uvmap(St);
+command({body,{?MODULE,ask_material,Fun}}, _St) ->
+    Fun();
 command({body,{?MODULE,do_edit,{We,MatName,Faces}}}, St) ->
     do_edit(MatName, Faces, We, St);
 command({body,{?MODULE,show_map,Info}}, St) ->
@@ -203,7 +205,7 @@ seg_event_6({action,{select,Cmd}}, #seg{st=St0}=Ss) ->
 	#st{}=St -> filter_sel_command(Ss, St);
 	Other -> Other
     end;
-seg_event_6({action,{window,geom_viewer}}, #seg{st=St0}=Ss) ->
+seg_event_6({action,{window,geom_viewer}}, _) ->
     keep;
 seg_event_6({action,{window,Cmd}}, #seg{st=St0}=Ss) ->
     case wings:command({window,Cmd}, St0) of
@@ -405,7 +407,8 @@ start_edit_1(#we{name=ObjName,fs=Ftab}=We, St) ->
 	[{MatName,Faces}] ->
 	    gen_edit_event(MatName, Faces, We);
 	[{First,_}|_]=Ms ->
-	    Act = {callback,fun() -> start_edit_cb(First, Ms, We) end},
+	    Ask = fun() -> start_edit_cb(First, Ms, We) end,
+	    Act = {action,{body,{?MODULE,ask_material,Ask}}},
 	    wings_wm:send(geom, Act),
 	    ignore
     end.
@@ -430,7 +433,7 @@ discard_uvmap(#we{fs=Ftab}=We0, St) ->
     Faces = gb_trees:keys(Ftab),
     FvUvMap = auv_segment:fv_to_uv_map(Faces, We0),
     {Charts,Cuts} = auv_segment:uv_to_charts(Faces, FvUvMap, We0),
-    We = wings_we:uv_to_color(We0, St),
+    We = We0#we{mode=material}, %% wings_we:uv_to_color(We0, St),  %%% XXXX
     mark_segments(Charts, Cuts, We, St).
 
 do_edit(MatName0, Faces, We, St) ->
@@ -493,9 +496,9 @@ find_boundary_edges([{Id,#ch{fs=Fs,we=We}=C}|Cs], Acc) ->
 find_boundary_edges([], Acc) -> sort(Acc).
 
 init_show_maps(Map0, OrigWe, St0) ->
-    Map1 = auv_placement:place_areas(Map0),
-    Map3 = find_boundary_edges(Map1, []),
-    Map  = gb_trees:from_orddict(Map3),
+    Map1  = auv_placement:place_areas(Map0),
+    Map3  = find_boundary_edges(Map1, []),
+    Map   = gb_trees:from_orddict(Map3),
     Edges = gb_trees:keys(OrigWe#we.es),
     {{X,Y,W,H},Geom} = init_drawarea(),
     Id=OrigWe#we.id,
@@ -1172,7 +1175,7 @@ handle_event({action, {auv, set_options, {EMode,BEC,BEW,Color,TexBG,TexSz}}},
 
 handle_event({action, {auv, {remap, Method}}}, 
 	     Uvs0 = #uvstate{sel = Sel0, orig_we = We}) ->
-    Sel = [remap(Chart, Method, We) || Chart <- Sel0],
+    Sel = ?SLOW([remap(Chart, Method, We) || Chart <- Sel0]),
     get_event(Uvs0#uvstate{sel = Sel});
 
 handle_event({action, {auv, rescale_all}},
