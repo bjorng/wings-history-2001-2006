@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_hotkey.erl,v 1.7 2001/12/31 23:55:12 bjorng Exp $
+%%     $Id: wings_hotkey.erl,v 1.8 2002/01/02 12:18:47 bjorng Exp $
 %%
 
 -module(wings_hotkey).
@@ -45,7 +45,7 @@ translate_key(Sym, Mod, C) when Mod band ?INTERESTING_BITS == 0 ->
 	?SDLK_KP_MINUS -> {select,less};
 	?SDLK_F3 -> {select,prev_edge_loop};
 	?SDLK_F4 -> {select,next_edge_loop};
-	?SDLK_F5 -> {select,{faces_with,5}};
+	?SDLK_F5 -> {select,{by,{faces_with,5}}};
 	_ -> translate_key(C)
     end;
 translate_key(_, _, _) -> next.
