@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.42 2002/04/22 06:59:05 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.43 2002/05/04 07:46:17 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -91,7 +91,8 @@ command(prefs, St) ->
 	       {"Objects",body_hilite}]},
 	     {hframe,
 	      [{label,"Unselected"},{color,unselected_hlite},
-	       {label,"Selected"},{color,selected_hlite}]}],
+	       {label,"Selected"},{color,selected_hlite}]},
+	     {"Smart Highlighting",smart_highlighting}],
 	    [{title,"Highlighting"}]},
 	   {hframe,
 	    [{vframe,
@@ -123,7 +124,8 @@ command(prefs, St) ->
 		[{"Auto-save interval (min)",autosave_time}]},
 	       {"Show Memory Used",show_memory_used},
 	       {"Display List Optimization",display_list_opt},
-	       {"Advanced Menus",advanced_menus}],
+	       {"Advanced Menus",advanced_menus}
+	      ],
 	      [{title,"Miscellanous"}]}]}],
     Qs = make_query(Qs0),
     wings_ask:dialog(Qs, St, fun(Res) -> {edit,{preferences,{set,Res}}} end);
@@ -264,7 +266,8 @@ defaults() ->
      {active_vector_width,2.0},
      {active_vector_color,{0.0,0.0,0.65}},
      {display_list_opt,true},
-     {advanced_menus,false}
+     {advanced_menus,false},
+     {smart_highlighting,false}
     ].
 
 clean(List) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.39 2002/04/17 08:12:34 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.40 2002/05/04 07:46:17 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -98,11 +98,10 @@ handle_hilite_event(#mousemotion{x=X,y=Y}, #hl{prev=PrevHit,st=St}=HL) ->
     end;
 handle_hilite_event(_, _) -> next.
 
-hilite_draw_sel_fun(Hit, St) ->
+hilite_draw_sel_fun({Mode,{Id,Item}=Hit}, St) ->
     fun() ->
 	    hilite_color(Hit, St),
-	    #st{selmode=Mode,shapes=Shs} = St,
-	    {Id,Item} = Hit,
+	    #st{shapes=Shs} = St,
 	    We = gb_trees:get(Id, Shs),
 	    hilit_draw_sel(Mode, Item, We)
     end.
@@ -385,9 +384,9 @@ do_pick_1(X0, Y0, St) ->
 	    end
     end.
 
-update_selection({Id,Item}, #st{sel=Sel0}=St) ->
+update_selection({Mode,{Id,Item}}, #st{sel=Sel0}=St) ->
     {Type,Sel} = update_selection(Id, Item, Sel0, []),
-    {Type,St#st{sel=Sel}}.
+    {Type,St#st{selmode=Mode,sel=Sel}}.
 
 update_selection(Id, Item, [{I,_}=H|T], Acc) when Id > I ->
     update_selection(Id, Item, T, [H|Acc]);
@@ -427,7 +426,15 @@ get_name(N, <<Name:32,Names/binary>>, Acc) ->
 %%% Filter hits to obtain just one hit.
 %%%
 
-filter_hits(Hits, X, Y, #st{selmode=Mode,shapes=Shs}) ->
+filter_hits(Hits, X, Y, #st{selmode=Mode0,shapes=Shs,sel=Sel}) ->
+    Mode = case Sel of
+	       [] when Mode0 =/= body ->
+		   case wings_pref:get_value(smart_highlighting) of
+		       true -> auto;
+		       false -> Mode0
+		   end;
+	       _ -> Mode0
+	   end,
     EyePoint = wings_view:eye_point(),
     filter_hits_1(Hits, Shs, Mode, X, Y, EyePoint, none).
 
@@ -463,8 +470,27 @@ best_hit(Id, Face, Vs, We, EyePoint, Hit0) ->
 %% Given a selection hit, return the correct vertex/edge/face/body.
 %%
 
-convert_hit(body, _X, _Y, Id, _Face, _We) -> {Id,0};
-convert_hit(face, _X, _Y, Id, Face, _We) -> {Id,Face};
+convert_hit(body, _X, _Y, Id, _Face, _We) -> {body,{Id,0}};
+convert_hit(face, _X, _Y, Id, Face, _We) -> {face,{Id,Face}};
+convert_hit(auto, X, Y, Id, Face, We) ->
+    wings_view:projection(),
+    wings_view:model_transformations(),
+    ViewPort = gl:getIntegerv(?GL_VIEWPORT),
+    ModelMatrix = gl:getDoublev(?GL_MODELVIEW_MATRIX),
+    ProjMatrix = gl:getDoublev(?GL_PROJECTION_MATRIX),
+    Trans = {ModelMatrix,ProjMatrix,ViewPort},
+    {Vdist0,V} = find_vertex(Face, We, X, Y, Trans),
+    Vdist = math:sqrt(Vdist0),
+    Es = find_edge(Face, We, X, Y, Trans),
+    {Edist0,_,Edge} = min(Es),
+    Edist = math:sqrt(Edist0),
+    Lim0 = min([math:sqrt(L) || {_,L,_} <- Es]) / 4,
+    Lim = min([20.0,Lim0]),
+    if
+	Vdist < Lim -> {vertex,{Id,V}};
+	Edist < Lim -> {edge,{Id,Edge}};
+	true -> {face,{Id,Face}}
+    end;
 convert_hit(Mode, X, Y, Id, Face, We) ->
     wings_view:projection(),
     wings_view:model_transformations(),
@@ -473,8 +499,12 @@ convert_hit(Mode, X, Y, Id, Face, We) ->
     ProjMatrix = gl:getDoublev(?GL_PROJECTION_MATRIX),
     Trans = {ModelMatrix,ProjMatrix,ViewPort},
     case Mode of
-	vertex -> {Id,find_vertex(Face, We, X, Y, Trans)};
-	edge ->   {Id,find_edge(Face, We, X, Y, Trans)}
+	vertex ->
+	    {_,V} = find_vertex(Face, We, X, Y, Trans),
+	    {vertex,{Id,V}};
+	edge ->
+	    {_,_,E} = min(find_edge(Face, We, X, Y, Trans)),
+	    {edge,{Id,E}}
     end.
 
 find_vertex(Face, We, X, Y, Trans) ->
@@ -485,35 +515,32 @@ find_vertex(Face, We, X, Y, Trans) ->
 		     Dy = Y-Ys,
 		     {Dx*Dx+Dy*Dy,V}
 	     end, Vs0),
-    {_,V} = min(Vs),
-    V.
+    min(Vs).
 
 find_edge(Face, We, Cx, Cy, Trans) ->
-    Es = wings_face:fold(
-	   fun(_, Edge, #edge{vs=Va,ve=Vb}, A) ->
-		   {Ax,Ay} = project_vertex(Va, We, Trans),
-		   {Bx,By} = project_vertex(Vb, We, Trans),
-		   if
-		       is_float(Ax), is_float(Ay),
-		       is_float(Bx), is_float(By) ->
-			   Xdist = Bx-Ax,
-			   Ydist = By-Ay,
-			   L = Xdist*Xdist+Ydist*Ydist,
-			   {Px,Py} =
-			       case catch ((Cx-Ax)*Xdist+(Cy-Ay)*Ydist)/L of
-				   {'EXIT',_} -> {Ax,Ay};
-				   R when R =< 0 -> {Ax,Ay};
-				   R when R >= 1 -> {Bx,By};
-				   R -> {Ax+R*Xdist,Ay+R*Ydist}
-			       end,
-			   Xdiff = Px-Cx,
-			   Ydiff = Py-Cy,
-			   DistSqr = Xdiff*Xdiff + Ydiff*Ydiff,
-			   [{DistSqr,Edge}|A]
-		   end
-	   end, [], Face, We),
-    {_,Edge} = min(Es),
-    Edge.
+    wings_face:fold(
+      fun(_, Edge, #edge{vs=Va,ve=Vb}, A) ->
+	      {Ax,Ay} = project_vertex(Va, We, Trans),
+	      {Bx,By} = project_vertex(Vb, We, Trans),
+	      if
+		  is_float(Ax), is_float(Ay),
+		  is_float(Bx), is_float(By) ->
+		      Xdist = Bx-Ax,
+		      Ydist = By-Ay,
+		      L = Xdist*Xdist+Ydist*Ydist,
+		      {Px,Py} =
+			  case catch ((Cx-Ax)*Xdist+(Cy-Ay)*Ydist)/L of
+			      {'EXIT',_} -> {Ax,Ay};
+			      R when R =< 0 -> {Ax,Ay};
+			      R when R >= 1 -> {Bx,By};
+			      R -> {Ax+R*Xdist,Ay+R*Ydist}
+			  end,
+		      Xdiff = Px-Cx,
+		      Ydiff = Py-Cy,
+		      DistSqr = Xdiff*Xdiff + Ydiff*Ydiff,
+		      [{DistSqr,L,Edge}|A]
+	      end
+      end, [], Face, We).
 
 project_vertex(V, We, {ModelMatrix,ProjMatrix,ViewPort}) ->
     {Px,Py,Pz} = wings_vertex:pos(V, We),
