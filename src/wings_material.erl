@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.72 2003/01/20 12:50:55 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.73 2003/01/21 06:43:56 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -37,17 +37,15 @@ new(_) ->
 sub_menu(select, St) ->
     {"Material",{material,material_list(St)}}.
 
-command({material,{new,Name0}}, #st{mat=Mtab}=St0) ->
-    Name = list_to_atom(Name0),
-    case gb_trees:is_defined(Name, Mtab) of
+command({material,{new,Name0}}, #st{mat=Mtab}=St) ->
+    Name1 = list_to_atom(Name0),
+    case gb_trees:is_defined(Name1, Mtab) of
 	true ->
-	    wings_util:error("Material name '" ++ Name0 ++
-			     "' is already defined.");
+	    Names = [atom_to_list(N) || N <- gb_trees:keys(Mtab)],
+	    Name = list_to_atom(wings_util:unique_name(Name0, Names)),
+	    new_material(Name, St);
 	false ->
-	    Mat = make_default({1.0,1.0,1.0}, 1.0),
-	    St1 = add(Name, Mat, St0),
-	    St = set_material(Name, St1),
-	    edit(Name, St)
+	    new_material(Name1, St)
     end;
 command({material,{edit,Mat}}, St) ->
     edit(Mat, St);
@@ -58,6 +56,11 @@ command({select,{material,Mat}}, St) ->
 			   #face{mat=M} = gb_trees:get(Face, Ftab),
 			   M =:= Mat
 		   end, face, St).
+
+new_material(Name, St0) ->
+    Mat = make_default({1.0,1.0,1.0}, 1.0),
+    St = add(Name, Mat, St0),
+    edit(Name, St).
 
 material_list(#st{mat=Mat0}) ->
     map(fun({Id,Mp}) ->
@@ -307,7 +310,7 @@ edit(Name, #st{mat=Mtab0}=St) ->
 		  wings_draw_util:map(fun invalidate_dlists/2, Name),
 		  St#st{mat=Mtab}
 	  end,
-    wings_ask:dialog("Material Properties", Qs, Ask).
+    wings_ask:dialog("Material Properties: "++atom_to_list(Name), Qs, Ask).
 
 plugin_results(_, [], Mat) -> Mat;
 plugin_results(Name, Res0, Mat0) ->
@@ -406,11 +409,11 @@ color(Face, {U,V}, #we{fs=Ftab}, #st{mat=Mtab}) ->
 	    {R,G,B,_} = prop_get(diffuse, OpenGL),
 	    wings_color:share({R,G,B});
 	DiffMap ->
-	    color_1(U, V, DiffMap)
+	    color_1(U, V, wings_image:info(DiffMap))
     end;
 color(_Face, {_,_,_}=RGB, _We, _St) -> RGB.
 
-color_1(U0, V0, {W,H,Bits}) ->
+color_1(U0, V0, #e3d_image{width=W,height=H,image=Bits}) ->
     U = (((round(U0*W) rem W) + W) rem W),
     V = ((round(V0*H) rem H) + H) rem H,
     Pos = V*W*3 + U*3,

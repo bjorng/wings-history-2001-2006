@@ -3,12 +3,12 @@
 %%
 %%     Various utility function that not obviously fit somewhere else.
 %%
-%%  Copyright (c) 2001-2002 Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.55 2002/12/30 15:22:13 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.56 2003/01/21 06:43:57 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -20,12 +20,13 @@
 	 gb_trees_smallest_key/1,gb_trees_largest_key/1,
 	 nice_float/1,
 	 menu_restriction/2,
+	 unique_name/2,
 	 tc/3,export_we/2,crash_log/1,validate/1,validate/3]).
 -export([check_error/2,dump_we/2]).
 
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
--import(lists, [foreach/2,map/2,foldl/3,reverse/1,member/2]).
+-import(lists, [foreach/2,map/2,foldl/3,reverse/1,member/2,last/1]).
 
 error(Message) when is_list(Message) ->
     throw({command_error,Message}).
@@ -169,6 +170,34 @@ menu_restriction(Win, Allowed) ->
 	Mb0 ->
 	    Mb = [Item || {_,Name,_}=Item <- Mb0, member(Name, Allowed)],
 	    wings_wm:menubar(Win, Mb)
+    end.
+
+%%
+%% Create a unique name by appending digits.
+%%
+
+unique_name(Name, Names) ->
+    case member(Name, Names) of
+	false -> Name;
+	true -> unique_name_1(reverse(Name), Names)
+    end.
+
+unique_name_1([C|Cs], Names) when $0 =< C, C =< $9 ->
+    unique_name_1(Cs, Names);
+unique_name_1(Name, Names0) ->
+    Base0 = [First|_] = reverse(Name),
+    Names = [N || N <- Names0, hd(N) =:= First],
+    Base = case member($\s, Base0) andalso last(Base0) =/= $\s of
+	       true -> Base0 ++ " ";
+	       false -> Base0
+	   end,
+    unique_name_2(Base, 2, gb_sets:from_list(Names)).
+
+unique_name_2(Base, I, Names) ->
+    Name = Base ++ integer_to_list(I),
+    case gb_sets:is_member(Name, Names) of
+	true -> unique_name_2(Base, I+1, Names);
+	false -> Name
     end.
 
 %%

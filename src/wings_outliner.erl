@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.3 2003/01/20 07:36:55 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.4 2003/01/21 06:43:56 bjorng Exp $
 %%
 
 -module(wings_outliner).
@@ -110,30 +110,23 @@ event(_, _) -> keep.
 do_menu(Act, X, Y, #ost{os=Objs}) ->
     Menu = case lists:nth(Act+1, Objs) of
 	       {material,Name,_,_} ->
-		   [{"Edit Material...",
-		     fun(_, _) ->
-			     {outliner,{edit_material,Name}} end,[]},
-		    {"Assign to Selection",
-		     fun(_, _) ->
-			     {outliner,{assign_material,Name}} end,[]}];
+		   [{"Edit Material...",menu_cmd(edit_material, Name)},
+		    {"Assign to Selection",menu_cmd(assign_material, Name)}];
 	       {object,Id,_} ->
-		   [{"Delete",
-		     fun(_, _) ->
-			     {outliner,{delete_object,Id}} end,[]}];
+		   [{"Duplicate",menu_cmd(duplicate_object, Id)},
+		    {"Delete",menu_cmd(delete_object, Id)}];
 	       {light,Id,_} ->
-		   [{"Edit Light...",
-		     fun(_, _) ->
-			     {outliner,{edit_light,Id}} end,[]},
+		   [{"Edit Light...",menu_cmd(edit_light, Id)},
 		    separator,
-		    {"Delete",
-		     fun(_, _) ->
-			     {outliner,{delete_light,Id}} end,[]}];
+		    {"Duplicate",menu_cmd(duplicate_object, Id)},
+		    {"Delete",menu_cmd(delete_object, Id)}];
 	       {image,Id,_} ->
-		   [{"Revert",
-		     fun(_, _) ->
-			     {outliner,{revert_image,Id}} end,[]}]
+		   [{"Revert",menu_cmd(revert_image, Id)}]
 	   end,
     wings_menu:popup_menu(X, Y, outliner, Menu).
+
+menu_cmd(Cmd, Id) ->
+    {'VALUE',{Cmd,Id}}.
 
 command({edit_material,Name0}, _Ost) ->
     Name = list_to_atom(Name0),
@@ -143,15 +136,25 @@ command({assign_material,Name0}, _Ost) ->
     Name = list_to_atom(Name0),
     wings_wm:send(geom, {action,{material,{assign,Name}}}),
     keep;
+command({duplicate_object,Id}, Ost) ->
+    duplicate_object(Id, Ost);
 command({delete_object,Id}, Ost) ->
     delete_object(Id, Ost);
 command({edit_light,Id}, _) ->
     wings_wm:send(geom, {action,{light,{edit,Id}}}),
     keep;
-command({delete_light,Id}, Ost) ->
-    delete_object(Id, Ost);
 command({revert_image,Id}, Ost) ->
     keep.
+
+duplicate_object(Id, #ost{st=#st{shapes=Shs}=St0}) ->
+    #we{name=Name0} = We = gb_trees:get(Id, Shs),
+    wings_ask:ask("Duplicate",
+		  [{"Object Name",Name0}],
+		  fun([Name]) ->
+			  St = wings_shape:new(Name, We, St0),
+			  wings_wm:send(geom, {new_state,St}),
+			  ignore
+		  end).
 
 delete_object(Id, #ost{st=#st{shapes=Shs0}=St0}) ->
     Shs = gb_trees:delete(Id, Shs0),
