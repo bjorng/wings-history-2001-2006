@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.3 2003/01/21 20:16:15 bjorng Exp $
+%%     $Id: wings_image.erl,v 1.4 2003/01/22 06:50:47 bjorng Exp $
 %%
 
 -module(wings_image).
 -export([init/0,init_opengl/0,
-	 new/2,new/3,txid/1,info/1,images/0,
+	 new/2,txid/1,info/1,images/0,
 	 next_id/0,delete_older/1,delete_from/1,
 	 update/2]).
 
@@ -34,10 +34,7 @@ init_opengl() ->
 %%%
 
 new(Name, E3DImage) ->
-    req({new,E3DImage#e3d_image{name=Name,filename=none}}).
-
-new(Name, E3DImage, Filename) ->
-    req({new,E3DImage#e3d_image{name=Name,filename=Filename}}).
+    req({new,E3DImage#e3d_image{name=Name}}).
 
 txid(Id) ->
     req({txid,Id}).

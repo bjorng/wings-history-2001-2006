@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.8 2003/01/21 20:35:36 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.9 2003/01/22 06:50:47 bjorng Exp $
 %%
 
 -module(wings_outliner).
@@ -134,7 +134,8 @@ image_menu(Id, _) ->
 
 common_image_menu(Id) ->
     [separator,
-     {"Duplicate",menu_cmd(duplicate_image, Id)}].
+     {"Duplicate",menu_cmd(duplicate_image, Id)},
+     {"Rename",menu_cmd(rename_image, Id)}].
 
 menu_cmd(Cmd, Id) ->
     {'VALUE',{Cmd,Id}}.
@@ -158,6 +159,8 @@ command({revert_image,Id}, Ost) ->
     revert_image(Id, Ost);
 command({duplicate_image,Id}, Ost) ->
     duplicate_image(Id, Ost);
+command({rename_image,Id}, Ost) ->
+    rename_image(Id, Ost);
 command(Cmd, _) ->
     io:format("NYI: ~p\n", [Cmd]),
     keep.
@@ -185,6 +188,9 @@ duplicate_image(Id, #ost{st=St}=Ost0) ->
 
 copy_of("Copy of "++_=Name) -> Name;
 copy_of(Name) -> "Copy of "++Name.
+
+rename_image(Id, Ost) ->
+    keep.
 
 update_state(St, #ost{first=OldFirst}=Ost0) ->
     #ost{first=First0} = Ost = update_state_1(St, Ost0),
@@ -317,10 +323,10 @@ draw_icons_1(N, [O|Objs], #ost{lh=Lh}=Ost, Y) ->
 	    wings_io:draw_icon(X, Y, 16, 16, small_light);
 	image ->
 	    case O of
-		#e3d_image{filename=none} ->
-		    wings_io:draw_icon(X, Y, 16, 16, small_image2);
+		{_,_,#e3d_image{filename=none}} ->
+		    wings_io:draw_icon(X, Y, 16, 16, small_image);
 		_ ->
-		    wings_io:draw_icon(X, Y, 16, 16, small_image)
+		    wings_io:draw_icon(X, Y, 16, 16, small_image2)
 	    end;
 	material -> ok
     end,

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.73 2003/01/21 06:43:56 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.74 2003/01/22 06:50:47 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -157,7 +157,7 @@ load_map(MapName) ->
 	{'EXIT',R} ->
 	    io:format("~P\n", [R,20]),
 	    none;
-	Im when is_integer(Im)-> Im
+	Im when is_integer(Im) -> Im
     end.
 
 load_map_1(none) -> none;
@@ -166,7 +166,7 @@ load_map_1(File0) ->
     Ps = [{filename,File},{type,r8g8b8},{order,lower_left},{alignment,1}],
     case wpa:image_read(Ps) of
 	#e3d_image{}=Im ->
-	    wings_image:new("ImportedImage", Im);
+	    wings_image:new("ImportedImage", Im#e3d_image{filename=File});
 	{error,Error} ->
 	    io:format("Failed to load \"~s\": ~s\n",
 		      [File,file:format_error(Error)]),
