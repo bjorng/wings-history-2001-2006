@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face.erl,v 1.37 2003/06/08 08:56:05 bjorng Exp $
+%%     $Id: wings_face.erl,v 1.38 2003/07/26 05:35:05 bjorng Exp $
 %%
 
 -module(wings_face).
@@ -367,14 +367,24 @@ fold_vinfo(F, Acc0, Face, Edge, LastEdge, Etab, _) ->
 
 %% Fold over a set of faces.
 
-fold_faces(F, Acc0, [Face|Faces], We) ->
-    Acc = fold(fun(V, Edge, Rec, A) ->
-		       F(Face, V, Edge, Rec, A)
-	       end, Acc0, Face, We),
+fold_faces(F, Acc0, [Face|Faces], #we{es=Etab,fs=Ftab}=We) ->
+    Edge = gb_trees:get(Face, Ftab),
+    Acc = fold_faces_1(Edge, Etab, F, Acc0, Face, Edge, not_done),
     fold_faces(F, Acc, Faces, We);
 fold_faces(_F, Acc, [], _We) -> Acc;
 fold_faces(F, Acc, Faces, We) ->
     fold_faces(F, Acc, gb_sets:to_list(Faces), We).
+
+fold_faces_1(LastEdge, _, _, Acc, _, LastEdge, done) -> Acc;
+fold_faces_1(Edge, Etab, F, Acc0, Face, LastEdge, _) ->
+    case gb_trees:get(Edge, Etab) of
+	#edge{ve=V,lf=Face,ltsu=NextEdge}=E ->
+	    Acc = F(Face, V, Edge, E, Acc0),
+	    fold_faces_1(NextEdge, Etab, F, Acc, Face, LastEdge, done);
+	#edge{vs=V,rf=Face,rtsu=NextEdge}=E ->
+	    Acc = F(Face, V, Edge, E, Acc0),
+	    fold_faces_1(NextEdge, Etab, F, Acc, Face, LastEdge, done)
+    end.
 
 %% Return an iterator which can be used to traverse the face.
 
