@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.42 2002/05/06 07:21:00 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.43 2002/05/07 06:20:51 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -174,7 +174,7 @@ marquee_event(#mousebutton{x=X0,y=Y0,button=1,state=?SDL_RELEASED}, M) ->
 		{false,delete};
 	    Mod when Mod band ?SHIFT_BITS =/= 0 ->
 		{true,add};
-	    Mod -> {false,add}
+	    _Mod -> {false,add}
 	end,
     #marquee{ox=Ox,oy=Oy,st=St0} = M,
     wings_io:cleanup_after_drawing(),
@@ -226,7 +226,7 @@ marquee_filter_1([{Id,Face}|Hits], Shs, Mode, EyePoint, Acc) ->
     case e3d_vec:dot(EyePoint, N) of
 	S when S < D ->				%Ignore back-facing face.
 	    marquee_filter_1(Hits, Shs, Mode, EyePoint, Acc);
-	S ->					%Front-facing face.
+	_S ->					%Front-facing face.
 	    marquee_filter_1(Hits, Shs, Mode, EyePoint, [{Id,Face}|Acc])
     end;
 marquee_filter_1([], _St, _Mode, _EyePoint, Acc) -> Acc.
@@ -446,7 +446,7 @@ filter_hits_1([{Id,Face}|Hits], Shs, Mode, X, Y, EyePoint, Hit0) ->
     case e3d_vec:dot(EyePoint, N) of
 	S when S < D ->				%Ignore back-facing face.
 	    filter_hits_1(Hits, Shs, Mode, X, Y, EyePoint, Hit0);
-	S ->					%Candidate.
+	_S ->					%Candidate.
 	    Hit = best_hit(Id, Face, Vs, We, EyePoint, Hit0),
 	    filter_hits_1(Hits, Shs, Mode, X, Y, EyePoint, Hit)
     end;
