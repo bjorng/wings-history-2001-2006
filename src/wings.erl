@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.272 2003/10/25 16:30:24 bjorng Exp $
+%%     $Id: wings.erl,v 1.273 2003/10/25 19:45:35 bjorng Exp $
 %%
 
 -module(wings).
@@ -386,6 +386,7 @@ do_hotkey(Cmd, #st{sel=[]}=St0) ->
     end;
 do_hotkey(Cmd, St) -> do_command(Cmd, St).
 
+highlight_sel_style({vector,_}) -> temporary;
 highlight_sel_style({vertex,_}) -> temporary;
 highlight_sel_style({edge,_}) -> temporary;
 highlight_sel_style({face,_}) -> temporary;
@@ -476,7 +477,7 @@ repeatable(Mode, Cmd) ->
 
 %% Vector and secondary-selection commands.
 command({vector,What}, St) ->
-    wings_vec:command(What, St);
+    {seq,main_loop_noredraw(St),wings_vec:command(What, St)};
 command({shape,Shape}, St0) ->
     case wings_shapes:command(Shape, St0) of
     	St0 -> St0;
