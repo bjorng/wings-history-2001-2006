@@ -8,12 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.76 2003/03/12 06:21:49 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.77 2003/03/12 08:26:07 bjorng Exp $
 %%
 
 -module(wings_ask).
 -export([ask/3,ask/4,dialog/3,dialog/4]).
 
+-compile(inline).
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
 -include("wings.hrl").
@@ -115,7 +116,7 @@ do_dialog(Title, Qs, Level, Fun) ->
     setup_blanket(Name),
     Op = {seq,push,get_event(S)},
     {_,X,Y} = sdl_mouse:getMouseState(),
-    wings_wm:toplevel(Name, Title, {X,Y,highest}, {W,H},
+    wings_wm:toplevel(Name, Title, {X,Y-?LINE_HEIGHT,highest}, {W,H},
 		      [{anchor,n}], Op).
 
 setup_ask(Qs0, Fun) ->
@@ -160,7 +161,8 @@ setup_blanket(Dialog) ->
     wings_wm:new({blanket,Dialog}, {0,0,highest}, {TopW,TopH}, Op).
 
 delete_blanket(#s{level=[Level|_]}) ->
-    wings_wm:delete({blanket,{dialog,Level}}).
+    wings_wm:delete({blanket,{dialog,Level}});
+delete_blanket(#s{level=undefined}) -> ok.
 
 blanket(#keyboard{}=Ev, Dialog) ->
     wings_wm:send(Dialog, Ev);
