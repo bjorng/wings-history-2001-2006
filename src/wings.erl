@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.251 2003/06/26 19:54:09 bjorng Exp $
+%%     $Id: wings.erl,v 1.252 2003/06/27 05:07:12 bjorng Exp $
 %%
 
 -module(wings).
@@ -379,8 +379,8 @@ handle_event_3(quit, St) ->
     end;
 handle_event_3({new_state,St}, St0) ->
     save_state(St0, St);
-handle_event_3({temporary_selection,St}, _) ->
-    main_loop(St#st{temp_sel=true});
+handle_event_3({temporary_selection,St}, St0) ->
+    main_loop(set_temp_sel(St0, St));
 handle_event_3({current_state,St}, _) ->
     main_loop_noredraw(St);
 handle_event_3(revert_state, St) ->
@@ -414,9 +414,9 @@ do_hotkey(Ev, #st{sel=[]}=St0) ->
 		    case wings_hotkey:event(Ev, St) of
 			next -> next;
 			Cmd ->
-			    case no_temp_sel(Cmd) of
-				true -> {Cmd,St0};
-				false -> {Cmd,St#st{temp_sel=true}}
+			    case temp_sel_allowed(Cmd) of
+				false -> {Cmd,St0};
+				true -> {Cmd,set_temp_sel(St0, St)}
 			    end
 		    end;
 		_Other -> do_hotkey_1(Ev, St0)
@@ -430,11 +430,13 @@ do_hotkey_1(Ev, St) ->
 	Cmd -> {Cmd,St}
     end.
 
-no_temp_sel({edit,undo_toggle}) -> true;
-no_temp_sel({edit,undo}) -> true;
-no_temp_sel({edit,redo}) -> true;
-no_temp_sel({view,_}) -> true;
-no_temp_sel(_) -> false.
+temp_sel_allowed({vertex,_}) -> true;
+temp_sel_allowed({edge,_}) -> true;
+temp_sel_allowed({face,_}) -> true;
+temp_sel_allowed({body,_}) -> true;
+temp_sel_allowed({edit,repeat}) -> true;
+temp_sel_allowed({edit,repeat_drag}) -> true;
+temp_sel_allowed(_) -> false.
 
 do_command(Cmd, St) ->    
     do_command(Cmd, none, St).
@@ -722,8 +724,12 @@ patches() ->
 	    [separator,{"Use "++Desc,enable_patches}]
     end.
 
-clear_temp_sel(#st{temp_sel=false}=St) -> St;
-clear_temp_sel(St) -> St#st{temp_sel=false,sel=[]}.
+set_temp_sel(#st{sh=Sh,selmode=Mode}, St) ->
+    St#st{temp_sel={Mode,Sh}}.
+
+clear_temp_sel(#st{temp_sel=none}=St) -> St;
+clear_temp_sel(#st{temp_sel={Mode,Sh}}=St) ->
+    St#st{temp_sel=none,selmode=Mode,sh=Sh,sel=[]}.
 
 info(#st{sel=[]}) -> [];
 info(St) ->
@@ -946,8 +952,7 @@ do_use_command(#mousebutton{x=X,y=Y}, Cmd, #st{sel=[]}=St0) ->
 	true ->
 	    wings_wm:later({action,Cmd}),
 	    case wings_pick:do_pick(X, Y, St0) of
-		{add,_,St} ->
-		    main_loop_noredraw(St#st{temp_sel=true});
+		{add,_,St} -> main_loop_noredraw(set_temp_sel(St0, St));
 		_Other -> keep
 	    end
     end;
