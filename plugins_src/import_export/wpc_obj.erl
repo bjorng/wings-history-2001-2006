@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_obj.erl,v 1.2 2002/06/14 13:08:17 bjorng Exp $
+%%     $Id: wpc_obj.erl,v 1.3 2002/06/18 06:26:08 bjorng Exp $
 %%
 
 -module(wpc_obj).
@@ -93,13 +93,13 @@ export_1(Filename, Contents0, Attr) ->
     end.
 
 dialog(import) ->
-    common_dialog();
+    [{label,"Import scale"},{text,get_pref(import_scale, 1.0),[{key,import_scale}]},
+     {label,"(Export scale)"},{text,get_pref(export_scale, 1.0),[{key,export_scale}]}];
 dialog(export) ->
     [{"One group per material",get_pref(group_per_material, true),
-      [{key,group_per_material}]}|common_dialog()].
-
-common_dialog()->
-    [{label,"Scale"},{text,get_pref(scale, 1.0),[{key,scale}]}].
+      [{key,group_per_material}]},
+     {label,"(Import scale)"},{text,get_pref(import_scale, 1.0),[{key,import_scale}]},
+     {label,"Export scale"},{text,get_pref(export_scale, 1.0),[{key,export_scale}]}].
 
 get_pref(Key, Def) ->
     wpa:pref_get(?MODULE, Key, Def).
@@ -108,9 +108,9 @@ set_pref(KeyVals) ->
     wpa:pref_set(?MODULE, KeyVals).
 
 export_transform(Contents, Attr) ->
-    Mat = e3d_mat:scale(property_lists:get_value(scale, Attr, 1.0)),
+    Mat = e3d_mat:scale(property_lists:get_value(export_scale, Attr, 1.0)),
     e3d_file:transform(Contents, Mat).
 
 import_transform(Contents, Attr) ->
-    Mat = e3d_mat:scale(1.0/property_lists:get_value(scale, Attr, 1.0)),
+    Mat = e3d_mat:scale(property_lists:get_value(import_scale, Attr, 1.0)),
     e3d_file:transform(Contents, Mat).
