@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.300 2005/03/20 21:17:16 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.301 2005/03/21 17:39:33 dgud Exp $
 %%
 
 -module(wpc_autouv).
@@ -274,7 +274,7 @@ update_selected_uvcoords(#st{bb=Uvs}=St) ->
     Shs = gb_trees:update(Id, We, Shs0),
     GeomSt = GeomSt0#st{shapes=Shs},
     wings_wm:send(geom, {new_state,GeomSt}),
-    St#st{bb=Uvs#uvstate{st=GeomSt}}.
+    clear_temp_sel(St#st{bb=Uvs#uvstate{st=GeomSt}}).
 
 %% update_uvs(Charts, We0) -> We
 %%  Update the UV coordinates for the original model.
@@ -407,8 +407,8 @@ command_menu(edge, X, Y) ->
     Scale = scale_directions(),
     Align = 	    
 	[{"Free",free,"Rotate selection freely"},
-	 {"Chart to X", align_x, "Rotate chart align selected edge to X-axis"},
-	 {"Chart to Y", align_y, "Rotate chart align selected edge to Y-axis"}],
+	 {"Chart to X", align_x, "Rotate chart to align selected edge to X-axis"},
+	 {"Chart to Y", align_y, "Rotate chart to align selected edge to Y-axis"}],
     Menu = [{basic,{"Edge operations",ignore}},
 	    {basic,separator},
 	    {"Move",move,"Move selected edges",[magnet]},
@@ -488,7 +488,7 @@ handle_event(init_opengl, St) ->
 handle_event(resized, St) ->
     get_event(St);
 handle_event({new_state,St}, _) ->
-    new_state(clear_temp_sel(St));
+    new_state(St);
 handle_event(revert_state, St) ->
     get_event(St);
 handle_event({current_state,geom_display_lists,GeomSt}, AuvSt) ->
@@ -1086,6 +1086,8 @@ body_sel_to_body([], Sel) -> Sel.
 %%  Given the selection in the AutoUV window, update the selection
 %%  in the geometry window.
 
+update_geom_selection(#st{temp_sel={_,_},bb=#uvstate{st=GeomSt}}) ->
+    GeomSt;
 update_geom_selection(#st{sel=[],bb=#uvstate{st=GeomSt}}) ->
     wpa:sel_set(face, [], GeomSt);
 update_geom_selection(#st{selmode=body,sel=Sel,
