@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.201 2003/01/24 11:09:52 bjorng Exp $
+%%     $Id: wings.erl,v 1.202 2003/01/26 15:45:23 bjorng Exp $
 %%
 
 -module(wings).
@@ -838,10 +838,10 @@ button_event(redraw, #but{buttons=undefined}=But0) ->
 button_event(redraw, But) ->
     button_redraw(But),
     keep;
-button_event(#mousebutton{button=1,x=X,state=?SDL_PRESSED}, But) ->
+button_event(#mousebutton{button=B,x=X,state=?SDL_PRESSED}, But) when B =< 3 ->
     button_was_hit(X, But),
     keep;
-button_event(#mousebutton{button=1,x=X,state=?SDL_RELEASED}, But) ->
+button_event(#mousebutton{button=B,x=X,state=?SDL_RELEASED}, But) when B =< 3 ->
     button_help(X, But),
     keep;
 button_event(#mousemotion{x=X}, But) ->
