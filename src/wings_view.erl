@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.150 2004/05/18 09:52:43 raimo_niskanen Exp $
+%%     $Id: wings_view.erl,v 1.151 2004/06/10 05:49:28 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -686,7 +686,7 @@ frame_1([A,B]=BB) ->
     C = e3d_vec:average(BB),
     R = e3d_vec:len(e3d_vec:sub(A, B)) / 2,
     #view{fov=Fov} = View = current(),
-    Dist = R/math:tan(Fov*3.14159/2/180),
+    Dist = R/math:tan(Fov*math:pi()/2/180),
     set_current(View#view{origin=e3d_vec:neg(C),
 			  distance=Dist,pan_x=0.0,pan_y=0.0}).
 
@@ -893,7 +893,7 @@ align_to_selection({Nx,Ny,Nz}, St) ->
     St.
 
 to_degrees(A) when is_float(A) ->
-    A*180.0/3.1415926536.
+    A*180.0/math:pi().
 
 one_of(true, S, _) -> S;
 one_of(false,_, S) -> S.

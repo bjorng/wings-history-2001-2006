@@ -3,12 +3,12 @@
 %%
 %%     Operations on unit quaternions.
 %%
-%%  Copyright (c) 2003 Dan Gudmundsson, Bjorn Gustavsson
+%%  Copyright (c) 2003-2004 Dan Gudmundsson, Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_q.erl,v 1.4 2003/05/16 17:30:27 bjorng Exp $
+%%     $Id: e3d_q.erl,v 1.5 2004/06/10 05:49:27 bjorng Exp $
 %%
 
 %% Quaternions are represented as a {{Qx,Qy,Qz},Qw}
@@ -118,7 +118,7 @@ from_rotation_matrix(M) when size(M) =:= 16 ->
 
 %% The Axis must be a unit-length vector.
 from_angle_axis(Angle, Axis) ->
-    HalfAngle = Angle*(3.14159/180.0/2.0),
+    HalfAngle = Angle*(math:pi()/180.0/2.0),
     Sin = math:sin(HalfAngle),
     Cos = math:cos(HalfAngle),
     {X,Y,Z} = Axis,
@@ -127,7 +127,7 @@ from_angle_axis(Angle, Axis) ->
 to_angle_axis(Q) ->
     {{Qx,Qy,Qz},Qw} = norm(Q),
     Cos = Qw,
-    Angle = math:acos(Cos) * (2*180/3.14159),
+    Angle = math:acos(Cos) * (2*180/math:pi()),
     Sin0  = math:sqrt(1.0 - Cos*Cos),
     Sin   = if
 		abs(Sin0) < 0.000005 -> 1.0;
