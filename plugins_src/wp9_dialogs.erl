@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp9_dialogs.erl,v 1.23 2003/12/23 16:23:12 bjorng Exp $
+%%     $Id: wp9_dialogs.erl,v 1.24 2003/12/23 17:46:34 bjorng Exp $
 %%
 
 -module(wp9_dialogs).
 -export([init/1]).
--import(lists, [reverse/1,reverse/2]).
+-import(lists, [reverse/1,reverse/2,sort/1]).
 
 init(Next) ->
     fun(What) -> ui(What, Next) end.
@@ -115,40 +115,37 @@ image_formats(Fs0) ->
 open_dialog(Title, Props, Cont) ->
     [{_,Def}|_] = Types = file_filters(Props),
     Dir = proplists:get_value(directory, Props, "/"),
-    Ps = [{directory,Dir},{filetype,Def}],
+    Ps = [{directory,Dir},{filetype,Def},{filename,""}],
     {dialog,Qs,Ask} = do_dialog(Types, Title, Cont, Ps),
     wings_ask:dialog(Title, Qs, Ask).
 
 do_dialog(Types, Title, Cont, Ps) ->
     Dir = proplists:get_value(directory, Ps),
     DefType = proplists:get_value(filetype, Ps),
+    Filename = proplists:get_value(filename, Ps),
     Wc = atom_to_list(DefType),
-    Files = filelib:wildcard(filename:join(Dir, "*."++Wc)),
-    io:format("~p\n", [Files]),
+    FileList = file_list(Dir, Wc),
     DirMenu = dir_menu(Dir, []),
-    ShowFiles = fun(X, Y, W, H, _Common) ->
-			wings_io:border(X, Y, W, H, {0.52,0.52,0.52}),
-			wings_io:text_at(X+5, Y+16, "Filter: "++atom_to_list(DefType)),
-			keep
-		end,
     Qs = {vframe,
 	  [{hframe,[{label,"Look in:"},
 		    {menu,DirMenu,Dir,[{key,directory},{hook,fun menu_hook/2}]},
 		    {button,"Up",fun(_) -> ignore end,[{key,up},{hook,fun up_button/2}]}]},
-	   separator,
-	   {custom,400,400,ShowFiles},
-	   separator,
+	   panel,
+	   FileList,
+	   panel,
 	   {hframe,
 	    [{vframe,
 	      [{label,"File name:"},
 	       {label,"File format:"}]},
 	     {vframe,
-	      [{text,"",[{key,filename}]},
+	      [{text,Filename,[{key,filename}]},
 	       {menu,Types,DefType,[{key,filetype},{hook,fun menu_hook/2}]}]},
 	     {vframe,[{button,Title,
 		       fun(Res) ->
+			       Dir = proplists:get_value(directory, Res),
 			       Name = proplists:get_value(filename, Res),
-			       Cont(Name)
+			       NewName = filename:join(Dir, Name),
+			       Cont(NewName)
 		       end,[ok]},
 		      {button,"Cancel",fun(_) -> Cont(aborted) end,[cancel]}]}]}]},
     Ask = fun(Res) ->
@@ -163,6 +160,19 @@ dir_menu(Dir0, Acc) ->
 	Dir -> dir_menu(Dir, [Entry|Acc])
     end.
 
+choose_file(update, {Var,_I,File,Sto0}) ->
+    Sto = gb_trees:update(Var, File, Sto0),
+    Dir0 = gb_trees:get(directory, Sto),
+    Full = filename:join(Dir0, File),
+    case filelib:is_dir(Full) of
+	true ->
+	    Dir = filename:join(Dir0, File),
+	    {done,gb_trees:update(directory, Dir, Sto)};
+	false ->
+	    {store,gb_trees:update(filename, File, Sto)}
+    end;
+choose_file(_, _) -> void.
+
 menu_hook(update, {Var,_I,Val,Sto}) ->
     {done,gb_trees:update(Var, Val, Sto)};
 menu_hook(_, _) -> void.
@@ -176,17 +186,36 @@ up_button(update, {Var,_I,Val,Sto0}) ->
 up_button(_, _) -> void.
 
 file_filters(Prop) ->
-    Exts0 = case proplists:get_value(extensions, Prop, none) of
-		none ->
-		    Ext = proplists:get_value(ext, Prop, ".wings"),
-		    ExtDesc = proplists:get_value(ext_desc, Prop,  "Wings File"),
-		    [{Ext,ExtDesc}];
-		Other -> Other
-	    end,
-    Exts = Exts0 ++ [{".*","All Files"}],
-    [file_filter(Es) || Es <- Exts].
+    Exts = case proplists:get_value(extensions, Prop, none) of
+	       none ->
+		   Ext = proplists:get_value(ext, Prop, ".wings"),
+		   ExtDesc = proplists:get_value(ext_desc, Prop,  "Wings File"),
+		   [{Ext,ExtDesc}];
+	       Other -> Other
+	   end,
+    [file_filter(Es) || Es <- Exts] ++ [{"All Files (*)",''}].
 
 file_filter({"."++Ext0,Desc0}) ->
     Ext = list_to_atom(Ext0),
     Desc = Desc0 ++ " (*." ++ Ext0 ++ ")",
     {Desc,Ext}.
+
+file_list(Dir, Wc) ->
+    {ok,Files0} = file:list_dir(Dir),
+    Files1 = file_list_filter(Files0, Dir, Wc),
+    Files = sort([{F,F} || F <- Files1, hd(F) =/= "."]),
+    case Files of
+	[] ->
+	    {label,"No files"};
+	[{_,DefFile}|_] ->
+	    {menu,Files,DefFile,[{hook,fun choose_file/2}]}
+    end.
+
+file_list_filter(Files, _, []) -> Files;
+file_list_filter(Files, Dir, Wc) ->
+    Ext = [$.|Wc],
+    [F || F <- Files,
+	  lists:suffix(Ext, F) orelse filelib:is_dir(filename:join(Dir, F))].
+
+	  
+    
