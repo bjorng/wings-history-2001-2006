@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_obj.erl,v 1.11 2001/10/24 08:50:44 bjorng Exp $
+%%     $Id: e3d_obj.erl,v 1.12 2001/11/14 10:10:22 bjorng Exp $
 %%
 
 -module(e3d_obj).
@@ -79,10 +79,11 @@ read(Parse, "\n", Fd, Acc) ->
 read(Parse, " " ++ Line, Fd, Acc) ->
     read(Parse, Line, Fd, Acc);
 read(Parse, eof, Fd, Acc) -> Acc;
-read(Parse, "mtllib " ++ Name0, Fd, Acc0) ->
+read(Parse, "mtllib" ++ Name0, Fd, Acc0) ->
+    Name1 = skip_blanks(Name0),
     Name = case reverse(Name0) of
-	       [$\n,$\r|Name1] -> reverse(Name1);
-	       [$\n|Name1] -> reverse(Name1)
+	       [$\n,$\r|Name2] -> reverse(Name2);
+	       [$\n|Name2] -> reverse(Name2)
 	   end,
     case Parse(["mtllib",Name], Acc0) of
 	eof -> Acc0;
@@ -125,6 +126,11 @@ parse(["f"|Vlist0], #ost{f=Ftab,mat=Mat}=Ost) ->
     Vlist = collect_vs(Vlist0, Ost),
     Ost#ost{f=[{Mat,Vlist}|Ftab]};
 parse(["g"|Names], #ost{name=OldName}=Ost) ->
+    case {Names,OldName} of
+	{[Name|_],undefined} -> Ost#ost{name=Name};
+	{_,_} -> Ost
+    end;
+parse(["o"|Names], #ost{name=OldName}=Ost) ->
     case {Names,OldName} of
 	{[Name|_],undefined} -> Ost#ost{name=Name};
 	{_,_} -> Ost
@@ -228,7 +234,11 @@ str2float(S) ->
 	{'EXIT',_} -> float(list_to_integer(S));
 	F -> F
     end.
-	    
+
+skip_blanks([$\s|T]) -> skip_blanks(T);
+skip_blanks([$\t|T]) -> skip_blanks(T);
+skip_blanks(S) -> S.
+    
 %%%
 %%% Export.
 %%% 
