@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.65 2003/10/22 16:04:53 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.66 2004/05/14 08:23:46 raimo_niskanen Exp $
 %%
 
 -module(wings_body).
@@ -54,6 +54,10 @@ menu(X, Y, St) ->
 	    {"Duplicate",{duplicate,Dir}},
 	    {"Delete",delete,"Delete the selected objects"},
 	    {"Rename...",rename,"Rename selected objects"},
+	    {"To Area Light",to_arealight,
+	     "Convert selected objects into area lights"},
+	    {"From Area Light",from_arealight,
+	     "Convert selected area lights into objects"},
 	    separator,
 	    {"Mode",{mode,
 		     [{"Vertex Color",vertex_color,
@@ -113,6 +117,14 @@ command(rename, St) ->
     rename(St);
 command({rename,Ids}, St) ->
     rename(Ids, St);
+command(to_arealight, St) ->
+    to_arealight(St);
+command({to_arealight,Ids}, St) ->
+    to_arealight(Ids, St);
+command(from_arealight, St) ->
+    from_arealight(St);
+command({from_arealight,Ids}, St) ->
+    from_arealight(Ids, St);
 command(materials_to_colors, St) ->
     {save_state,materials_to_colors(St)};
 command(colors_to_materials, St) ->
@@ -540,6 +552,57 @@ rename_qs(Wes) ->
     [{hframe,
       [{vframe,OldNames},
        {vframe,TextFields}]}].
+
+%%%
+%%% Convert selected objects to area lights
+%%%
+to_arealight(#st{shapes=Shs}=St) ->
+    Wes = wings_sel:fold(fun(_, We, A) -> [We|A] end, [], St),
+    to_arealight_1(Wes, Shs, St).
+
+to_arealight(Objects, #st{shapes=Shs}=St) ->
+    Wes = foldl(fun(Id, A) -> [gb_trees:get(Id, Shs)|A] end, [], Objects),
+    to_arealight_1(Wes, Shs, St).
+
+to_arealight_1([], Shs, St) -> 
+    St#st{shapes=Shs};
+to_arealight_1([We0|Wes], Shs, St) when ?IS_ANY_LIGHT(We0) ->
+    to_arealight_1(Wes, Shs, St);
+to_arealight_1([#we{id=Id}=We0|Wes], Shs, St) ->
+    #we{light=Light,has_shape=HasShape} = 
+	wings_light:import([{opengl,[{type,area}]}]),
+    We = We0#we{light=Light,has_shape=HasShape},
+    to_arealight_1(Wes, gb_trees:update(Id, We, Shs), St).
+
+
+
+%%%
+%%% Convert selected area lights to objects
+%%%
+from_arealight(#st{shapes=Shs}=St) ->
+    Wes = wings_sel:fold(
+	    fun (_, #we{has_shape=HasShape}=We, A) 
+		when ?IS_ANY_LIGHT(We), HasShape -> 
+		    [We|A];
+		(_, _, A) ->
+		    A
+	    end, [], St),
+    from_arealight_1(Wes, Shs, St).
+
+from_arealight(Objects, #st{shapes=Shs}=St) ->
+    Wes = foldl(fun(Id, A) -> [gb_trees:get(Id, Shs)|A] end, [], Objects),
+    from_arealight_1(Wes, Shs, St).
+
+from_arealight_1([], Shs, St) -> 
+    St#st{shapes=Shs};
+from_arealight_1([#we{id=Id,has_shape=HasShape}=We|Wes], Shs, St)
+    when ?IS_ANY_LIGHT(We), HasShape ->
+    from_arealight_1(Wes, gb_trees:update(Id, We#we{light=none}, Shs), St);
+from_arealight_1([We|Wes], Shs, St) 
+  when ?IS_ANY_LIGHT(We) ->
+    to_arealight_1(Wes, Shs, St).
+
+
 
 %%%
 %%% Set Mode.

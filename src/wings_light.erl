@@ -8,14 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.51 2004/04/19 16:50:10 bjorng Exp $
+%%     $Id: wings_light.erl,v 1.52 2004/05/14 08:23:47 raimo_niskanen Exp $
 %%
 
 -module(wings_light).
 -export([light_types/0,menu/3,command/2,is_any_light_selected/1,info/1,
 	 create/2,update_dynamic/2,update_matrix/2,update/1,render/1,
 	 modeling_lights/2,global_lights/0,camera_lights/0,
-	 export/1,export_camera_lights/0,import/2,shape_materials/2]).
+	 export/1,export_camera_lights/0,import/2,import/1,shape_materials/2]).
 
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
@@ -615,6 +615,9 @@ import(Lights, St) ->
     foldl(fun import_fun/2, St, Lights).
 
 import_fun({Name,Ps}, St) ->
+    wings_shape:new(Name, import(Ps), St).
+
+import(Ps) ->
     OpenGL = proplists:get_value(opengl, Ps, []),
     Type = proplists:get_value(type, OpenGL, point),
     Pos = proplists:get_value(position, OpenGL, ?DEF_POS),
@@ -630,7 +633,7 @@ import_fun({Name,Ps}, St) ->
     Light = #light{type=Type,diffuse=Diff,ambient=Amb,specular=Spec,
 		   aim=Aim,lin_att=LinAtt,quad_att=QuadAtt,
 		   spot_angle=Angle,spot_exp=SpotExp,prop=Prop},
-    wings_shape:new(Name, import_we(Light, OpenGL, Pos), St).
+    import_we(Light, OpenGL, Pos).
 
 import_ambient(ambient, OpenGL) ->
     proplists:get_value(ambient, OpenGL, {0.1,0.1,0.1,1.0});
