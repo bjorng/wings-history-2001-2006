@@ -3,12 +3,12 @@
 %%
 %%     The main module of Wings 3D.
 %%
-%%  Copyright (c) 2001-2002 Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.197 2003/01/14 18:42:56 bjorng Exp $
+%%     $Id: wings.erl,v 1.198 2003/01/14 19:13:47 bjorng Exp $
 %%
 
 -module(wings).
@@ -727,8 +727,13 @@ command_name(Repeat, CmdStr, #st{selmode=Mode,repeatable=Cmd}) ->
 
 define_command(?SDL_RELEASED, N, #st{repeatable=Cmd,def=DefCmd0}=St) ->
     CmdStr = wings_util:stringify(Cmd),
+    Button = case N of
+		 1 -> "L";
+		 2 -> "M"
+	     end,
     case wings_util:yes_no("Do you want to define \"" ++ CmdStr ++
-			   "\" as a default command?") of
+			   "\" as a default command ([Ctrl]+[" ++ Button ++
+			   "])?") of
 	no -> keep;
 	aborted -> keep;
 	yes ->
