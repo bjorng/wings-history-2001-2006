@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.5 2001/08/31 09:46:13 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.6 2001/09/03 11:01:39 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -394,9 +394,9 @@ plane_normal(normal) -> normal.
 
 flatten(Faces, normal, We) ->
     N = gb_sets:fold(fun(Face, Normal) ->
-			     wings_mat:add(Normal, wings_face:normal(Face, We))
-		     end, wings_mat:zero(), Faces),
-    flatten(Faces, wings_mat:norm(N), We);
+			     e3d_vec:add(Normal, wings_face:normal(Face, We))
+		     end, e3d_vec:zero(), Faces),
+    flatten(Faces, e3d_vec:norm(N), We);
 flatten(Faces, PlaneNormal, #we{vs=Vtab0}=We) ->
     Vs = foldl(fun(Face, Vs0) ->
 		       wings_face:fold(fun(V, _, _, A) ->
@@ -412,10 +412,10 @@ flatten(Faces, PlaneNormal, #we{vs=Vtab0}=We) ->
 
 flatten_move(V, PlaneNormal, Center, Dist, Tab0) ->
     #vtx{pos=Pos0} = Vtx = gb_trees:get(V, Tab0),
-    ToCenter = wings_mat:subtract(Center, Pos0),
-    Dot = wings_mat:dot_product(ToCenter, PlaneNormal),
-    ToPlane = wings_mat:mul(PlaneNormal, Dot),
-    Pos = wings_util:share(wings_mat:add(Pos0, wings_mat:mul(ToPlane, Dist))),
+    ToCenter = e3d_vec:sub(Center, Pos0),
+    Dot = e3d_vec:dot(ToCenter, PlaneNormal),
+    ToPlane = e3d_vec:mul(PlaneNormal, Dot),
+    Pos = wings_util:share(e3d_vec:add(Pos0, e3d_vec:mul(ToPlane, Dist))),
     gb_trees:update(V, Vtx#vtx{pos=Pos}, Tab0).
 
 %%%
@@ -488,7 +488,7 @@ bridge(FaceA, FaceB, #we{vs=Vtab}=We) ->
 	true ->
 	    An = wings_face:face_normal(VsA, Vtab),
 	    Bn = wings_face:face_normal(VsB, Vtab),
-	    case wings_mat:unit_dot_product(An, Bn) of
+	    case e3d_vec:dot(An, Bn) of
 		Dot when Dot > 0.99 ->
 		    {error,"Faces must not point in the same direction."};
 		Dot ->
@@ -532,7 +532,7 @@ sum_edge_lens(N, Ids0, #we{es=Etab,vs=Vtab}=We, Sum) ->
     VaPos = wings_vertex:pos(Va, Vtab),
     VbPos = wings_vertex:pos(Vb, Vtab),
     Ids = wings_we:bump_id(Ids0),
-    Dist = wings_mat:distance(VaPos, VbPos),
+    Dist = e3d_vec:dist(VaPos, VbPos),
     sum_edge_lens(N-1, Ids, We, Sum + Dist).
 
 force_bridge(FaceA, Va, FaceB, Vb, We0) ->
@@ -610,7 +610,7 @@ are_neighbors(FaceA, FaceB, We) ->
 	      end
       end, false, FaceA, We).
 
-%% outer_edges(FaceSet, WingedEdge) -> [TreeOfEdges...].
+%% outer_edge_partition(FaceSet, WingedEdge) -> [TreeOfEdges...].
 %%  Find all outer edges for the sets of faces.
 %%  Outer edges are all edges between one face in the set and one
 %%  outside.

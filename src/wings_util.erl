@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.3 2001/08/31 09:46:13 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.4 2001/09/03 11:01:39 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -16,7 +16,7 @@
 	 fold_face/3,fold_vertex/3,fold_edge/3,
 	 foreach_shape/2,foreach_face/2,foreach_edge/2,
 	 center/1,average_normals/1,
-	 crasch_log/1,validate/1]).
+	 tc/1,crasch_log/1,validate/1]).
 -export([check_error/2,dump_we/2]).
 
 -include("gl.hrl").
@@ -165,9 +165,31 @@ average_normals(Vs) ->
     foldl(fun average_normals/2, [], sofs:to_external(F)).
 
 average_normals({V,Normals}, Acc) ->
-    Normal = wings_mat:mul(wings_mat:average_normals(Normals),
-			   ?GROUND_GRID_SIZE),
+    Normal = e3d_vec:mul(average_normals_1(Normals),
+			 ?GROUND_GRID_SIZE),
     [{Normal,[V]}|Acc].
+
+%% average_normals(Normals) -> Normal
+%%  Average normals taking the angle between them into account.
+%%  XXX Not the proper way.
+average_normals_1([N|Ns]) ->
+    average_normals_2(Ns, N).
+
+average_normals_2([N0|Ns], Sum0) ->
+    Sum1 = e3d_vec:add(N0, e3d_vec:norm(Sum0)),
+    Dot = e3d_vec:dot(N0, Sum1),
+    Sum = e3d_vec:add(e3d_vec:divide(N0, Dot), Sum0),
+    average_normals_2(Ns, Sum);
+average_normals_2([], Sum) -> Sum.
+
+%%
+%% Timing.
+%% 
+
+tc(Fun) ->
+    {T,R} = timer:tc(erlang, apply, [Fun,[]]),
+    io:format("Time: ~p\n", [T]),
+    R.
 
 %%
 %% Dumping of data structures.

@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_collapse.erl,v 1.3 2001/08/31 09:45:34 bjorng Exp $
+%%     $Id: wings_collapse.erl,v 1.4 2001/09/03 11:01:39 bjorng Exp $
 %%
 
 -module(wings_collapse).
@@ -17,7 +17,6 @@
 
 -include("wings.hrl").
 -import(lists, [map/2,foldl/3,reverse/1,sort/1,keymember/3,member/2]).
--import(wings_mat, [norm_cross_product/2]).
 
 collapse(St0) ->
     case St0#st.selmode of
@@ -249,23 +248,24 @@ delete_degenerated(Face, #we{fs=Ftab,es=Etab}=We) ->
     end.
 
 get_closest(Pt, Vlist, Vtab) ->
-    DistV = [{wings_mat:distance(Pt, wings_vertex:pos(V, Vtab)), V} ||
+    DistV = [{e3d_vec:dist(Pt, wings_vertex:pos(V, Vtab)),V} ||
 		V <- Vlist],
     [V || {_,V} <- lists:sort(DistV)].
 
 get_on_same_plane([V1,V2,V3 | _], Vlist, Vtab) ->
     Pt1 = wings_vertex:pos(V1, Vtab),
-    P12 = wings_mat:subtract(Pt1, wings_vertex:pos(V2, Vtab)),
-    P13 = wings_mat:subtract(Pt1, wings_vertex:pos(V3, Vtab)),
-    Normcross = norm_cross_product(P12, P13),
+    P12 = e3d_vec:sub(Pt1, wings_vertex:pos(V2, Vtab)),
+    P13 = e3d_vec:sub(Pt1, wings_vertex:pos(V3, Vtab)),
+    Normcross = e3d_vec:norm_cross(P12, P13),
     foldl(fun(V, Planelist0) ->
 		  case V of
 		      V1 -> [V|Planelist0];
 		      V2 -> [V|Planelist0];
 		      V3 -> [V|Planelist0];
 		      _ ->
-			  P14 = wings_mat:subtract(Pt1, wings_vertex:pos(V, Vtab)),
-			  case same_or_neg_pt(Normcross, norm_cross_product(P12, P14)) of
+			  P14 = e3d_vec:sub(Pt1, wings_vertex:pos(V, Vtab)),
+			  case same_or_neg_pt(Normcross,
+					      e3d_vec:norm_cross(P12, P14)) of
 			      true -> [V | Planelist0];
 			      false -> Planelist0
 			  end
@@ -273,8 +273,8 @@ get_on_same_plane([V1,V2,V3 | _], Vlist, Vtab) ->
 	  end, [], Vlist).
 
 same_or_neg_pt(Pt1, Pt2) ->
-    (wings_mat:distance(Pt1, Pt2) < 1.0E-5) or
-	(wings_mat:distance(Pt1, wings_mat:negate(Pt2)) < 1.0E-5).
+    (e3d_vec:dist(Pt1, Pt2) < 1.0E-5) or
+    (e3d_vec:dist(Pt1, e3d_vec:neg(Pt2)) < 1.0E-5).
 
 is_waist(Va, Vb, We) ->
     N = wings_vertex:fold(

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_deform.erl,v 1.1 2001/08/14 18:16:40 bjorng Exp $
+%%     $Id: wings_deform.erl,v 1.2 2001/09/03 11:01:39 bjorng Exp $
 %%
 
 -module(wings_deform).
@@ -78,7 +78,7 @@ inflate(#shape{id=Id,sh=#we{vs=Vtab}=We}, Vs0, Acc) ->
     Radius = foldl(
 	       fun(V, R0) ->
 		       VPos = wings_vertex:pos(V, Vtab),
-		       case wings_mat:distance(Center, VPos) of
+		       case e3d_vec:dist(Center, VPos) of
 			   R when R > R0 -> R;
 			   Smaller -> R0
 		       end
@@ -86,9 +86,9 @@ inflate(#shape{id=Id,sh=#we{vs=Vtab}=We}, Vs0, Acc) ->
     [{Id,foldl(
 	  fun(V, A) ->
 		  VPos = wings_vertex:pos(V, Vtab),
-		  D = wings_mat:distance(Center, VPos),
-		  Dir = wings_mat:norm(wings_mat:subtract(VPos, Center)),
-		  Vec = wings_mat:mul(Dir, Radius-D),
+		  D = e3d_vec:dist(Center, VPos),
+		  Dir = e3d_vec:norm(e3d_vec:sub(VPos, Center)),
+		  Vec = e3d_vec:mul(Dir, Radius-D),
 		  [{Vec,[V]}|A]
 	  end, [], Vs)}|Acc].
 			       
@@ -217,12 +217,13 @@ key(x) -> 1;
 key(y) -> 2;
 key(z) -> 3.
 
-range(Key, We) ->
-    wings_util:fold_vertex(
-      fun(V, #vtx{pos=Pos}, {Min0,Max0}=A) ->
-	      case element(Key, Pos) of
-		  Low when Low < Min0 -> {Low,Max0};
-		  High when Max0 < High -> {Min0,High};
-		  _ -> A
-	      end
-      end, {?HUGE,-?HUGE}, We).
+range(Key, #we{vs=Vtab}) ->
+    [#vtx{pos=Pos0}|Vrecs] = gb_trees:values(Vtab),
+    M = element(Key, Pos0),
+    foldl(fun(#vtx{pos=Pos}, {Min0,Max0}=A) ->
+		  case element(Key, Pos) of
+		      Low when Low < Min0 -> {Low,Max0};
+		      High when Max0 < High -> {Min0,High};
+		      _ -> A
+		  end
+	  end, {M,M}, Vrecs).

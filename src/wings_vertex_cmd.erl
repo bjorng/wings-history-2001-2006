@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.1 2001/08/14 18:16:39 bjorng Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.2 2001/09/03 11:01:39 bjorng Exp $
 %%
 
 -module(wings_vertex_cmd).
@@ -50,10 +50,10 @@ flatten(Vs, PlaneNormal, #we{vs=Vtab0}=We) ->
 
 flatten_move(V, PlaneNormal, Center, Tab0) ->
     #vtx{pos=Pos0} = Vtx = gb_trees:get(V, Tab0),
-    ToCenter = wings_mat:subtract(Center, Pos0),
-    Dot = wings_mat:dot_product(ToCenter, PlaneNormal),
-    ToPlane = wings_mat:mul(PlaneNormal, Dot),
-    Pos = wings_mat:add(Pos0, ToPlane),
+    ToCenter = e3d_vec:sub(Center, Pos0),
+    Dot = e3d_vec:dot(ToCenter, PlaneNormal),
+    ToPlane = e3d_vec:mul(PlaneNormal, Dot),
+    Pos = e3d_vec:add(Pos0, ToPlane),
     gb_trees:update(V, Vtx#vtx{pos=Pos}, Tab0).
 
 %%%
@@ -77,13 +77,13 @@ ex_new_vertices(V, #we{vs=Vtab}=We0) ->
 	  fun(Edge, Face, Rec, {W0,Vs}) ->
 		  OtherV = wings_vertex:other(V, Rec),
 		  Pos0 = wings_vertex:pos(OtherV, Vtab),
-		  Dir0 = wings_mat:subtract(Pos0, Center),
-		  Dist = case wings_mat:len(Dir0) of
+		  Dir0 = e3d_vec:sub(Pos0, Center),
+		  Dist = case e3d_vec:len(Dir0) of
 			     D when D < ?EXTRUDE_DIST+0.25 -> D/2;
 			     Other ->?EXTRUDE_DIST
 			 end,
-		  Dir = wings_mat:norm(Dir0),
-		  Pos = wings_mat:add(Center, wings_mat:mul(Dir, Dist)),
+		  Dir = e3d_vec:norm(Dir0),
+		  Pos = e3d_vec:add(Center, e3d_vec:mul(Dir, Dist)),
 		  {W,NewV,_} = wings_edge:fast_cut(Edge, Pos, W0),
 		  {W,[NewV,Face|Vs]}
 	  end, {We0,[]}, V, We0),
@@ -164,27 +164,27 @@ bevel(V, {Edge,Face,Rec0}, InnerFace, Ids, AdjFlag, Vtab, Etab0) ->
 		{Rec0#edge{vs=Va,rtpr=Ecurr,ltsu=Eprev},
 		 Rec0#edge{vs=Vb,ve=Va,lf=InnerFace,
 			   rtsu=Edge,ltpr=Eprev,ltsu=Enext},
-		 wings_mat:subtract(wings_vertex:pos(Vother, Vtab), Vpos)};
+		 e3d_vec:sub(wings_vertex:pos(Vother, Vtab), Vpos)};
 	    #edge{vs=V,ve=Vother} ->
 		{Rec0#edge{vs=Va,rtpr=Ecurr,ltsu=Enext},
 		 Rec0#edge{vs=Vprev,ve=Va,lf=InnerFace,
 			   rtsu=Edge,ltpr=Enext,ltsu=Eprev},
-		 wings_mat:subtract(wings_vertex:pos(Vother, Vtab), Vpos)};
+		 e3d_vec:sub(wings_vertex:pos(Vother, Vtab), Vpos)};
 	    #edge{ve=V,vs=Vother,lf=Face} ->
 		{Rec0#edge{ve=Va,ltpr=Ecurr,rtsu=Eprev},
 		 Rec0#edge{vs=Va,ve=Vb,rf=InnerFace,
 			   ltsu=Edge,rtpr=Eprev,rtsu=Enext},
-		 wings_mat:subtract(wings_vertex:pos(Vother, Vtab), Vpos)};
+		 e3d_vec:sub(wings_vertex:pos(Vother, Vtab), Vpos)};
 	    #edge{ve=V,vs=Vother} ->
 		{Rec0#edge{ve=Va,ltpr=Ecurr,rtsu=Enext},
 		 Rec0#edge{vs=Va,ve=Vprev,rf=InnerFace,
 			   ltsu=Edge,rtpr=Enext,rtsu=Eprev},
-		 wings_mat:subtract(wings_vertex:pos(Vother, Vtab), Vpos)}
+		 e3d_vec:sub(wings_vertex:pos(Vother, Vtab), Vpos)}
 
 	end,
     Etab = gb_trees:update(Edge, Rec, Etab0),
     Vec = case AdjFlag of
-	      true -> wings_mat:divide(Vec0, 2.0);
+	      true -> e3d_vec:divide(Vec0, 2.0);
 	      false -> Vec0
 	  end,
     {gb_trees:insert(Ecurr, Curr, Etab),{Vec,Va}}.
@@ -210,11 +210,11 @@ bevel_normalize([], Min, Tvs) -> {Min,Tvs}.
 
 bevel_normalize_1(VecVs, Min0) ->
     mapfoldl(fun({Vec,V}, Min0) ->
-		     Min = case wings_mat:len(Vec) of
+		     Min = case e3d_vec:len(Vec) of
 			       Len when Len < Min0 -> Len;
 			       Len -> Min0
 			   end,
-		     {{wings_mat:norm(Vec),[V]},Min}
+		     {{e3d_vec:norm(Vec),[V]},Min}
 	     end, Min0, VecVs).
 
 adjacent(V, Vs, We) ->
@@ -261,5 +261,5 @@ tighten_vec(V, Vs, #we{vs=Vtab}=We) ->
 		    [wings_vertex:other(V, Rec)|A]
 	    end, [], V, We),
     Center = wings_vertex:center(Nbs, Vtab),
-    wings_mat:subtract(Center, wings_vertex:pos(V, Vtab)).
+    e3d_vec:sub(Center, wings_vertex:pos(V, Vtab)).
     

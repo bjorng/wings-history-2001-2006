@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face.erl,v 1.1 2001/08/14 18:16:38 bjorng Exp $
+%%     $Id: wings_face.erl,v 1.2 2001/09/03 11:01:39 bjorng Exp $
 %%
 
 -module(wings_face).
@@ -18,7 +18,7 @@
 	 normal/2,face_normal/2,good_normal/2,
 	 to_vertices/2,surrounding_vertices/2,
 	 faces_outside/2,bordering_faces/2,
-	 inner_outer_edges/2,inner_edges/2,outer_edges/2,
+	 inner_edges/2,outer_edges/2,
 	 fold/4,fold_faces/4,
 	 iterator/2,skip_to_edge/2,skip_to_cw/2,skip_to_ccw/2,
 	 next_cw/1,next_ccw/1,
@@ -31,20 +31,23 @@
 %% Convert the current selection to a face selection.
 %%
 convert_selection(#st{selmode=body}=St) ->
-    wings_sel:convert(
-      fun(_, We, Sel0) ->
-	      wings_util:fold_face(
-		fun(Face, _, Sel1) ->
-			gb_sets:insert(Face, Sel1)
-		end, Sel0, We)
+    wings_sel:convert_shape(
+      fun(_, #we{fs=Ftab}) ->
+	      gb_sets:from_list(gb_trees:keys(Ftab))
       end, face, St);
 convert_selection(#st{selmode=face}=St) ->
-    wings_sel:convert(
-      fun(Face, We, Sel0) ->
-	      fold(
-		fun(_, _, #edge{lf=FaceL,rf=FaceR}, Sel00) ->
-			gb_sets:add(FaceL, gb_sets:add(FaceR, Sel00))
-		end, Sel0, Face, We)
+    wings_sel:convert_shape(
+      fun(Sel0, We) ->
+	      gb_sets:fold(
+		fun(Face, S0) ->
+			fold(fun(_, _, #edge{lf=Lf,rf=Rf}, S1) ->
+				     if Lf =/= Face ->
+					     gb_sets:add(Lf, S1);
+					true ->
+					     gb_sets:add(Rf, S1)
+				     end
+			     end, S0, Face, We)
+		end, Sel0, Sel0)
       end, face, St);
 convert_selection(#st{selmode=edge}=St) ->
     wings_sel:convert(
@@ -95,7 +98,8 @@ to_vertices(Iter0, We, Acc0) ->
     case gb_sets:next(Iter0) of
 	none -> Acc0;
 	{Face,Iter} ->
-	    Acc = fold(fun(V, _, _, A) -> gb_sets:add(V, A) end, Acc0, Face, We),
+	    Acc = fold(fun(V, _, _, A) -> gb_sets:add(V, A) end,
+		       Acc0, Face, We),
 	    to_vertices(Iter, We, Acc)
     end.
 
@@ -120,23 +124,23 @@ face_normal(Vs, Vtab) ->
     face_normal_1(Vpos).
 
 face_normal_1([Va,Vb|_]=Vpos) ->
-    D = wings_mat:subtract(Va, Vb),
+    D = e3d_vec:sub(Va, Vb),
     Nsum = face_normal_2(D, Vpos, Vpos, []),
-    case wings_mat:len(Nsum) of
+    case e3d_vec:len(Nsum) of
 	Zero when abs(Zero) < 1.0e-5 ->
-	    wings_mat:zero();
+	    e3d_vec:zero();
 	Len ->
-	    wings_mat:divide(Nsum, Len)
+	    e3d_vec:divide(Nsum, Len)
     end.
 
 face_normal_2(D1, [Va|[Vb,Vc|_]=Vs], More, Acc) ->
-    ?ASSERT(D1 == wings_mat:subtract(Va, Vb)),
-    D2 = wings_mat:subtract(Vb, Vc),
-    Cross = wings_mat:cross_product(D1, D2),
+    ?ASSERT(D1 == e3d_vec:sub(Va, Vb)),
+    D2 = e3d_vec:sub(Vb, Vc),
+    Cross = e3d_vec:cross(D1, D2),
     face_normal_2(D2, Vs, More, [Cross|Acc]);
 face_normal_2(D1, Vs, [Va,Vb|_], Acc) ->
     face_normal_2(D1, Vs++[Va,Vb], [], Acc);
-face_normal_2(D1, Other, More, Acc) -> wings_mat:add(Acc).
+face_normal_2(D1, Other, More, Acc) -> e3d_vec:add(Acc).
 
 %% Tests if the face has a good normal.
 good_normal(Face, #we{vs=Vtab}=We) ->
@@ -144,14 +148,14 @@ good_normal(Face, #we{vs=Vtab}=We) ->
 	fold(fun(V, _, _, A) ->
 		     [wings_vertex:pos(V, Vtab)|A]
 	     end, [], Face, We),
-    D = wings_mat:subtract(Va, Vb),
+    D = e3d_vec:sub(Va, Vb),
     good_normal(D, Vpos, Vpos).
 
 good_normal(D1, [Va|[Vb,Vc|_]=Vs], More) ->
-    ?ASSERT(D1 == wings_mat:subtract(Va, Vb)),
-    D2 = wings_mat:subtract(Vb, Vc),
-    Cross = wings_mat:cross_product(D1, D2),
-    case wings_mat:len(Cross) of
+    ?ASSERT(D1 == e3d_vec:sub(Va, Vb)),
+    D2 = e3d_vec:sub(Vb, Vc),
+    Cross = e3d_vec:cross(D1, D2),
+    case e3d_vec:len(Cross) of
 	Zero when abs(Zero) < 1.0e-5 ->
 	    good_normal(D2, Vs, More);
 	Len -> true
@@ -214,22 +218,14 @@ inner_edges_1([], In) -> reverse(In).
 %% outer_edges(Faces, We) -> [Edge]
 %%  Given a set of faces, return all outer edges.
 outer_edges(Faces, We) ->
-    {_,Outer} = inner_outer_edges(Faces, We),
-    Outer.
-
-%% inner_outer_edges(Faces, We) -> {[Inner],[Outer]}
-%%  Given a set of adjacent faces, return all lists of
-%%  the outer and inner edges.
-inner_outer_edges(Faces, We) ->
     S = fold_faces(fun(_, _, E, _, A) -> [E|A] end, [], Faces, We),
-    inner_outer_edges_1(sort(S), [], []).
+    outer_edges_1(sort(S), []).
     
-inner_outer_edges_1([E,E|T], In, Out) ->
-    inner_outer_edges_1(T, [E|In], Out);
-inner_outer_edges_1([E|T], In, Out) ->
-    inner_outer_edges_1(T, In, [E|Out]);
-inner_outer_edges_1([], In, Out) ->
-    {reverse(In),reverse(Out)}.
+outer_edges_1([E,E|T], Out) ->
+    outer_edges_1(T, Out);
+outer_edges_1([E|T], Out) ->
+    outer_edges_1(T, [E|Out]);
+outer_edges_1([], Out) -> reverse(Out).
 
 %% Fold over all edges surrounding a face.
 

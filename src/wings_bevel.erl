@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_bevel.erl,v 1.3 2001/08/31 09:46:13 bjorng Exp $
+%%     $Id: wings_bevel.erl,v 1.4 2001/09/03 11:01:39 bjorng Exp $
 %%
 
 -module(wings_bevel).
@@ -161,18 +161,24 @@ touching(V, Faces, We) ->
 	      end
       end, false, V, We).
 
-move_edges(Neighbors, Faces, #we{fs=Ftab}=We) ->
+move_edges(Neighbors, Faces, We) ->
+    MoveEdges0 = move_edges_1(Neighbors, Faces, We),
+    MoveEdges1 = sofs:relation(MoveEdges0),
+    MoveEdges = sofs:relation_to_family(MoveEdges1),
+    sofs:to_external(MoveEdges).
+    
+move_edges_1(Neighbors, Faces, #we{fs=Ftab}=We) ->
     gb_sets:fold(fun(Face, A) ->
-			 move_edges_1(Face, Faces, We, A)
-		 end, dict:new(), Neighbors).
+			 move_edges_2(Face, Faces, We, A)
+		 end, [], Neighbors).
 
-move_edges_1(Face, Faces, We, A) -> 
+move_edges_2(Face, Faces, We, A) -> 
     wings_face:fold(
       fun(_, Edge, Rec, A0) ->
 	      OtherFace0 = wings_face:other(Face, Rec),
 	      {OtherFace,_} = skip_two(OtherFace0, Edge, We),
 	      case gb_sets:is_member(OtherFace, Faces) of
 		  false -> A0;
-		  true -> dict:append(OtherFace, Edge, A0)
+		  true -> [{OtherFace,Edge}|A0]
 	      end
       end, A, Face, We).

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.1 2001/08/14 18:16:39 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.2 2001/09/03 11:01:39 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -57,8 +57,8 @@ model_transformations(#st{origo=Origo,distance=Dist0,azimuth=Az,
 aim(#st{sel=[]}=St) -> St;
 aim(St) ->
     Centers = wings_sel:centers(St),
-    Avg = wings_mat:average(Centers),
-    Origo = wings_mat:negate(Avg),
+    Avg = e3d_vec:average(Centers),
+    Origo = e3d_vec:neg(Avg),
     wings_drag:view_changed(St#st{origo=Origo,pan_x=0.0,pan_y=0.0}).
 
 along(x, St) ->

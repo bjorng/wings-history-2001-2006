@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.3 2001/08/31 09:46:13 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.4 2001/09/03 11:01:39 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -242,7 +242,7 @@ motion_update(Tvs, Dx, Dy, #st{shapes=Shapes0,dl=Dl}=St) ->
     case Matrix of
 	none ->
 	    St#st{shapes=Shapes,dl=Dl#dl{dragging=none,
-					 matrix=wings_mat:identity()}};
+					 matrix=e3d_mat:identity()}};
 	Other ->
 	    St#st{shapes=Shapes,dl=Dl#dl{matrix=Matrix}}
     end.
@@ -256,18 +256,17 @@ transform_vs(Vs0, Dx, Dy, St, #shape{sh=#we{vs=Vtab0}=We}=Shape0) ->
 trans_vec({rot,{Cx,Cy,Cz},Vec}, Dx, Dy, Vs, Vtab) ->
     A = 15*Dx,
     wings_io:message(lists:flatten(io_lib:format("A:~10p", [A]))),
-    M0 = wings_mat:translate(Cx, Cy, Cz),
-    M1 = wings_mat:mult(M0, wings_mat:rotate(A, Vec)),
-    M = wings_mat:mult(M1, wings_mat:translate(-Cx, -Cy, -Cz)),
+    M0 = e3d_mat:translate(Cx, Cy, Cz),
+    M1 = e3d_mat:mul(M0, e3d_mat:rotate(A, Vec)),
+    M = e3d_mat:mul(M1, e3d_mat:translate(-Cx, -Cy, -Cz)),
     foldl(fun(V, Tab) -> 
-		  #vtx{pos={X0,Y0,Z0}}= Vtx = gb_trees:get(V, Tab),
-		  {X,Y,Z,_} = wings_mat:mult(M, {X0,Y0,Z0,1}),
-		  Pos = wings_util:share(X, Y, Z),
+		  #vtx{pos=Pos0}= Vtx = gb_trees:get(V, Tab),
+		  Pos = e3d_mat:mul_point(M, Pos0),
 		  gb_trees:update(V, Vtx#vtx{pos=Pos}, Tab)
 	  end, Vtab, Vs);
 trans_vec({free,Matrix}, Dx, Dy, Vs, Vtab) ->
     wings_io:message(lists:flatten(io_lib:format("X:~10p Y:~10p", [Dx,Dy]))),
-    {Xt,Yt,Zt,_} = wings_mat:mult(Matrix, {Dx,Dy,0.0,1.0}),
+    {Xt,Yt,Zt} = e3d_mat:mul_point(Matrix, {Dx,Dy,0.0}),
     foldl(fun(V, Tab) -> 
 		  #vtx{pos={X,Y,Z}}= Vtx = gb_trees:get(V, Tab),
 		  Pos = wings_util:share(X+Xt, Y+Yt, Z+Zt),
@@ -288,11 +287,9 @@ translate(Xt, Yt, Zt, Vs, Vtab) ->
 faces(Tvs, #st{shapes=Shapes}) ->
     [{Id,faces_1(Vs, gb_trees:get(Id, Shapes))} || {Id,Vs} <- Tvs].
 
-faces_1(Tr, #shape{sh=#we{}=We}) when function(Tr) ->
-    Faces = wings_util:fold_face(fun(Face, _, A) -> [Face|A] end, [], We),
-    gb_sets:from_list(Faces);
-faces_1(Tr, #shape{}) when function(Tr) ->
-    gb_sets:empty();
+faces_1(Tr, #shape{sh=#we{fs=Ftab}=We}) when function(Tr) ->
+    gb_sets:from_list(gb_trees:keys(Ftab));
+faces_1(Tr, #shape{}) when function(Tr) -> gb_sets:empty();
 faces_1(Vs0, #shape{sh=#we{}=We}) ->
     foldl(fun ({_,Vs}, Acc) ->
 		  faces_2(Vs, We, Acc)
@@ -306,21 +303,20 @@ faces_2(Vs, We, FaceSet) ->
 	  end, FaceSet, Vs).
 
 normalize(#st{shapes=Shapes0}=St) ->
-    Ident = wings_mat:identity(),
+    Ident = e3d_mat:identity(),
     Shapes = foldl(fun(Sh, A) ->
 			   normalize(Sh, Ident, A)
 		   end, Shapes0, gb_trees:to_list(Shapes0)),
     St#st{shapes=Shapes}.
 
 normalize({Id,#shape{matrix=Ident}}, Ident, A) -> A;
-normalize({Id,#shape{matrix=Matrix0,sh=#we{vs=Vtab0}=We}=Sh0}, Ident, A) ->
-    Matrix = wings_mat:transpose(Matrix0),
-    Vtab = foldl(
-	     fun({V,Vtx}, Tab) -> 
-		     #vtx{pos={X0,Y0,Z0}}= Vtx,
-		     {X,Y,Z,_} = wings_mat:mult(Matrix, {X0,Y0,Z0,1.0}),
-		     Pos = wings_util:share(X, Y, Z),
-		     gb_trees:insert(V, Vtx#vtx{pos=Pos}, Tab)
-	     end, gb_sets:empty(), gb_trees:to_list(Vtab0)),
+normalize({Id,#shape{matrix=Matrix,sh=#we{vs=Vtab0}=We}=Sh0}, Ident, A) ->
+    Vtab1 = foldl(
+	      fun({V,Vtx}, A) -> 
+		      #vtx{pos=Pos0}= Vtx,
+		      Pos = e3d_mat:mul_point(Matrix, Pos0),
+		      [{V,Vtx#vtx{pos=Pos}}|A]
+	      end, [], gb_trees:to_list(Vtab0)),
+    Vtab = gb_trees:from_orddict(reverse(Vtab1)),
     Sh = Sh0#shape{matrix=Ident,sh=We#we{vs=Vtab}},
     gb_trees:update(Id, Sh, A).

@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel.erl,v 1.6 2001/08/31 09:46:13 bjorng Exp $
+%%     $Id: wings_sel.erl,v 1.7 2001/09/03 11:01:39 bjorng Exp $
 %%
 
 -module(wings_sel).
@@ -587,22 +587,28 @@ inverse_items_1(Items, Tab) ->
 
 similar(#st{selmode=vertex,sel=[{Id,Sel0}],shapes=Shapes}=St) ->
     #shape{sh=We} = gb_trees:get(Id, Shapes),
-    Templates = [make_vertex_template(SelI, We) ||
-		   SelI <- gb_sets:to_list(Sel0)],
+    Templates0 = [make_vertex_template(SelI, We) ||
+		     SelI <- gb_sets:to_list(Sel0)],
+    Templates = ordsets:from_list(Templates0),
+    %%io:format("~w/~w\n", [length(Templates0),length(Templates)]),
     make(fun(V, W) ->
 		 match_templates(make_vertex_template(V, W), Templates)
 	 end, vertex, St);
 similar(#st{selmode=edge,sel=[{Id,Sel0}],shapes=Shapes}=St) ->
     #shape{sh=We} = gb_trees:get(Id, Shapes),
-    Templates = [make_edge_template(SelI, We) ||
+    Templates0 = [make_edge_template(SelI, We) ||
 		    SelI <- gb_sets:to_list(Sel0)],
+    Templates = ordsets:from_list(Templates0),
+    %%io:format("~w/~w\n", [length(Templates0),length(Templates)]),
     make(fun(Edge, W) ->
 		 match_templates(make_edge_template(Edge, W), Templates)
 	 end, edge, St);
 similar(#st{selmode=face,sel=[{Id,Sel0}],shapes=Shapes}=St) ->
     #shape{sh=We} = gb_trees:get(Id, Shapes),
-    Templates = [make_face_template(SelI, We) ||
-		    SelI <- gb_sets:to_list(Sel0)],
+    Templates0 = [make_face_template(SelI, We) ||
+		     SelI <- gb_sets:to_list(Sel0)],
+    Templates = ordsets:from_list(Templates0),
+    %%io:format("~w/~w\n", [length(Templates0),length(Templates)]),
     make(fun(Face, WeI) ->
 		 match_templates(make_face_template(Face, WeI), Templates)
 	 end, face, St);
@@ -635,14 +641,14 @@ face_dots_and_sqlens(Vs, Vtab) ->
     face_dots_and_sqlens_1(Vpos).
 
 face_dots_and_sqlens_1([Va,Vb|_]=Vpos) ->
-    D = wings_mat:subtract(Va, Vb),
+    D = e3d_vec:sub(Va, Vb),
     face_dots_and_sqlens_2(D, Vpos, Vpos, 0, 0).
 
 face_dots_and_sqlens_2(D1, [Va|[Vb,Vc|_]=Vs], More, Dot0, Sq0) ->
-    ?ASSERT(D1 == wings_mat:subtract(Va, Vb)),
-    D2 = wings_mat:subtract(Vb, Vc),
-    Dot = Dot0 + wings_mat:dot_product(D1, D2),
-    Sq = Sq0 + wings_mat:dot_product(D1, D1),
+    ?ASSERT(D1 == e3d_vec:sub(Va, Vb)),
+    D2 = e3d_vec:sub(Vb, Vc),
+    Dot = Dot0 + e3d_vec:dot(D1, D2),
+    Sq = Sq0 + e3d_vec:dot(D1, D1),
     face_dots_and_sqlens_2(D2, Vs, More, Dot, Sq);
 face_dots_and_sqlens_2(D1, Vs, [Va,Vb|_], Dot, Sq) ->
     face_dots_and_sqlens_2(D1, Vs++[Va,Vb], [], Dot, Sq);
@@ -653,33 +659,33 @@ make_edge_template(Edge, #we{vs=Vtab,es=Etab}=We) ->
 	gb_trees:get(Edge, Etab),
     VaPos = wings_vertex:pos(Va, Vtab),
     VbPos = wings_vertex:pos(Vb, Vtab),
-    Vec = wings_mat:subtract(VaPos, VbPos),
+    Vec = e3d_vec:sub(VaPos, VbPos),
     DotSum = edge_dot(LP, Vb, VbPos, Vec, We) +
 	edge_dot(RS, Vb, VbPos, Vec, We) +
 	edge_dot(LS, Va, VaPos, Vec, We) +
 	edge_dot(RP, Va, VaPos, Vec, We),
-    {0,DotSum,wings_mat:dot_product(Vec, Vec)}.
+    {0,DotSum,e3d_vec:dot(Vec, Vec)}.
 
 edge_dot(Edge, V, Pos, Vec, #we{es=Etab}=We) ->
     Rec = gb_trees:get(Edge, Etab),
     OtherPos = wings_vertex:other_pos(V, Rec, We),
-    ThisVec = wings_mat:subtract(Pos, OtherPos),
-    abs(wings_mat:dot_product(ThisVec, Vec)).
+    ThisVec = e3d_vec:sub(Pos, OtherPos),
+    abs(e3d_vec:dot(ThisVec, Vec)).
 
 make_vertex_template(V, #we{vs=Vtab}=We) ->
     Center = wings_vertex:pos(V, Vtab),
     Vecs = wings_vertex:fold(
 	     fun(_, _, Rec, Acc0) ->
 		     Pos = wings_vertex:other_pos(V, Rec, Vtab),
-		     Vec = wings_mat:subtract(Pos, Center),
+		     Vec = e3d_vec:sub(Pos, Center),
 		     [Vec|Acc0]
 	     end, [], V, We),
     {DotSum,SqSum} = vertex_dots_and_sqlens(Vecs, Vecs, 0, 0),
     {length(Vecs),DotSum,SqSum}.
 
 vertex_dots_and_sqlens([VecA|[VecB|_]=T], More, Dot0, Sq0) ->
-    Dot = Dot0 + abs(wings_mat:dot_product(VecA, VecB)),
-    Sq = Sq0 + wings_mat:dot_product(VecA, VecA),
+    Dot = Dot0 + abs(e3d_vec:dot(VecA, VecB)),
+    Sq = Sq0 + e3d_vec:dot(VecA, VecA),
     vertex_dots_and_sqlens(T, More, Dot, Sq);
 vertex_dots_and_sqlens(Vecs, [VecB|_], Dot, Sq) ->
     vertex_dots_and_sqlens(Vecs++[VecB], [], Dot, Sq);
@@ -688,9 +694,9 @@ vertex_dots_and_sqlens(Other, More, Dot, Sq) -> {Dot,Sq}.
 rel_compare(A, B, Tresh) when abs(A) < Tresh ->
     abs(B) < Tresh;
 rel_compare(A, B, Tresh) when abs(A) > abs(B) ->
-    abs(A-B)/A < Tresh;
+    abs(A-B)/abs(A) < Tresh;
 rel_compare(A, B, Tresh) ->
-    abs(A-B)/B < Tresh.
+    abs(A-B)/abs(B) < Tresh.
 
 %%
 %% Select Random.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_magnet.erl,v 1.1 2001/08/14 18:16:40 bjorng Exp $
+%%     $Id: wings_magnet.erl,v 1.2 2001/09/03 11:01:39 bjorng Exp $
 %%
 
 -module(wings_magnet).
@@ -49,8 +49,8 @@ vertices_to_vertices(Vs, We, Type, Vec) -> make_tvs(Type, Vs, Vec).
 
 vertex_normals(We, Vs) ->
     foldl(fun(V, Acc) ->
-		  Vec = wings_mat:mul(wings_vertex:normal(V, We),
-				      float(?GROUND_GRID_SIZE)),
+		  Vec = e3d_vec:mul(wings_vertex:normal(V, We),
+				    float(?GROUND_GRID_SIZE)),
 		  [{Vec,[V]}|Acc]
 	  end, [], Vs).
 
@@ -80,10 +80,10 @@ distance_fun(gaussian) ->
 magnet_move([{free,Vs}|Tvs], Dx, Dy, IR, St, OVtab, Vtab0) ->
     #st{azimuth=Az,elevation=El} = St,
     G = ?GROUND_GRID_SIZE,
-    M0 = wings_mat:rotate_y(-Az),
-    M1 = wings_mat:mult(M0, wings_mat:rotate_x(-El)),
-    M = wings_mat:mult(M1, wings_mat:scale(G, G, G)),
-    {Xt,Yt,Zt,_} = wings_mat:mult(M, {Dx,Dy,0.0,1.0}),
+    M0 = e3d_mat:rotate(-Az, {0.0,1.0,0.0}),
+    M1 = e3d_mat:mul(M0, e3d_mat:rotate(-El, {1.0,0.0,0.0})),
+    M = e3d_mat:mul(M1, e3d_mat:scale(G, G, G)),
+    {Xt,Yt,Zt} = e3d_mat:mul_point(M, {Dx,Dy,0.0}),
     Vtab = magnet_move_1({Xt,Yt,Zt}, Vs, IR, OVtab, Vtab0),
     magnet_move(Tvs, Dx, Dy, IR, St, OVtab, Vtab);
 magnet_move([{{Xt0,Yt0,Zt0},Vs}|Tvs], Dx, Dy, IR, St, OVtab, Vtab0) ->
@@ -101,9 +101,13 @@ magnet_move_1(VtVec, Vs, IR, OVtab, Vtab) ->
 magnet_move_2(TrVec, Center, {DF,IR}, OVtab, Vtab) ->
     wings_util:fold_vertex(
       fun (V, #vtx{pos=Pos0}=Vtx, Tab) ->
-	      Dist0 = wings_mat:distance(Pos0, Center) / IR,
-	      Dist = DF(Dist0),
-	      #vtx{pos=Pos1} = gb_trees:get(V, Vtab),
-	      Pos = wings_mat:add(Pos1, wings_mat:mul(TrVec, Dist)),
-	      gb_trees:update(V, Vtx#vtx{pos=Pos}, Tab)
+	      Dist0 = e3d_vec:dist(Pos0, Center) / IR,
+	      case DF(Dist0) of
+		  Dist when Dist < 1.0E-5 -> Tab;
+		  Dist ->
+		      #vtx{pos=Pos1} = gb_trees:get(V, Vtab),
+		      Offset = e3d_vec:mul(TrVec, Dist),
+		      Pos = e3d_vec:add(Pos1, Offset),
+		      gb_trees:update(V, Vtx#vtx{pos=Pos}, Tab)
+	      end
       end, Vtab, OVtab).

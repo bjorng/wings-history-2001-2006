@@ -3,12 +3,12 @@
 %%
 %%     This module draws objects using OpenGL and handles picking.
 %%
-%%  Copyright (c) 2001 Jakob Cederlund, Bjorn Gustavsson
+%%  Copyright (c) 2001 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.2 2001/08/31 09:46:13 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.3 2001/09/03 11:01:39 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -123,7 +123,7 @@ draw_we(#st{dl=#dl{we=DlistWe,dragging=WeDrag,matrix=Matrix}}) ->
 	none -> ok;
 	Other ->
 	    gl:pushMatrix(),
-	    gl:multMatrixf(Matrix),
+	    gl:multMatrixf(e3d_mat:expand(Matrix)),
 	    gl:callList(WeDrag),
 	    gl:popMatrix()
     end.
@@ -283,7 +283,7 @@ draw_selection(#st{selmode=body}=St) ->
     wings_sel:foreach(
       fun(_, #shape{matrix=Matrix,sh=Data}) ->
 	      gl:pushMatrix(),
-	      gl:multMatrixf(Matrix),
+	      gl:multMatrixf(e3d_mat:expand(Matrix)),
 	      draw_faces(Data, false, St),
 	      gl:popMatrix()
       end, St),

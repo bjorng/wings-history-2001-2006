@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.5 2001/08/31 09:46:13 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.6 2001/09/03 11:01:39 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -16,7 +16,7 @@
 	 to_vertices/2,
 	 select_loop/1,cut/2,cut/3,fast_cut/3,connect/1,dissolve/1,
 	 dissolve_edges/2,dissolve_edge/2,patch_edge/4,patch_edge/5,
-	 hardness/2,hardness/3,loop_cut/1,collect_faces/3]).
+	 hardness/2,hardness/3,loop_cut/1]).
 
 -include("wings.hrl").
 -import(lists, [foldl/3,last/1,member/2,reverse/1,reverse/2,seq/3,sort/1]).
@@ -25,12 +25,9 @@
 %% Convert the current selection to an edge selection.
 %%
 convert_selection(#st{selmode=body}=St) ->
-    wings_sel:convert(
-      fun(_, We, Sel0) ->
-	      wings_util:fold_edge(
-		fun(Edge, _, Sel1) ->
-			gb_sets:insert(Edge, Sel1)
-		end, Sel0, We)
+    wings_sel:convert_shape(
+      fun(_, #we{es=Etab}) ->
+	      gb_sets:from_list(gb_trees:keys(Etab))
       end, edge, St);
 convert_selection(#st{selmode=face}=St) ->
     wings_sel:convert(
@@ -41,11 +38,14 @@ convert_selection(#st{selmode=face}=St) ->
 		end, Sel0, Face, We)
       end, edge, St);
 convert_selection(#st{selmode=edge}=St) ->
-    wings_sel:convert(
-      fun(Edge, #we{es=Etab}, A) ->
-	      Rec = gb_trees:get(Edge, Etab),
-	      #edge{ltpr=LP,ltsu=LS,rtpr=RP,rtsu=RS} = Rec,
-	      gb_sets:union(A, gb_sets:from_list([Edge,LP,LS,RP,RS]))
+    wings_sel:convert_shape(
+      fun(Edges, #we{es=Etab}) ->
+	      gb_sets:fold(
+		fun(Edge, S0) ->
+			Rec = gb_trees:get(Edge, Etab),
+			#edge{ltpr=LP,ltsu=LS,rtpr=RP,rtsu=RS} = Rec,
+			gb_sets:union(S0, gb_sets:from_list([LP,LS,RP,RS]))
+		end, Edges, Edges)
       end, edge, St);
 convert_selection(#st{selmode=vertex}=St) ->
     wings_sel:convert(
@@ -177,21 +177,17 @@ next_edge(From, V, Face, Edge, Etab) ->
 cut(N, St0) when N > 1 ->
     {St,Sel} = wings_sel:mapfold_shape(
 		 fun(Id, Edges, We0, Acc) ->
-			 {We,S} = cut_edges(Edges, N, We0),
+			 We = cut_edges(Edges, N, We0),
+			 S = wings_we:new_items(vertex, We0, We),
 			 {We,[{Id,S}|Acc]}
 		 end, [], St0),
-    St#st{sel=reverse(Sel)}.
+    St#st{selmode=vertex,sel=reverse(Sel)}.
 
 cut_edges(Edges, N, We0) ->
-    foldl(fun(Edge, {WeImm0,S0}) ->
-		  {We,BaseId,_} = cut(Edge, N, WeImm0),
-		  {We,cut_new_edges(N-1, BaseId+1, S0)}
-	  end, {We0,Edges}, gb_sets:to_list(Edges)).
-
-cut_new_edges(0, Id, Sel) -> Sel;
-cut_new_edges(N, Id, Sel0) ->
-    Sel = gb_sets:insert(Id, Sel0),
-    cut_new_edges(N-1, Id+2, Sel).
+    gb_sets:fold(fun(Edge, W0) ->
+			 {We,_,_} = cut(Edge, N, W0),
+			 We
+		 end, We0, Edges).
 
 %% cut(Edge, Parts, We0) -> {We,NewVertex,NewEdge}
 %%  Cut an edge into Parts parts.
@@ -236,12 +232,12 @@ make_edges(N, Id, Template, Prev, Etab0) ->
 make_vertices(N, Id, Vstart, Vend, Vtab) ->
     Va = wings_vertex:pos(Vstart, Vtab),
     Vb = wings_vertex:pos(Vend, Vtab),
-    Dir = wings_mat:divide(wings_mat:subtract(Vb, Va), float(N)),
+    Dir = e3d_vec:divide(e3d_vec:sub(Vb, Va), float(N)),
     make_vertices_1(N, Id, Va, Dir, Vtab).
     
 make_vertices_1(1, Id, Va, Dir, Vtab) -> Vtab;
 make_vertices_1(N, Id, Va, Dir, Vtab0) ->
-    NextPos = wings_util:share(wings_mat:add(Va, Dir)),
+    NextPos = wings_util:share(e3d_vec:add(Va, Dir)),
     Vtx = #vtx{pos=NextPos,edge=Id+1},
     Vtab = gb_trees:insert(Id, Vtx, Vtab0),
     make_vertices_1(N-1, Id+2, NextPos, Dir, Vtab).
@@ -266,7 +262,7 @@ fast_cut(Edge, Pos, We0) ->
     NewVPos0 = if
 		   Pos =:= default ->
 		       VstartPos = wings_vertex:pos(Vstart, Vtab0),
-		       wings_mat:average([VstartPos,VendPos]);
+		       e3d_vec:average([VstartPos,VendPos]);
 		   true -> Pos
 	       end,
     NewVPos = wings_util:share(NewVPos0),

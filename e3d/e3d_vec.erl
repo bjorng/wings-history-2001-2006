@@ -8,18 +8,21 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_vec.erl,v 1.3 2001/08/27 07:34:51 bjorng Exp $
+%%     $Id: e3d_vec.erl,v 1.4 2001/09/03 11:01:39 bjorng Exp $
 %%
 
 -module(e3d_vec).
 
--export([zero/0,add/1,add/2,sub/1,sub/2,mul/2,divide/2,neg/1,
+-export([zero/0,is_zero/1,add/1,add/2,sub/1,sub/2,mul/2,divide/2,neg/1,
 	 dot/2,cross/2,norm_cross/2,len/1,dist/2,norm/1,normal/3,
 	 average/1]).
 -compile({inline,[{norm,3}]}).
 
 zero() ->
     {0.0,0.0,0.0}.
+
+is_zero({0.0,0.0,0.0}) -> true;
+is_zero(_) -> false.
 
 add({V10,V11,V12}, {V20,V21,V22}) when float(V10), float(V11), float(V12),
 				       float(V20), float(V21), float(V22) ->

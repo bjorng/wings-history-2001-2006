@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_scale.erl,v 1.4 2001/08/27 07:34:52 bjorng Exp $
+%%     $Id: wings_scale.erl,v 1.5 2001/09/03 11:01:39 bjorng Exp $
 %%
 
 -module(wings_scale).
@@ -74,7 +74,7 @@ inset(Iter0, We, {Vs0,Min}=Acc) ->
 	    Vs = map(fun({V,Vec,Dist}) ->
 			     if
 				 Dist > Min ->
-				     {V,wings_mat:mul(Vec, Min/Dist)};
+				     {V,e3d_vec:mul(Vec, Min/Dist)};
 				 true -> {V,Vec}
 			     end
 		     end, Vs0),
@@ -91,14 +91,12 @@ inset_face(Face, #we{vs=Vtab}=We, Acc) ->
     wings_face:fold(
       fun(_, Edge, #edge{vs=Va,ve=Vb}, {A0,Min}) ->
 	      Pos = wings_vertex:pos(Va, Vtab),
-	      Dir = wings_mat:subtract(wings_vertex:pos(Vb, Vtab), Pos),
-	      T0 = wings_mat:dot_product(
-		     Dir, wings_mat:subtract(Center, Pos)) /
-		  wings_mat:dot_product(Dir, Dir),
-	      Vec = wings_mat:subtract(
-		      Center,
-		      wings_mat:add(Pos, wings_mat:mul(Dir, T0))),
-	      Dist = wings_mat:len(Vec),
+	      Dir = e3d_vec:sub(wings_vertex:pos(Vb, Vtab), Pos),
+	      T0 = e3d_vec:dot(Dir, e3d_vec:sub(Center, Pos)) /
+		  e3d_vec:dot(Dir, Dir),
+	      Vec = e3d_vec:sub(Center,
+				e3d_vec:add(Pos, e3d_vec:mul(Dir, T0))),
+	      Dist = e3d_vec:len(Vec),
 	      A = [{Va,Vec,Dist},{Vb,Vec,Dist}|A0],
 	      if 
 		  Dist < Min -> {A,Dist};
@@ -110,20 +108,20 @@ average_vectors({V,[Vec]}, Acc) ->
     %% Yes, it can happen.
     [{Vec,[V]}|Acc];
 average_vectors({V,[VecA,VecB]=Vecs}, Acc) ->
-    Dot = wings_mat:dot_product(VecA, VecB) /
-  	wings_mat:len(VecA) / wings_mat:len(VecB),
-    Vec = wings_mat:divide(wings_mat:add(VecA, VecB), (1+Dot)),
+    Dot = e3d_vec:dot(VecA, VecB) /
+  	e3d_vec:len(VecA) / e3d_vec:len(VecB),
+    Vec = e3d_vec:divide(e3d_vec:add(VecA, VecB), (1+Dot)),
     [{Vec,[V]}|Acc].
 
 bevel_move(MoveEdges, We) ->
-    Vs = dict:fold(fun(Face, Vs, A) ->
-			   bevel_move_1(Face, Vs, We, A)
-		   end, [], MoveEdges),
+    Vs = foldl(fun({Face,Es}, A) ->
+		       bevel_move_1(Face, Es, We, A)
+	       end, [], MoveEdges),
     wings_util:average_normals(Vs).
 
 bevel_move_1(Face, Es, #we{es=Etab}=We, Acc) ->
     Normal0 = wings_face:normal(Face, We),
-    Normal = wings_mat:negate(Normal0),
+    Normal = e3d_vec:neg(Normal0),
     foldl(fun(Edge, A) ->
 		  #edge{vs=Va,ve=Vb} = gb_trees:get(Edge, Etab),
 		  [{Va,Normal},{Vb,Normal}|A]
@@ -155,17 +153,17 @@ body_to_vertices(Sh, Type) ->
     scale_fun(Sh, Type).
 
 scale_fun(Sh, Type) ->
-    {Cx,Cy,Cz} = wings_util:center(Sh),
+    Center = wings_util:center(Sh),
     {Xt0,Yt0,Zt0} = filter_vec(Type, {1.0,1.0,1.0}),
     fun(Sh, Dx, Dy, St) when float(Dx) ->
 	    wings_io:message(lists:flatten(io_lib:format("X:~10p", [Dx]))),
 	    Xt = 1.01+Xt0*Dx,
 	    Yt = 1.01+Yt0*Dx,
 	    Zt = 1.01+Zt0*Dx,
-	    Mat0 = wings_mat:translate(Cx, Cy, Cz),
-	    Mat1 = wings_mat:mult(Mat0, wings_mat:scale(Xt, Yt, Zt)),
-	    Mat = wings_mat:mult(Mat1, wings_mat:translate(-Cx, -Cy, -Cz)),
-	    {shape_matrix,wings_mat:transpose(Mat)}
+	    Mat0 = e3d_mat:translate(Center),
+	    Mat1 = e3d_mat:mul(Mat0, e3d_mat:scale(Xt, Yt, Zt)),
+	    Mat = e3d_mat:mul(Mat1, e3d_mat:translate(e3d_vec:neg(Center))),
+	    {shape_matrix,Mat}
     end.
 
 %%%
@@ -176,7 +174,7 @@ scale_vertices(Type, Vs0, #we{vs=Vtab}) ->
     Vs = [{V,wings_vertex:pos(V, Vtab)} || V <- Vs0],
     Center = find_center(Vs),
     foldl(fun({V,Pos}, Acc) ->
-		  Vec0 = wings_mat:subtract(Pos, Center),
+		  Vec0 = e3d_vec:sub(Pos, Center),
 		  Vec = filter_vec(Type, Vec0),
 		  [{Vec,[V]}|Acc]
 	  end, [], Vs).

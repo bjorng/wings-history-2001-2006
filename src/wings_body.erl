@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.4 2001/08/27 07:34:52 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.5 2001/09/03 11:01:39 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -143,147 +143,12 @@ tighten(#shape{id=Id,sh=#we{vs=Vtab}=We0}=Sh, A) ->
 %%% 
 
 smooth(St) ->
-    wings_io:progress("Smoothing: ", 0),
     wings_sel:map(
       fun(#shape{sh=#we{fs=Ftab,he=Htab}=We0}=Sh0) ->
-	      We = smooth_1(We0),
+	      We = wings_subdiv:smooth(We0),
 	      Sh = Sh0#shape{sh=We};
 	 (Sh) -> Sh
       end, St).
-
-smooth_1(#we{es=Etab,fs=Ftab0,next_id=Id,vs=Vtab0}=We0) ->
-    FacePos0 = face_centers(We0),
-    FacePos = gb_trees:from_orddict(reverse(FacePos0)),
-    wings_io:progress("Smoothing: ", 25),
-    We1 = cut_edges(gb_trees:to_list(Etab), FacePos, We0),
-    wings_io:progress("Smoothing: ", 50),
-    We = wings_util:fold_face(fun(Face, Rec, Acc) ->
-				      smooth_face(Face, Id, FacePos, Acc)
-			      end, We1, We1),
-    wings_io:progress("Smoothing: ", 75),
-    #we{vs=Vtab2} = We,
-    Vtab = smooth_move_orig(gb_trees:keys(Vtab0), FacePos, We0, Vtab2),
-    We#we{vs=Vtab}.
-
-face_centers(#we{fs=Ftab}=We) ->
-    face_centers(gb_trees:keys(Ftab), We, []).
-
-face_centers([Face|Fs], We, Acc) ->
-    Vs = wings_face:surrounding_vertices(Face, We),
-    Center = wings_util:share(wings_vertex:center(Vs, We)),
-    face_centers(Fs, We, [{Face,[Center|length(Vs)]}|Acc]);
-face_centers([], We, Acc) -> Acc.
-
-smooth_move_orig([V|Vs], FacePos, We, Vtab0) ->
-    Vtab = smooth_move_orig_1(V, FacePos, We, Vtab0),
-    smooth_move_orig(Vs, FacePos, We, Vtab);
-smooth_move_orig([], FacePos, We, Vtab) -> Vtab.
-
-smooth_move_orig_1(V, FacePosTab, #we{es=Etab,he=Htab,vs=OVtab}=We, Vtab) ->
-    {Ps0,Hard} =
-	wings_vertex:fold(
-	  fun (Edge, Face, Erec, {Ps0,Hard0}) ->
-		  OPos = wings_vertex:other_pos(V, Erec, OVtab),
-		  Es = case gb_sets:is_member(Edge, Htab) of
-			   true -> [OPos|Hard0];
-			   false -> Hard0
-		       end,
-		  [FPos|_] = gb_trees:get(Face, FacePosTab),
-		  Ps = [FPos,OPos|Ps0],
-		  {Ps,Es}
-	  end, {[],[]}, V, We),
-
-    #vtx{pos=S} = Vrec = gb_trees:get(V, Vtab),
-    case length(Hard) of
-	NumHard when NumHard < 2 ->
-	    Ps = wings_mat:add(Ps0),
-	    N = length(Ps0) / 2,
-	    Pos0 = wings_mat:add(wings_mat:divide(Ps, (N*N)),
-				 wings_mat:mul(S, (N-2.0)/N)),
-	    Pos = wings_util:share(Pos0),
-	    gb_trees:update(V, Vrec#vtx{pos=Pos}, Vtab);
-	NumHard when NumHard =:= 2 ->
-	    Pos0 = wings_mat:add([wings_mat:mul(S, 6.0)|Hard]),
-	    Pos1 = wings_mat:mul(Pos0, 1/8),
-	    Pos = wings_util:share(Pos1),
-	    gb_trees:update(V, Vrec#vtx{pos=Pos}, Vtab);
-	ThreeOrMore -> Vtab
-    end.
-
-smooth_face(Face, Id, FacePos, #we{es=Etab0,fs=Ftab0,vs=Vtab0}=We0) ->
-    [Center|NumIds] = gb_trees:get(Face, FacePos),
-    {NewV,We1} = wings_we:new_id(We0),
-    {Ids,We} = wings_we:new_wrap_range(NumIds, 2, We0),
-    #face{mat=Mat} = gb_trees:get(Face, Ftab0),
-    {Etab,Ftab1,_} = wings_face:fold(
-		       fun(_, E, Rec, A) ->
-			       smooth_edge(Face, E, Rec, NewV, Id, Mat, A)
-		       end, {Etab0,Ftab0,Ids}, Face, We),
-    Ftab = gb_trees:delete(Face, Ftab1),
-    AnEdge = wings_we:id(0, Ids),
-    Vtab = gb_trees:insert(NewV, #vtx{pos=Center,edge=AnEdge}, Vtab0),
-    We#we{es=Etab,fs=Ftab,vs=Vtab}.
-
-smooth_edge(Face, Edge, Rec0, NewV, Id, Mat, {Etab0,Ftab0,Ids0}) ->
-    LeftEdge = wings_we:id(0, Ids0),
-    RFace = wings_we:id(1, Ids0),
-    NewEdge = wings_we:id(2, Ids0),
-    LFace = wings_we:id(3, Ids0),
-    RightEdge = wings_we:id(4, Ids0),
-    case Rec0 of
-	#edge{ve=Vtx,rf=Face} when Vtx >= Id ->
-	    Ids = Ids0,
-	    Ftab = gb_trees:insert(RFace, #face{edge=NewEdge,mat=Mat}, Ftab0),
-	    Rec = Rec0#edge{rf=RFace,rtsu=NewEdge},
-	    NewErec0 = get_edge(NewEdge, Etab0),
-	    NewErec = NewErec0#edge{vs=Vtx,ve=NewV,rf=RFace,lf=LFace,
-				    rtpr=Edge,rtsu=LeftEdge};
-	#edge{vs=Vtx,lf=Face} when Vtx >= Id ->
-	    Ids = Ids0,
-	    Ftab = gb_trees:insert(RFace, #face{edge=NewEdge,mat=Mat}, Ftab0),
-	    Rec = Rec0#edge{lf=RFace,ltsu=NewEdge},
-	    NewErec0 = get_edge(NewEdge, Etab0),
-	    NewErec = NewErec0#edge{vs=Vtx,ve=NewV,rf=RFace,lf=LFace,
-				    rtpr=Edge,rtsu=LeftEdge};
- 	#edge{vs=Vtx,rf=Face} when Vtx >= Id ->
-	    Ids = wings_we:bump_id(Ids0),
-	    Ftab = Ftab0,
-	    Rec = Rec0#edge{rf=LFace,rtpr=NewEdge},
-	    NewErec0 = get_edge(NewEdge, Etab0),
- 	    NewErec = NewErec0#edge{ltpr=RightEdge,ltsu=Edge};
- 	#edge{ve=Vtx,lf=Face} when Vtx >= Id ->
-	    Ids = wings_we:bump_id(Ids0),
-	    Ftab = Ftab0,
-	    Rec = Rec0#edge{lf=LFace,ltpr=NewEdge},
-	    NewErec0 = get_edge(NewEdge, Etab0),
- 	    NewErec = NewErec0#edge{ltpr=RightEdge,ltsu=Edge}
-    end,
-    Etab1 = gb_trees:update(Edge, Rec, Etab0),
-    Etab = gb_trees:enter(NewEdge, NewErec, Etab1),
-    {Etab,Ftab,Ids}.
-
-get_edge(Edge, Etab) ->
-    case gb_trees:lookup(Edge, Etab) of
-	{value,Erec} -> Erec;
-	none -> #edge{}
-    end.
-
-cut_edges([{Edge,#edge{vs=Va,ve=Vb,lf=Lf,rf=Rf}}|Es], FacePos,
-	  #we{he=Htab,vs=Vtab}=We0) ->
-    case gb_sets:is_member(Edge, Htab) of
-	true ->
-	    {We,_,_} = wings_edge:fast_cut(Edge, default, We0),
-	    cut_edges(Es, FacePos, We);
-	false ->
-	    [LfPos|_] = gb_trees:get(Lf, FacePos),
-	    [RfPos|_] = gb_trees:get(Rf, FacePos),
-	    VaPos = wings_vertex:pos(Va, Vtab),
-	    VbPos = wings_vertex:pos(Vb, Vtab),
-	    Pos = wings_mat:average([LfPos,RfPos,VaPos,VbPos]),
-	    {We,_,_} = wings_edge:fast_cut(Edge, Pos, We0),
-	    cut_edges(Es, FacePos, We)
-    end;
-cut_edges([], FacePos, We) -> We.
 
 %%%
 %%% The Combine command.
@@ -351,10 +216,10 @@ auto_smooth_1(#we{he=Htab0}=We) ->
 auto_smooth(Edge, #edge{lf=Lf,rf=Rf}, H0, We) ->
     Ln = wings_face:normal(Lf, We),
     Lr = wings_face:normal(Rf, We),
-    case wings_mat:is_non_zero(Ln, Lr) of
-	false -> H0;				%Ignore this edge.
-	true ->
-	    case wings_mat:unit_dot_product(Ln, Lr) of
+    case e3d_vec:is_zero(Ln) or e3d_vec:is_zero(Lr) of
+	true -> H0;				%Ignore this edge.
+	false ->
+	    case e3d_vec:dot(Ln, Lr) of
 		P when P < 0.5 ->		%cos(60), i.e. angle > 60
 		    wings_edge:hardness(Edge, hard, H0);
 		P ->				%angle =< 60

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.2 2001/08/27 07:34:52 bjorng Exp $
+%%     $Id: wings_ff_wings.erl,v 1.3 2001/09/03 11:01:39 bjorng Exp $
 %%
 
 -module(wings_ff_wings).
@@ -42,11 +42,12 @@ import(Name, St0) ->
     end.
 
 build_shapes(Shapes, St0) ->
-    foldl(fun ({object,Name,Matrix,{winged,Fs,Vs},Props}, St) ->
+    foldl(fun ({object,Name,Matrix0,{winged,Fs,Vs},Props}, St) ->
 		  HardEdges = case keysearch(hard_edges, 1, Props) of
 				  {value,{_,HE}} -> HE;
 				  false -> []
 			      end,
+		  Matrix = e3d_mat:compress(Matrix0),
 		  wings_we:build(Name, Matrix, Fs, Vs, HardEdges, St)
 	  end, St0, Shapes).
 
@@ -66,14 +67,14 @@ write_file(Name, Bin) ->
 
 shape(#shape{name=Name,sh=We0}, Acc) ->
     #we{vs=Vs0,es=Etab,he=Htab} = We = wings_we:renumber(We0, 0),
-    Vs = [P || {V,#vtx{pos=P}} <- gb_trees:to_list(Vs0)],
+    Vs = [P || #vtx{pos=P} <- gb_trees:values(Vs0)],
     Fs1 = wings_util:fold_face(
 	    fun(Face, #face{mat=Mat}, A) ->
 		    [{Mat,wings_face:surrounding_vertices(Face, We)}|A]
 	    end, [], We),
     Fs = reverse(Fs1),
     HardEdges = hard_edges(Etab, Htab),
-    Identity = wings_mat:identity(),
+    Identity = e3d_mat:expand(e3d_mat:identity()),
     [{object,Name,Identity,{winged,Fs,Vs},HardEdges}|Acc].
 
 hard_edges(Etab, Htab) ->

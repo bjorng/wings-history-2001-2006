@@ -10,16 +10,22 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.1 2001/08/14 18:16:40 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.2 2001/09/03 11:01:39 bjorng Exp $
 %%
 
 -module(wings_subdiv).
--export([smooth/6]).
+-export([smooth/1,smooth/6]).
 -include("wings.hrl").
 -import(lists, [map/2,foldl/3,reverse/1,reverse/2,sort/1]).
 
 %%% The Catmull-Clark subdivision algorithm is used, with
 %%% Tony DeRose's extensions for creases.
+
+smooth(#we{vs=Vtab,es=Etab,fs=Ftab,he=Htab}=We) ->
+    Faces = gb_trees:keys(Ftab),
+    Vs = gb_trees:keys(Vtab),
+    Es = gb_trees:keys(Etab),
+    wings_subdiv:smooth(Faces, Faces, Vs, Es, Htab, We).
 
 smooth(AllFs, Fs, Vs, Es, Htab,
        #we{es=Etab,fs=Ftab0,vs=Vtab0,next_id=Id}=We0) ->
@@ -67,15 +73,15 @@ smooth_move_orig_1(V, FacePosTab, Htab, #we{es=Etab,vs=OVtab}=We, Vtab) ->
     #vtx{pos=S} = Vrec = gb_trees:get(V, Vtab),
     case length(Hard) of
 	NumHard when NumHard < 2 ->
-	    Ps = wings_mat:add(Ps0),
+	    Ps = e3d_vec:add(Ps0),
 	    N = float(length(Ps0) bsr 1),
-	    Pos0 = wings_mat:add(wings_mat:divide(Ps, (N*N)),
-				 wings_mat:mul(S, (N-2.0)/N)),
+	    Pos0 = e3d_vec:add(e3d_vec:divide(Ps, (N*N)),
+				 e3d_vec:mul(S, (N-2.0)/N)),
 	    Pos = wings_util:share(Pos0),
 	    gb_trees:update(V, Vrec#vtx{pos=Pos}, Vtab);
 	NumHard when NumHard =:= 2 ->
-	    Pos0 = wings_mat:add([wings_mat:mul(S, 6.0)|Hard]),
-	    Pos1 = wings_mat:mul(Pos0, 1/8),
+	    Pos0 = e3d_vec:add([e3d_vec:mul(S, 6.0)|Hard]),
+	    Pos1 = e3d_vec:mul(Pos0, 1/8),
 	    Pos = wings_util:share(Pos1),
 	    gb_trees:update(V, Vrec#vtx{pos=Pos}, Vtab);
 	ThreeOrMore -> Vtab
@@ -154,7 +160,7 @@ cut_edges_1([{Edge,#edge{vs=Va,ve=Vb,lf=Lf,rf=Rf}}|Es], FacePos, Htab,
 	    [RfPos|_] = gb_trees:get(Rf, FacePos),
 	    VaPos = wings_vertex:pos(Va, Vtab),
 	    VbPos = wings_vertex:pos(Vb, Vtab),
-	    Pos = wings_mat:average([LfPos,RfPos,VaPos,VbPos]),
+	    Pos = e3d_vec:average([LfPos,RfPos,VaPos,VbPos]),
 	    {We,_,_} = wings_edge:fast_cut(Edge, Pos, We0),
 	    cut_edges_1(Es, FacePos, Htab, We)
     end;

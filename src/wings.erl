@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.4 2001/08/27 07:34:52 bjorng Exp $
+%%     $Id: wings.erl,v 1.5 2001/09/03 11:01:39 bjorng Exp $
 %%
 
 -module(wings).
@@ -80,7 +80,7 @@ init_1() ->
     St = wings_view:default_view(St0),
     resize(800, 600, St),
     caption(St),
-    top_level(St, wings_undo:new(24)),
+    top_level(St, wings_undo:new(32)),
     sdl:quit(),
     ok.
 
@@ -400,7 +400,7 @@ command({body,auto_smooth}, St) ->
 command({body,{flip,Plane}}, St) ->
     {save_state,model_changed(wings_body:flip(Plane, St))};
 command({body,cleanup}, St) ->
-    {save_state,wings_body:cleanup(St)};
+    {save_state,model_changed(wings_body:cleanup(St))};
 
 %% Face menu.
 command({face,{extrude,Type}}, St) ->
@@ -806,14 +806,14 @@ body_menu(X, Y, St) ->
     wings_menu:menu(X, Y, body, Menu).
 
 materials(#st{mat=Mat0}) ->
-    L0 = map(fun({Id,_}) ->
+    L0 = map(fun(Id) ->
 		     Name = case atom_to_list(Id) of
 				[H|T] when $a =< H, H =< $z ->
 				    [H-$\s|T];
 				Name0 -> Name0
 			    end,
 		     {Name,Id}
-	     end, gb_trees:to_list(Mat0)),
+	     end, gb_trees:keys(Mat0)),
     list_to_tuple(L0).
 
 directions() ->
@@ -1083,6 +1083,15 @@ translate_key($w, St) -> {view,toggle_wireframe};
 translate_key($x, St) -> {view,{along,x}};
 translate_key($y, St) -> {view,{along,y}};
 translate_key($z, St) -> {view,{along,z}};
+translate_key($2, St) -> {edge,{cut,2}};
+translate_key($3, St) -> {edge,{cut,3}};
+translate_key($4, St) -> {edge,{cut,4}};
+translate_key($5, St) -> {edge,{cut,5}};
+translate_key($6, St) -> {edge,{cut,6}};
+translate_key($7, St) -> {edge,{cut,7}};
+translate_key($8, St) -> {edge,{cut,8}};
+translate_key($9, St) -> {edge,{cut,9}};
+translate_key($0, St) -> {edge,{cut,10}};
 translate_key(?SDLK_TAB, St)  -> {view,smooth};
 translate_key(?SDLK_PLUS, St)  -> {select,more};
 translate_key(?SDLK_MINUS, St)  -> {select,less};

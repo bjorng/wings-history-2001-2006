@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.1 2001/08/14 18:16:40 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.2 2001/09/03 11:01:39 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -50,8 +50,7 @@ bevel_tv_1(V, We, Acc) ->
       fun(Face, Edge, Rec, Tv0) ->
 	      OtherV = wings_vertex:other(V, Rec),
 	      Pos = wings_vertex:pos(OtherV, We),
-	      Vec = wings_mat:divide(wings_mat:subtract(Pos, Center),
-				     ?EXTRUDE_DIST),
+	      Vec = e3d_vec:divide(e3d_vec:sub(Pos, Center), ?EXTRUDE_DIST),
 	      [{Vec,[OtherV]}|Tv0]
       end, Acc, V, We).
 
@@ -125,12 +124,12 @@ new_vertices(V, G, Edges, {We0,_}=Acc) ->
 		      
 move_vertex(V, Center, #we{vs=Vtab0}=We) ->
     #vtx{pos=Pos0} = Rec = gb_trees:get(V, Vtab0),
-    Dir = wings_mat:subtract(Pos0, Center),
-    case wings_mat:len(Dir) of
+    Dir = e3d_vec:sub(Pos0, Center),
+    case e3d_vec:len(Dir) of
 	D when D < ?EXTRUDE_DIST -> We;
 	D ->
-	    Pos = wings_mat:add(Center, wings_mat:mul(wings_mat:norm(Dir),
-						      ?EXTRUDE_DIST)),
+	    Pos = e3d_vec:add(Center, e3d_vec:mul(e3d_vec:norm(Dir),
+						  ?EXTRUDE_DIST)),
 	    Vtab = gb_trees:update(V, Rec#vtx{pos=Pos}, Vtab0),
 	    We#we{vs=Vtab}
     end.
@@ -255,21 +254,21 @@ move_vertex(V, A, B, C, #we{vs=Vtab}=We) ->
     APos = wings_vertex:pos(A, Vtab),
     BPos = wings_vertex:pos(B, Vtab),
     CPos = wings_vertex:pos(C, Vtab),
-    VecA = wings_mat:norm(wings_mat:subtract(APos, BPos)),
-    VecB = wings_mat:norm(wings_mat:subtract(CPos, BPos)),
-    Vec = wings_mat:norm(wings_mat:add(VecA, VecB)),
+    VecA = e3d_vec:norm(e3d_vec:sub(APos, BPos)),
+    VecB = e3d_vec:norm(e3d_vec:sub(CPos, BPos)),
+    Vec = e3d_vec:norm(e3d_vec:add(VecA, VecB)),
     NewPos =
-	case wings_mat:len(Vec) of
+	case e3d_vec:len(Vec) of
 	    Short when Short < 1.0E-6 ->
 		%% A "winged vertex" - the edges have the same direction.
 		%% Now we must get tricky.
 		VPos = wings_vertex:pos(V, Vtab),
-		Dir = wings_mat:subtract(VPos, BPos),
-		DPos = wings_mat:add([BPos,Dir,Dir]),
-		wings_mat:add(BPos, wings_mat:subtract(DPos, APos));
+		Dir = e3d_vec:sub(VPos, BPos),
+		DPos = e3d_vec:add([BPos,Dir,Dir]),
+		e3d_vec:add(BPos, e3d_vec:sub(DPos, APos));
 	    Other ->
-		Sin = wings_mat:len(wings_mat:cross_product(VecA, Vec)),
-		wings_mat:add(BPos, wings_mat:mul(Vec, ?EXTRUDE_DIST/Sin))
+		Sin = e3d_vec:len(e3d_vec:cross(VecA, Vec)),
+		e3d_vec:add(BPos, e3d_vec:mul(Vec, ?EXTRUDE_DIST/Sin))
 	end,
     VRec = VRec0#vtx{pos=NewPos},
     We#we{vs=gb_trees:update(V, VRec, Vtab)}.

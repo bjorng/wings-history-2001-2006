@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_move.erl,v 1.1 2001/08/14 18:16:38 bjorng Exp $
+%%     $Id: wings_move.erl,v 1.2 2001/09/03 11:01:39 bjorng Exp $
 %%
 
 -module(wings_move).
@@ -55,8 +55,8 @@ vertices_to_vertices(Vs, We, Vec) -> make_tvs(Vs, Vec).
 
 vertex_normals(We, Vs) ->
     foldl(fun(V, Acc) ->
-		  Vec = wings_mat:mul(wings_vertex:normal(V, We),
-				      float(?GROUND_GRID_SIZE)),
+		  Vec = e3d_vec:mul(wings_vertex:normal(V, We),
+				    float(?GROUND_GRID_SIZE)),
 		  [{Vec,[V]}|Acc]
 	  end, [], Vs).
 
@@ -71,12 +71,12 @@ edges_to_vertices(Es, We, normal) ->
 			   gb_trees:get(Edge, Etab),
 		       VaPos = wings_vertex:pos(Va, Vtab),
 		       VbPos = wings_vertex:pos(Vb, Vtab),
-		       EdgeDir = wings_mat:norm(wings_mat:subtract(VbPos, VaPos)),
+		       EdgeDir = e3d_vec:norm(e3d_vec:sub(VbPos, VaPos)),
  		       NL = wings_face:normal(FaceL, We),
  		       NR = wings_face:normal(FaceR, We),
-		       Normal = wings_mat:norm(wings_mat:add(NL, NR)),
+		       Normal = e3d_vec:norm(e3d_vec:add(NL, NR)),
 		       [{Va,{Normal,VaPos,EdgeDir}},
-			{Vb,{Normal,VbPos,wings_mat:negate(EdgeDir)}}|D0]
+			{Vb,{Normal,VbPos,e3d_vec:neg(EdgeDir)}}|D0]
 	       end, [], Es),
     average(Vs);
 edges_to_vertices(Es, #we{es=Etab}, Vec) ->
@@ -92,26 +92,26 @@ average(Vs) ->
     foldl(fun average/2, [], sofs:to_external(F)).
 
 average({V,Info}, Acc) ->
-    Normal = wings_mat:mul(average_normals(Info), ?GROUND_GRID_SIZE),
+    Normal = e3d_vec:mul(average_normals(Info), ?GROUND_GRID_SIZE),
     [{Normal,[V]}|Acc].
 
 average_normals([{Normal,_,_}]) -> Normal;
 average_normals([{Na,Orig,Da}|[{Nb,_,Db}|_]=T]) ->
     %% This code is probably obvious. :-)
-    Oa = wings_mat:add(Orig, Na),
-    Ob = wings_mat:add(Orig, Nb),
-    Diff = wings_mat:subtract(Oa, Ob),
-    A = wings_mat:dot_product(Da, Da),
-    B = -wings_mat:dot_product(Da, Db),
-    C = wings_mat:dot_product(Db, Db),
-    D = wings_mat:dot_product(Da, Diff),
+    Oa = e3d_vec:add(Orig, Na),
+    Ob = e3d_vec:add(Orig, Nb),
+    Diff = e3d_vec:sub(Oa, Ob),
+    A = e3d_vec:dot(Da, Da),
+    B = -e3d_vec:dot(Da, Db),
+    C = e3d_vec:dot(Db, Db),
+    D = e3d_vec:dot(Da, Diff),
     Det = A*C-B*B,
     if
 	Det*Det >= 1.0E-9*abs(A*B) ->
-	    E = -wings_mat:dot_product(Db, Diff),
+	    E = -e3d_vec:dot(Db, Diff),
 	    S = (B*E-C*D)/Det,
-	    NewPos = wings_mat:add(Oa, wings_mat:mul(Da, S)),
-	    wings_mat:subtract(NewPos, Orig);
+	    NewPos = e3d_vec:add(Oa, e3d_vec:mul(Da, S)),
+	    e3d_vec:sub(NewPos, Orig);
 	true ->					%Parallel edges
 	    average_normals(T)
     end.
@@ -140,26 +140,26 @@ face_average(Vs, Vtab) ->
     F = sofs:relation_to_family(R),
     foldl(fun({V,Ns}, Acc) ->
 		  N0 = face_average_normals(V, Ns, Vtab),
-		  N = wings_mat:mul(N0, ?GROUND_GRID_SIZE),
+		  N = e3d_vec:mul(N0, ?GROUND_GRID_SIZE),
 		  [{N,[V]}|Acc]
 	  end, [], sofs:to_external(F)).
 
 face_average_normals(V, [Normal], Vtab) -> Normal;
 face_average_normals(V, [Na,Nb], Vtab) ->
-    N = wings_mat:norm(wings_mat:add(Na, Nb)),
-    Dot = wings_mat:dot_product(N, Na),
-    wings_mat:divide(N, Dot); 
+    N = e3d_vec:norm(e3d_vec:add(Na, Nb)),
+    Dot = e3d_vec:dot(N, Na),
+    e3d_vec:divide(N, Dot); 
 face_average_normals(V, [Na,Nb,Nc|T], Vtab) ->
     Vpos = wings_vertex:pos(V, Vtab),
-    Nao = wings_mat:add(Vpos, Na),
-    Nbo = wings_mat:add(Vpos, Nb),
-    Nco = wings_mat:add(Vpos, Nc),
+    Nao = e3d_vec:add(Vpos, Na),
+    Nbo = e3d_vec:add(Vpos, Nb),
+    Nco = e3d_vec:add(Vpos, Nc),
     {A,D,G} = Na,
     {B,E,H} = Nb,
     {C,F,I} = Nc,
-    J = wings_mat:dot_product(Nao, Na),
-    K = wings_mat:dot_product(Nbo, Nb),
-    L = wings_mat:dot_product(Nco, Nc),
+    J = e3d_vec:dot(Nao, Na),
+    K = e3d_vec:dot(Nbo, Nb),
+    L = e3d_vec:dot(Nco, Nc),
 
     %% Calculate intersection of three planes using Cramer's rule.
     if
@@ -180,7 +180,7 @@ face_average_normals(V, [Na,Nb,Nc|T], Vtab) ->
 		    X = (J*EiMinusHf + K*GFMinusDI + L*DHMinusEG)/M,
 		    Y = (I*AKMinusJB + H*JCMinusAL + G*BLMinusKC)/M,
 		    Z = -(F*AKMinusJB + E*JCMinusAL + D*BLMinusKC)/M,
-		    wings_mat:subtract({X,Y,Z}, Vpos)
+		    e3d_vec:sub({X,Y,Z}, Vpos)
 	    end
     end.
 
@@ -216,13 +216,13 @@ translate_fun(free) ->
 	    wings_io:message(lists:flatten(io_lib:format("X:~10p Y:~10p",
 							 [Dx,Dy]))),
 	    G = ?GROUND_GRID_SIZE,
-	    M0 = wings_mat:rotate_y(-Az),
-	    M1 = wings_mat:mult(M0, wings_mat:rotate_x(-El)),
-	    M2 = wings_mat:mult(M1, wings_mat:scale(G, G, G)),
-	    {Xt,Yt,Zt,_} = wings_mat:mult(M2, {Dx,Dy,0.0,1.0}),
-	    M3 = wings_mat:translate(Xt, Yt, Zt),
-	    Matrix = wings_mat:mult(wings_mat:transpose(Matrix0), M3),
-	    {shape_matrix,wings_mat:transpose(Matrix)}
+	    M0 = e3d_mat:rotate(-Az, {0.0,1.0,0.0}),
+	    M1 = e3d_mat:mul(M0, e3d_mat:rotate(-El, {1.0,0.0,0.0})),
+	    M2 = e3d_mat:mul(M1, e3d_mat:scale(G, G, G)),
+	    {Xt,Yt,Zt} = e3d_mat:mul_point(M2, {Dx,Dy,0.0}),
+	    M3 = e3d_mat:translate(Xt, Yt, Zt),
+	    Matrix = e3d_mat:mul(Matrix0, M3),
+	    {shape_matrix,Matrix}
     end;
 translate_fun({Xt0,Yt0,Zt0}) ->
     fun(Sh, Dx, Dy, St) when float(Dx) ->
@@ -230,7 +230,7 @@ translate_fun({Xt0,Yt0,Zt0}) ->
 	    Xt = Xt0*Dx,
 	    Yt = Yt0*Dx,
 	    Zt = Zt0*Dx,
-	    {shape_matrix,wings_mat:transpose(wings_mat:translate(Xt, Yt, Zt))}
+	    {shape_matrix,e3d_mat:translate(Xt, Yt, Zt)}
     end.
 
 %%%
@@ -246,6 +246,6 @@ make_tvs(Vs, Vec) -> [{Vec,Vs}].
 
 free_translation(Dx, Dy, #st{azimuth=Az,elevation=El}) ->
     G = ?GROUND_GRID_SIZE,
-    M0 = wings_mat:rotate_y(-Az),
-    M = wings_mat:mult(M0, wings_mat:rotate_x(-El)),
-    wings_mat:mult(M, wings_mat:scale(G, G, G)).
+    M0 = e3d_mat:rotate(-Az, {0.0,1.0,0.0}),
+    M = e3d_mat:mul(M0, e3d_mat:rotate(-El, {1.0,0.0,0.0})),
+    e3d_mat:mul(M, e3d_mat:scale(G, G, G)).

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.2 2001/08/27 07:34:52 bjorng Exp $
+%%     $Id: wings.hrl,v 1.3 2001/09/03 11:01:39 bjorng Exp $
 %%
 
 -define(WINGS_VERSION, {0,6}).
@@ -51,7 +51,7 @@
 	 dragging=none,				%WE faces being dragged.
 	 drag_faces=none,			%GbSet containing faces.
 	 pick=none,				%For picking.
-	 matrix=wings_mat:identity()}).
+	 matrix=e3d_mat:identity()}).
 
 -record(st,
 	{shapes,				%All visible shapes
@@ -90,7 +90,7 @@
 -record(shape,
 	{id,					%Shape id
 	 name,					%Shape name
-	 matrix=wings_mat:identity(),		%Transformation matrix
+	 matrix=e3d_mat:identity(),		%Transformation matrix
 	 sh					%The shape itself:
 						% An 'we' or 'trimesh'
 						% record

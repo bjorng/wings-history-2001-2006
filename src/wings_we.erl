@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.6 2001/08/31 09:46:13 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.7 2001/09/03 11:01:39 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -34,14 +34,16 @@ build(Name, Matrix, Fs, Vs, St) ->
     build(Name, Matrix, Fs, Vs, [], St).
 
 build(Name, Matrix, Fs0, Vs, HardEdges0, #st{onext=Id,shapes=Shapes}=St) ->
-    Es0 = build_edges(Fs0),
-    {Es1,Fs} = case fill_holes(Es0) of
-		   [] -> {Es0,Fs0};
-		   Holes ->
-		       {build_edges(Fs0 ++ Holes),
-			Fs0 ++ [{hole,F} || F <- Holes]}
+    {Good0,Bad0} = build_edges(Fs0),
+    {Es0,Fs} = if
+		   Bad0 =:= [] -> {Good0,Fs0};
+		   true ->
+		       Fs1 = fill_holes(Bad0, Fs0),
+		       {Good,Bad} = build_edges(Fs1),
+		       [] = Bad,
+		       {Good,Fs1}
 	       end,
-    Es = number_edges(Es1),
+    Es = number_edges(Es0),
     HardEdges = [edge_name(He) || He <- HardEdges0],
     Htab = hard_edges(HardEdges, Es),
     {Vtab0,Etab,Ftab0} = build_tables(Es),
@@ -56,34 +58,21 @@ build(Name, Matrix, Fs0, Vs, HardEdges0, #st{onext=Id,shapes=Shapes}=St) ->
     St#st{onext=Id+1,shapes=gb_trees:insert(Id, Shape, Shapes)}.
 
 build_edges(Fs) ->
-    build_edges(Fs, 1, gb_trees:empty()).
+    build_edges(Fs, 1, []).
 
 build_edges([{Material,Vs}|Fs], Face, Eacc0) ->
     build_edges_1(Vs, Fs, Face, Eacc0);
 build_edges([Vs|Fs], Face, Eacc0) ->
     build_edges_1(Vs, Fs, Face, Eacc0);
-build_edges([], Face, Eacc) -> Eacc.
+build_edges([], Face, Eacc) ->
+    R = sofs:relation(Eacc, [{name,{side,data}}]),
+    F = sofs:relation_to_family(R),
+    combine_half_edges(sofs:to_external(F)).
 
-build_edges_1(Vs, Fs, Face, Eacc0) ->
-    Eacc = case try_build(Vs, Fs, Face, Eacc0) of
-	       please_invert_face ->
-		   case try_build(reverse(Vs), Fs, Face, Eacc0) of
-		       please_invert_face ->
-			   erlang:fault({already_inverted_face,[trimesh|Vs]});
-		       Other -> Other
-		   end;
-	       Other -> Other
-	   end,
-    build_edges(Fs, Face+1, Eacc).
-
-try_build(Vs, Fs, Face, Eacc) ->
-    Pairs = pairs(Vs, Vs, []),
-    build_face_edges(Pairs, Face, Eacc).
-
-pairs([V1|[V2|_]=Vs], First, Acc) ->
-    pairs(Vs, First, [{V2,V1}|Acc]);
-pairs([V], [V1,V2,V3|_], Acc) ->
-    [{V3,V2},{V2,V1},{V1,V}|Acc].
+build_edges_1(Vs, Fs, Face, Acc0) ->
+    Pairs = pairs(Vs),
+    Acc = build_face_edges(Pairs, Face, Acc0),
+    build_edges(Fs, Face+1, Acc).
 
 build_face_edges([Pred|[E0,Succ|_]=Es], Face, Acc0) ->
     Acc = case E0 of
@@ -91,35 +80,48 @@ build_face_edges([Pred|[E0,Succ|_]=Es], Face, Acc0) ->
 		  enter_half_edge(right, Name, Face, Pred, Succ, Acc0);
 	      {Vs,Ve} when Ve < Vs ->
 		  Name = {Ve,Vs},
-		  enter_half_edge(left, Name, Face, Pred, Succ, Acc0)
+		  enter_half_edge(left, Name, Face, Pred, Succ, Acc0);
+	      Equal=Name ->
+		  enter_half_edge(same, Name, Face, Pred, Succ, Acc0)
 	  end,
-    if
-	Acc =:= please_invert_face -> please_invert_face;
-	true -> build_face_edges(Es, Face, Acc)
-    end;
+    build_face_edges(Es, Face, Acc);
 build_face_edges([_,_], Face, Acc) -> Acc.
 
 enter_half_edge(Side, Name, Face, Pred, Succ, Tab0) ->
     Rec = {Face,edge_name(Pred),edge_name(Succ)},
-    case {Side,gb_trees:lookup(Name, Tab0)} of
-	{left,{value,{none,Right}}} ->
-	    gb_trees:update(Name, {Rec,Right}, Tab0);
-	{right,{value,{Left,none}}} ->
-	    gb_trees:update(Name, {Left,Rec}, Tab0);
-	{left,none} ->
-	    gb_trees:insert(Name, {Rec,none}, Tab0);
-	{right,none} ->
-	    gb_trees:insert(Name, {none,Rec}, Tab0);
-	Other ->
-	    io:format("~w\n ~w\n", [Rec,Other]),
-	    please_invert_face
-    end.
+    [{Name,{Side,Rec}}|Tab0].
+
+pairs([V,V,X]) ->
+    pairs([V,X]);
+pairs([V,X,V]) ->
+    pairs([V,X]);
+pairs([X,V,V]) ->
+    pairs([V,X]);
+pairs([V1,V2]) ->
+    [{V2,V1},{V1,V2},{V2,V1},{V1,V2}];
+pairs(Vs) ->
+    pairs(Vs, Vs, []).
+    
+pairs([V1|[V2|_]=Vs], First, Acc) ->
+    pairs(Vs, First, [{V2,V1}|Acc]);
+pairs([V], [V1,V2,V3|_], Acc) ->
+    [{V3,V2},{V2,V1},{V1,V}|Acc].
 	    
 edge_name({Vs,Ve}=Name) when Vs < Ve -> Name;
 edge_name({Vs,Ve}) -> {Ve,Vs}.
 
+combine_half_edges(HalfEdges) ->
+    combine_half_edges(HalfEdges, [], []).
+    
+combine_half_edges([{Name,[{left,Ldata},{right,Rdata}]}|Hes], Good, Bad) ->
+    combine_half_edges(Hes, [{Name,{Ldata,Rdata}}|Good], Bad);
+combine_half_edges([Other|Hes], Good, Bad) ->
+    combine_half_edges(Hes, Good, [Other|Bad]);
+combine_half_edges([], Good, Bad) ->
+    {reverse(Good),reverse(Bad)}.
+
 number_edges(Es) ->
-    number_edges(gb_trees:to_list(Es), 1, []).
+    number_edges(Es, 1, []).
 
 number_edges([{Name,{Ldata,Rdata}=Data}|Es], Edge, Tab0) ->
     Tab = [{Name,{Edge,Data}}|Tab0],
@@ -157,16 +159,14 @@ edge_num(Edge, Etree) ->
     {Num,_} = gb_trees:get(Edge, Etree),
     Num.
 
-fill_in_vertice_pos(Ps, Matrix0, Vtab0) ->
-    Matrix = wings_mat:transpose(Matrix0),
+fill_in_vertice_pos(Ps, Matrix, Vtab0) ->
     Vtab1 = sofs:relation(Vtab0),
     Vtab2 = sofs:relation_to_family(Vtab1),
     Vtab = sofs:to_external(Vtab2),
     fill_in_vertice_pos_1(Vtab, Ps, Matrix, []).
     
-fill_in_vertice_pos_1([{V,[Edge|_]}|Vs], [{X0,Y0,Z0}|Ps], Matrix, Vtab0) ->
-    {X,Y,Z,_} = wings_mat:mult(Matrix, {X0,Y0,Z0,1.0}),
-    Pos = wings_util:share(float(X), float(Y), float(Z)),
+fill_in_vertice_pos_1([{V,[Edge|_]}|Vs], [Pos0|Ps], Matrix, Vtab0) ->
+    Pos = e3d_mat:mul_point(Matrix, Pos0),
     Vtab = [{V,#vtx{edge=Edge,pos=Pos}}|Vtab0],
     fill_in_vertice_pos_1(Vs, Ps, Matrix, Vtab);
 fill_in_vertice_pos_1([], [], Matrix, Vtab) ->
@@ -185,37 +185,35 @@ build_faces([{Face,[Edge|_]}|Fs0], [_|Fs1], Acc) ->
 build_faces([], [], Acc) ->
     gb_trees:from_orddict(reverse(Acc)).
 
-fill_holes(Es) ->
-    Uncon = get_unconnected(gb_trees:to_list(Es), []),
-    fill_holes(Uncon, []).
+fill_holes(Es, Acc) ->
+    G = digraph:new(),
+    make_digraph(Es, G),
+    C = digraph_utils:cyclic_strong_components(G),
+    Holes = make_hole_faces(G, C, Acc),
+    digraph:delete(G),
+    Holes.
 
-fill_holes([E|Es0], Acc) ->
-    {Edges,Es} = collect_one_face(E, Es0),
-    fill_holes(Es, [Edges|Acc]);
-fill_holes([], Acc) -> Acc.
-
-get_unconnected([{Name,{none,_}}|Es], Acc) ->
-    get_unconnected(Es, [{Name,left}|Acc]);
-get_unconnected([{Name,{_,none}}|Es], Acc) ->
-    get_unconnected(Es, [{Name,right}|Acc]);
-get_unconnected([_|Es], Acc) ->
-    get_unconnected(Es, Acc);
-get_unconnected([], Acc) -> Acc.
-
-collect_one_face({{Va,Vb}=Name,right}, Es) ->
-    collect_one_face(Es, Va, Vb, [], [Va]);
-collect_one_face({{Va,Vb}=Name,left}, Es) ->
-    collect_one_face(Es, Vb, Va, [], [Vb]).
-
-collect_one_face(Es, V, V, Rev, Acc) -> {reverse(Acc),Es++Rev};
-collect_one_face([{{V,Other}=Name,left}|Es], V, First, Rev, Acc) ->
-    collect_one_face(Es, Other, First, Rev, [Other|Acc]);
-collect_one_face([{{Other,V}=Name,right}|Es], V, First, Rev, Acc) ->
-    collect_one_face(Es, Other, First, Rev, [Other|Acc]);
-collect_one_face([E|Es], V, First, Rev, Acc) ->
-    collect_one_face(Es, V, First, [E|Rev], Acc);
-collect_one_face([], V, First, Rev, Acc) when Rev =/= [] ->
-    collect_one_face(Rev, V, First, [], Acc).
+make_hole_faces(G, [[V|_]|Cs], Acc) ->
+    case digraph:get_cycle(G, V) of
+	[_|Vs] when length(Vs) >= 3 ->
+	    make_hole_faces(G, Cs, [{hole,Vs}|Acc]);
+	Other ->
+	    make_hole_faces(G, Cs, Acc)
+    end;
+make_hole_faces(G, [], Acc) -> Acc.
+    
+make_digraph([{{Va,Vb},[{right,Data}]}|Es], G) ->
+    digraph:add_vertex(G, Va),
+    digraph:add_vertex(G, Vb),
+    digraph:add_edge(G, Va, Vb),
+    make_digraph(Es, G);
+make_digraph([{{Vb,Va},[{left,Data}]}|Es], G) ->
+    digraph:add_vertex(G, Va),
+    digraph:add_vertex(G, Vb),
+    digraph:add_edge(G, Va, Vb),
+    make_digraph(Es, G);
+make_digraph([_|Es], G) -> make_digraph(Es, G);
+make_digraph([], G) -> ok.
 
 %%% Utilities for allocating IDs.
 

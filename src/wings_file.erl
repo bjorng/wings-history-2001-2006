@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.6 2001/08/31 09:46:13 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.7 2001/09/03 11:01:39 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -207,7 +207,7 @@ translate_objects([#e3d_object{name=Name,obj=Obj0}|Os], UsedMat0, St0) ->
     #e3d_mesh{matrix=Matrix0,type=Type,vs=Vs,fs=Fs0,he=He} = Obj,
     io:format("Name ~p\n", [Name]),
     Matrix = case Matrix0 of
-		 none -> wings_mat:identity();
+		 none -> e3d_mat:identity();
 		 _ -> Matrix0
 	     end,
     {Fs,UsedMat} = translate_faces(Fs0, [], UsedMat0),
@@ -231,7 +231,7 @@ translate_mat([Mat]) -> Mat;
 translate_mat([_|_]=List) -> List.
     
 build_object(Name, Matrix0, Fs0, Vs, He, St0) ->
-    Matrix = wings_mat:identity(),
+    Matrix = e3d_mat:identity(),
     case wings_we:build(Name, Matrix, Fs0, Vs, He, St0) of
 	{'EXIT',Reason} ->
 	    io:format("~P\n", [Reason,20]),

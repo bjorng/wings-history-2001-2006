@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex.erl,v 1.4 2001/08/31 09:46:13 bjorng Exp $
+%%     $Id: wings_vertex.erl,v 1.5 2001/09/03 11:01:39 bjorng Exp $
 %%
 
 -module(wings_vertex).
@@ -26,12 +26,9 @@
 %% Convert the current selection to a vertex selection.
 %%
 convert_selection(#st{selmode=body}=St) ->
-    wings_sel:convert(
-      fun(_, We, Sel0) ->
-	      wings_util:fold_vertex(
-		fun(V, _, Sel1) ->
-			gb_sets:insert(V, Sel1)
-		end, Sel0, We)
+    wings_sel:convert_shape(
+      fun(_, #we{vs=Vtab}) ->
+	      gb_sets:from_list(gb_trees:keys(Vtab))
       end, vertex, St);
 convert_selection(#st{selmode=face}=St) ->
     wings_sel:convert(
@@ -53,13 +50,16 @@ convert_selection(#st{selmode=vertex}=St) ->
 %%% Select more or less.
 
 select_more(St) ->
-    wings_sel:convert(
-      fun(V, We, A0) ->
-	      fold(
-		fun(_, _, Rec, A1) ->
-			Other = other(V, Rec),
-			gb_sets:add(Other, A1)
-		end, gb_sets:add(V, A0), V, We)
+    wings_sel:convert_shape(
+      fun(Vs, We) ->
+	      gb_sets:fold(
+		fun(V, S0) ->
+			fold(
+			  fun(_, _, Rec, S1) ->
+				  Other = other(V, Rec),
+				  gb_sets:add(Other, S1)
+			  end, S0, V, We)
+		end, Vs, Vs)
       end, vertex, St).
 
 select_less(St) ->
@@ -157,7 +157,7 @@ center(#we{vs=Vtab}) ->
     Positions = foldl(fun(#vtx{pos=Pos}, A) ->
 			      [Pos|A]
 		      end, [], gb_trees:values(Vtab)),
-    wings_mat:average(Positions).
+    e3d_vec:average(Positions).
 
 %% center(VertexGbSet, We) -> {CenterX,CenterY,CenterZ}
 %%  Find the geometric center of all vertices.
@@ -171,7 +171,7 @@ center(Vlist, Vtab) ->
     Positions = foldl(fun(V, A) ->
 			      [pos(V, Vtab)|A]
 		      end, [], Vlist),
-    wings_mat:average(Positions).
+    e3d_vec:average(Positions).
 
 bounding_box(We) ->
     bounding_box(We, none).
@@ -222,7 +222,7 @@ normal(V, We) ->
     Ns = fold(fun(_, Face, _, A) ->
 		      [wings_face:normal(Face, We)|A]
 	      end, [], V, We),
-    wings_mat:norm(wings_mat:add(Ns)).
+    e3d_vec:norm(e3d_vec:add(Ns)).
 
 %% per_face(Vs, We) -> [{Face,[V]}]
 %%  Group vertices according to face.
@@ -405,7 +405,7 @@ nearest_pair_2(N, Iter0, Vs, Face, We, Start, Pos, PairDist0) when N > 0 ->
 	    {_,Dist} = PairDist0,
 	    Vpos = pos(V, Vtab),
 	    PairDist =
-		case wings_mat:distance(Vpos, Pos) of
+		case e3d_vec:dist(Vpos, Pos) of
 		    D when D < Dist ->
 			Pair = {Start,V},
 			case try_connect(Pair, Face, We) of

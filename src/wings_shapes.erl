@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shapes.erl,v 1.2 2001/08/16 09:52:58 bjorng Exp $
+%%     $Id: wings_shapes.erl,v 1.3 2001/09/03 11:01:39 bjorng Exp $
 %%
 
 -module(wings_shapes).
@@ -28,7 +28,7 @@
 build_shape(Name0, Fs, Vs, #st{onext=Id}=St) ->
     Name = Name0 ++ integer_to_list(Id),
     Sc = ?GROUND_GRID_SIZE,
-    Matrix = wings_mat:scale(Sc, Sc, Sc),
+    Matrix = e3d_mat:scale(Sc, Sc, Sc),
     wings_we:build(Name, Matrix, Fs, Vs, St).
 
 tetrahedron(St) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_rotate.erl,v 1.1 2001/08/14 18:16:40 bjorng Exp $
+%%     $Id: wings_rotate.erl,v 1.2 2001/09/03 11:01:39 bjorng Exp $
 %%
 
 -module(wings_rotate).
@@ -70,7 +70,7 @@ edges_to_vertices(Es, #we{es=Etab}=We, normal) ->
 		       [wings_face:normal(Lf, We),
 			wings_face:normal(Rf, We)|Acc]
 	       end, [], gb_sets:to_list(Es)),
-    Vec = wings_mat:norm(wings_mat:add(Ns)),
+    Vec = e3d_vec:norm(e3d_vec:add(Ns)),
     edges_to_vertices(Es, We, Vec);
 edges_to_vertices(Es, #we{es=Etab}=We, Vec) ->
     Vs = foldl(fun(Edge, Acc) ->
@@ -88,7 +88,7 @@ faces_to_vertices(Faces, We, normal) ->
     Ns = foldl(fun(Face, N0) ->
 		       [wings_face:normal(Face, We)|N0]
 	       end, [], gb_sets:to_list(Faces)),
-    Vec = wings_mat:norm(wings_mat:add(Ns)),
+    Vec = e3d_vec:norm(e3d_vec:add(Ns)),
     Vs = wings_face:to_vertices(Faces, We),
     rotate(Vs, We, Vec);
 faces_to_vertices(Faces, We, Vec) ->
@@ -99,9 +99,8 @@ faces_to_vertices(Faces, We, Vec) ->
 %% Conversion of body selections (entire objects) to vertices.
 %%
 
-body_to_vertices(We, Vec) ->
-    Vs = wings_util:fold_vertex(fun(V, _, A) -> [V|A] end, [], We),
-    rotate(Vs, We, Vec).
+body_to_vertices(#we{vs=Vtab}=We, Vec) ->
+    rotate(gb_trees:keys(Vtab), We, Vec).
 
 %% Setup rotation.
 
@@ -110,4 +109,3 @@ rotate(Vs, We, Vec) when list(Vs) ->
     [{{rot,Center,Vec},Vs}];
 rotate(Vs, We, Vec) ->
     rotate(gb_sets:to_list(Vs), We, Vec).
-    
