@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.258 2004/06/02 03:59:03 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.259 2004/06/02 04:57:55 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -25,8 +25,11 @@
 		append/1,delete/2,usort/1,max/1,min/1,
 		member/2,foreach/2,keysearch/3]).
 
-%% Exports to auv_texture
+%% Exports to auv_texture.
 -export([get_material/3,has_texture/2]).
+
+%% Exports to auv_seg_ui.
+-export([init_show_maps/3]).
 
 init() ->
     true.
@@ -99,9 +102,6 @@ auv_event({init,Op}, St = #st{selmode = Mode}) ->
 		_ -> auv_seg_ui:start(We, We, St)
 	    end
     end;
-auv_event({init_show_maps,Id,Map}, #st{shapes=Shs}=St) ->
-    We = gb_trees:get(Id, Shs),
-    init_show_maps(Map, We, St);
 auv_event(redraw, _) ->
     wings_wm:clear_background(),
     keep;

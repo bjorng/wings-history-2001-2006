@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_seg_ui.erl,v 1.23 2004/05/31 16:58:06 bjorng Exp $
+%%     $Id: auv_seg_ui.erl,v 1.24 2004/06/02 04:57:55 bjorng Exp $
 
 -module(auv_seg_ui).
 -export([start/3]).
@@ -26,6 +26,7 @@
 -record(seg, {st,				%Current St.
 	      selmodes,				%Legal selection modes.
 	      we,				%Original We.
+	      orig_st,				%Original St.
 	      msg				%Message.
 	     }).
 
@@ -34,14 +35,18 @@ start(#we{id=Id}=We0, OrigWe, St0) ->
     wings:mode_restriction(Modes),
     This = wings_wm:this(),
     Allowed = [view,select],
-    Menu  = [Item || {_,Name,_}=Item <- get(wings_menu_template), member(Name, Allowed)],
+    Menu  = [Item || {_,Name,_}=Item <- get(wings_menu_template),
+		     member(Name, Allowed)],
     wings_wm:menubar(This, Menu),
     We = We0#we{mode=material},
     St1 = seg_create_materials(St0),
-    St2 = seg_hide_other(Id,St1#st{shapes=gb_trees:from_orddict([{Id,We}])}),
+    St2 = seg_hide_other(Id, St1#st{shapes=gb_trees:from_orddict([{Id,We}])}),
     St = St2#st{sel=[],selmode=face},
-    Ss = seg_init_message(#seg{selmodes=Modes,st=St,we=OrigWe}),
-    {seq,push,get_seg_event(Ss)}.
+    Ss = seg_init_message(#seg{selmodes=Modes,st=St,orig_st=St0,we=OrigWe}),
+
+    %% Don't push here - instead replace the default crash handler
+    %% which is the only item on the stack.
+    get_seg_event(Ss).
 
 seg_init_message(Ss) ->
     Msg1 = wings_util:button_format("Select"),
@@ -59,6 +64,10 @@ get_seg_event(#seg{st=St}=Ss) ->
 get_seg_event_noredraw(Ss) ->
     {replace,fun(Ev) -> seg_event(Ev, Ss) end}.
 
+seg_event({crash,_}=Crash, _) ->
+    LogName = wings_util:crash_log(wings_wm:this(), Crash),
+    wings_wm:send(geom, {crash_in_other_window,LogName}),
+    delete;
 seg_event(init_opengl, #seg{st=St}=Ss) ->
     wings:init_opengl(St),
     get_seg_event(Ss);
@@ -267,23 +276,23 @@ seg_create_materials(St0) ->
     {St,[]} = wings_material:add_materials(M, St0),
     St.
 
-seg_hide_other(Id, St0 = #st{selmode=face, sel=Sel, shapes=Sh}) ->
-    {value, {Id, Faces}} =  lists:keysearch(Id, 1, Sel),
-    We0 = gb_trees:get(Id, Sh),
+seg_hide_other(Id, #st{selmode=face,sel=[{Id,Faces}],shapes=Shs}=St0) ->
+    We0 = gb_trees:get(Id, Shs),
     Other = wings_sel:inverse_items(face, Faces, We0),
-    We = wings_we:hide_faces(Other, We0),
-%    We = We0,
-    St = St0#st{sel=[{Id,Other}],shapes = gb_trees:from_orddict([{Id,We}])},
+    %%We = wings_we:hide_faces(Other, We0),
+    We = We0,
+    St = St0#st{sel=[{Id,Other}],shapes=gb_trees:update(Id, We, Shs)},
     wings_material:command({assign,atom_to_list(?HOLE)}, St);
 seg_hide_other(_, St) -> St.    
 
 seg_map_charts(Method, #seg{st=#st{shapes=Shs},we=OrigWe}=Ss) ->
     wings_pb:start("preparing mapping"),
-    [#we{he=Cuts0}=We0] = gb_trees:values(Shs),
+    [We0] = gb_trees:values(Shs),
+    #we{he=Cuts0} = We1 = wings_we:show_faces(We0),
     wings_pb:update(0.12, "segmenting"),
-    Charts0 = auv_segment:segment_by_material(We0),
+    Charts0 = (catch auv_segment:segment_by_material(We1)),
     wings_pb:update(0.35, "normalizing"),
-    {Charts1,Cuts} = auv_segment:normalize_charts(Charts0, Cuts0, We0),
+    {Charts1,Cuts} = auv_segment:normalize_charts(Charts0, Cuts0, We1),
     wings_pb:update(1.0, "cutting"),
     Charts = auv_segment:cut_model(Charts1, Cuts, OrigWe),
     wings_pb:done(),
@@ -306,15 +315,17 @@ seg_map_charts_1([{Fs,We0}|Cs], Type, Id, N, Acc,
 	    We = We1#we{vp=gb_trees:from_orddict(sort(Vs))},
 	    seg_map_charts_1(Cs, Type, Id+1, N, [We|Acc], Ss)
     end;
-seg_map_charts_1([], _, _, _, MappedCharts, #seg{we=#we{id=Id}}) ->
+seg_map_charts_1([], _, _, _, Charts0, #seg{orig_st=GeomSt,we=#we{id=Id}}) ->
     wings_pb:done(),
-    wings_wm:later({init_show_maps,Id,reverse(MappedCharts)}),
 
     %% Empty display list structure.
     wings_dl:update(fun(eol, _) -> eol;
 		       (_, _) -> deleted
 		    end, []),
-    pop.
+
+    Charts = reverse(Charts0),
+    We = gb_trees:get(Id, GeomSt#st.shapes),
+    wpc_autouv:init_show_maps(Charts, We, GeomSt).
 
 segment(Mode, #st{shapes=Shs}=St) ->
     [We] = gb_trees:values(Shs),
