@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_deform.erl,v 1.16 2001/11/24 11:07:56 bjorng Exp $
+%%     $Id: wings_deform.erl,v 1.17 2001/12/11 07:41:57 bjorng Exp $
 %%
 
 -module(wings_deform).
@@ -29,19 +29,19 @@ sub_menu(St) ->
 	     {"Taper",{taper,
 		       {{"Along",ignore},
 			separator,
-			{"X",taper(x)},
-			{"Y",taper(y)},
-			{"Z",taper(z)}}}},
+			{"X",taper_item(x)},
+			{"Y",taper_item(y)},
+			{"Z",taper_item(z)}}}},
 	     {"Twist",{twist,XYZ}},
 	     {"Twisty Twist",{twisty_twist,XYZ}}}}.
 
-taper(x) -> taper_1([yz,y,z], x, []);
-taper(y) -> taper_1([xz,x,z], y, []);
-taper(z) -> taper_1([xy,x,y], z, []).
+taper_item(x) -> taper_item_1([yz,y,z], x, []);
+taper_item(y) -> taper_item_1([xz,x,z], y, []);
+taper_item(z) -> taper_item_1([xy,x,y], z, []).
 
-taper_1([H|T], Label, Acc) ->		    
-    taper_1(T, Label, [{wings_util:upper(atom_to_list(H)),H}|Acc]);
-taper_1([], Label, Acc) ->
+taper_item_1([H|T], Label, Acc) ->		    
+    taper_item_1(T, Label, [{wings_util:upper(atom_to_list(H)),H}|Acc]);
+taper_item_1([], Label, Acc) ->
     {Label,list_to_tuple([{"Effect",ignore},
 			  separator|reverse(Acc)])}.
 
@@ -131,16 +131,24 @@ inflate(#shape{id=Id,sh=#we{vs=Vtab}=We}, Vs0, Acc) ->
 
 taper(Primary, Effect, St) ->
     Tvs = wings_sel:fold_shape(fun(Sh, Vs, Acc) ->
-				       taper(Sh, Vs, Primary, Effect, Acc)
+				       taper_2(Sh, Vs, Primary, Effect, Acc)
 			       end, [], St),
     wings_drag:init_drag(Tvs, {-1.0,?HUGE}, St).
 
-taper(#shape{id=Id,sh=We}, Vs0, Primary, Effect, Acc) ->
-    [MinR,MaxR] = wings_vertex:bounding_box(Vs0, We),
+taper_2(#shape{id=Id,sh=We}, Vs, Primary, Effect, Acc) ->
+    [MinR,MaxR] = wings_vertex:bounding_box(Vs, We),
     Key = key(Primary),
     Min = element(Key, MinR),
     Max = element(Key, MaxR),
-    Range = Max - Min,
+    case Max - Min of
+	Range when Range < 0.01 ->
+	    Axis = wings_util:upper(atom_to_list(Primary)),
+	    Error = lists:concat(["Extent along ",Axis," axis is too short."]),
+	    throw({command_error,Error});
+	Range -> taper_3(Id, Vs, Range, Key, Effect, MinR, MaxR, Acc)
+    end.
+
+taper_3(Id, Vs0, Range, Key, Effect, MinR, MaxR, Acc) ->
     Tf = taper_fun(Key, Effect, MinR, MaxR),
     Vs = gb_sets:to_list(Vs0),
     Fun = fun(#shape{sh=#we{vs=Vtab0}=W}=Sh, Dx, Dy, St) ->
@@ -148,7 +156,6 @@ taper(#shape{id=Id,sh=We}, Vs0, Primary, Effect, Acc) ->
 		  U = Dx + 1.0,
 		  Vt = foldl(
 			 fun(V, Vt) ->
-				 
 				 Rec = gb_trees:get(V, Vt),
 				 #vtx{pos=Pos0} = Rec,
 				 Pos = Tf(U, Pos0),
