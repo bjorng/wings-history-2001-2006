@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.282 2004/12/26 07:01:27 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.283 2004/12/27 11:44:10 bjorng Exp $
 %%
 
 -module(wpc_autouv).
@@ -111,6 +111,9 @@ auv_event({init,Op}, St = #st{selmode = Mode}) ->
 auv_event(redraw, _) ->
     wings_wm:clear_background(),
     keep;
+auv_event({crash,Crash}, _) ->
+    wings_u:win_crash(Crash),
+    delete;
 auv_event(_Ev, _) -> keep.
 
 %%%
@@ -791,8 +794,8 @@ new_geom_state_1(Shs, #st{bb=#uvstate{id=Id,st=#st{shapes=Orig}}}=AuvSt) ->
     end.
 
 rebuild_charts(We, St, ExtraCuts) ->
-    {Faces,FvUvMap} = ?TC(auv_segment:fv_to_uv_map(We)),
-    {Charts0,Cuts0} = ?TC(auv_segment:uv_to_charts(Faces, FvUvMap, We)),
+    {Faces,FvUvMap} = auv_segment:fv_to_uv_map(We),
+    {Charts0,Cuts0} = auv_segment:uv_to_charts(Faces, FvUvMap, We),
     {Charts1,Cuts} =
 	case ExtraCuts of
 	    [] -> {Charts0,Cuts0};
@@ -800,9 +803,8 @@ rebuild_charts(We, St, ExtraCuts) ->
 		Cuts1 = gb_sets:union(Cuts0, gb_sets:from_list(ExtraCuts)),
 		auv_segment:normalize_charts(Charts0, Cuts1, We)
 	end,
-    Charts2 = ?TC(auv_segment:cut_model(Charts1, Cuts, We)),
-    Charts = ?TC(update_uv_tab(Charts2, FvUvMap)),
-    io:format("\n", []),
+    Charts2 = auv_segment:cut_model(Charts1, Cuts, We),
+    Charts = update_uv_tab(Charts2, FvUvMap),
     wings_wm:set_prop(wireframed_objects,
 		      gb_sets:from_ordset(lists:seq(1, length(Charts2)))),
     St#st{sel=[],shapes=Charts}.
