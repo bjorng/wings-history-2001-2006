@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.202 2004/03/14 05:48:39 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.203 2004/03/15 17:42:08 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -504,7 +504,7 @@ handle_event_1(_Event, St) ->
     get_event(St).
 
 handle_command(move, St) ->
-    drag(wings_move:setup(free, St));
+    drag(wings_move:setup(free_2d, St));
 handle_command({scale,scale_uniform}, St) ->
     drag(wings_scale:setup({uniform,center}, St));
 handle_command({scale,scale_x}, St) ->

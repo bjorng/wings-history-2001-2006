@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_move.erl,v 1.49 2004/03/08 13:26:22 bjorng Exp $
+%%     $Id: wings_move.erl,v 1.50 2004/03/15 17:42:15 bjorng Exp $
 %%
 -module(wings_move).
 -export([setup/2,setup_we/4,plus_minus/3,magnet_move_fun/3]).
@@ -24,12 +24,12 @@ setup(Vec, St) ->
     setup(Vec, none, St).
 
 setup(Type, _Magnet, #st{selmode=body,sel=Sel}=St) ->
-    Vec = wings_util:make_vector(Type),
+    Vec = make_vector(Type),
     Fun = translate_fun(Vec),
     Ids = [{Id,Fun} || {Id,_} <- Sel],
     wings_drag:setup({matrix,Ids}, unit(Type), flags(Type), St);
 setup(Vec0, Magnet, #st{selmode=Mode}=St) ->
-    Vec = wings_util:make_vector(Vec0),
+    Vec = make_vector(Vec0),
     Tvs = wings_sel:fold(
 	    fun(Items, We, Acc) ->
 		    Tv = setup_we(Mode, Vec, Items, We),
@@ -44,7 +44,7 @@ magnet_unit(_) -> [falloff].
 plus_minus({'ASK',Ask}, Tvs, St0) ->
     wings:ask(Ask, St0, fun(Type, St) -> plus_minus(Type, Tvs, St) end);
 plus_minus(Type, Tvs0, #st{selmode=Mode}=St) ->
-    Vec = wings_util:make_vector(Type),
+    Vec = make_vector(Type),
     Tvs = plus_minus_2(Mode, Vec, Tvs0, []),
     wings_drag:setup(Tvs, unit(Type, [falloff]), flags(Type), St).
 
@@ -78,10 +78,12 @@ unit(Type) ->
     unit(Type, []).
 
 unit(free, T) -> [dx,dy,dz|T];
+unit(free_2d, T) -> [dx,dy|T];
 unit(intrude, T) -> [{distance,{0.0,9.9E307}}|T];
 unit(_, T) -> [distance|T].
 
 flags(free) -> [screen_relative];
+flags(free_2d) -> [screen_relative];
 flags(_) -> [].
 
 move_away_fun(Tv, VsPos0) ->
@@ -314,6 +316,12 @@ translate_fun(free) ->
 	    M0 = e3d_mat:mul(Matrix0, e3d_mat:rotate(-Az, {0.0,1.0,0.0})),
 	    M1 = e3d_mat:mul(M0, e3d_mat:rotate(-El, {1.0,0.0,0.0})),
 	    {Xt,Yt,Zt} = e3d_mat:mul_point(M1, {Dx,Dy,-Dz}),
+	    e3d_mat:translate(Xt, Yt, Zt);
+       (Matrix0, [Dx,Dy]) ->
+	    #view{azimuth=Az,elevation=El} = wings_view:current(),
+	    M0 = e3d_mat:mul(Matrix0, e3d_mat:rotate(-Az, {0.0,1.0,0.0})),
+	    M1 = e3d_mat:mul(M0, e3d_mat:rotate(-El, {1.0,0.0,0.0})),
+	    {Xt,Yt,Zt} = e3d_mat:mul_point(M1, {Dx,Dy,0.0}),
 	    e3d_mat:translate(Xt, Yt, Zt)
     end;
 translate_fun({Xt0,Yt0,Zt0}) ->
@@ -402,6 +410,8 @@ magnet_move_fun(VsVec, VsInf0, {_,R}=Magnet0) ->
 affected([_|_]=Tv) -> lists:append([Vs || {_,Vs} <- Tv]);
 affected({Vs,Fun}) when is_function(Fun) -> Vs.
     
+make_tvs(Vs, free_2d, We) ->
+    make_tvs(Vs, free, We);
 make_tvs(Vs, free, We) ->
     VsPos = wings_util:add_vpos(Vs, We),
     {Vs,move_fun(VsPos, view_matrix())};
@@ -424,3 +434,7 @@ view_matrix() ->
     #view{azimuth=Az,elevation=El} = wings_view:current(),
     M = e3d_mat:rotate(-Az, {0.0,1.0,0.0}),
     e3d_mat:mul(M, e3d_mat:rotate(-El, {1.0,0.0,0.0})).
+
+make_vector(free_2d) -> free;
+make_vector(Vec) -> wings_util:make_vector(Vec).
+    
