@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_move.erl,v 1.15 2001/11/25 08:17:12 bjorng Exp $
+%%     $Id: wings_move.erl,v 1.16 2001/12/03 07:33:06 bjorng Exp $
 %%
 
 -module(wings_move).
@@ -112,7 +112,6 @@ average_normals([{Na,Orig,Da}|[{Nb,_,Db}|_]=T]) ->
 	true ->					%Parallel edges
 	    average_normals(T)
     end.
-	    
 
 %%
 %% Conversion of face selections to vertices.
@@ -137,10 +136,13 @@ face_average(Vs, Vtab) ->
     F = sofs:relation_to_family(R),
     foldl(fun({V,Ns0}, Acc) ->
 		  Ns = join_eq(Ns0),
-		  N = face_average_normals(V, Ns, Vtab),
-		  [{N,[V]}|Acc]
+		  case face_average_normals(V, Ns, Vtab) of
+		      none -> Acc;
+		      N -> [{N,[V]}|Acc]
+		  end
 	  end, [], sofs:to_external(F)).
 
+face_average_normals(V, [], Vtab) -> none;
 face_average_normals(V, [Normal], Vtab) -> Normal;
 face_average_normals(V, [Na,Nb], Vtab) ->
     N = e3d_vec:norm(e3d_vec:add(Na, Nb)),
@@ -160,25 +162,29 @@ face_average_normals(V, [Na,Nb,Nc|T]=Ns, Vtab) ->
 
     %% Calculate intersection of three planes using Cramer's rule.
     if
-	float(A), float(B), float(C),
-	float(D), float(E), float(F),
-	float(G), float(H), float(I),
-	float(J), float(K), float(L) ->
+	is_float(A), is_float(B), is_float(C),
+	is_float(D), is_float(E), is_float(F),
+	is_float(G), is_float(H), is_float(I),
+	is_float(J), is_float(K), is_float(L) ->
 	    EiMinusHf = E*I - H*F,
 	    GFMinusDI = G*F - D*I,
 	    DHMinusEG = D*H - E*G,
 	    JCMinusAL = J*C - A*L,
 	    AKMinusJB = A*K - J*B,
 	    BLMinusKC = B*L - K*C,
-	    M = A*EiMinusHf + B*GFMinusDI + C*DHMinusEG,
-	    X = (J*EiMinusHf + K*GFMinusDI + L*DHMinusEG)/M,
-	    Y = (I*AKMinusJB + H*JCMinusAL + G*BLMinusKC)/M,
-	    Z = -(F*AKMinusJB + E*JCMinusAL + D*BLMinusKC)/M,
-	    e3d_vec:sub({X,Y,Z}, Vpos)
+	    case A*EiMinusHf + B*GFMinusDI + C*DHMinusEG of
+		M when abs(M) < 1.0E-3 ->
+		    none;
+		M ->
+		    X = (J*EiMinusHf + K*GFMinusDI + L*DHMinusEG)/M,
+		    Y = (I*AKMinusJB + H*JCMinusAL + G*BLMinusKC)/M,
+		    Z = -(F*AKMinusJB + E*JCMinusAL + D*BLMinusKC)/M,
+		    e3d_vec:sub({X,Y,Z}, Vpos)
+	    end
     end.
 
 join_eq(Ns0) ->
-    Ns1 = [add_sort_key(N) || N <- Ns0],
+    Ns1 = [add_sort_key(N) || N <- Ns0, not e3d_vec:is_zero(N)],
     Ns = sofs:relation(Ns1),
     Fam = sofs:relation_to_family(Ns),
     [N || {_,[N|_]} <- sofs:to_external(Fam)].
