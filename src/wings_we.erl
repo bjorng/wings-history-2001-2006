@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.40 2002/10/19 18:45:16 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.41 2002/10/21 13:11:37 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -340,7 +340,6 @@ force_merge([#we{id=Id,name=Name}|_]=Wes0) ->
     {Vt0,Et0,Ft0,Ht0} = merge_1(Wes0),
     true = sofs:is_a_function(sofs:from_term(Ft0, [{id,value}])),
     true = sofs:is_a_function(sofs:from_term(Et0, [{id,value}])),
-    true = sofs:is_a_function(sofs:from_term(Ht0, [{id,value}])),
     true = sofs:is_a_function(sofs:from_term(Vt0, [{id,value}])),
     Vt = gb_trees:from_orddict(Vt0),
     Et = gb_trees:from_orddict(Et0),
