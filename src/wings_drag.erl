@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.173 2004/03/28 06:47:20 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.174 2004/03/30 04:16:03 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -39,7 +39,8 @@
 	 falloff,				%Magnet falloff.
 	 magnet,				%Magnet: true|false.
 	 info="",				%Information line.
-	 st					%Saved st record.
+	 st,					%Saved st record.
+	 last_move				%Last move.
 	}).
 
 %% Drag per object.
@@ -261,7 +262,7 @@ do_drag(#drag{unit=Units}=Drag0, Move) when length(Units) =:= length(Move) ->
     {_,X,Y} = wings_wm:local_mouse_state(),
     Ev = #mousemotion{x=X,y=Y,state=0},
     {GX,GY} = wings_wm:local2global(X, Y),
-    {_,Drag1} = motion(Ev, Drag0#drag{x=GX,y=GY}),
+    Drag1 = motion(Ev, Drag0#drag{x=GX,y=GY}),
     ungrab(Drag1),
     Drag2 = possible_falloff_update(Move, Drag1),
     Drag = ?SLOW(motion_update(Move, Drag2)),
@@ -363,12 +364,12 @@ handle_drag_event_1(redraw, Drag) ->
     redraw(Drag),
     get_drag_event_1(Drag);
 handle_drag_event_1(#mousemotion{}=Ev, Drag0) ->
-    {_,Drag} = motion(Ev, Drag0),
+    Drag = motion(Ev, Drag0),
     get_drag_event(Drag);
 handle_drag_event_1(#mousebutton{button=1,x=X,y=Y,mod=Mod,state=?SDL_RELEASED}, Drag0) ->
     ungrab(Drag0),
     Ev = #mousemotion{x=X,y=Y,state=0,mod=Mod},
-    {Move,Drag} = ?SLOW(motion(Ev, Drag0)),
+    #drag{last_move=Move} = Drag = ?SLOW(motion(Ev, Drag0)),
     St = normalize(Move, Drag),
     DragEnded = {new_state,St#st{drag_args=Move}},
     wings_wm:later(DragEnded),
@@ -507,9 +508,8 @@ update_tvs([F0|Fs], NewWe, Acc) ->
 update_tvs([], _, Acc) -> reverse(Acc).
 
 motion(Event, Drag0) ->
-    {Move,Drag1} = mouse_translate(Event, Drag0),
-    Drag = motion_update(Move, Drag1),
-    {Move,Drag}.
+    {Move,Drag} = mouse_translate(Event, Drag0),
+    motion_update(Move, Drag).
 
 mouse_translate(Event0, Drag0) ->
     Mode = wings_pref:get_value(camera_mode),
@@ -611,12 +611,13 @@ constraint_factor(_, Mod) ->
 %%% Update selection for new mouse position.
 %%%
 
-motion_update(Move, Drag0) ->
-    Drag = progress(Move, Drag0),
+motion_update(Move, #drag{unit=Units}=Drag) ->
     wings_draw_util:map(fun(D, _) ->
 				   motion_update_fun(D, Move)
 			   end, []),
-    Drag.
+    Msg0 = progress_units(Units, Move),
+    Msg = reverse(trim(reverse(lists:flatten(Msg0)))),
+    Drag#drag{info=Msg,last_move=Move}.
 
 motion_update_fun(#dlo{src_we=We,drag={matrix,Tr,Mtx0,_}}=D, Move) when ?IS_LIGHT(We) ->
     Mtx = Tr(Mtx0, Move),
@@ -636,14 +637,13 @@ possible_falloff_update(Move, Drag) ->
     NewFalloff = lists:last(Move),
     parameter_update(new_falloff, NewFalloff, Drag#drag{falloff=NewFalloff}).
     
-parameter_update(Key, Val, Drag0) ->
+parameter_update(Key, Val, Drag) ->
     wings_draw_util:map(fun(D, _) ->
 				parameter_update_fun(D, Key, Val)
 			end, []),
     {_,X,Y} = wings_wm:local_mouse_state(),
     Ev = #mousemotion{x=X,y=Y,state=0},
-    {_,Drag} = motion(Ev, Drag0),
-    Drag.
+    motion(Ev, Drag).
 
 parameter_update_fun(#dlo{drag=#do{funs=Tv0}=Do}=D, Key, Val) ->
     Tv = foldl(fun(F, A) -> [F(Key, Val)|A] end, [], Tv0),
@@ -656,11 +656,6 @@ translate({Xt0,Yt0,Zt0}, Dx, VsPos, Acc) ->
 		  Pos = wings_util:share(X+Xt, Y+Yt, Z+Zt),
 		  [{V,Pos}|A]
 	  end, Acc, VsPos).
-
-progress(Move, #drag{unit=Units}=Drag) ->
-    Msg0 = progress_units(Units, Move),
-    Msg = reverse(trim(reverse(lists:flatten(Msg0)))),
-    Drag#drag{info=Msg}.
 
 progress_units([Unit|Units], [N|Ns]) ->
     [unit(clean_unit(Unit), N)|progress_units(Units, Ns)];
