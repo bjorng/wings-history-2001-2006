@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.117 2004/03/30 15:56:02 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.118 2004/04/15 20:35:55 raimo_niskanen Exp $
 %%
 
 -module(wings_pref).
@@ -189,37 +189,53 @@ advanced_prefs() ->
      ]}.
 
 ui_prefs() ->
-    {vframe,
+    {hframe,
      [{vframe,
-       [{menu,wings_text:fonts(),system_font}],
-       [{title,"Font"}]},
-      {hframe,
        [{vframe,
-	 [{label,"Desktop/Geometry Background"},
-	  {label,"Menu Text"},
-	  {label,"Menu Highlight"},
-	  {label,"Menu Highlighted Text"},
-	  {label,"Menu Background"},
-	  {label,"Dialog Text"},
-	  {label,"Dialog (Disabled) Text"},
-	  {label,"Dialog Background"},
-	  {label,"Title Text"},
-	  {label,"Title (Passive) Background"},
-	  {label,"Title (Active) Background"}]},
-	{vframe,
-	 [{color,background_color},
-	  {color,menu_text},
-	  {color,menu_hilite},
-	  {color,menu_hilited_text},
-	  {color,menu_color},
-	  {color,dialog_text},
-	  {color,dialog_disabled},
-	  {color,dialog_color},
-	  {color,title_text_color},
-	  {color,title_passive_color},
-	  {color,title_active_color}]}],
-       [{title,"Colors"}]},
-      {"No Progress Bar",no_progress_bar}
+	 [{menu,wings_text:fonts(),system_font}],
+	 [{title,"Font"}]},
+	{hframe,
+	 [{vframe,
+	   [{label,"Desktop/Geometry Background"},
+	    {label,"Menu Text"},
+	    {label,"Menu Highlight"},
+	    {label,"Menu Highlighted Text"},
+	    {label,"Menu Background"},
+	    {label,"Dialog Text"},
+	    {label,"Dialog (Disabled) Text"},
+	    {label,"Dialog Background"},
+	    {label,"Title Text"},
+	    {label,"Title (Passive) Background"},
+	    {label,"Title (Active) Background"}]},
+	  {vframe,
+	   [{color,background_color},
+	    {color,menu_text},
+	    {color,menu_hilite},
+	    {color,menu_hilited_text},
+	    {color,menu_color},
+	    {color,dialog_text},
+	    {color,dialog_disabled},
+	    {color,dialog_color},
+	    {color,title_text_color},
+	    {color,title_passive_color},
+	    {color,title_active_color}]}],
+	 [{title,"Colors"}]},
+	{"No Progress Bar",no_progress_bar}
+       ]},
+      {vframe,
+       [{hframe,[{vframe,[{label,"Width"},
+			  {label,"Height"},
+			  {label,"Save Lines"},
+			  {label,"Background"},
+			  {label,"Text"},
+			  {label,"Cursor"}]},
+		 {vframe,[{text,console_width,[{range,{12,120}}]},
+			  {text,console_height,[{range,{3,72}}]},
+			  {text,console_save_lines,[{range,{0,10000}}]},
+			  {color,console_color},
+			  {color,console_text_color},
+			  {color,console_cursor_color}]}],
+	[{title,"Console"}]}]}
      ]}.
 
 misc_prefs() ->
@@ -662,6 +678,13 @@ defaults() ->
      {title_passive_color,{0.325,0.4,0.325,1.0}},
      {title_text_color,{1.0,1.0,1.0}},
      {no_progress_bar,false},
+     %% Console
+     {console_width,80},
+     {console_height,12},
+     {console_save_lines,100},
+     {console_color,{0.0,0.0,0.0}},
+     {console_text_color,{0.0,1.0,0.0}},
+     {console_cursor_color,{1.0,1.0,1.0}},
 
      %% Undos.
      {num_undo_levels,32}

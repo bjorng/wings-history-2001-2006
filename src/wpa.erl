@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.45 2004/04/04 09:15:26 raimo_niskanen Exp $
+%%     $Id: wpa.erl,v 1.46 2004/04/15 20:35:55 raimo_niskanen Exp $
 %%
 -module(wpa).
 -export([ask/3,ask/4,dialog/3,dialog/4,error/1,
@@ -34,7 +34,8 @@
 	 camera_info/1,lights/1,import_lights/2,
 	 image_formats/0,image_read/1,image_write/1,
 	 vm_freeze/1,
-	 triangulate/1,triangulate/2,quadrangulate/1,quadrangulate/2
+	 triangulate/1,triangulate/2,quadrangulate/1,quadrangulate/2,
+	 popup_console/0
 	]).
 
 -export([format_error/1]).
@@ -445,3 +446,10 @@ quadrangulate(We) ->
 
 quadrangulate(Faces, We) ->
     wings_tesselation:quadrangulate(Faces, We).
+
+%%%
+%%% Console
+%%%
+
+popup_console() ->
+    wings_console:popup_window().

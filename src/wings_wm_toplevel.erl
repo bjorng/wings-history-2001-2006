@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.48 2004/03/25 05:30:38 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.49 2004/04/15 20:35:55 raimo_niskanen Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -16,7 +16,7 @@
 %% Don't call any functions in this module directly. Use the supported
 %% API in wings_wm.
 
--export([toplevel/6,set_knob/3]).
+-export([toplevel/6,set_knob/3,title_height/0,vscroller_width/0]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).

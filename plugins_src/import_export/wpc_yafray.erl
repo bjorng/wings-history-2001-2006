@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.73 2004/04/04 09:15:27 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.74 2004/04/15 20:35:52 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -277,13 +277,13 @@ command_file(?TAG_RENDER, Result, _St) ->
 	RenderFile ->
 	    case Result of
 		load_image ->
-		    io:format("Loading rendered image~n"),
+		    io:format("Loading rendered image~n~n"),
 		    load_image(RenderFile);
 		ok ->
-		    io:format("Rendering Job ready~n"),
+		    io:format("Rendering Job ready~n~n"),
 		    keep;
 		{error,Error} ->
-		    io:format("Rendering error: ~p~n", [Error]),
+		    io:format("Rendering error: ~p~n~n", [Error]),
 		    wpa:error("Rendering error")
 	    end
     end;
@@ -1049,6 +1049,7 @@ bhook(Type, Tag) ->
 %%%
 
 export(Attr, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
+    wpa:popup_console(),
     ExportTS = erlang:now(),
     Render = proplists:get_value(?TAG_RENDER, Attr, false),
     ExportDir = filename:dirname(Filename),
@@ -1183,6 +1184,7 @@ render(Renderer, Options, Filename, LoadImage) ->
     Basename = filename:basename(Filename),
     %% Filename is auto-generated so Basename should not need quoting
     Cmd = uquote(Renderer)++" "++Options++" "++Basename,
+%%%     PortOpts = [{cd,Dirname},eof,exit_status,stderr_to_stdout],
     PortOpts = [{line,1},{cd,Dirname},eof,exit_status,stderr_to_stdout],
     io:format("Rendering Job started ~p:~n>~s~n", [self(),Cmd]),
     case catch open_port({spawn,Cmd}, PortOpts) of
@@ -1236,8 +1238,11 @@ render_job(Port) ->
 		    ok after 1 -> ok end,
 	    ExitStatus;
 	{Port,{data,{Tag,Data}}} ->
-	    io:put_chars(cr_to_nl(Data)),
-	    case Tag of	eol -> io:nl(); _ -> ok end,
+	    io:put_chars(Data),
+	    case Tag of	eol -> io:nl(); noeol -> ok end,
+	    render_job(Port);
+	{Port,{data,Data}} ->
+	    io:put_chars(Data),
 	    render_job(Port);
 	{'EXIT',Port,Reason} ->
 	    {error,Reason};

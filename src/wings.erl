@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.298 2004/03/27 07:00:45 bjorng Exp $
+%%     $Id: wings.erl,v 1.299 2004/04/15 20:35:55 raimo_niskanen Exp $
 %%
 
 -module(wings).
@@ -89,6 +89,7 @@ init(File) ->
     end,
 
     wings_pref:init(),
+    group_leader(wings_console:start(), self()),
     wings_init:init(),
     wings_text:init(),
     wings_image:init(),
@@ -585,6 +586,9 @@ command({window,outliner}, St) ->
     wings_outliner:window(St);
 command({window,object}, St) ->
     wings_shape:window(St);
+command({window,console}, _St) ->
+    wings_console:window(),
+    keep;
 
 %% Body menu.
 command({body,Cmd}, St) ->
@@ -731,7 +735,8 @@ window_menu(_) ->
     [{"Outliner",outliner,[]},
      {Name,object,[]},
      separator,
-     {"New Geometry Window",geom_viewer}].
+     {"New Geometry Window",geom_viewer},
+     {"Console",console}].
 
 patches() ->
     case wings_start:get_patches() of
@@ -1093,6 +1098,8 @@ save_windows() ->
     Saved = save_windows_1(wings_wm:windows()),
     wings_pref:set_value(saved_windows, Saved).
 
+save_windows_1([console|Ns]) ->
+    save_window(console, Ns);
 save_windows_1([outliner|Ns]) ->
     save_window(outliner, Ns);
 save_windows_1([{object,_}=N|Ns]) ->
@@ -1107,7 +1114,8 @@ save_windows_1([]) -> [].
 save_window(Name, Ns) ->
     Pos = wings_wm:win_ur({controller,Name}),
     Size = wings_wm:win_size(Name),
-    [{Name,Pos,Size}|save_windows_1(Ns)].
+    W = {Name,Pos,Size},
+    [W|save_windows_1(Ns)].
 
 save_geom_window(Name, Ns) ->
     {Pos,Size} = wings_wm:win_rect(Name),
@@ -1161,6 +1169,9 @@ restore_windows_1([{{object,_}=Name,{_,_}=Pos,{_,_}=Size}|Ws], St) ->
     restore_windows_1(Ws, St);
 restore_windows_1([{outliner,{_,_}=Pos,{_,_}=Size}|Ws], St) ->
     wings_outliner:window(Pos, Size, St),
+    restore_windows_1(Ws, St);
+restore_windows_1([{console,{_,_}=Pos,{_,_}=Size}|Ws], St) ->
+    wings_console:window(console, Pos, Size),
     restore_windows_1(Ws, St);
 restore_windows_1([_|Ws], St) ->
     restore_windows_1(Ws, St);

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_text.erl,v 1.24 2004/04/07 17:39:35 bjorng Exp $
+%%     $Id: wings_text.erl,v 1.25 2004/04/15 20:35:55 raimo_niskanen Exp $
 %%
 
 -module(wings_text).
@@ -136,6 +136,7 @@ cw_small(command) -> 8;
 cw_small(folder) -> 12;
 cw_small(option) -> 12;
 cw_small(shift) -> 13;
+cw_small(caret) -> 2;
 cw_small(crossmark) -> 8.
 
 cw_large(option_box) -> 7;
@@ -143,6 +144,7 @@ cw_large(command) -> 8;
 cw_large(folder) -> 14;
 cw_large(option) -> 14;
 cw_large(shift) -> 14;
+cw_large(caret) -> 2;
 cw_large(crossmark) -> 8.
 
 special(C) ->
@@ -202,20 +204,21 @@ special_small(shift) ->
     gl:bitmap(12, 8, 0, 0, 13, 0, B);
 
 special_small(caret) ->
-    B = <<
-       	 2#11011000,
-       	 2#00100000,
-       	 2#00100000,
-	 2#00100000,
-       	 2#00100000,
-	 2#00100000,
-	 2#00100000,
-	 2#00100000,
-	 2#00100000,
-	 2#00100000,
-	 2#11011000
-	 >>,
-    gl:bitmap(5, 11, 0, 3, 2, 0, B);
+    caret();
+%%%     B = <<
+%%%        	 2#11011000,
+%%%        	 2#00100000,
+%%%        	 2#00100000,
+%%% 	 2#00100000,
+%%%        	 2#00100000,
+%%% 	 2#00100000,
+%%% 	 2#00100000,
+%%% 	 2#00100000,
+%%% 	 2#00100000,
+%%% 	 2#00100000,
+%%% 	 2#11011000
+%%% 	 >>,
+%%%     gl:bitmap(5, 11, 2, 2, 2, 0, B);
 
 special_small(crossmark) ->
     B = <<
@@ -308,23 +311,24 @@ special_large(shift) ->
     gl:bitmap(13, 10, 0, 0, 14, 0, B);
 
 special_large(caret) ->
-    B = <<
-       	 2#11011000,
-       	 2#00100000,
-       	 2#00100000,
-	 2#00100000,
-       	 2#00100000,
-	 2#00100000,
-	 2#00100000,
-	 2#00100000,
-	 2#00100000,
-	 2#00100000,
-	 2#00100000,
-	 2#00100000,
-	 2#00100000,
-	 2#11011000
-	 >>,
-    gl:bitmap(5, 14, 0, 3, 2, 0, B);
+    caret();
+%%%     B = <<
+%%%        	 2#11011000,
+%%%        	 2#00100000,
+%%%        	 2#00100000,
+%%% 	 2#00100000,
+%%%        	 2#00100000,
+%%% 	 2#00100000,
+%%% 	 2#00100000,
+%%% 	 2#00100000,
+%%% 	 2#00100000,
+%%% 	 2#00100000,
+%%% 	 2#00100000,
+%%% 	 2#00100000,
+%%% 	 2#00100000,
+%%% 	 2#11011000
+%%% 	 >>,
+%%%     gl:bitmap(5, 14, 2, 1, 2, 0, B);
 
 special_large(crossmark) ->
     B = <<
@@ -363,3 +367,10 @@ special_large(folder) ->
        	 2#0001111000000000:16,
        	 2#0000000000000000:16>>,
     gl:bitmap(13, 10, 0, 0, 14, 0, B).
+
+caret() ->
+    H = height(),
+    B = list_to_binary([2#11011000,
+			lists:duplicate(H-2, 2#00100000),
+			2#11011000]),
+    gl:bitmap(5, H, 2, 2, 2, 0, B).

@@ -8,12 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.140 2004/03/30 09:43:56 raimo_niskanen Exp $
+%%     $Id: wings_wm.erl,v 1.141 2004/04/15 20:35:55 raimo_niskanen Exp $
 %%
 
 -module(wings_wm).
 -export([toplevel/6,set_knob/3]).
--export([init/0,enter_event_loop/0,dirty/0,dirty_mode/1,reinit_opengl/0,
+-export([init/0,enter_event_loop/0,dirty/0,dirty_mode/1,pdirty/0,
+	 reinit_opengl/0,
 	 new/4,delete/1,raise/1,
 	 link/2,hide/1,show/1,is_hidden/1,
 	 later/1,send/2,psend/2,send_after_redraw/2,
@@ -48,6 +49,9 @@
 -export([get_props/1,get_prop/1,get_prop/2,lookup_prop/1,lookup_prop/2,
 	 set_prop/2,set_prop/3,erase_prop/1,erase_prop/2,
 	 is_prop_defined/2]).
+
+%% Useful sizes
+-export([title_height/0,vscroller_width/0]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -186,6 +190,11 @@ dirty_mode(back=Mode) ->
 
 dirty() ->
     put(wm_dirty, dirty),
+    keep.
+
+%% Dirty marker from another erlang process than the main wings process
+pdirty() ->
+    wings ! {timeout,make_ref(),{event,{wm,dirty}}},
     keep.
 
 clean() ->
@@ -789,6 +798,8 @@ default_stack(Name) ->
 %%% Handling Wm Events.
 %%%
 
+wm_event(dirty) -> 
+    dirty();
 wm_event({message,Name,Msg}) ->
     case lookup_window_data(Name) of
 	none -> ok;
@@ -1121,3 +1132,9 @@ toplevel(Name, Title, Pos, Size, Flags, Op) ->
 
 set_knob(Name, Pos, Proportion) ->
     wings_wm_toplevel:set_knob(Name, Pos, Proportion).
+
+title_height() ->
+    wings_wm_toplevel:title_height().
+
+vscroller_width() ->
+    wings_wm_toplevel:vscroller_width().
