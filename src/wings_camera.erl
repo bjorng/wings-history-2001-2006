@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.107 2004/10/15 06:14:23 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.108 2004/10/15 15:11:40 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -238,7 +238,7 @@ rmb_name() ->
     rmb_name(wings_pref:get_value(num_buttons)).
 
 rmb_name(1) -> [wings_s:key(ctrl),$+,lmb_name()];
-rmb_name(_) -> [wings_s:lmb()|":"].
+rmb_name(_) -> [wings_s:rmb()|":"].
 
 rmb_format(Message) ->
     RmbMod = mod_name(free_rmb_modifier()),
