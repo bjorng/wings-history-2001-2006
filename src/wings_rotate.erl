@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_rotate.erl,v 1.26 2002/03/18 10:49:13 bjorng Exp $
+%%     $Id: wings_rotate.erl,v 1.27 2002/03/20 20:35:04 bjorng Exp $
 %%
 
 -module(wings_rotate).
@@ -60,10 +60,18 @@ magnet_unit(_) -> [falloff].
 %% Conversion of edge selections to vertices.
 %%
 
-edges_to_vertices(Vec, center, Magnet, Edges0, We, Acc) ->
+edges_to_vertices(Vec, center, none, Edges0, We, Acc) ->
     foldl(fun(Edges, A) ->
-		  edges_to_vertices_1(Vec, center, Magnet, Edges, We, A)
+		  edges_to_vertices_1(Vec, center, none, Edges, We, A)
 	  end, Acc, wings_sel:edge_regions(Edges0, We));
+edges_to_vertices(Vec, center, Magnet, Edges0, We, Acc) ->
+    case wings_sel:edge_regions(Edges0, We) of
+	[Edges] ->
+	    edges_to_vertices_1(Vec, center, Magnet, Edges, We, Acc);
+	_Other ->
+	    wings_util:error("Magnet Rotate on multiple edge regions requires "
+			     "an explicit rotate origin.")
+    end;
 edges_to_vertices(Vec, Center, Magnet, Edges, We, Acc) ->
     edges_to_vertices_1(Vec, Center, Magnet, Edges, We, Acc).
 
@@ -76,23 +84,25 @@ edges_to_vertices_1(normal, Center, Magnet, Es, #we{es=Etab}=We, Acc) ->
     Vec = e3d_vec:norm(e3d_vec:add(Ns)),
     edges_to_vertices_1(Vec, Center, Magnet, Es, We, Acc);
 edges_to_vertices_1(Vec, Center, Magnet, Es, We, Acc) ->
-    if
-	Magnet == none; Acc == [] ->
-	    Vs = wings_edge:to_vertices(Es, We),
-	    rotate(Vec, Center, Magnet, Vs, We, Acc);
-	true ->
-	    wings_util:error("Magnet Rotate on multiple edge regions requires "
-			     "an explicit rotate origin.")
-    end.
+    Vs = wings_edge:to_vertices(Es, We),
+    rotate(Vec, Center, Magnet, Vs, We, Acc).
  
 %%
 %% Conversion of face selections to vertices.
 %%
 
-faces_to_vertices(Vec, center, Magnet, Faces0, We, Acc) ->
+faces_to_vertices(Vec, center, none, Faces0, We, Acc) ->
     foldl(fun(Faces, A) ->
-		  faces_to_vertices_1(Vec, center, Magnet, Faces, We, A)
+		  faces_to_vertices_1(Vec, center, none, Faces, We, A)
 	  end, Acc, wings_sel:face_regions(Faces0, We));
+faces_to_vertices(Vec, center, Magnet, Faces0, We, Acc) ->
+    case wings_sel:face_regions(Faces0, We) of
+	[Faces] ->
+	    faces_to_vertices_1(Vec, center, Magnet, Faces, We, Acc);
+	_Other ->
+	    wings_util:error("Magnet Rotate on multiple face regions requires "
+			     "an explicit rotate origin.")
+    end;
 faces_to_vertices(Vec, Center, Magnet, Faces, We, Acc) ->
     faces_to_vertices_1(Vec, Center, Magnet, Faces, We, Acc).
 
@@ -104,13 +114,8 @@ faces_to_vertices_1(normal, Center, Magnet, Faces, We, Acc) ->
     Vs = wings_face:to_vertices(Faces, We),
     rotate(Vec, Center, Magnet, Vs, We, Acc);
 faces_to_vertices_1(Vec, Center, Magnet, Faces, We, Acc) ->
-    if
-	Magnet == none; Acc == [] ->
-	    rotate(Vec, Center, Magnet, wings_face:to_vertices(Faces, We), We, Acc);
-	true ->
-	    wings_util:error("Magnet Rotate on multiple face regions requires "
-			     "an explicit rotate origin.")
-    end.
+    Vs = wings_face:to_vertices(Faces, We),
+    rotate(Vec, Center, Magnet, Vs, We, Acc).
 
 %%
 %% Conversion of body selections (entire objects) to vertices.
@@ -170,30 +175,32 @@ view_vector() ->
     e3d_vec:norm(wings_view:eye_point()).
 
 magnet(_Vec, _Center, none, _Vs, _We, Tv, Acc) -> [Tv|Acc];
-magnet(Vec, Center, Magnet0, Vs0, #we{id=Id}=We, _, Acc) ->
-    {Magnet1,Affected} = wings_magnet:setup(Magnet0, Vs0, We),
-    Magnet = pre_transform(Center, Magnet1),
-    [{Id,{Affected,magnet_rotate_fun(Vec, Center, Magnet)}}|Acc].
+magnet(Vec, Center, Magnet0, Vs, #we{id=Id}=We, _, Acc) ->
+    {VsInf0,Magnet,Affected} = wings_magnet:setup(Magnet0, Vs, We),
+    VsInf = pre_transform(Center, VsInf0),
+    [{Id,{Affected,magnet_rotate_fun(Vec, Center, VsInf, Magnet)}}|Acc].
 
-pre_transform(Center, Magnet) ->
+pre_transform(Center, VsInf) ->
     wings_magnet:transform(fun(Pos) ->
 				   e3d_vec:sub(Pos, Center)
-			   end, Magnet).
+			   end, VsInf).
 
-magnet_rotate_fun(Axis0, Center, Magnet0) ->
-    fun(view_changed, NewWe) ->
+magnet_rotate_fun(Axis0, Center, VsInf0, Magnet) ->
+    fun(new_falloff, Falloff) ->
+	    VsInf = wings_magnet:recalc(Falloff, VsInf0, Magnet),
+	    magnet_rotate_fun(Axis0, Center, VsInf, Magnet);
+       (view_changed, NewWe) ->
 	    Axis = view_vector(),
-	    Magnet1 = wings_magnet:update_vpos(Magnet0, NewWe),
-	    Magnet = pre_transform(Center, Magnet1),
-	    magnet_rotate_fun(Axis, Center, Magnet);
-       ([Dx,R], A) ->
-	    VsInf = wings_magnet:influences(R, Magnet0),
-	    magnet_rotate(Axis0, Center, Dx, VsInf, A)
+	    VsInf1 = wings_util:update_vpos(VsInf0, NewWe),
+	    VsInf = pre_transform(Center, VsInf1),
+	    magnet_rotate_fun(Axis, Center, VsInf, Magnet);
+       ([Dx|_], A) ->
+	    magnet_rotate(Axis0, Center, Dx, VsInf0, A)
     end.
     
 magnet_rotate(Axis, {Cx,Cy,Cz}, Angle, VsPos, Acc0) ->
     Tr = e3d_mat:translate(Cx, Cy, Cz),
-    foldl(fun({V,#vtx{pos=Pos0}=Vtx,Inf}, Acc) ->
+    foldl(fun({V,#vtx{pos=Pos0}=Vtx,_,Inf}, Acc) ->
 		  M1 = e3d_mat:mul(Tr, e3d_mat:rotate(Inf*Angle, Axis)),
 		  Pos = e3d_mat:mul_point(M1, Pos0),
 		  [{V,Vtx#vtx{pos=Pos}}|Acc]

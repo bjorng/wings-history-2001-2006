@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.33 2002/03/13 11:57:39 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.34 2002/03/20 20:35:04 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -95,8 +95,8 @@ update_vpos(Vs, #we{vs=Vtab}) -> update_vpos(Vs, Vtab);
 update_vpos(Vs, Vtab) ->
     foldl(fun({V,_}, A) ->
 		  [{V,gb_trees:get(V, Vtab)}|A];
-	     ({V,_,Inf}, A) ->
-		  [{V,gb_trees:get(V, Vtab),Inf}|A]
+	     ({V,_,Dist,Inf}, A) ->
+		  [{V,gb_trees:get(V, Vtab),Dist,Inf}|A]
 	  end, [], reverse(Vs)).
 
 delete_any(K, S) ->

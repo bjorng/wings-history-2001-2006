@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.65 2002/03/19 09:21:26 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.66 2002/03/20 20:35:04 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -148,7 +148,9 @@ combine_tvs(TvList, #we{vs=Vtab}) ->
     end.
 
 translate_fun(VecVs) ->
-    fun([Dx|_], Acc) ->
+    fun(new_falloff, _Falloff) ->
+	    translate_fun(VecVs);
+       ([Dx|_], Acc) ->
 	    foldl(fun({Vec,VsPos}, A) ->
 			  translate(Vec, Dx, VsPos, A)
 		  end, Acc, VecVs)
@@ -293,23 +295,18 @@ make_move_1([_U|Units], [V|Vals]) ->
     [float(V)|make_move_1(Units, Vals)];
 make_move_1([], []) -> [].
 
-cleanup(Drag) ->
-    wings_magnet:cleanup(),
-    cleanup_1(Drag).
-
-cleanup_1(#drag{matrices=none}) -> ok;
-cleanup_1(#drag{matrices=Mtxs}) ->
+cleanup(#drag{matrices=none}) -> ok;
+cleanup(#drag{matrices=Mtxs}) ->
     foreach(fun({Id,_Matrix}) ->
 		    gl:deleteLists(?DL_DYNAMIC+Id, 1)
 	    end, Mtxs).
 
 magnet_radius(_Sign, #drag{falloff=none}=Drag) -> Drag;
 magnet_radius(Sign, #drag{falloff=Falloff0}=Drag0) ->
-    {_,X,Y} = sdl_mouse:getMouseState(),
     case Falloff0+Sign*?GROUND_GRID_SIZE/10 of
 	Falloff when Falloff > 0 ->
-	    {Drag,_} = motion(X, Y, Drag0#drag{falloff=Falloff}),
-	    Drag;
+	    Drag = Drag0#drag{falloff=Falloff},
+	    parameter_update(new_falloff, Falloff, Drag);
 	_Falloff -> Drag0
     end.
 
@@ -450,6 +447,18 @@ motion_update_1([{Tv,StaticVs,Id,We0}|Tvs], Move, #drag{done=Done}=Drag, A) ->
     end,
     motion_update_1(Tvs, Move, Drag, [{Id,We}|A]);
 motion_update_1([], _Move, _Drag, A) -> A.
+
+parameter_update(Key, Val, #drag{tvs=Tvs}=Drag) ->
+    parameter_update(Tvs, Key, Val, Drag, []).
+
+parameter_update([{Tv0,StaticVs,Id,We}|Tvs], Key, Val, Drag, Acc) ->
+    Tv = foldl(fun(F, A) -> [F(Key, Val)|A] end, [], Tv0),
+    parameter_update(Tvs, Key, Val, Drag, [{Tv,StaticVs,Id,We}|Acc]);
+parameter_update([], _, _, Drag0, Tvs) ->
+    Drag1 = Drag0#drag{tvs=reverse(Tvs)},
+    {_,X,Y} = sdl_mouse:getMouseState(),
+    {Drag,_} = motion(X, Y, Drag1),
+    Drag.
 
 translate({Xt0,Yt0,Zt0}, Dx, VsPos, Acc) ->
     Xt = Xt0*Dx, Yt = Yt0*Dx, Zt = Zt0*Dx,

@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_scale.erl,v 1.34 2002/03/18 08:54:01 bjorng Exp $
+%%     $Id: wings_scale.erl,v 1.35 2002/03/20 20:35:04 bjorng Exp $
 %%
 
 -module(wings_scale).
@@ -136,44 +136,47 @@ scale_vertices(Vec, Center, Magnet, St) ->
 %% Conversion of edge selections to vertices.
 %%
 
-edges_to_vertices(Vec, center, Magnet, Edges0, We, Acc) ->
+edges_to_vertices(Vec, center, none, Edges0, We, Acc) ->
     foldl(fun(Edges, A) ->
-		  edges_to_vertices_1(Vec, center, Magnet, Edges, We, A)
+		  edges_to_vertices_1(Vec, center, none, Edges, We, A)
 	  end, Acc, wings_sel:edge_regions(Edges0, We));
+edges_to_vertices(Vec, center, Magnet, Edges0, We, Acc) ->
+    case wings_sel:edge_regions(Edges0, We) of
+	[Edges] ->
+	    edges_to_vertices_1(Vec, center, Magnet, Edges, We, Acc);
+	_Other ->
+	    wings_util:error("Magnet scale on multiple edge regions requires "
+			     "an explicit scale origin.")
+    end;
 edges_to_vertices(Vec, Point, Magnet, Edges, We, Acc) ->
     edges_to_vertices_1(Vec, Point, Magnet, Edges, We, Acc).
 
 edges_to_vertices_1(Vec, Point, Magnet, Edges, We, Acc) ->
-    if
-	Magnet == none; Acc == [] ->
-	    Vs = wings_edge:to_vertices(Edges, We),
-	    scale(Vec, Point, Magnet, Vs, We, Acc);
-	true ->
-	    wings_util:error("Magnet scale on multiple edge regions requires "
-			     "an explicit scale origin.")
-    end.
-
+    Vs = wings_edge:to_vertices(Edges, We),
+    scale(Vec, Point, Magnet, Vs, We, Acc).
 
 %%
 %% Conversion of face selections to vertices.
 %%
 
-faces_to_vertices(Vec, center, Magnet, Faces0, We, Acc) ->
+faces_to_vertices(Vec, center, none, Faces0, We, Acc) ->
     foldl(fun(Faces, A) ->
-		  faces_to_vertices_1(Vec, center, Magnet, Faces, We, A)
+		  faces_to_vertices_1(Vec, center, none, Faces, We, A)
 	  end, Acc, wings_sel:face_regions(Faces0, We));
+faces_to_vertices(Vec, center, Magnet, Faces0, We, Acc) ->
+    case wings_sel:face_regions(Faces0, We) of
+	[Faces] ->
+	    faces_to_vertices_1(Vec, center, Magnet, Faces, We, Acc);
+	_Other ->
+	    wings_util:error("Magnet scale on multiple face regions requires "
+			     "an explicit scale origin.")
+    end;
 faces_to_vertices(Vec, Point, Magnet, Faces, We, Acc) ->
     faces_to_vertices_1(Vec, Point, Magnet, Faces, We, Acc).
 
 faces_to_vertices_1(Vec, Point, Magnet, Faces, We, Acc) ->
-    if
-	Magnet == none; Acc == [] ->
-	    Vs = wings_face:to_vertices(Faces, We),
-	    scale(Vec, Point, Magnet, Vs, We, Acc);
-	true ->
-	    wings_util:error("Magnet scale on multiple face regions requires "
-			     "an explicit scale origin.")
-    end.
+    Vs = wings_face:to_vertices(Faces, We),
+    scale(Vec, Point, Magnet, Vs, We, Acc).
 
 %%
 %% Conversion of body selection to vertices.
@@ -214,24 +217,26 @@ scale(Vec0, Center, Magnet, Vs, #we{id=Id}=We, Acc) ->
 
 magnet(_Vec, none, _Pre, _Post, _Vs, _We, Tv, Acc) -> [Tv|Acc];
 magnet(Vec, Magnet0, Pre, Post, Vs0, #we{id=Id}=We, _, Acc) ->
-    {Magnet1,Affected} = wings_magnet:setup(Magnet0, Vs0, We),
-    Magnet = pre_transform(Post, Magnet1),
-    [{Id,{Affected,magnet_scale_fun(Vec, Pre, Magnet)}}|Acc].
+    {VsInf0,Magnet,Affected} = wings_magnet:setup(Magnet0, Vs0, We),
+    VsInf = pre_transform(Post, VsInf0),
+    [{Id,{Affected,magnet_scale_fun(Vec, Pre, VsInf, Magnet)}}|Acc].
 
-pre_transform(Matrix, Magnet) ->
-      wings_magnet:transform(fun(Pos) ->
-				     e3d_mat:mul_point(Matrix, Pos)
-			     end, Magnet).
+pre_transform(Matrix, VsInf) ->
+    wings_magnet:transform(fun(Pos) ->
+				   e3d_mat:mul_point(Matrix, Pos)
+			   end, VsInf).
     
-magnet_scale_fun(Vec, Pre, Magnet) ->
-    fun([Dx,R], A0) ->
-	    VsInf = wings_magnet:influences(R, Magnet),
-	    foldl(fun({V,#vtx{pos={Px,Py,Pz}}=Vtx,Inf}, A) ->
+magnet_scale_fun(Vec, Pre, VsInf0, Magnet) ->
+    fun(new_falloff, Falloff) ->
+	    VsInf = wings_magnet:recalc(Falloff, VsInf0, Magnet),
+	    magnet_scale_fun(Vec, Pre, VsInf, Magnet);
+       ([Dx|_], A0) ->
+	    foldl(fun({V,#vtx{pos={Px,Py,Pz}}=Vtx,_,Inf}, A) ->
 			  {Sx,Sy,Sz} = make_scale(Dx*Inf+1.0, Vec),
 			  Pos0 = {Px*Sx,Py*Sy,Pz*Sz},
 			  Pos = e3d_mat:mul_point(Pre, Pos0),
 			  [{V,Vtx#vtx{pos=Pos}}|A]
-		  end, A0, VsInf)
+		  end, A0, VsInf0)
     end.
 
 make_vector({radial,{_,_,_}}=Vec) -> Vec;
