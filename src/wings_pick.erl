@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.53 2002/08/01 19:25:04 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.54 2002/08/05 05:14:19 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -257,7 +257,7 @@ marquee_pick(true, X, Y0, W, H, St0) ->
 	    Hits3 = sofs:relation_to_family(Hits2),
 	    Hits4 = sofs:to_external(Hits3),
 	    {MM,PM,ViewPort} = wings_util:get_matrices(0, original),
-	    [_,_,_,Wh] = ViewPort,
+	    {_,_,_,Wh} = ViewPort,
 	    Y = Wh - Y0,
 	    RectData = {MM,PM,ViewPort,X-W/2,Y-H/2,
 			X+W/2,Y+H/2},
