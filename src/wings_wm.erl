@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.70 2003/01/27 18:09:51 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.71 2003/01/28 13:17:22 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -689,7 +689,13 @@ find_active_1(_, _, _) -> find_active_2(none).
 find_active_2({controller,Client}=Name) ->
     case get(wm_focus_grab) of
  	undefined -> Name;
-	Client -> Name;
+	Client ->
+	    %% If the mouse cursor is turned off, always respect the
+	    %% grabbed focus.
+	    case wings_io:is_grabbed() of
+		false -> Name;
+		true -> Client
+	    end;
  	Focus -> Focus
     end;
 find_active_2(Name) ->

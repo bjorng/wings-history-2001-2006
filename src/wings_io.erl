@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.88 2003/01/22 13:24:03 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.89 2003/01/28 13:17:22 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -23,7 +23,7 @@
 -export([putback_event/1,get_event/0,get_matching_events/1,
 	 poll_event/0,set_timer/2,cancel_timer/1]).
 
--export([reset_grab/0,grab/0,ungrab/0,warp/2]).
+-export([reset_grab/0,grab/0,ungrab/0,is_grabbed/0,warp/2]).
 -export([ortho_setup/0]).
 
 -compile(inline).
@@ -447,6 +447,12 @@ ungrab() ->
 	    no_grab;
 	_ ->
 	    still_grabbed
+    end.
+
+is_grabbed() ->
+    case get_state() of
+	#io{grab_count=0} -> false;
+	_ -> true
     end.
 
 warp(X, Y) ->
