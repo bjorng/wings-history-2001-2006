@@ -8,14 +8,16 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.48 2002/01/11 16:36:44 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.49 2002/01/12 19:24:25 bjorng Exp $
 %%
 
 -module(wings_draw).
 -export([model_changed/1,sel_changed/1,
-	 get_dlist/0,put_dlist/1,render/1,ground_and_axes/0]).
+	 get_dlist/0,put_dlist/1,render/1,ground_and_axes/0,
+	 axis_letters/0]).
 
 -define(NEED_OPENGL, 1).
+-define(NEED_ESDL, 1).
 -include("wings.hrl").
 
 -import(lists, [foreach/2,last/1,reverse/1]).
@@ -63,6 +65,7 @@ render(St) ->
 	false -> draw_plain_shapes(St)
     end,
     draw_normals(),
+    axis_letters(),
     gl:popAttrib(),
     ?CHECK_ERROR(),
     St.
@@ -498,6 +501,39 @@ axis(I, Pos, Neg) ->
     gl:vertex3fv(A0),
     gl:vertex3fv(B),
     gl:'end'().
+
+axis_letters() ->
+    case wings_pref:get_value(show_axis_letters) andalso
+	wings_pref:get_value(show_axes) of
+	false -> ok;
+	true ->
+	    axis_letter(1, axisx, wings_pref:get_value(x_color)),
+	    axis_letter(2, axisy, wings_pref:get_value(y_color)),
+	    axis_letter(3, axisz, wings_pref:get_value(z_color))
+    end.
+
+axis_letter(I, Char, Color) ->
+    Start = {0.0,0.0,0.0},
+    End = setelement(I, Start, 1000.0),
+    FeedBuf = (get(wings_hitbuf))#sdlmem{type=?GL_FLOAT},
+    gl:feedbackBuffer(10, ?GL_2D, FeedBuf),
+    gl:renderMode(?GL_FEEDBACK),
+    gl:'begin'(?GL_LINES),
+    gl:vertex3fv(Start),
+    gl:vertex3fv(End),
+    gl:'end'(),
+    case gl:renderMode(?GL_RENDER) of
+	NumItems when NumItems >= 5 ->
+	    <<_:?GL_FLOAT_SIZE/float,
+	     _:?GL_FLOAT_SIZE/float,
+	     _:?GL_FLOAT_SIZE/float,
+	     Xclip:?GL_FLOAT_SIZE/float,
+	     Yclip:?GL_FLOAT_SIZE/float,
+	     _/binary>> = sdl_util:readBin(FeedBuf, NumItems);
+	Other ->
+	    Xclip = Yclip = 0.0
+    end,
+    wings_io:axis_text(Xclip, Yclip, Char, Color).
 
 groundplane(Axes) ->
     gl:color3fv(wings_pref:get_value(grid_color)),

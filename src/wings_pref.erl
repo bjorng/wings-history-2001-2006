@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.15 2002/01/05 23:54:52 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.16 2002/01/12 19:24:25 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -165,6 +165,8 @@ presets() ->
      {"Face Color",face_color,{0.5,0.5,0.5}},
      {"Selection Color",selected_color,{0.65,0.0,0.0}},
      {"Hard Edge Color",hard_edge_color,{0.0,0.5,0.0}},
+     separator,
+     {"Show Axis Letters",show_axis_letters,true},
      separator,
      {"+X Color",x_color,{1.0,0.0,0.0}},
      {"+Y Color",y_color,{0.0,1.0,0.0}},

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.28 2001/12/31 23:55:12 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.29 2002/01/12 19:24:25 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -21,7 +21,7 @@
 	 progress/1,progress_tick/0,
 	 clear_menu_sel/0,
 	 sunken_rect/5,raised_rect/4,raised_rect/5,
-	 text_at/2,text_at/3,menu_text/3,space_at/2,
+	 text_at/2,text_at/3,menu_text/3,axis_text/4,space_at/2,
 	 draw_icon/5,
 	 draw_message/1,draw_completions/1]).
 -export([putback_event/1,get_event/0,
@@ -374,6 +374,33 @@ menu_text([C|T], Y) ->
     menu_text(T, Y);
 menu_text([], Y) -> ok.
 
+axis_text(X, Y, C, Color) ->
+    #io{w=W,h=H} = get_state(),
+    gl:matrixMode(?GL_PROJECTION),
+    gl:pushMatrix(),
+    gl:loadIdentity(),
+    glu:ortho2D(0, W, 0, H),
+    gl:matrixMode(?GL_MODELVIEW),
+    gl:pushMatrix(),
+    gl:loadIdentity(),
+    ClipX = min(trunc(X), W-9),
+    ClipY = max(min(trunc(Y-10), H-35), 74),
+    ClipX = lists:min([trunc(X),W-9]),
+    ClipY = lists:max([lists:min([trunc(Y-10),H-35]),74]),
+    gl:color3fv(Color),
+    gl:rasterPos2i(ClipX, ClipY),
+    wings_text:char(C),
+    gl:popMatrix(),
+    gl:matrixMode(?GL_PROJECTION),
+    gl:popMatrix(),
+    gl:matrixMode(?GL_MODELVIEW).
+
+min(A, B) when A < B -> A;
+min(A, B) -> B.
+
+max(A, B) when A > B -> A;
+max(A, B) -> B.
+
 setup_for_drawing() ->
     #io{w=W,h=H} = Io = get_state(),
     gl:drawBuffer(?GL_FRONT),
@@ -386,10 +413,10 @@ setup_for_drawing(W, H) ->
     gl:disable(?GL_DEPTH_TEST),
     gl:matrixMode(?GL_PROJECTION),
     gl:loadIdentity(),
-    glu:ortho2D(0.0, float(W), float(H), 0.0),
+    glu:ortho2D(0, W, H, 0),
     gl:matrixMode(?GL_MODELVIEW),
     gl:loadIdentity(),
-    gl:color3f(0.0, 0.0, 0.0),
+    gl:color3f(0, 0, 0),
     draw_panes(get_state()),
     ?CHECK_ERROR().
 

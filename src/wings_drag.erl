@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.45 2002/01/10 09:22:48 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.46 2002/01/12 19:24:25 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -441,6 +441,7 @@ render(Drag) ->
     wings_view:model_transformations(),
     wings_draw:ground_and_axes(),
     draw_shapes(Drag),
+    wings_draw:axis_letters(),
     gl:popAttrib().
 
 draw_shapes(#drag{sel={SelMode,_}}) ->
