@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.34 2001/12/07 12:53:15 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.35 2001/12/09 11:47:47 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -417,16 +417,7 @@ draw_shapes(#st{selmode=SelMode}=St) ->
 	    draw_we(St)
     end,
 
-    %% If vertex selection mode, draw vertices.
-    case SelMode of
-	vertex ->
-	    gl:color3f(0.0, 0.0, 0.0), 
-	    gl:pointSize(wings_pref:get_value(vertex_size)),
-	    gl:enable(?GL_POLYGON_OFFSET_POINT),
-	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_POINT),
-	    draw_we(St);
-	NotVertex -> ok
-    end,
+    %% Don't draw unselected vertices.
 
     gl:disable(?GL_POLYGON_OFFSET_LINE),
     gl:disable(?GL_POLYGON_OFFSET_POINT),
