@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.76 2003/01/30 12:14:48 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.77 2003/01/31 18:03:04 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -218,17 +218,12 @@ apply_texture(Image) ->
 	none -> ok;
 	TxId ->
 	    gl:enable(?GL_TEXTURE_2D),
-	    gl:texEnvi(?GL_TEXTURE_ENV,
-		       ?GL_TEXTURE_ENV_MODE, ?GL_MODULATE),
+	    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_MODULATE),
 	    gl:bindTexture(?GL_TEXTURE_2D, TxId),
-	    gl:texParameteri(?GL_TEXTURE_2D,
-			     ?GL_TEXTURE_MAG_FILTER, ?GL_LINEAR),
-	    gl:texParameteri(?GL_TEXTURE_2D,
-			     ?GL_TEXTURE_MIN_FILTER, ?GL_LINEAR),
-	    gl:texParameteri(?GL_TEXTURE_2D,
-			     ?GL_TEXTURE_WRAP_S, ?GL_REPEAT),
-	    gl:texParameteri(?GL_TEXTURE_2D,
-			     ?GL_TEXTURE_WRAP_T, ?GL_REPEAT)
+	    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_MAG_FILTER, ?GL_LINEAR),
+	    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_MIN_FILTER, ?GL_LINEAR),
+	    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_S, ?GL_REPEAT),
+	    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_T, ?GL_REPEAT)
     end.
 
 %%% Returns the materials used.

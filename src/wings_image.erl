@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.12 2003/01/30 13:16:35 bjorng Exp $
+%%     $Id: wings_image.erl,v 1.13 2003/01/31 18:03:04 bjorng Exp $
 %%
 
 -module(wings_image).
@@ -185,6 +185,10 @@ init_texture(Image0) ->
     gl:pushAttrib(?GL_TEXTURE_BIT),
     gl:enable(?GL_TEXTURE_2D),
     gl:bindTexture(?GL_TEXTURE_2D, TxId),
+    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_MAG_FILTER, ?GL_LINEAR),
+    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_MIN_FILTER, ?GL_LINEAR),
+    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_S, ?GL_REPEAT),
+    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_T, ?GL_REPEAT),
     Format = texture_format(Image),
     gl:texImage2D(?GL_TEXTURE_2D, 0, BytesPerPixel,
 		  W, H, 0, Format, ?GL_UNSIGNED_BYTE, Bits),
@@ -300,15 +304,7 @@ event(redraw, Id) ->
 event(_, _) -> keep.
 
 redraw(Id) ->
-    #e3d_image{width=Iw,height=Ih,order=Order} = info(Id),
-    case Order of
-	upper_left ->
-	    Ua = 0, Ub = 1,
-	    Va = 0, Vb = 1;
-	lower_left ->
-	    Ua = 0, Ub = 1,
-	    Va = 1, Vb = 0
-    end,
+    #e3d_image{width=Iw,height=Ih} = Im = info(Id),
     Aspect = Iw/Ih,
     {W0,H0} = wings_wm:win_size(),
     wings_io:ortho_setup(),
@@ -325,17 +321,7 @@ redraw(Id) ->
 	    end,
     gl:enable(?GL_TEXTURE_2D),
     gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
-    gl:bindTexture(?GL_TEXTURE_2D, txid(Id)),
-    gl:'begin'(?GL_QUADS),
-    gl:texCoord2i(Ua, Va),
-    gl:vertex2i(X, Y),
-    gl:texCoord2i(Ua, Vb),
-    gl:vertex2i(X, Y+H),
-    gl:texCoord2i(Ub, Vb),
-    gl:vertex2i(X+W, Y+H),
-    gl:texCoord2i(Ub, Va),
-    gl:vertex2i(X+W, Y),
-    gl:'end'(),
+    draw_image(X, Y, W, H, txid(Id), Im),
     gl:bindTexture(?GL_TEXTURE_2D, 0),
     gl:disable(?GL_TEXTURE_2D).
 
