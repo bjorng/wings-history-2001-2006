@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__tga.erl,v 1.14 2003/12/31 10:46:37 bjorng Exp $
+%%     $Id: e3d__tga.erl,v 1.15 2004/01/02 21:09:29 bjorng Exp $
 %%
 
 -module(e3d__tga).
@@ -132,7 +132,7 @@ save_bin(Image, _Opts) ->
     Tga = save_1(Image),
     {ok,list_to_binary(Tga)}.
 
-save_1(#e3d_image{bytes_pp=Bpp,type=Type,image=Bits}=Image0) ->
+save_1(#e3d_image{bytes_pp=Bpp,type=Type}=Image0) ->
     Order = get_order(Image0#e3d_image.order),
     {TC,Image,BitsPP,Def} = 
 	if 
@@ -148,7 +148,7 @@ save_1(#e3d_image{bytes_pp=Bpp,type=Type,image=Bits}=Image0) ->
     [<<0,0,TC,0,0,0,0,0,0,0,0,0,
       (Image#e3d_image.width):16/little, 
       (Image#e3d_image.height):16/little,
-      BitsPP:8>>,Def|Bits].
+      BitsPP:8>>,Def|Image#e3d_image.image].
 
 get_order(lower_left) -> 0;
 get_order(lower_right) ->1;
