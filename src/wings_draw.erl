@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.174 2004/03/24 05:39:47 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.175 2004/03/24 07:34:19 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -16,7 +16,7 @@
 	 invalidate_dlists/1,
 	 update_sel_dlist/0,
 	 changed_we/2,split/3,original_we/1,update_dynamic/2,join/1,
-	 update_mirror/0,smooth_dlist/2]).
+	 update_mirror/0]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -873,8 +873,7 @@ smooth_dlist(#dlo{src_we=#we{he=Htab0,fs=Ftab,mirror=Face}=We,ns=Ns0}=D, St) ->
 	    smooth_faces(Flist, D, St)
     end;
 smooth_dlist(We, St) ->
-    %% Only called by wpc_opengl. Does not need to be terribly efficient.
-    D = changed_we(#dlo{}, #dlo{src_we=We}),
+    D = update_normals(changed_we(#dlo{}, #dlo{src_we=We})),
     smooth_dlist(D, St).
 
 smooth_faces(Ftab, D, St) ->
