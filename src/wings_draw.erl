@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.131 2003/07/03 14:44:34 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.132 2003/07/25 20:14:09 bjorng Exp $
 %%
 
 -module(wings_draw).
--export([update_dlists/1,update_sel_dlist/0,
+-export([invalidate_dlists/1,update_dlists/1,update_sel_dlist/0,
 	 split/3,original_we/1,update_dynamic/2,
 	 update_mirror/0,smooth_dlist/2]).
 
@@ -36,7 +36,13 @@
 %%% Update display lists.
 %%%
 
-update_dlists(#st{selmode=Mode,sel=Sel}=St) ->
+update_dlists(St) ->
+    invalidate_dlists(St),
+    do_update_dlists(St),
+    update_sel_dlist(),
+    update_mirror().
+
+invalidate_dlists(#st{selmode=Mode,sel=Sel}=St) ->
     prepare_dlists(St),
     case wings_draw_util:changed_materials(St) of
 	[] -> ok;
@@ -44,10 +50,7 @@ update_dlists(#st{selmode=Mode,sel=Sel}=St) ->
     end,
     wings_draw_util:map(fun(D, Data) ->
 				sel_fun(D, Data, Mode)
-			end, Sel),
-    do_update_dlists(St),
-    update_sel_dlist(),
-    update_mirror().
+			end, Sel).
 
 prepare_dlists(#st{shapes=Shs}) ->
     wings_draw_util:update(fun prepare_fun/2, gb_trees:values(Shs)).
