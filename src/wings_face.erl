@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face.erl,v 1.29 2003/03/19 05:31:52 bjorng Exp $
+%%     $Id: wings_face.erl,v 1.30 2003/04/17 11:31:39 bjorng Exp $
 %%
 
 -module(wings_face).
@@ -19,7 +19,8 @@
 	 to_vertices/2,
 	 normal/2,face_normal/2,good_normal/2,
 	 vinfo/2,vinfo/3,
-	 surrounding_vertices/2,surrounding_vertices/3,
+	 vertices_cw/2,vertices_cw/3,
+	 vertices_ccw/2,vertices_ccw/3,
 	 extend_border/2,bordering_faces/2,
 	 inner_edges/2,outer_edges/2,
 	 fold/4,fold/5,fold_vinfo/4,fold_faces/4,
@@ -28,6 +29,9 @@
 	 iter2etab/1,
 	 patch_face/3,patch_face/4,
 	 are_neighbors/3]).
+
+%% Obsolete.
+-export([surrounding_vertices/2,surrounding_vertices/3]).
 
 -include("wings.hrl").
 -import(lists, [map/2,foldl/3,reverse/1,sort/1,keymember/3,member/2]).
@@ -84,7 +88,7 @@ do_select_more(Face, We, Acc) ->
 		    fun(_, AFace, _, A1) ->
 			    gb_sets:add(AFace, A1)
 		    end, A0, V, We)
-	  end, Acc, surrounding_vertices(Face, We)).
+	  end, Acc, vertices_ccw(Face, We)).
 
 select_less(St) ->
     wings_sel:convert_shape(
@@ -204,22 +208,45 @@ vinfo(Edge, Etab, Face, LastEdge, Acc) ->
 	    vinfo(NextEdge, Etab, Face, LastEdge, [[V|Col]|Acc])
     end.
 
+
 %% Return the vertices surrounding a face.
 
-surrounding_vertices(Face, #we{es=Etab,fs=Ftab}) ->
+surrounding_vertices(Face, We) ->
+    vertices_ccw(Face, We).
+
+surrounding_vertices(Face, Edge, We) ->
+    vertices_ccw(Face, Edge, We).
+
+vertices_cw(Face, #we{es=Etab,fs=Ftab}) ->
     #face{edge=Edge} = gb_trees:get(Face, Ftab),
-    face_traverse(Face, Edge, Edge, Etab, []).
+    vertices_cw_1(Face, Edge, Edge, Etab, []).
 
-surrounding_vertices(Face, Edge, #we{es=Etab}) ->
-    face_traverse(Face, Edge, Edge, Etab, []).
+vertices_cw(Face, Edge, #we{es=Etab}) ->
+    vertices_cw_1(Face, Edge, Edge, Etab, []).
 
-face_traverse(_Face, LastEdge, LastEdge, _Es, Acc) when Acc =/= [] -> Acc;
-face_traverse(Face, Edge, LastEdge, Es, Acc) ->
-    case gb_trees:get(Edge, Es) of
+vertices_cw_1(_, LastEdge, LastEdge, _, Acc) when Acc =/= [] -> Acc;
+vertices_cw_1(Face, Edge, LastEdge, Etab, Acc) ->
+    case gb_trees:get(Edge, Etab) of
+	#edge{ve=V,lf=Face,ltpr=NextEdge} ->
+	    vertices_cw_1(Face, NextEdge, LastEdge, Etab, [V|Acc]);
+	#edge{vs=V,rf=Face,rtpr=NextEdge} ->
+	    vertices_cw_1(Face, NextEdge, LastEdge, Etab, [V|Acc])
+    end.
+
+vertices_ccw(Face, #we{es=Etab,fs=Ftab}) ->
+    #face{edge=Edge} = gb_trees:get(Face, Ftab),
+    vertices_ccw_1(Face, Edge, Edge, Etab, []).
+
+vertices_ccw(Face, Edge, #we{es=Etab}) ->
+    vertices_ccw_1(Face, Edge, Edge, Etab, []).
+
+vertices_ccw_1(_, LastEdge, LastEdge, _, Acc) when Acc =/= [] -> Acc;
+vertices_ccw_1(Face, Edge, LastEdge, Etab, Acc) ->
+    case gb_trees:get(Edge, Etab) of
 	#edge{ve=V,lf=Face,ltsu=NextEdge} ->
-	    face_traverse(Face, NextEdge, LastEdge, Es, [V|Acc]);
+	    vertices_ccw_1(Face, NextEdge, LastEdge, Etab, [V|Acc]);
 	#edge{vs=V,rf=Face,rtsu=NextEdge} ->
-	    face_traverse(Face, NextEdge, LastEdge, Es, [V|Acc])
+	    vertices_ccw_1(Face, NextEdge, LastEdge, Etab, [V|Acc])
     end.
 
 %% extend_border(FacesGbSet, We) -> FacesGbSet'
@@ -356,7 +383,7 @@ next_cw({face_iterator,Edge,Face,Etab}) ->
 	    {V,Edge,Rec,{face_iterator,NextEdge,Face,Etab}}
     end.
 
-%% Return next edge clockwise.
+%% Return next edge counter-clockwise.
 
 next_ccw({face_iterator,Edge,Face,Etab}) ->
     case gb_trees:get(Edge, Etab) of
@@ -382,7 +409,7 @@ patch_face(Face, Edge, NewEdge, Ftab) ->
 %% Test whether two faces are neighbors or not. (In the sense that
 %% they share at least one vertex.)
 are_neighbors(FaceA, FaceB, We) ->
-    VsA = wings_face:surrounding_vertices(FaceA, We),
-    VsB = wings_face:surrounding_vertices(FaceB, We),
+    VsA = wings_face:vertices_ccw(FaceA, We),
+    VsB = wings_face:vertices_ccw(FaceB, We),
     ordsets:intersection(ordsets:from_list(VsA),
 			 ordsets:from_list(VsB)) =/= [].
