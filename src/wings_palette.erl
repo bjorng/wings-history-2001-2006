@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_palette.erl,v 1.6 2004/05/18 14:54:21 dgud Exp $
+%%     $Id: wings_palette.erl,v 1.7 2004/05/18 20:32:25 dgud Exp $
 %%
 -module(wings_palette).
 
@@ -264,8 +264,8 @@ do_menu(Id,X,Y,#pst{cols=Cols}) ->
     Rest = [{"Clear All", {'VALUE',clear_all}, "Clear palette"}],
     wings_menu:popup_menu(X,Y,palette,Menu ++ Smooth ++ Rest).
 
-command(clear_all, Pst) ->
-    get_event(Pst#pst{sel=none,cols=lists:duplicate(?COLS_W*?COLS_H, none)});
+command(clear_all, Pst = #pst{w=W,h=H}) ->
+    get_event(Pst#pst{sel=none,cols=lists:duplicate(W*H, none)});
 command({_,none}, _) -> keep;
 command({smooth,Id}, Pst = #pst{cols=Cols0}) ->
     {Bef0,After0} = lists:split(Id, Cols0),
