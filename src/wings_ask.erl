@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.55 2003/01/06 09:54:23 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.56 2003/01/09 19:57:39 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -25,7 +25,7 @@
 
 -define(IS_SHIFTED(Mod), ((Mod) band ?SHIFT_BITS =/= 0)).
 
--define(INITIAL_LEVEL, 250).
+-define(INITIAL_LEVEL, ?Z_DIALOG).
 
 -import(lists, [reverse/1,reverse/2,duplicate/2,keysearch/3]).
 
@@ -867,7 +867,7 @@ menu_popup(#fi{x=X0,y=Y0,w=W}, #menu{key=Key,menu=Menu0}) ->
     Op = {seq,push,get_popup_event(Ps)},
     X = X1-2*?CHAR_WIDTH,
     Y = Y1-2-(Sel-1)*?LINE_HEIGHT,
-    wings_wm:new(menu_popup, {X,Y,500}, {W+2*?CHAR_WIDTH,Mh+10}, Op),
+    wings_wm:new(menu_popup, {X,Y,?Z_DIALOG+500}, {W+2*?CHAR_WIDTH,Mh+10}, Op),
     wings_wm:grab_focus(menu_popup).
 
 popup_find_index([{_,Key}|_], Key, I) -> I;

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.71 2002/12/30 13:30:52 bjorng Exp $
+%%     $Id: wings.hrl,v 1.72 2003/01/09 19:57:39 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -191,3 +191,16 @@
 	 hither,				%Near clipping plane.
 	 yon					%Far clipping plane.
 	}).
+
+%% Z values for windows.
+
+-define(Z_DESKTOP, 0).
+-define(Z_MESSAGE, 1).
+-define(Z_BUTTONS, 1).
+-define(Z_GEOM, 100).
+-define(Z_OBJECTS, 101).
+-define(Z_MENU, 200).
+-define(Z_MENUBAR, 300).
+-define(Z_DIALOG, 1000).
+-define(Z_HELP, 2000).
+

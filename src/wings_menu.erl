@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.73 2003/01/06 09:54:23 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.74 2003/01/09 19:57:40 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -18,10 +18,11 @@
 -define(NEED_ESDL, 1).
 -include("wings.hrl").
 -import(lists, [foldl/3,reverse/1,keysearch/3,foreach/2]).
+-compile(inline).
 
 -define(SUB_MENU_TIME, 150).
 -define(SEPARATOR_HEIGHT, (wings_text:height()-4)).
--define(INITIAL_LEVEL, 101).
+-define(INITIAL_LEVEL, (?Z_MENU+1)).
 
 %% Menu information kept for a popup menu.
 -record(mi,

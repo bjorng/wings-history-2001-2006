@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.51 2003/01/09 19:18:37 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.52 2003/01/09 19:57:41 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -67,7 +67,8 @@
 
 init() ->
     wings_pref:set_default(window_size, {780,570}),
-    {W,H} = wings_pref:get_value(window_size),
+    {W,H} = TopSize =wings_pref:get_value(window_size),
+    put(wm_top_size, TopSize),
     case get(wings_os_type) of
 	{unix,sunos} ->
 	    set_video_mode(W, H);			%Needed on Solaris/Sparc.
@@ -75,11 +76,11 @@ init() ->
     end,
     translation_change(),
     put(wm_windows, gb_trees:empty()),
-    new(top, {0,0,0}, {W,H}, {push,fun(_) -> keep end}),
-    new(message, {0,0,99}, {0,0}, {seq,push,{replace,fun message_event/1}}),
+    new(desktop, {0,0,?Z_DESKTOP}, {0,0}, {push,fun(_) -> keep end}),
+    new(message, {0,0,?Z_MESSAGE}, {0,0}, {seq,push,{replace,fun message_event/1}}),
     ButtonH = ?BUTTON_HEIGHT+4,
-    new(buttons, {0,0,99}, {W,ButtonH}, init_button()),
-    new(menubar, {0,0,200}, {0,0}, init_menubar()),
+    new(buttons, {0,0,?Z_BUTTONS}, {W,ButtonH}, init_button()),
+    new(menubar, {0,0,?Z_MENUBAR}, {0,0}, init_menubar()),
     put(wm_main, geom).
 
 message(Message) ->
@@ -245,8 +246,7 @@ focus_window() ->
     get(wm_focus).
 
 top_size() ->
-    #win{w=W,h=H} = get_window_data(top),
-    {W,H}.
+    get(wm_top_size).
 
 set_timer(Time, Event) ->
     Active = get(wm_active),
@@ -316,9 +316,6 @@ dispatch_event(#resize{w=W,h=H}=Event) ->
 	end,
     wings_pref:set_value(window_size, {SaveW,SaveH}),
     put(wm_top_size, {W,H}),
-    Win0 = get_window_data(top),
-    Win = Win0#win{w=W,h=H},
-    put_window_data(top, Win),
 
     init_opengl(W, H),
 
@@ -347,6 +344,10 @@ dispatch_event(#resize{w=W,h=H}=Event) ->
     GeomData0 = get_window_data(geom),
     GeomData = GeomData0#win{x=0,y=MenubarH,w=W,h=H-MsgH-ButtonH-MenubarH},
     put_window_data(geom, GeomData),
+
+    DesktopData0 = get_window_data(desktop),
+    DesktopData = DesktopData0#win{x=0,y=MenubarH,w=W,h=H-MsgH-ButtonH-MenubarH},
+    put_window_data(desktop, DesktopData),
 
     case is_window(autouv) of
 	false -> ok;

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.39 2003/01/06 12:49:50 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.40 2003/01/09 19:57:40 bjorng Exp $
 %%
 
 -module(wings_shape).
@@ -79,7 +79,7 @@ window(St) ->
 	    Ost = #ost{first=0,eye=eye_bitmap(),lock=lock_bitmap(),lh=18,active=-1},
 	    Current = {current_state,St},
 	    Op = {seq,push,event(Current, Ost)},
-	    Pos = {GeomW-5,TopH-(GeomY+GeomH)+5,20},
+	    Pos = {GeomW-5,TopH-(GeomY+GeomH)+5,?Z_OBJECTS},
 	    Size = {W,TopH div 2},
 	    wings_wm:toplevel(object, "Objects", Pos, Size,
 			      [resizable,vscroller,{anchor,ne}], Op),

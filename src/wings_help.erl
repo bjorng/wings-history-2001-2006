@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.37 2003/01/09 08:44:40 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.38 2003/01/09 19:57:40 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -177,7 +177,7 @@ about() ->
     {W,H} = wings_wm:top_size(),
     X = trunc((W-Xs) / 2),
     Y = trunc((H-Ys) / 2),
-    wings_wm:new(help, {X,Y,10}, {Xs,Ys+?LINE_HEIGHT}, Op),
+    wings_wm:new(help, {X,Y,?Z_HELP}, {Xs,Ys+?LINE_HEIGHT}, Op),
     wings_wm:grab_focus(help),
     wings_wm:dirty(),
     keep.
@@ -197,7 +197,7 @@ create_help_window([], Rows, Lines) ->
     Op = {push,fun(Ev) ->
 		       handle_help_event(Ev, DrawData)
 	       end},
-    wings_wm:new(help, {X,Y,10}, {Xs,Ys+?LINE_HEIGHT}, Op),
+    wings_wm:new(help, {X,Y,?Z_HELP}, {Xs,Ys+?LINE_HEIGHT}, Op),
     wings_wm:grab_focus(help),
     wings_wm:dirty(),
     keep.
