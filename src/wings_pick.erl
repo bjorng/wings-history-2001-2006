@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.75 2003/01/09 19:18:37 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.76 2003/01/10 10:26:33 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -464,10 +464,10 @@ raw_pick(X0, Y0, St) ->
 
 update_selection({Mode,MM,{Id}}, #st{sel=Sel0}=St) ->
     {Type,Sel} = update_light_selection(Id, St, Sel0, []),
-    {Type,MM,St#st{selmode=Mode,sel=Sel}};
+    {Type,MM,St#st{selmode=Mode,sel=Sel,sh=false}};
 update_selection({Mode,MM,{Id,Item}}, #st{sel=Sel0}=St) ->
     {Type,Sel} = update_selection(Id, Item, Sel0, []),
-    {Type,MM,St#st{selmode=Mode,sel=Sel}}.
+    {Type,MM,St#st{selmode=Mode,sel=Sel,sh=false}}.
 
 update_light_selection(Id, St, [{I,_}=H|T], Acc) when Id > I ->
     update_light_selection(Id, St, T, [H|Acc]);
@@ -516,14 +516,11 @@ get_name(N, <<Name:32/signed,Names/binary>>, Acc) ->
 %%% Filter hits to obtain just one hit.
 %%%
 
-filter_hits(Hits, X, Y, #st{selmode=Mode0,shapes=Shs,sel=Sel}) ->
-    Mode = case Sel of
-	       [] when Mode0 =/= body ->
-		   case wings_pref:get_value(smart_highlighting) of
-		       true -> {auto,Mode0};
-		       false -> Mode0
-		   end;
-	       _ -> Mode0
+filter_hits(Hits, X, Y, #st{selmode=Mode0,shapes=Shs,sel=Sel,sh=Sh}) ->
+    Mode = if
+	       Sh, Mode0 =/= body, Sel == [] ->
+		   {auto,Mode0};
+	       true -> Mode0
 	   end,
     EyePoint = wings_view:eye_point(),
     filter_hits_1(Hits, Shs, Mode, X, Y, EyePoint, none).

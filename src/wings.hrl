@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.72 2003/01/09 19:57:39 bjorng Exp $
+%%     $Id: wings.hrl,v 1.73 2003/01/10 10:26:33 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -97,6 +97,7 @@
 	{shapes,				%All visible shapes
 	 selmode,				%Selection mode:
 						% vertex, edge, face, body
+	 sh=false,				%Smart highlight active: true|false
 	 sel=[],				%Current sel: [{Id,GbSet}]
 	 ssels=[],				%Saved selections:
 	 					%  [{Name,Mode,GbSet}]
