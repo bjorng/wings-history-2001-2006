@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.35 2003/08/21 08:15:23 dgud Exp $
+%%     $Id: wpc_opengl.erl,v 1.36 2003/08/21 14:06:27 dgud Exp $
 
 -module(wpc_opengl).
 
@@ -82,17 +82,25 @@ dialog_qs(render) ->
     Back = get_pref(background_color, {0.4,0.4,0.4}),
     Alpha = get_pref(render_alpha, false),
     Shadow = get_pref(render_shadow, false),
+    Stencil = 
+	case hd(gl:getIntegerv(?GL_STENCIL_BITS)) >= 8 of
+	    true -> 
+		[{"Render Shadows (test)",Shadow,[{key,render_shadow}]}];
+	    false ->
+		[]
+	end,    
     [{menu,[{"Render to Image Window",preview},
 	    {"Render to File",file}],
       DefOutput,[{key,output_type}]},
      aa_frame(),
+     
      {hframe,
       [{label,"Sub-division Steps"},{text,SubDiv,[{key,subdivisions},
 						  {range,1,4}]}]},
      {hframe,
       [{label,"Background Color"},{color,Back,[{key,background_color}]}]},
-     {"Render Alpha Channel",Alpha,[{key,render_alpha}]},
-     {"Render Shadows (test)",Shadow,[{key,render_shadow}]}].
+     {"Render Alpha Channel",Alpha,[{key,render_alpha}]}|
+     Stencil].
 
 aa_frame() ->
     HaveAccum = have_accum(),
@@ -153,12 +161,9 @@ do_render(Attr0, St) ->
 	    Aa = proplists:get_value(aa, Attr),
 	    AccSize = translate_aa(Aa),
 	    RenderAlpha = proplists:get_bool(render_alpha, Attr),
-	    RenderShadow = proplists:get_bool(render_shadow, Attr),
-
-	    %% BUGBUG check stencil bufffer also..
-
+	    RenderShadow = proplists:get_value(render_shadow, Attr, false),
 	    {Data,Lights} = ?TC(update_st(St, Attr, RenderShadow)),
-
+	    
 	    Rr = #r{acc_size=AccSize,attr=Attr,
 		    data=Data,lights=Lights,mat=St#st.mat,
 		    mask = RenderAlpha,shadow = RenderShadow},
@@ -216,7 +221,6 @@ update_st(St0, Attr, Shadows) ->
 			      end, Ds),
 		L#l{s_dl = SDL}
 	end,
-    ?CHECK_ERROR(),
     Ls = 
 	case Shadows of
 	    true -> 
@@ -227,31 +231,31 @@ update_st(St0, Attr, Shadows) ->
     ?CHECK_ERROR(),
     {Ds, {Ls, Amb}}.
 
-update_st(We0, SubDiv, Wes, St,AL={Lights,Amb}) ->
-    case We0#we.light of
-	none ->
-	    We = case SubDiv of
-		     0 ->
-			 %% If no sub-divisions requested, it is safe to
-			 %% first triangulate and then freeze any mirror.
-			 We1 = wpa:triangulate(We0),
-			 wpa:vm_freeze(We1);
-		     _ ->
-			 %% Otherwise, we must do it in this order
-			 %% (slower if there is a virtual mirror).
-			 We1 = wpa:vm_freeze(We0),
-			 We2 = sub_divide(SubDiv, We1),
-			 wpa:triangulate(We2)
-		 end,
-	    Fast = dlist_mask(We),
-	    {[Smooth,TrL],Tr} = wings_draw:smooth_dlist(We, St),
-	    {[#d{s=Smooth,f=Fast,we=We,tr=Tr,trl=TrL}|Wes],AL};
-	L = #light{type=ambient} ->
-	    {Wes,{Lights,L}};
-	L = #light{} ->
-	    Pos = light_pos(We0),
-	    {Wes,{[#l{pos=Pos,l=L}|Lights],Amb}}
-    end.
+update_st(#we{perm=P}, _, Wes, _,AL) when ?IS_NOT_VISIBLE(P) ->
+    {Wes, AL};
+update_st(We0=#we{light=none}, SubDiv, Wes, St,AL) ->    
+    We = case SubDiv of
+	     0 ->
+		 %% If no sub-divisions requested, it is safe to
+		 %% first triangulate and then freeze any mirror.
+		 We1 = wpa:triangulate(We0),
+		 wpa:vm_freeze(We1);
+	     _ ->
+		 %% Otherwise, we must do it in this order
+		 %% (slower if there is a virtual mirror).
+		 We1 = wpa:vm_freeze(We0),
+		 We2 = sub_divide(SubDiv, We1),
+		 wpa:triangulate(We2)
+	 end,
+    Fast = dlist_mask(We),
+    {[Smooth,TrL],Tr} = wings_draw:smooth_dlist(We, St),
+    {[#d{s=Smooth,f=Fast,we=We,tr=Tr,trl=TrL}|Wes],AL};
+
+update_st(#we{light=L=#light{type=ambient}}, _,Wes,_, {Lights,_}) ->    
+    {Wes,{Lights,L}};		 
+update_st(We0=#we{light=L}, _, Wes, _, {Lights,Amb}) ->    
+    Pos = light_pos(We0),
+    {Wes,{[#l{pos=Pos,l=L}|Lights],Amb}}.
 
 dlist_mask(#we{fs=Ftab}=We) ->
     List = gl:genLists(1),
