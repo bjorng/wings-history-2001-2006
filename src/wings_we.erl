@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.35 2002/09/07 08:26:20 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.36 2002/09/10 09:07:09 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -585,7 +585,10 @@ transform_vs(Matrix, #we{vs=Vtab0}=We) ->
 %%% Calculate normals.
 %%%
 
-normals(#we{fs=Ftab,he=He}=We) ->
+normals(We) ->
+    ?TC(normals_1(We)).
+    
+normals_1(#we{fs=Ftab,he=He}=We) ->
     FaceNormals0 = foldl(fun({Face,FaceRec}, Acc) ->
 				 [{Face,face_normal(Face, FaceRec, We)}|Acc]
 			 end, [], gb_trees:to_list(Ftab)),
@@ -616,8 +619,8 @@ all_soft_1([], [], _, _, Acc) -> Acc.
 soft_vertex_normals(FaceNs0, #we{vs=Vtab}=We) ->
     FaceNs = gb_trees:from_orddict(FaceNs0),
     Soft = foldl(
-	     fun({V,#vtx{pos=Pos}}, Acc) ->
-		     N = soft_vtx_normal(V, FaceNs, We),
+	     fun({V,#vtx{pos=Pos,edge=Edge}}, Acc) ->
+		     N = soft_vtx_normal(V, Edge, FaceNs, We),
 		     [{V,{Pos,N}}|Acc]
 	     end, [], gb_trees:to_list(Vtab)),
     gb_trees:from_orddict(reverse(Soft)).
@@ -662,17 +665,17 @@ vertex_normals(#we{vs=Vtab,es=Etab,he=Htab}=We, G, FaceNormals) ->
     HardVs = sofs:to_external(Hvs),
     foreach(fun(V) -> update_digraph(G, V, We) end, HardVs),
     Soft = foldl(
-	     fun({V,#vtx{pos=Pos}}, Acc) ->
-		     N = soft_vtx_normal(V, FaceNormals, We),
+	     fun({V,#vtx{pos=Pos,edge=Edge}}, Acc) ->
+		     N = soft_vtx_normal(V, Edge, FaceNormals, We),
 		     [{V,{Pos,N}}|Acc]
 	     end, [], SoftVs),
     gb_trees:from_orddict(reverse(Soft)).
 
-soft_vtx_normal(V, FaceNormals, We) ->
+soft_vtx_normal(V, Edge, FaceNormals, We) ->
     Ns = wings_vertex:fold(
 	   fun(_, Face, _, A) ->
 		   [gb_trees:get(Face, FaceNormals)|A]
-	   end, [], V, We),
+	   end, [], V, Edge, We),
     e3d_vec:norm(e3d_vec:add(Ns)).
 
 n_face(Face, Mat, G, FaceNormals, VtxNormals, #we{vs=Vtab}=We) ->

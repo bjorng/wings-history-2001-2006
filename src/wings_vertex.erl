@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex.erl,v 1.26 2002/06/17 18:05:35 bjorng Exp $
+%%     $Id: wings_vertex.erl,v 1.27 2002/09/10 09:07:09 bjorng Exp $
 %%
 
 -module(wings_vertex).
 -export([convert_selection/1,select_more/1,select_less/1,
-	 fold/4,other/2,other_pos/3,
+	 fold/4,fold/5,other/2,other_pos/3,
 	 until/4,until/5,
 	 center/1,center/2,
 	 bounding_box/1,bounding_box/2,bounding_box/3,
@@ -96,13 +96,21 @@ select_less(St) ->
 %% fold over all edges/faces surrounding a vertex.
 %%
 
-fold(F, Acc, V, #we{es=Etab,vs=Vtab}) ->
+fold(F, Acc, V, #we{vs=Vtab}=We) ->
     #vtx{edge=Edge} = gb_trees:get(V, Vtab),
-    #edge{lf=Face} = gb_trees:get(Edge, Etab),
-    fold(F, Acc, V, Face, Edge, Edge, Etab, not_done).
+    fold(F, Acc, V, Edge, We).
 
-fold(_F, Acc, _V, _Face, Last, Last, _Etab, done) -> Acc;
-fold(F, Acc0, V, Face, Edge, LastEdge, Etab, _) ->
+fold(F, Acc0, V, Edge, #we{es=Etab}) ->
+    Acc = case gb_trees:get(Edge, Etab) of
+	      #edge{vs=V,lf=Face,rf=Other,rtpr=NextEdge}=E ->
+		  F(Edge, Face, E, Acc0);
+	      #edge{ve=V,lf=Face,rf=Other,rtsu=NextEdge}=E ->
+		  F(Edge, Face, E, Acc0)
+	  end,
+    fold(F, Acc, V, Other, NextEdge, Edge, Etab).
+
+fold(_F, Acc, _V, _Face, Last, Last, _Etab) -> Acc;
+fold(F, Acc0, V, Face, Edge, LastEdge, Etab) ->
     Acc = case gb_trees:get(Edge, Etab) of
 	      #edge{vs=V,lf=Face,rf=Other,rtpr=NextEdge}=E ->
 		  F(Edge, Face, E, Acc0);
@@ -113,7 +121,7 @@ fold(F, Acc0, V, Face, Edge, LastEdge, Etab, _) ->
 	      #edge{ve=V,rf=Face,lf=Other,ltpr=NextEdge}=E ->
 		  F(Edge, Face, E, Acc0)
 	  end,
-    fold(F, Acc, V, Other, NextEdge, LastEdge, Etab, done).
+    fold(F, Acc, V, Other, NextEdge, LastEdge, Etab).
 
 %%
 %% Fold over all edges/faces surrounding a vertex until the
