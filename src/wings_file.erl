@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.17 2001/10/21 16:04:31 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.18 2001/10/23 17:11:47 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -98,6 +98,7 @@ save_as(#st{shapes=Shapes}=St) ->
 %% The Revert command.
 %%
 
+revert(#st{file=undefined}=St) -> St;
 revert(#st{file=File}=St0) ->
     St1 = St0#st{shapes=gb_trees:empty(),sel=[]},
     case wings_ff_wings:import(File, St1) of
