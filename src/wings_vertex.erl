@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex.erl,v 1.33 2002/11/20 17:06:28 bjorng Exp $
+%%     $Id: wings_vertex.erl,v 1.34 2002/11/27 19:22:08 bjorng Exp $
 %%
 
 -module(wings_vertex).
@@ -339,12 +339,18 @@ connect(Face, Vs, #we{}=We0) ->
 %% |   \ /   |
 %% +----*----+
 
-polygon_pairs(Face, Vs, We) ->
+polygon_pairs(Face, Vs, We0) ->
     ?ASSERT(length(Vs) > 1),
-    Iter = wings_face:iterator(Face, We),
+    Iter = wings_face:iterator(Face, We0),
     {Vstart,_,_,_} = wings_face:next_cw(Iter),
-    Pairs = pp_make_pairs(Iter, Vs, Vstart, []),
-    polygon_pairs_1(Pairs, Face, Pairs, We).
+    case pp_make_pairs(Iter, Vs, Vstart, []) of
+	[Va,Vb] ->
+	    case try_connect({Va,Vb}, Face, We0) of
+		no -> We0;
+		{We,_} -> We
+	    end;
+	Pairs -> polygon_pairs_1(Pairs, Face, Pairs, We0)
+    end.
 
 polygon_pairs_1([Va|[Vb|_]=T], Face, Pairs, We0) ->
     case try_connect({Va,Vb}, Face, We0) of
