@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.39 2003/06/01 08:11:40 bjorng Exp $
+%%     $Id: wpc_yafray.erl,v 1.40 2003/08/29 21:31:11 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -741,10 +741,7 @@ export(Attr, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
     {ExportFile,RenderFile} =
 	case Render of
 	    true ->
-		{A,B,C} = erlang:now(),
-		{lists:flatten(io_lib:format("~s-~s.~w.~w.~w.xml",
-					     [Filename,os:getpid(),A,B,C])),
-		 Filename};
+		{?MODULE_STRING++"-"++uniqstr()++".xml",Filename};
 	    false ->
 		{Filename,
 		 filename:rootname(filename:basename(Filename))++".tga"}
@@ -1609,10 +1606,10 @@ erase_var(Name) ->
 
 
 %% Count the number of equal elements in a row in the list
-
+%%
 count_equal([H|T]) ->
     count_equal(T, 1, H, []).
-
+%%
 count_equal([], C, H, R) ->
     [{C,H}|R];
 count_equal([H|T], C, H, R) ->
@@ -1686,7 +1683,7 @@ scan_bat(F) ->
 
 
 %% Skip whitespace and one '@' from beginning of line
-
+%%
 skip_walpha([$ |T]) ->
     skip_walpha(T);
 skip_walpha([$\t|T]) ->
@@ -1697,7 +1694,7 @@ skip_walpha([$@|T]) ->
     skip_walpha1(T);
 skip_walpha(L) ->
     L.
-
+%%
 skip_walpha1([$ |T]) ->
     skip_walpha(T);
 skip_walpha1([$\t|T]) ->
@@ -1708,10 +1705,10 @@ skip_walpha1(L) ->
     L.
 
 %% Skip whitespace and '%d' .bat file arguments from end of line
-
+%%
 rskip_warg(L) ->
     rskip_warg1(lists:reverse(L)).
-
+%%
 rskip_warg1([$ |T]) ->
     rskip_warg1(T);
 rskip_warg1([$\t|T]) ->
@@ -1724,7 +1721,7 @@ rskip_warg1(L) ->
     lists:reverse(L).
 
 %% Convert all A-Z in string to lowercase
-
+%%
 lowercase([]) ->
     [];
 lowercase([C|T]) when C >= $A, C =< $Z ->
@@ -1733,7 +1730,7 @@ lowercase([C|T]) ->
     [C|lowercase(T)].
 
 %% Convert lonely CR to NL, and CRLF to NL
-
+%%
 cr_to_nl([$\r,$\n|T]) ->
     [$\n|cr_to_nl(T)];
 cr_to_nl([$\r|T]) ->
@@ -1744,7 +1741,7 @@ cr_to_nl([]) ->
     [].
 
 %% Split a list into a list of length Pos, and the tail
-
+%%
 split_list(List, Pos) when list(List), integer(Pos), Pos >= 0 ->
     case split_list1(List, Pos, []) of
 	{_,_}=Result ->
@@ -1752,7 +1749,7 @@ split_list(List, Pos) when list(List), integer(Pos), Pos >= 0 ->
 	Error ->
 	    erlang:fault(Error, [List, Pos])
     end.
-
+%%
 split_list1(List, 0, Head) ->
     {lists:reverse(Head),List};
 split_list1([], _Pos, _) ->
@@ -1762,3 +1759,21 @@ split_list1([H|T], Pos, Head) ->
 
 now_diff({A1,B1,C1}, {A2,B2,C2}) ->
     (A1-A2)*1000000.0 + float(B1-B2) + (C1-C2)*0.000001.
+
+%% Create a string unique for the OS process. It consists 
+%% of the OS process id, a dash, and seconds since Jan 1 1970
+%% encoded in approx 8 characters. It should be unique even in 
+%% the event of an OS restart.
+uniqstr() ->
+    {Ms,S,_} = now(),
+    os:getpid()++"-"++uniqstr(Ms*1000000 + S).
+%%
+-define(UNIQBASE, (10+$Z-$A+1)).
+uniqstr(0) -> [];
+uniqstr(N) ->
+    case N rem ?UNIQBASE of
+	M when M < 10 ->
+	    [$0+M|uniqstr(N div ?UNIQBASE)];
+	M ->
+	    [$A+M-10|uniqstr(N div ?UNIQBASE)]
+    end.
