@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.31 2002/10/27 10:12:33 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.32 2002/10/28 09:39:35 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -239,11 +239,13 @@ seg_command({segment,Type}, #seg{st=St0}=Ss) ->
     St = segment(Type, St0),
     get_seg_event(Ss#seg{st=St});
 seg_command({debug,select_features}, #seg{we=#we{id=Id}=We,st=St}=Ss) ->
-    {Es,_,_} = auv_segment:find_features(We),
+    Tot = gb_trees:size(We#we.es),
+    {Es,_,_} = auv_segment:find_features(We, 60, Tot div 50),
     Sel = [{Id,gb_sets:from_list(Es)}],
     get_seg_event(Ss#seg{st=St#st{selmode=edge,sel=Sel}});
 seg_command({debug,select_seeds}, #seg{we=#we{id=Id}=We,st=St}=Ss) ->
-    {Features,_,_} = auv_segment:find_features(We),
+    Tot = gb_trees:size(We#we.es),
+    {Features,_,_} = auv_segment:find_features(We, 60, Tot div 50),
     {Seeds0,_} = auv_segment:build_seeds(Features, We),
     Seeds = [S || {_,S} <- Seeds0],
     Sel = [{Id,gb_sets:from_list(Seeds)}],

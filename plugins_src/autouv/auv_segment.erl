@@ -9,12 +9,12 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.29 2002/10/27 13:20:24 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.30 2002/10/28 09:39:35 dgud Exp $
 
 -module(auv_segment).
 
 -export([create/2, segment_by_material/1, cut_model/3, map_vertex/2]).
--export([degrees/0, find_features/1, build_seeds/2]). %% Debugging
+-export([degrees/0, find_features/3, build_seeds/2]). %% Debugging
 -include("wings.hrl").
 -include("auv.hrl").
 
@@ -24,7 +24,9 @@
 create(Mode, We0) ->
     case Mode of 
 	feature ->
-	    {_Distances,Charts0,Cuts0,_Feats} = segment_by_feature(We0),
+	    Tot = gb_trees:size(We0#we.es),
+	    {_Distances,Charts0,Cuts0,_Feats} = 
+		segment_by_feature(We0, 60, Tot div 50),
 	    {Charts0, Cuts0};
 	autouvmap ->
 	    Charts0 = segment_by_direction(We0),
@@ -37,10 +39,10 @@ create(Mode, We0) ->
 %% by Bruno Levy, Sylvain Petitjean, Nicolas Ray, Jerome Mailot.
 %% Presented on Siggraph 2002.
 
--define(MIN_FEATURE_LENGTH, 12).
 -define(MAX_STRING_LENGTH, 5).
--define(MAX_DIRECTION, 0.866025). %% See degrees
--define(MIN_SHARPNESS, (1 - ?MAX_DIRECTION) * (?MAX_STRING_LENGTH -1)).
+-define(MIN_SHARPNESS(MAX), (1 - MAX) * (?MAX_STRING_LENGTH -1)).
+
+-record(restr, {sharp, featl}).
 
 %% Debug func %%
 degrees() ->
@@ -50,30 +52,43 @@ degrees() ->
 		   Dir = math:sqrt(X*X+Y*Y),
 		   io:format("~.3w deg -> ~w ~w~n", [D, Dir, 1 - Dir])
 	   end,
-    ?DBG("MaxDir ~p MaxSharpness ~p~n", 
-	      [?MAX_DIRECTION, ?MIN_SHARPNESS]),
     lists:foreach(Test, lists:seq(0,360,15)).
 
-segment_by_feature(We) ->
-    {Features,VEG,EWs} = ?TC(find_features(We)),
+degrees(Deg) ->
+    X = (math:cos(Deg * math:pi() / 180) + 1) / 2, 
+    Y = math:sin(Deg *  math:pi() / 180) /2,    
+    math:sqrt(X*X+Y*Y).
+
+
+
+segment_by_feature(We, SharpEdgeDeg, MinFeatureLen) ->
+    {Features,VEG,EWs} = ?TC(find_features(We, SharpEdgeDeg, MinFeatureLen)),
     {LocalMaxs,Extra} = ?TC(build_seeds(Features, We)),
     {Distances,Charts,Bounds} = ?TC(build_charts(LocalMaxs, Extra, VEG, EWs, We)),
     {Distances,Charts,Bounds,Features}.
-    
-find_features(We0) ->
+
+%%%   SharpEdge should be degrees value is: (180 +/- SharpEdge) 
+%%%   MinFeatureLen is the number of edges a feature must contain
+find_features(We, SharpEdge, MinFeatureLen) when MinFeatureLen > 20 ->
+    find_features(We, SharpEdge, 20);
+find_features(We, SharpEdge, MinFeatureLen) when MinFeatureLen < 2 ->
+    find_features(We, SharpEdge, 2);
+find_features(We, SharpEdge, MinFeatureLen) when SharpEdge > 90 ->
+    find_features(We, 90, MinFeatureLen);
+find_features(We, SharpEdge, MinFeatureLen) when SharpEdge < 2 ->
+    find_features(We, 10, MinFeatureLen);    
+find_features(We0, SharpEdgeDeg, MinFeatureLen) ->
+    Restrs = #restr{sharp = ?MIN_SHARPNESS(degrees(SharpEdgeDeg)), 
+		    featl=MinFeatureLen},
     {Sorted, N, _FNormals} = sort_edges_by_weight(We0),
     %% split list normals may diff with +-60 deg and 20% of the edges
-    {Best, _Rest} = pick_features(Sorted, 0, ?MAX_DIRECTION, N, []),
-%    ?DBG("Best ~p ~p ~n", [Best, _Rest]),
+    {Best, _Rest} = pick_features(Sorted, 0, degrees(SharpEdgeDeg), N, []),
+%%    ?DBG("Best ~p ~p ~n", [Best, _Rest]),
     EVGraph = build_vertex_graph(Sorted, We0, gb_trees:empty()),
     EWs    = gb_trees:from_orddict(lists:sort(Sorted)),
 
-    Features0 = expand_features(Best, EVGraph, EWs, We0),
-    Features1 = 
-	if Features0 == [] -> find_extremities(We0);
-	   true -> Features0
-	end,
-    {Features1, EVGraph, EWs}.
+    Features0 = expand_features(Best, EVGraph, EWs, We0, Restrs),
+    {Features0, EVGraph, EWs}.
 
 sort_edges_by_weight(We0 = #we{fs = Ftab, es = Etab}) ->
     Faces = gb_trees:keys(Ftab),
@@ -117,40 +132,40 @@ fdaddneighandfeat(Feat, We, FdXX) ->
     NewNBXX = gb_sets:union(PossNeighXX, FdXX#fd.neigh),
     FdXX#fd{neigh = NewNBXX, feat = Feat ++ FdXX#fd.feat}.
 
-expand_features(Possible, EVGr, EdgeCost, We) ->
-    expand_features(Possible, ?fdcreate(EVGr, EdgeCost), We).
+expand_features(Possible, EVGr, EdgeCost, We, Restrs) ->
+    expand_features(Possible, ?fdcreate(EVGr, EdgeCost), We, Restrs).
 
-expand_features([First = {Edge, _}|Rest], Fd = #fd{}, We) ->
+expand_features([First = {Edge, _}|Rest], Fd = #fd{}, We, Restrs) ->
     case ?fdmember(Edge,Fd) of
 	true -> %% Already used ignore
-	    expand_features(Rest, Fd, We);
+	    expand_features(Rest, Fd, We, Restrs);
 	false ->
-	    {Feature, Fd1} = expand_feature_curve(First, Fd, We),
-%%	    ?DBG("Expand ~p ~p ~p~n", [First,length(Feature), Feature]),
+	    {Feature, Fd1} = expand_feature_curve(First, Fd, We, Restrs),
+%%	    ?DBG("Expand ~p ~p ~p ~p~n", [First, Restrs#restr.featl, length(Feature), Feature]),
 	    if 
-		length(Feature) < ?MIN_FEATURE_LENGTH ->     
-		    expand_features(Rest, Fd, We);
+		length(Feature) < Restrs#restr.featl ->
+		    expand_features(Rest, Fd, We,Restrs);
 		true -> %% Accepted feature
 		    %% Add neighbors
 		    Fd2 = fdaddneighandfeat(Feature,We,Fd1),
-		    expand_features(Rest, Fd2, We)
+		    expand_features(Rest, Fd2, We, Restrs)
 	    end
     end;
-expand_features([], Fd, _We) ->
+expand_features([], Fd, _We, _Restrs) ->
 %    ?DBG("Expand done~n"),
-    ?fdgetfeat(Fd). 
+    ?fdgetfeat(Fd).
 
-expand_feature_curve({Edge, _Sharpness}, Fd0, We) ->
+expand_feature_curve({Edge, _Sharpness}, Fd0, We, Rs) ->
     #edge{vs = Vs, ve = Ve} = gb_trees:get(Edge, We#we.es),    
     Dir1 = get_vector(Vs,Ve,We),
     {Edges1,_}   = get_edges(Vs, Edge, Dir1, We, Fd0),
-    {Feat0, Fd2} = depth_traverse_tree([Edges1],0,0,Dir1,Fd0,We,[Edge]), 
+    {Feat0, Fd2}=depth_traverse_tree([Edges1],0,0,Dir1,Fd0,We,Rs,[Edge]), 
     Dir2 = get_vector(Ve,Vs,We),
     {Edges2,_} = get_edges(Ve, Edge, Dir2, We, Fd2),
-    depth_traverse_tree([Edges2],0,0,Dir2,Fd2,We,Feat0).
+    depth_traverse_tree([Edges2],0,0,Dir2,Fd2,We,Rs,Feat0).
 
-depth_traverse_tree(Tree=[[{Val,_,_}|_]|_],Sharp,Depth,_Dir1,Fd0, We, Feat) 
-  when Sharp + Val > ?MIN_SHARPNESS ->
+depth_traverse_tree(Tree=[[{Val,_,_}|_]|_],Sharp,Depth,_Dir1,Fd0,We,Rs,Feat) 
+  when Sharp + Val > Rs#restr.sharp ->
     %% Found suiteable edge -> add to feat
     [[{Val0,{Edge,#edge{vs=VaN,ve=VbN}},V0}|_]|Found] = lists:reverse(Tree),
 %%    ?DBG("Found suiteable edge ~p ~p ~p ~n", [Edge,Sharp,Depth]),
@@ -161,29 +176,35 @@ depth_traverse_tree(Tree=[[{Val,_,_}|_]|_],Sharp,Depth,_Dir1,Fd0, We, Feat)
 	    NextV = if V0 == VaN -> VbN; V0 == VbN -> VaN end,
 	    Dir2 = get_vector(VaN,VbN,V0,We),
 	    {Edges1,_} = get_edges(NextV, Edge, Dir2, We, Fd1),
-	    depth_traverse_tree([Edges1], 0, 0, Dir2, Fd1, We, [Edge|Feat]);
+	    depth_traverse_tree([Edges1], 0, 0, Dir2, Fd1, We, Rs, 
+				[Edge|Feat]);
 	[[{_,{_,#edge{vs=Va,ve=Vb}},V}|_]|_] ->
 	    Dir2 = get_vector(Va,Vb,V,We),
-	    depth_traverse_tree(lists:reverse(Found), Sharp - Val0, Depth -1, 
-				Dir2, Fd1, We, [Edge|Feat])
+	    depth_traverse_tree(lists:reverse(Found), Sharp - Val0, 
+				Depth -1,Dir2,Fd1,We,Rs,[Edge|Feat])
     end;
  
-depth_traverse_tree([[]|[[{Value,_,_}|Alt]|Tree]],Sharp,Depth,Dir,Fd0,We,Feat) ->
+depth_traverse_tree([[]|[[{Value,_,_}|Alt]|Tree]],Sharp,
+		    Depth,Dir,Fd0,We,Rs,Feat) ->
     %% Last tested in that branch -> search other branches
 %    ?DBG("Last tested in that branch -> search other branches ~p~n", [Depth]),
-    depth_traverse_tree([Alt|Tree], Sharp -Value, Depth -1,Dir,Fd0, We, Feat);
+    depth_traverse_tree([Alt|Tree], Sharp -Value, 
+			Depth -1,Dir,Fd0, We,Rs,Feat);
  
-depth_traverse_tree([_Miss|[[Root|Alt]|Tree]], Sharp, Depth, Dir,Fd0, We, Feat) 
+depth_traverse_tree([_Miss|[[Root|Alt]|Tree]], Sharp, Depth, 
+		    Dir,Fd0, We,Rs,Feat) 
   when Depth >= ?MAX_STRING_LENGTH ->
     %% To deep -> look in other branch
 %    ?DBG("To deep -> look in other branch ~n",[]),
     {Value, _, _} = Root,
-    depth_traverse_tree([Alt|Tree], Sharp - Value, Depth -1, Dir,Fd0, We, Feat);
-depth_traverse_tree([[]], _Sharp, _Depth, _Dir,Fd0,_We, Feat) ->
+    depth_traverse_tree([Alt|Tree], Sharp - Value, Depth -1, 
+			Dir,Fd0, We,Rs, Feat);
+depth_traverse_tree([[]], _Sharp, _Depth, _Dir,Fd0,_We,_Rs,Feat) ->
     %% done -> tree search complete
 %    ?DBG("done[[]]~n",[]),
     {Feat, Fd0};
-depth_traverse_tree(Tree=[[{Val,Leaf,Vertex}|_]|_],Sharp,Depth,Dir,Fd0,We,Feat) ->
+depth_traverse_tree(Tree=[[{Val,Leaf,Vertex}|_]|_],Sharp,Depth,
+		    Dir,Fd0,We,Rs,Feat) ->
     %% No success yet -> search deeper
 %%    ?DBG("No success yet -> search deeper ~p (~p) ~p ~n",[Sharp+Val, ?MIN_SHARPNESS, Depth]),
     Next = case Leaf of 
@@ -194,23 +215,27 @@ depth_traverse_tree(Tree=[[{Val,Leaf,Vertex}|_]|_],Sharp,Depth,Dir,Fd0,We,Feat) 
 	   end,
     case get_edges(Next, Id, Dir, We, Fd0) of
 	{[],Poss} -> %% Fixing last edge in edgeloop
-	    {NewSharp,NewTree, NewFeat} = patch_tree(Poss, Sharp+Val, Tree, Feat),
-	    depth_traverse_tree(NewTree,NewSharp,Depth+1,Dir,Fd0,We,NewFeat);
+	    {NewSharp,NewTree, NewFeat} = 
+		patch_tree(Poss, Sharp+Val, Tree, Rs,Feat),
+	    depth_traverse_tree(NewTree,NewSharp,Depth+1,Dir,Fd0,
+				We,Rs,NewFeat);
         {Edges,_} ->
-	    depth_traverse_tree([Edges|Tree],Sharp+Val,Depth+1,Dir,Fd0,We,Feat)
+	    depth_traverse_tree([Edges|Tree],Sharp+Val,Depth+1,Dir,Fd0,
+				We,Rs,Feat)
     end.
 
-patch_tree([{Val,{Edge,_ER},_Vs}|_],Sharp,Tree,Feat) ->
+patch_tree([{Val,{Edge,_ER},_Vs}|_],Sharp,Tree,Rs,Feat) ->
     case lists:member(Edge, Feat) of
-	true when (Val + Sharp) > ?MIN_SHARPNESS ->
-%	    ?DBG("Patched OK ~p ~n",[Edge]),
-	    NewFeats = lists:map(fun([{_,{Element,_},_}|_]) -> Element end, Tree),
+	true when (Val + Sharp) > Rs#restr.sharp ->
+%%%	    ?DBG("Patched OK ~p ~n",[Edge]),
+	    NewFeats = lists:map(fun([{_,{Element,_},_}|_]) -> Element end,
+				 Tree),
 	    {Val + Sharp, [[]], NewFeats ++ Feat};
 	_Mem ->
-%	    ?DBG("patch miss ~p ~p ~p ~p ~n",[Edge, _Mem, Val, Sharp]),
+%%%	    ?DBG("patch miss ~p ~p ~p ~p ~n",[Edge, _Mem, Val, Sharp]),
 	    {Sharp, [[]|Tree], Feat}
     end;
-patch_tree([],Sharp,Tree, Feat) ->
+patch_tree([],Sharp,Tree, _,Feat) ->
     {Sharp, [[]|Tree], Feat}.
 
 get_edges(V, Current, CurrVect, We, Fd) ->
@@ -249,7 +274,7 @@ get_vector(A,B,B,We) ->
 get_vector(A,B,#we{vs = Vs}) ->
     e3d_vec:norm(e3d_vec:sub((gb_trees:get(A,Vs))#vtx.pos,(gb_trees:get(B,Vs))#vtx.pos)).
 
-find_extremities(#we{vs= Vs}) ->
+find_extremities(#we{vs= Vs, es=Es}) ->
     Vs1 = gb_trees:to_list(Vs),
     Vs2 = [Pos || {_, #vtx{pos = Pos}} <- Vs1],
     Center = e3d_vec:average(Vs2),    
@@ -264,14 +289,59 @@ find_extremities(#we{vs= Vs}) ->
 		      end, Vs1),   
     [{_,V2,_}|_] = lists:reverse(lists:sort(AllV1)),
     E1 = (gb_trees:get(V1, Vs))#vtx.edge,
-    E2 = (gb_trees:get(V2, Vs))#vtx.edge,
-    [E1,E2].
+    E2 = (gb_trees:get(V2, Vs))#vtx.edge,    
+    F1 = (gb_trees:get(E1,Es))#edge.lf,
+    case (gb_trees:get(E2,Es))#edge.lf of
+	F1 ->
+	    [F1, (gb_trees:get(E2,Es))#edge.rf];
+	F2 ->
+	    [F1, F2]
+    end.
 
+build_extreme([], _, _, Acc0) ->
+    ReNumber = fun({_Group, Fs}, {No, Acc}) ->
+		       {No+1,[{No, Fs}|Acc]}
+	       end,
+    {_,Acc} = lists:foldl(ReNumber, {0,[]}, Acc0),
+    F = sofs:family(Acc),    
+    Rel = sofs:family_to_relation(F),
+    lists:reverse(sofs:to_external(Rel));
+build_extreme(Fs,Max,FaceG,Acc) ->    
+    Find = fun(Face, {FG, New0, Fs0}) ->
+           case gb_trees:lookup(Face,FG) of
+               {value, New1} ->
+               FG1 = gb_trees:delete(Face,FG),
+               {FG1, New1 ++ New0, [Face|Fs0]};
+               none ->
+               {FG, New0, Fs0}
+           end
+       end,
+    {FG1,New, Fs1} = lists:foldl(Find, {FaceG, [], []}, Fs),
+    build_extreme(New, Max-1, FG1, [{Max,Fs1}|Acc]).
+    
 build_seeds(Features0, #we{fs=Ftab}=We) ->
-    FaceGraph = build_face_graph(gb_trees:keys(Ftab), We, gb_trees:empty()), 
-    Distances = [{Max, _}|_] = calc_distance(Features0, FaceGraph, We),
-    {DistTree,LocalMaxs} = find_local_max(Distances, Features0, FaceGraph, We),
-    {LocalMaxs,{DistTree,Max,Distances}}.
+    FaceGraph = build_face_graph(gb_trees:keys(Ftab), We, 
+				 gb_trees:empty()),
+    case Features0 of
+	[] ->
+	    Fs = [F1,F2] = find_extremities(We),        
+	    StartNo = gb_trees:size(Ftab),
+	    Dists = [{Max, _}|_] = build_extreme(Fs,StartNo,FaceGraph,[]),
+	    LMaxs = [{Max, F1}, {Max, F2}],
+	    DTree = lists:foldl(fun({Dist, Face}, Tree) ->
+					gb_trees:insert(Face, Dist, Tree)
+				end, gb_trees:empty(), Dists),
+	    {LMaxs,{DTree,Max,Dists}};
+	_ ->
+	    Distances = [{Max, _}|_] = 
+		calc_distance(Features0, FaceGraph, We),
+	    DTree = lists:foldl(fun({Dist, Face}, Tree) ->
+					gb_trees:insert(Face, Dist, Tree)
+				end, gb_trees:empty(), Distances),
+	    LocalMaxs = find_local_max(Distances, DTree,Features0,
+				       FaceGraph, We),
+	    {LocalMaxs,{DTree,Max,Distances}}
+    end.
 
 build_charts(LocalMaxs, {DistTree,Max,Distances}, VEG, EWs, We) ->
     {Charts0,Bounds0} = expand_charts(LocalMaxs, Max + 1, DistTree, VEG,EWs, We),
@@ -395,13 +465,10 @@ merge_charts(Ch1,Ch2, Charts0, Dt, ChartBds0,We) ->
 		       ChartBds0, List),
     {gb_trees:from_orddict(Merged), ChartBds1}.   
 
-find_local_max(Distances, Features, FaceGraph, #we{es = Es}) ->
-    DTree = lists:foldl(fun({Dist, Face}, Tree) ->
-				gb_trees:insert(Face, Dist, Tree)
-			end, gb_trees:empty(), Distances),
-    %% Remove the features from FaceGraph, edges which are a feature shouldn't
-    %% connect to opposite faces 
-    FG1 = lists:foldl(fun(Edge, Tree0) -> 
+find_local_max(Distances, DTree, Features, FaceGraph, #we{es = Es}) ->
+    %% Remove the features from FaceGraph, edges which are a feature
+    %%  shouldn't connect to opposite faces
+    FG1 = lists:foldl(fun(Edge, Tree0) ->
 			      #edge{lf=LF,rf=RF} = gb_trees:get(Edge, Es),
 			      LFL = gb_trees:get(LF, Tree0),
 			      LFL1 = lists:delete(RF, LFL),
@@ -410,7 +477,7 @@ find_local_max(Distances, Features, FaceGraph, #we{es = Es}) ->
 			      RFL1 = lists:delete(LF, RFL),
 			      gb_trees:update(RF, RFL1, Tree1)
 		      end, FaceGraph, Features),    
-    {DTree, find_local_maximum(Distances, DTree, FG1, [])}.
+    find_local_maximum(Distances, DTree, FG1, []).
 
 find_local_maximum([This = {Dist, Face}|Dists], Dtree0, FG, Maxs) ->
     case gb_trees:delete_any(Face, Dtree0) of
