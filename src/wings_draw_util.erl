@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.73 2003/06/06 20:14:21 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.74 2003/06/08 19:35:32 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -516,14 +516,15 @@ prepare(Ftab, #we{mode=vertex}=We, St) ->
 	    {color,vtx_color_split(Ftab, We),St}
     end.
 
-vtx_color_split(Ftab0, #we{es=Etab}) ->
+vtx_color_split([{_,Edge}|_]=Ftab0, #we{es=Etab}) when is_integer(Edge) ->
     Ftab1 = sofs:from_external(Ftab0, [{face,edge}]),
     Ftab = sofs:domain(Ftab1),
     FaceCol0 = vtx_color_split_1(gb_trees:values(Etab), []),
     FaceCol1 = sofs:relation(FaceCol0, [{face,color}]),
     FaceCol2 = sofs:restriction(FaceCol1, Ftab),
     FaceCol = sofs:to_external(FaceCol2),
-    vtx_color_split_2(FaceCol, [], []).
+    vtx_color_split_2(FaceCol, [], []);
+vtx_color_split(Ftab, _) -> vtx_smooth_color_split(Ftab).
 
 vtx_color_split_1([#edge{a=A,b=B,lf=Lf,rf=Rf}|Es], Acc) ->
     vtx_color_split_1(Es, [{Lf,A},{Rf,B}|Acc]);
@@ -545,6 +546,25 @@ vtx_color_split_4([{F,_}|Fs], F, SameAcc, DiffAcc) ->
     vtx_color_split_4(Fs, F, SameAcc, DiffAcc);
 vtx_color_split_4(Fs, _, SameAcc, DiffAcc) ->
     vtx_color_split_2(Fs, SameAcc, DiffAcc).
+
+vtx_smooth_color_split(Ftab) ->
+    vtx_smooth_color_split_1(Ftab, [], []).
+
+vtx_smooth_color_split_1([{_,{_,Vs}}=Face|Fs], SameAcc, DiffAcc) ->
+    case vtx_smooth_face_color(Vs) of
+	different -> vtx_smooth_color_split_1(Fs, SameAcc, [Face|DiffAcc]);
+	Col -> vtx_smooth_color_split_1(Fs, [{Col,Face}|SameAcc], DiffAcc)
+    end;
+vtx_smooth_color_split_1([], SameAcc, DiffAcc) ->
+    {wings_util:rel2fam(SameAcc),DiffAcc}.
+
+vtx_smooth_face_color([{_,{Col,_}}|T]) ->
+    vtx_smooth_face_color_1(T, Col).
+
+vtx_smooth_face_color_1([{_,{Col,_}}|T], Col) ->
+    vtx_smooth_face_color_1(T, Col);
+vtx_smooth_face_color_1([_|_], _) -> different;
+vtx_smooth_face_color_1([], Col) -> Col.
 
 %%%
 %%% Set material and draw faces.

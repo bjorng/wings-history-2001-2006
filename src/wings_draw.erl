@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.124 2003/06/08 08:57:15 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.125 2003/06/08 19:35:32 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -449,7 +449,7 @@ draw_faces(Ftab, We, St) ->
 draw_faces({uv,MatFaces,St}, We) ->
     draw_uv_faces(MatFaces, We, St);
 draw_faces({material,MatFaces,St}, We) ->
-	    draw_mat_faces(MatFaces, We, St);
+    draw_mat_faces(MatFaces, We, St);
 draw_faces({color,Colors,#st{mat=Mtab}}, We) ->
     wings_material:apply_material(default, Mtab),
     gl:enable(?GL_COLOR_MATERIAL),
@@ -506,126 +506,112 @@ draw_mat_faces_fun([], _We) -> ok.
 %%% Smooth drawing.
 %%%
 
-smooth_dlist(#we{he=Htab0}=We, #st{mat=Mtab}) ->
+smooth_dlist(#we{he=Htab0}=We, St) ->
     case check_mirror(We) of
 	none ->
 	    Flist = wings_we:normals(We),
-	    smooth_faces(Flist, We, Mtab);
+	    smooth_faces(Flist, We, St);
 	{Face} ->
 	    Edges = wings_face:outer_edges([Face], We),
 	    Htab = gb_sets:union(Htab0, gb_sets:from_list(Edges)),
 	    Flist = wings_we:normals(We#we{he=Htab}),
-	    smooth_faces(Flist, We, Mtab)
+	    smooth_faces(Flist, We, St)
     end.
 
-smooth_faces(Faces, #we{mode=vertex}, _Mtab) ->
+smooth_faces(Ftab, We, St) ->
+    smooth_faces(wings_draw_util:prepare(Ftab, We, St)).
+
+smooth_faces({uv,MatFaces,St}) ->
+    draw_smooth_faces(fun draw_smooth_uv_face/2, MatFaces, St);
+smooth_faces({material,MatFaces,St}) ->
+    draw_smooth_faces(fun draw_smooth_mat_face/2, MatFaces, St);
+smooth_faces({color,{Same,Diff},#st{mat=Mtab}}) ->
     ListOp = gl:genLists(1),
     gl:newList(ListOp, ?GL_COMPILE),
-    case wings_pref:get_value(show_colors) of
-	false -> draw_smooth_plain(Faces);
-	true ->
-	    gl:enable(?GL_COLOR_MATERIAL),
-	    gl:colorMaterial(?GL_FRONT, ?GL_AMBIENT_AND_DIFFUSE),
-	    wings_draw_util:begin_end(fun() ->
-					      draw_smooth_vcolor(Faces)
-				      end),
-	    gl:disable(?GL_COLOR_MATERIAL)
-    end,
+    wings_material:apply_material(default, Mtab),
+    gl:enable(?GL_COLOR_MATERIAL),
+    gl:colorMaterial(?GL_FRONT_AND_BACK, ?GL_AMBIENT_AND_DIFFUSE),
+    Draw = fun() ->
+		   Tess = wings_draw_util:tess(),
+		   draw_smooth_vtx_faces_1(Same, fun draw_smooth_mat_face/2, Tess),
+		   do_draw_smooth_1(Diff, fun draw_smooth_color_face/2, Tess)
+	   end,
+    wings_draw_util:begin_end(Draw),
+    gl:disable(?GL_COLOR_MATERIAL),
     gl:endList(),
-    {[ListOp,none],false};
-smooth_faces(Faces, #we{mode=material}=We, Mtab) ->
-    smooth_faces_0(show_materials, Faces, We, Mtab);
-smooth_faces(Faces, #we{mode=uv}=We, Mtab) ->
-    smooth_faces_0(show_textures, Faces, We, Mtab).
+    {[ListOp,none],false}.
 
-smooth_faces_0(PrefKey, Faces0, We, Mtab) ->
-    Faces = case wings_pref:get_value(PrefKey) of
-		false -> [{default,Faces0}];
-		true -> wings_material:mat_faces(Faces0, We)
-	    end,
-    draw_smooth_1(Faces, Mtab).
+draw_smooth_vtx_faces_1([{Col,Faces}|MatFaces], DrawFace, Tess) ->
+    gl:color3fv(Col),
+    do_draw_smooth_1(Faces, DrawFace, Tess),
+    draw_smooth_vtx_faces_1(MatFaces, DrawFace, Tess);
+draw_smooth_vtx_faces_1([], _, _) -> ok.
 
-draw_smooth_1(Flist, Mtab) ->
-    ListOp = gl:genLists(2),
-    ListTr = ListOp+1,
+draw_smooth_faces(DrawFace, Flist, #st{mat=Mtab}) ->
+    ListOp = gl:genLists(1),
     gl:newList(ListOp, ?GL_COMPILE),
-    draw_smooth_1(Flist, Mtab, false, 0),
+    Trans = draw_smooth_opaque(Flist, DrawFace, Mtab, []),
     gl:endList(),
-    gl:newList(ListTr, ?GL_COMPILE),
-    N = draw_smooth_1(Flist, Mtab, true, 0),
-    gl:endList(),
-    {[ListOp,ListTr],N /= 0}.
+    if
+	Trans =:= [] ->
+	    {[ListOp,none],false};
+	true ->
+	    ListTr = gl:genLists(1),
+	    gl:newList(ListTr, ?GL_COMPILE),
+	    draw_smooth_tr(Flist, DrawFace, Mtab),
+	    gl:endList(),
+	    {[ListOp,ListTr],true}
+    end.
 
-draw_smooth_1([{M,Faces}|T], Mtab, Flag, N) ->
+draw_smooth_opaque([{M,Faces}=MatFaces|T], DrawFace, Mtab, Acc) ->
     case wings_material:is_transparent(M, Mtab) of
-	Flag ->
-	    draw_smooth_2(M, Faces, Mtab),
-	    draw_smooth_1(T, Mtab, Flag, N+1);
-	_ ->
-	    draw_smooth_1(T, Mtab, Flag, N)
+	true ->
+	    draw_smooth_opaque(T, DrawFace, Mtab, [MatFaces|Acc]);
+	false ->
+	    do_draw_smooth(DrawFace, M, Faces, Mtab),
+	    draw_smooth_opaque(T, DrawFace, Mtab, Acc)
     end;
-draw_smooth_1([], _, _, N) -> N.
+draw_smooth_opaque([], _, _, Acc) -> Acc.
 
-draw_smooth_2(Mat, Faces, Mtab) ->
+draw_smooth_tr([{M,Faces}|T], DrawFace, Mtab) ->
+    do_draw_smooth(DrawFace, M, Faces, Mtab),
+    draw_smooth_tr(T, DrawFace, Mtab);
+draw_smooth_tr([], _, _) -> ok.
+
+do_draw_smooth(DrawFace, Mat, Faces, Mtab) ->
     gl:pushAttrib(?GL_TEXTURE_BIT),
     wings_material:apply_material(Mat, Mtab),
-    Tess = wings_draw_util:tess(),
     wings_draw_util:begin_end(
       fun() ->
-	      draw_smooth_3(Faces, Tess)
+	      Tess = wings_draw_util:tess(),
+	      do_draw_smooth_1(Faces, DrawFace, Tess)
       end),
     gl:popAttrib().
 
-draw_smooth_3([{_,{{X,Y,Z},Vs}}|Fs], Tess) ->
+do_draw_smooth_1([{_,{{X,Y,Z},Vs}}|Fs], DrawFace, Tess) ->
     glu:tessNormal(Tess, X, Y, Z),
     glu:tessBeginPolygon(Tess),
     glu:tessBeginContour(Tess),
-    foreach(fun({P,{{_,_}=UV,N}}) ->
-		    glu:tessVertex(Tess, P, [{texcoord2,UV},{normal,N}]);
-	       ({P,{_,N}}) ->
-		    glu:tessVertex(Tess, P, [{normal,N}])
-	    end, Vs),
+    DrawFace(Vs, Tess),
     glu:tessEndContour(Tess),
     glu:tessEndPolygon(Tess),
-    draw_smooth_3(Fs, Tess);
-draw_smooth_3([], _) -> ok.
+    do_draw_smooth_1(Fs, DrawFace, Tess);
+do_draw_smooth_1([], _, _) -> ok.
 
-%% Smooth drawing for vertex colors.
-draw_smooth_vcolor([{_,{{X,Y,Z},Vs}}|T]) ->
-    Tess = wings_draw_util:tess(),
-    glu:tessNormal(Tess, X, Y, Z),
-    glu:tessBeginPolygon(Tess),
-    glu:tessBeginContour(Tess),
-    foreach(fun({P,{{_,_,_}=Diff,N}}) ->
-		    glu:tessVertex(Tess, P,
-				   [{normal,N},
-				    {color,Diff}])
-	    end, Vs),
-    glu:tessEndContour(Tess),
-    glu:tessEndPolygon(Tess),
-    draw_smooth_vcolor(T);
-draw_smooth_vcolor([]) -> ok.
+draw_smooth_uv_face([{P,{{_,_}=UV,N}}|Vs], Tess) ->
+    glu:tessVertex(Tess, P, [{normal,N},{texcoord2,UV}]),
+    draw_smooth_uv_face(Vs, Tess);
+draw_smooth_uv_face([], _) -> ok.
 
-%% Smooth drawing without any materials.
-draw_smooth_plain(Faces) ->
-    gl:materialfv(?GL_FRONT, ?GL_AMBIENT_AND_DIFFUSE, {1,1,1,1}),
-    wings_draw_util:begin_end(
-      fun() ->
-	      draw_smooth_plain_1(Faces)
-      end).
+draw_smooth_color_face([{P,{{_,_,_}=Color,N}}|Vs], Tess) ->
+    glu:tessVertex(Tess, P, [{color,Color},{normal,N}]),
+    draw_smooth_color_face(Vs, Tess);
+draw_smooth_color_face([], _) -> ok.
 
-draw_smooth_plain_1([{_,{{X,Y,Z},Vs}}|T]) ->
-    Tess = wings_draw_util:tess(),
-    glu:tessNormal(Tess, X, Y, Z),
-    glu:tessBeginPolygon(Tess),
-    glu:tessBeginContour(Tess),
-    foreach(fun({P,{_,N}}) ->
-		    glu:tessVertex(Tess, P, [{normal,N}])
-	    end, Vs),
-    glu:tessEndContour(Tess),
-    glu:tessEndPolygon(Tess),
-    draw_smooth_plain_1(T);
-draw_smooth_plain_1([]) -> ok.
+draw_smooth_mat_face([{P,{_,N}}|Vs], Tess) ->
+    glu:tessVertex(Tess, P, [{normal,N}]),
+    draw_smooth_mat_face(Vs, Tess);
+draw_smooth_mat_face([], _) -> ok.
 
 %%
 %% Draw normals for the selected elements.
