@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.2 2003/01/17 22:51:43 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.3 2003/01/20 07:36:55 bjorng Exp $
 %%
 
 -module(wings_outliner).
@@ -127,7 +127,11 @@ do_menu(Act, X, Y, #ost{os=Objs}) ->
 		    separator,
 		    {"Delete",
 		     fun(_, _) ->
-			     {outliner,{delete_light,Id}} end,[]}]
+			     {outliner,{delete_light,Id}} end,[]}];
+	       {image,Id,_} ->
+		   [{"Revert",
+		     fun(_, _) ->
+			     {outliner,{revert_image,Id}} end,[]}]
 	   end,
     wings_menu:popup_menu(X, Y, outliner, Menu).
 
@@ -145,7 +149,9 @@ command({edit_light,Id}, _) ->
     wings_wm:send(geom, {action,{light,{edit,Id}}}),
     keep;
 command({delete_light,Id}, Ost) ->
-    delete_object(Id, Ost).
+    delete_object(Id, Ost);
+command({revert_image,Id}, Ost) ->
+    keep.
 
 delete_object(Id, #ost{st=#st{shapes=Shs0}=St0}) ->
     Shs = gb_trees:delete(Id, Shs0),
@@ -169,7 +175,8 @@ update_state_1(#st{mat=Mat,shapes=Shs0}=St, #ost{os=Objs0}=Ost) ->
 				?IS_NOT_LIGHT(We)] ++
 	[{light,Id,Name} || #we{id=Id,name=Name}=We <- gb_trees:values(Shs0),
 			    ?IS_LIGHT(We)] ++
-	[make_mat(M) || M <- gb_trees:to_list(Mat)],
+	[make_mat(M) || M <- gb_trees:to_list(Mat)] ++
+	[{image,Id,Name} || {Id,Name} <- wings_image:images()],
     case Objs of
 	Objs0 -> ok;
 	_ -> wings_wm:dirty()
@@ -243,9 +250,9 @@ draw_objects_1(0, _, _, _, _, _) -> ok;
 draw_objects_1(N, [O|Objs], #ost{lh=Lh}=Ost, R, Active, Y) ->
     case O of
 	{material,Name,Color,TextColor} ->
-	    wings_io:border(3, Y-10, 12, 12, Color),
+	    wings_io:border(2, Y-10, 12, 12, Color),
 	    gl:color3fv(TextColor),
-	    gl:rasterPos2f(8, Y),
+	    gl:rasterPos2f(7, Y),
 	    wings_io:draw_char(m_bitmap()),
 	    gl:color3f(0, 0, 0);
 	{_,_,Name} -> ok
@@ -277,6 +284,13 @@ draw_icons_1(N, [O|Objs], #ost{lh=Lh}=Ost, Y) ->
 	    wings_io:draw_icon(X, Y, 16, 16, small_object);
 	light ->
 	    wings_io:draw_icon(X, Y, 16, 16, small_light);
+	image ->
+	    if
+		element(2, O) rem 2 == 0 ->
+		    wings_io:draw_icon(X, Y, 16, 16, small_image);
+		true ->
+		    wings_io:draw_icon(X, Y, 16, 16, small_image2)
+	    end;
 	material -> ok
     end,
     draw_icons_1(N-1, Objs, Ost, Y+Lh).

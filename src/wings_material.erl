@@ -8,13 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.70 2003/01/17 22:51:42 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.71 2003/01/20 07:36:55 bjorng Exp $
 %%
 
 -module(wings_material).
--export([init/1,new/1,sub_menu/2,command/2,
-	 color/4,default/0,add_materials/2,
-	 replace_map/4,
+-export([new/1,sub_menu/2,command/2,
+	 color/4,default/0,add_materials/2,update_image/4,
 	 used_materials/1,apply_material/2,
 	 is_transparent/2]).
 
@@ -24,19 +23,7 @@
 -include("e3d_image.hrl").
 
 -import(lists, [map/2,foreach/2,sort/1,foldl/3,reverse/1,
-		keyreplace/4,keydelete/3,flatten/1]).
-
-init(#st{mat=MatTab}) ->
-    case put(?MODULE, gb_trees:empty()) of
-	undefined -> ok;
-	Txs ->
-	    foreach(fun(Tx) ->
-			    gl:deleteTextures(1, [Tx])
-		    end, gb_trees:values(Txs))
-    end,
-    foreach(fun({Name,Mat}) ->
-		    init_texture(Name, Mat)
-	    end, gb_trees:to_list(MatTab)).
+		keyreplace/4,keydelete/3,keysearch/3,flatten/1]).
 
 new(_) ->
     wings_ask:ask("New Material",
@@ -109,14 +96,11 @@ make_default({R,G,B}, Opacity) ->
 	   {maps,[]}],
     sort([{K,sort(L)} || {K,L} <- Mat]).
 
-replace_map(MatName, MapType, Map, #st{mat=Mtab0}=St) ->
-    Mat0 = gb_trees:get(MatName, Mtab0),
-    Maps0 = prop_get(maps, Mat0, []),
-    Maps = [{MapType,Map}|keydelete(MapType, 1, Maps0)],
-    Mat = keyreplace(maps, 1, Mat0, {maps,Maps}),
-    Mtab = gb_trees:update(MatName, Mat, Mtab0),
-    init_texture(MatName, Mat),
-    St#st{mat=Mtab}.
+update_image(MatName, MapType, Image, #st{mat=Mtab}) ->
+    Mat = gb_trees:get(MatName, Mtab),
+    Maps = prop_get(maps, Mat, []),
+    {value,{MapType,ImageId}} = keysearch(MapType, 1, Maps),
+    wings_image:update(ImageId, Image).
 
 add_materials(Ms, St) ->
     add_materials(Ms, St, []).
@@ -157,7 +141,11 @@ norm({R,G,B}) -> {R,G,B,1.0}.
     
 load_maps([{Key,Filename}|T]) when is_list(Filename) ->
     [{Key,load_map(Filename)}|load_maps(T)];
-load_maps([H|T]) -> [H|load_maps(T)];
+load_maps([{Key,{W,H,Bits}}|T]) ->
+    E3dImage = #e3d_image{type=r8g8b8,order=lower_left,
+			  width=W,height=H,image=Bits},
+    Id = wings_image:new(atom_to_list(Key)++" texture", E3dImage),
+    [{Key,Id}|load_maps(T)];
 load_maps([]) -> [].
     
 load_map(MapName) ->
@@ -166,7 +154,7 @@ load_map(MapName) ->
 	{'EXIT',R} ->
 	    io:format("~P\n", [R,20]),
 	    none;
-	{_,_,_}=Tx -> Tx
+	Im when is_integer(Im)-> Im
     end.
 
 load_map_1(none) -> none;
@@ -174,8 +162,8 @@ load_map_1(File0) ->
     File = filename:absname(File0, wings_pref:get_value(current_directory)),
     Ps = [{filename,File},{type,r8g8b8},{order,lower_left},{alignment,1}],
     case wpa:image_read(Ps) of
-	#e3d_image{width=W,height=H,image=Pixels} ->
-	    {W,H,Pixels};
+	#e3d_image{}=Im ->
+	    wings_image:new("ImportedImage", Im);
 	{error,Error} ->
 	    io:format("Failed to load \"~s\": ~s\n",
 		      [File,file:format_error(Error)]),
@@ -191,7 +179,6 @@ add(Name, Mat0, #st{mat=MatTab}=St) ->
     Mat = sort([{K,sort(L)} || {K,L} <- Mat0]),
     case gb_trees:lookup(Name, MatTab) of
 	none ->
-	    init_texture(Name, Mat),
 	    St#st{mat=gb_trees:insert(Name, Mat, MatTab)};
 	{value,Mat} -> St;
 	{value,_} ->
@@ -218,11 +205,17 @@ apply_material(Name, Mtab) when is_atom(Name) ->
     Maps = prop_get(maps, Mat, []),
     case prop_get(diffuse, Maps, none) of
 	none -> gl:disable(?GL_TEXTURE_2D);
-	_DiffMap ->
+	DiffuseImage -> apply_texture(DiffuseImage)
+    end.
+
+apply_texture(Image) ->
+    case wings_image:txid(Image) of
+	none -> ok;
+	TxId ->
 	    gl:enable(?GL_TEXTURE_2D),
 	    gl:texEnvi(?GL_TEXTURE_ENV,
 		       ?GL_TEXTURE_ENV_MODE, ?GL_MODULATE),
-	    gl:bindTexture(?GL_TEXTURE_2D, get_tx_id(Name)),
+	    gl:bindTexture(?GL_TEXTURE_2D, TxId),
 	    gl:texParameteri(?GL_TEXTURE_2D,
 			     ?GL_TEXTURE_MAG_FILTER, ?GL_LINEAR),
 	    gl:texParameteri(?GL_TEXTURE_2D,
@@ -232,7 +225,6 @@ apply_material(Name, Mtab) when is_atom(Name) ->
 	    gl:texParameteri(?GL_TEXTURE_2D,
 			     ?GL_TEXTURE_WRAP_T, ?GL_REPEAT)
     end.
-
 
 %%% Returns the materials used.
 
@@ -321,7 +313,8 @@ show_maps(Mat) ->
 	Maps -> [separator|[show_map(M) || M <- sort(Maps)]]
     end.
 
-show_map({Type,{W,H,_Bits}}) ->
+show_map({Type,Image}) ->
+    #e3d_image{width=W,height=H} = wings_image:info(Image),
     Label = flatten(io_lib:format("~p ~px~p", [Type,W,H])),
     {hframe,
      [{label,Label}]}.
@@ -416,65 +409,6 @@ color_1(U0, V0, {W,H,Bits}) ->
     Pos = V*W*3 + U*3,
     <<_:Pos/binary,R:8,G:8,B:8,_/binary>> = Bits,
     wings_util:share(R/255, G/255, B/255).
-    
-%%% Texture support.
-
-init_texture(Name, Mat) ->
-    Maps = prop_get(maps, Mat, []),
-    case prop_get(diffuse, Maps, none) of
-	none -> ok;
-	{_,_,_}=Image ->
-	    {W,H,Bits} = maybe_scale(Image),
-	    TxDict0 = get(?MODULE),
-	    case gb_trees:lookup(Name, TxDict0) of
-		{value,TxId} ->
-		    gl:bindTexture(?GL_TEXTURE_2D, TxId),
-		    gl:texSubImage2D(?GL_TEXTURE_2D, 0, 0, 0,
-				     W, H, ?GL_RGB, ?GL_UNSIGNED_BYTE, Bits);
-		none ->
-		    [TxId] = gl:genTextures(1),
-		    gl:pushAttrib(?GL_TEXTURE_BIT),
-		    gl:enable(?GL_TEXTURE_2D),
-		    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_MODULATE),
-		    gl:bindTexture(?GL_TEXTURE_2D, TxId),
-		    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_MAG_FILTER,
-				     ?GL_LINEAR),
-		    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_MIN_FILTER,
-				     ?GL_LINEAR),
-		    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_S, ?GL_REPEAT),
-		    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_T, ?GL_REPEAT),
-		    gl:texImage2D(?GL_TEXTURE_2D, 0, ?GL_RGB,
-				  W, H, 0, ?GL_RGB, ?GL_UNSIGNED_BYTE, Bits),
-		    gl:popAttrib(),
-		    TxDict = gb_trees:insert(Name, TxId, TxDict0),
-		    put(?MODULE, TxDict)
-	    end
-    end.
-
-maybe_scale({W0,H0,Bits0}=Image) ->
-    case {nearest_power_two(W0),nearest_power_two(H0)} of
-	{W0,H0} -> Image;
-	{W,H} ->
-	    In = sdl_util:malloc(W0*H0*3, ?GL_UNSIGNED_BYTE),
-	    sdl_util:write(In, Bits0),
-	    Out = sdl_util:malloc(W*H*3, ?GL_UNSIGNED_BYTE),
-	    glu:scaleImage(?GL_RGB, W0, H0, ?GL_UNSIGNED_BYTE,
-			   In, W, H, ?GL_UNSIGNED_BYTE, Out),
-	    sdl_util:free(In),
-	    Bits = sdl_util:readBin(Out, W*H*3),
-	    sdl_util:free(Out),
-	    {W,H,Bits}
-    end.
-
-nearest_power_two(N) when (N band -N) =:= N -> N;
-nearest_power_two(N) -> nearest_power_two(N, 1).
-
-nearest_power_two(N, B) when B > N -> B bsr 1;
-nearest_power_two(N, B) -> nearest_power_two(N, B bsl 1).
-    
-get_tx_id(Name) ->
-    TxDict = get(?MODULE),
-    gb_trees:get(Name, TxDict).
     
 prop_get(Key, Props) ->
     proplists:get_value(Key, Props).

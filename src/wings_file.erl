@@ -3,12 +3,12 @@
 %%
 %%     This module contains the commands in the File menu.
 %%
-%%  Copyright (c) 2001-2000 Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.95 2003/01/12 08:10:52 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.96 2003/01/20 07:36:55 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -73,7 +73,7 @@ command(new, St0) ->
     case new(St0) of
 	aborted -> St0;
 	St0 -> St0;
-	St -> {new,St}
+	St -> {new,clean_images(St)}
     end;
 command(open, St0) ->
     case read(St0) of
@@ -159,7 +159,6 @@ quit(St) ->
 new(#st{saved=true}=St0) ->
     St = clean_st(St0#st{file=undefined}),
     wings:caption(St),
-    wings_material:init(St),
     St;
 new(St0) -> %% File is not saved or autosaved.
     wings:caption(St0#st{saved=false}), 
@@ -181,17 +180,17 @@ read(St0) ->
 	aborted -> St0;
 	St1 ->
 	    case wings_plugin:call_ui({file,open_dialog,wings_prop()}) of
-		aborted ->
-		    wings_material:init(St0),
-		    St0;
+		aborted -> St0;
 		Name ->
 		    set_cwd(dirname(Name)),
 		    File = use_autosave(Name),
 		    case ?SLOW(wings_ff_wings:import(File, St1)) of
-			#st{}=St ->
+			#st{}=St2 ->
+			    St = clean_images(St2),
 			    add_recent(Name),
 			    wings:caption(St#st{saved=true,file=Name});
 			{error,Reason} ->
+			    clean_new_images(St1),
 			    wings_util:error("Read failed: " ++ Reason)
 		    end
 	    end
@@ -204,12 +203,13 @@ named_open(Name, St0) ->
 	    add_recent(Name),
 	    File = use_autosave(Name),
 	    case ?SLOW(wings_ff_wings:import(File, St1)) of
-		#st{}=St ->
+		#st{}=St2 ->
+		    St = clean_images(St2),
 		    set_cwd(dirname(Name)),
 		    wings:caption(St#st{saved=true,file=Name});
 		{error,Reason} ->
-		    wings_util:error("Read failed: " ++ Reason),
-		    St0
+		    clean_new_images(St1),
+		    wings_util:error("Read failed: " ++ Reason)
 	    end
     end.
 
@@ -218,11 +218,13 @@ merge(St0) ->
 	aborted -> St0;
 	Name ->
 	    File = use_autosave(Name),
+	    St1 = St0#st{vec=wings_image:next_id()},
 	    case ?SLOW(wings_ff_wings:import(File, St0)) of
-		{error,Reason} ->
-		    wings_util:error("Read failed: " ++ Reason),
-		    St0;
-		#st{}=St -> St
+		    {error,Reason} ->
+		    clean_new_images(St1),
+		    wings_util:error("Read failed: " ++ Reason);
+		#st{}=St ->
+		    St#st{vec=none}
 	    end
     end.
 
@@ -427,11 +429,9 @@ number_files([], _I, Rest) -> Rest.
 revert(#st{file=undefined}=St) -> St;
 revert(#st{file=File}=St0) ->
     St1 = clean_st(St0),
-    wings_material:init(St1),
     case ?SLOW(wings_ff_wings:import(File, St1)) of
 	#st{}=St -> St;
 	{error,_}=Error ->
-	    wings_material:init(St0),
 	    Error
     end.
 
@@ -562,7 +562,16 @@ output_file(Title, Prop) ->
 clean_st(St) ->
     DefMat = wings_material:default(),
     Empty = gb_trees:empty(),
-    St#st{shapes=Empty,mat=DefMat,sel=[],ssels=Empty}.
+    Limit = wings_image:next_id(),
+    St#st{shapes=Empty,mat=DefMat,sel=[],ssels=Empty,vec=Limit}.
+
+clean_images(#st{vec=Limit}=St) when is_integer(Limit) ->
+    wings_image:delete_older(Limit),
+    St#st{vec=none}.
+
+clean_new_images(#st{vec=Limit}=St) when is_integer(Limit) ->
+    wings_image:delete_from(Limit),
+    St#st{vec=none}.
     
 %%%
 %%% Generic import code.
@@ -725,4 +734,3 @@ hard_edges([], _Etab, Acc) -> Acc.
 
 hard(A, B) when A < B -> {A,B};
 hard(A, B) -> {B,A}.
-

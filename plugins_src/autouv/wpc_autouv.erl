@@ -4,11 +4,11 @@
 %%
 %% Created : 24 Jan 2002 by Dan Gudmundsson <dgud@erix.ericsson.se>
 %%-------------------------------------------------------------------
-%%  Copyright (c) 2001-2002 Dan Gudmundsson, Bjorn Gustavsson
+%%  Copyright (c) 2002-2003 Dan Gudmundsson, Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.77 2003/01/11 09:42:44 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.78 2003/01/20 07:36:55 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -278,7 +278,7 @@ seg_command(Cmd, #seg{st=#st{mat=Mat}=St0}=Ss) ->
 	    io:format("Cmd: ~w\n", [Cmd]),
 	    keep;
 	true ->
-	    St = wings_material:command({face,{material,Cmd}}, St0),
+	    St = wings_material:command({material,{assign,Cmd}}, St0),
 	    get_seg_event(Ss#seg{st=St})
     end.
 
@@ -599,7 +599,9 @@ get_texture_size(MatName, #st{mat=Materials}) ->
     Maps = proplists:get_value(maps, Mat, []),
     case proplists:get_value(diffuse, Maps, none) of
 	none -> {512,512};
-	{W,H,_} -> {W,H}
+	ImageId ->
+	    #e3d_image{width=W,height=H} = wings_image:info(ImageId),
+	    {W,H}
     end.	     
 
 get_material(Face, Materials, #we{fs=Ftab}) ->
@@ -616,10 +618,11 @@ add_material(Tx, St0, #areas{we=#we{name=Name},matname=none}=Charts) ->
 	{St,[{MatName0,MatName}]} ->
 	    {St,Charts#areas{matname=MatName}}
     end;
-add_material(Tx, St0, #areas{matname=MatName}=Charts) ->
-    St = wings_material:replace_map(MatName, diffuse, Tx, St0),
+add_material({W,H,Bits}, St, #areas{matname=MatName}=Charts) ->
+    Im = #e3d_image{width=W,height=H,image=Bits},
+    wings_material:update_image(MatName, diffuse, Im, St),
     {St,Charts}.
-
+    
 %%% Opengl drawing routines
 
 init_drawarea() ->
@@ -1154,10 +1157,9 @@ handle_event({action, {auv, NewOp}},Uvs0=#uvstate{sel = Sel0}) ->
     end;
 handle_event({callback, Fun}, _) when function(Fun) ->
     Fun();
-handle_event(init_opengl,Uvs0) ->
-    St = wings_material:init(Uvs0#uvstate.st),	    
+handle_event(init_opengl, Uvs0) ->
     {_,Geom} = init_drawarea(),
-    get_event(reset_dl(Uvs0#uvstate{geom=Geom,st=St}));
+    get_event(reset_dl(Uvs0#uvstate{geom=Geom}));
 handle_event({action,_, {view,smoothed_preview}}, _Uvs0) ->
     keep; %% Bugbug didn't work crashes inside wings update_dlists
 handle_event({action,wings,{view, Cmd}}, Uvs0) ->

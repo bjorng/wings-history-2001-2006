@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.64 2003/01/14 05:15:15 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.65 2003/01/20 07:36:55 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -459,6 +459,7 @@ init_opengl() ->
     gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
     gl:pixelStorei(?GL_UNPACK_ALIGNMENT, 1),
     wings_io:resize(),
+    wings_image:init_opengl(),
     {R,G,B} = wings_pref:get_value(background_color),
     gl:clearColor(R, G, B, 1.0),
     dirty(),

@@ -3,17 +3,19 @@
 %%
 %%     This module contain the functions for reading and writing .wings files.
 %%
-%%  Copyright (c) 2001-2002 Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.30 2002/12/30 15:22:11 bjorng Exp $
+%%     $Id: wings_ff_wings.erl,v 1.31 2003/01/20 07:36:55 bjorng Exp $
 %%
 
 -module(wings_ff_wings).
 -export([import/2,export/2]).
+
 -include("wings.hrl").
+-include("e3d_image.hrl").
 -import(lists, [sort/1,reverse/1,foldl/3]).
 
 -define(WINGS_HEADER, "#!WINGS-1.0\r\n\032\04").
@@ -218,7 +220,8 @@ export(Name, St0) ->
     Sel0 = collect_sel(St),
     {Shs1,Sel} = renumber(gb_trees:to_list(Shs0), Sel0, 0, [], []),
     Shs = foldl(fun shape/2, [], Shs1),
-    Materials = wings_material:used_materials(St),
+    Materials0 = wings_material:used_materials(St),
+    Materials = mat_images(Materials0),
     Props0 = export_props(Sel),
     Props = case Lights of
 		[] -> Props0;
@@ -320,3 +323,23 @@ export_face(#face{mat=Mat}, Acc) ->
 
 export_vertex({X,Y,Z}, Acc) ->
     [[<<X/float,Y/float,Z/float>>]|Acc].
+
+mat_images(Mats) ->
+    mat_images(Mats, []).
+
+mat_images([{Name,Mat0}|T], Acc) ->
+    Mat = mat_images_1(Mat0, []),
+    mat_images(T, [{Name,Mat}|Acc]);
+mat_images([], Acc) -> Acc.
+
+mat_images_1([{maps,Maps0}|T], Acc) ->
+    Maps = mat_images_2(Maps0, []),
+    mat_images_1(T, [{maps,Maps}|Acc]);
+mat_images_1([H|T], Acc) ->
+    mat_images_1(T, [H|Acc]);
+mat_images_1([], Acc) -> Acc.
+
+mat_images_2([{Type,Image}|T], Acc) ->
+    #e3d_image{width=W,height=H,image=Bits} = wings_image:info(Image),
+    mat_images_2(T, [{Type,{W,H,Bits}}|Acc]);
+mat_images_2([], Acc) -> Acc.
