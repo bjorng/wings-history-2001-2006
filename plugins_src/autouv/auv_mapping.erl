@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.54 2004/05/05 19:11:17 bjorng Exp $
+%%     $Id: auv_mapping.erl,v 1.55 2004/05/05 21:15:52 dgud Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -879,6 +879,8 @@ area3d(V1, V2, V3) ->
 	   bv     % Border vertices
 	  }).
 
+-define(MIN_STRETCH, 1.01).
+
 stretch_opt(We0, OVs) ->
     Fs = wings_we:visible(We0),
     wings_pb:start("optimizing"),
@@ -893,8 +895,7 @@ stretch_opt(We0, OVs) ->
     S2V = stretch_per_vertex(gb_trees:to_list(State#s.v2f),F2S2,State,gb_trees:empty()),
 %    MaxI = 5,     %% Max iterations
     MaxI = 50,    %% Max iterations
-    MinS = 1.01, %% Min Stretch
-    {SUvs0,_F2S2} = ?TC(wings_pb:done(stretch_iter(S2V,1,MaxI,MinS,F2S2,Uvs,State))),
+    {SUvs0,_F2S2} = ?TC(wings_pb:done(stretch_iter(S2V,1,MaxI,F2S2,Uvs,State))),
     %% Verify
     _Mean2  = model_l2(gb_trees:keys(_F2S2), _F2S2, State#s.f2a,0.0, 0.0),
     io:format("After Stretch sum (mean) ~p ~n",  [_Mean2]),
@@ -922,8 +923,8 @@ stretch_setup(Fs, We0, OVs) ->
     io:format("Stretch sum (mean) ~p ~n",  [Mean]),
     {F2S2,F2S8,Uvs,State0#s{f2a=F2A,f2ov=F2OV,bv=Bv},S}.
 
-stretch_iter(S2V0={[{_,First}|_],_},I,MaxI,MinS,F2S20,Uvs0,State) 
-  when First > MinS, I < MaxI ->
+stretch_iter(S2V0={[{_,First}|_],_},I,MaxI,F2S20,Uvs0,State) 
+  when First > ?MIN_STRETCH, I < MaxI ->
     if
 	I rem 5 =:= 3 ->
 	    wings_pb:update(I/MaxI, "iteration "++integer_to_list(I));
@@ -931,27 +932,28 @@ stretch_iter(S2V0={[{_,First}|_],_},I,MaxI,MinS,F2S20,Uvs0,State)
 	    ok
     end,
     {S2V,F2S2,Uvs} = 
-	?TC(stretch_iter2(S2V0,I,MaxI,MinS,F2S20,Uvs0,State,gb_sets:empty())),
-    stretch_iter(S2V,I+1,MaxI,MinS,F2S2,Uvs,State);
-stretch_iter(_,_,_,_,F2S2,Uvs,_) ->
+	?TC(stretch_iter2(S2V0,I,MaxI,F2S20,Uvs0,State,gb_sets:empty())),
+    stretch_iter(S2V,I+1,MaxI,F2S2,Uvs,State);
+stretch_iter(_,_,_,F2S2,Uvs,_) ->
     {Uvs,F2S2}.
 
-stretch_iter2({[{V,Val}|R],V2S0},I,MaxI,MinS,F2S20,Uvs0,State,Acc)
-  when Val > MinS ->
+stretch_iter2({[{V,Val}|R],V2S0},I,MaxI,F2S20,Uvs0,State,Acc)
+  when Val > ?MIN_STRETCH ->
     case gb_sets:is_member(V, Acc) of
 	true -> 
-	    stretch_iter2({R,V2S0},I,MaxI,MinS,F2S20,Uvs0,State,Acc);
+	    stretch_iter2({R,V2S0},I,MaxI,F2S20,Uvs0,State,Acc);
 	false ->
 	    Line = random_line(),
 	    #s{f2v=F2Vs,v2f=V2Fs} = State,
 	    Fs   = gb_trees:get(V,V2Fs),
-	    Max  = 1.0 - I/MaxI,
-	    Step = Max/10.0,
-%	    ?DBG("~p ~.4f:",[V,Val]),
-	    {PVal,Uvs,F2S2} = ?TC(opt_v(Val,Step,Step,Max,V,Line,Fs,F2S20,Uvs0,State)),
+	    Step = 0.005,
+	    Levels = 6,
+%	    ?DBG("~p ~.4f:",[V,Val]), 
+	    {PVal,Uvs,F2S2} = 
+		?TC(opt_v(Val,0,Step,Levels,V,Line,Fs,F2S20,Uvs0,State)),
 	    case PVal == Val of 
 		true -> 
-		    stretch_iter2({R,V2S0},I,MaxI,MinS,F2S20,Uvs0,State, 
+		    stretch_iter2({R,V2S0},I,MaxI,F2S20,Uvs0,State, 
 				  gb_sets:insert(V,Acc));
 		false ->
 		    Vs0 = lists:usort(lists:append([gb_trees:get(F,F2Vs)|| F<-Fs])),
@@ -959,11 +961,11 @@ stretch_iter2({[{V,Val}|R],V2S0},I,MaxI,MinS,F2S20,Uvs0,State,Acc)
 					 [{Vtx,gb_trees:get(Vtx, V2Fs)}|New]
 				 end, [], Vs0),
 		    Upd = ?TC(stretch_per_vertex(Upd0,F2S2,State,V2S0)),
-		    stretch_iter2(Upd,I,MaxI,MinS,F2S2,Uvs,State,
+		    stretch_iter2(Upd,I,MaxI,F2S2,Uvs,State,
 				  gb_sets:insert(V,Acc))
 	    end
     end;
-stretch_iter2({_,S2V},_,_,_,F2S2,Uvs,State=#s{v2f=V2Fs},Acc0) ->
+stretch_iter2({_,S2V},_,_,F2S2,Uvs,State=#s{v2f=V2Fs},Acc0) ->
     Acc = foldl(fun(V, Vals) ->
 			[{V,gb_trees:get(V,V2Fs)}|Vals]
 		end, [], gb_sets:to_list(Acc0)),
@@ -976,7 +978,7 @@ random_line() ->
     Len = math:sqrt(X*X+Y*Y),
     {X/Len,Y/Len}.
 
-opt_v(PVal,I,Step,Max,V,L,Fs,F2S0,Uvs0,_State=#s{f2v=F2Vs,f2ov=F2OV,f2a=F2A}) ->
+opt_v(PVal,I,Step,Max,V,L,Fs,F2S0,Uvs0,_State=#s{f2v=F2Vs,f2ov=F2OV,f2a=F2A}) ->    
 %    io:format("~p=>~.3f ", [V,PVal]),
     UV = gb_trees:get(V, Uvs0),
     {Data,F2S1} = 
@@ -1005,17 +1007,23 @@ update_fs([{Face,S}|Ss],F2S) ->
 update_fs([],F2S) -> F2S.
 
 opt_v2(PVal,I,Step,Max,V,UV={S0,T0},L={X,Y},Data,FS0) 
-  when I =< Max, Step > 0.00001 ->    
+  when I < Max ->
     St = {S0+X*Step,T0+Y*Step},
     {Stretch,FS} = calc_stretch(V,Data,St,0.0,0.0,[]),
     if 
 	Stretch < PVal ->
-	    opt_v2(Stretch,I+Step,Step,Max,V,St,L,Data,FS);
+%	    io:format(">"),
+	    opt_v2(Stretch,I,Step,Max,V,St,L,Data,FS);
+	(I rem 2) == 0 ->
+%	    io:format("S"),
+	    opt_v2(PVal,I+1,-Step,Max,V,UV,L,Data,FS0);
 	true ->
+%	    io:format("<"),
 	    NewStep = Step/10,
-	    opt_v2(PVal,I-Step+NewStep,NewStep,Step,V,UV,L,Data,FS0)
+	    opt_v2(PVal,I+1,NewStep,Max,V,UV,L,Data,FS0)
     end;
 opt_v2(PVal,_I,_Step,_Max,_V,St,_L,_,FS) ->
+%    io:format("~n"),
     {PVal,St,FS}.
        
 calc_stretch(V,[{[V,_,_],{_,UV2,UV3},{Q1,Q2,Q3},Face,FA}|R],UV1,Mean,Area,FS) ->
