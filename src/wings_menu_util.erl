@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu_util.erl,v 1.34 2003/10/29 15:03:20 bjorng Exp $
+%%     $Id: wings_menu_util.erl,v 1.35 2003/10/31 06:22:18 bjorng Exp $
 %%
 
 -module(wings_menu_util).
@@ -250,9 +250,12 @@ flatten_fun(Vec) ->
     flatten_fun_1(Vec, Vec, wings_util:stringify(Vec)).
 
 flatten_fun_1(Vec, Axis, String) ->
-    F = fun(1, Ns) -> wings_menu:build_command(Vec, Ns);
-	   (2, _Ns) -> ignore;
-	   (3, Ns) -> {vector,{pick,[point],[Vec],Ns}}
+    F = fun(1, Ns) ->
+		wings_menu:build_command(Vec, Ns);
+	   (2, _Ns) ->
+		ignore;
+	   (3, Ns) ->
+		wings_menu:build_command({'ASK',{[point],[Vec]}}, Ns)
 	end,
     Help0 = dir_help(Axis, [flatten]),
     Help = {Help0,[],"Pick point on plane"},
