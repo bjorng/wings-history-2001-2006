@@ -2,7 +2,7 @@
 #
 # Script for creating a self-contained Wings package for Unix systems.
 #
-# $Id: make_installer,v 1.3 2004/01/18 18:48:30 bjorng Exp $
+# $Id: make_installer,v 1.4 2004/02/22 05:39:05 bjorng Exp $
 #
 
 # Configurable stuff.
@@ -60,8 +60,10 @@ $INSTALL -c -m 644 "$src"/lib/stdlib-*/ebin/* "$dest/lib/$stdlib/ebin"
 
 $INSTALL -c "$erts_src/bin/erlexec" "$dest/bin/erlexec"
 $INSTALL -c "$erts_src/bin/beam" "$dest/bin/beam"
+$INSTALL -c "$erts_src/bin/child_setup" "$dest/bin/child_setup"
 strip --strip-debug "$dest/bin/erlexec"
 strip --strip-debug "$dest/bin/beam"
+strip --strip-debug "$dest/bin/child_setup"
 $INSTALL -c -m 644 "$src/bin/start.boot" "$dest/bin"
 
 # Copy the relevant parts of ESDL.
