@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.57 2003/01/13 18:02:11 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.58 2003/01/15 07:12:57 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -1360,6 +1360,7 @@ text_get_val(#text{last_val=OldVal}=Ts) when is_integer(OldVal) ->
 text_get_val(#text{last_val=Val}=Ts) when is_float(Val) ->
     Text = case get_text(Ts) of
 	       [$.|_]=T -> [$0|T];
+	       [$-|[$.|_]=T] -> [$-,$0|T];
 	       T -> T
 	   end,
     case catch list_to_float(Text) of
