@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.41 2003/08/14 14:28:31 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.42 2003/08/29 09:15:22 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -252,14 +252,11 @@ end_drag(#tweak{st=St0}=T) ->
     help(T),
     update_tweak_handler(T#tweak{tmode=wait,st=St}).
 
-end_drag(#dlo{src_we=#we{id=Id},drag=#drag{mag=Mag}}=D,
-	 #st{shapes=Shs0}=St0) ->
-    #we{vp=Vtab0} = We0 = gb_trees:get(Id, Shs0),
-    Vtab = magnet_end(Mag, Vtab0),
-    We = We0#we{vp=Vtab},
+end_drag(#dlo{src_we=#we{id=Id},drag=#drag{}}=D0, #st{shapes=Shs0}=St0) ->
+    #dlo{src_we=We} = D = wings_draw:join(D0),
     Shs = gb_trees:update(Id, We, Shs0),
     St = St0#st{shapes=Shs},
-    {D#dlo{vs=none,sel=none,drag=none,src_we=We},St};
+    {D#dlo{vs=none,sel=none,drag=none},St};
 end_drag(#dlo{src_we=#we{id=Id,mirror=M},drag={matrix,_,Matrix,_},
 	      proxy_data=Pd}, #st{shapes=Shs0}=St0) ->
     We0 = gb_trees:get(Id, Shs0),
@@ -410,11 +407,6 @@ magnet_tweak(#mag{orig=Orig,vs=Vs}=Mag, Pos) ->
 			 [{V,P}|A]
 		 end, [], Vs),
     {Vtab,Mag#mag{vtab=Vtab}}.
-
-magnet_end(#mag{vtab=Vs}, Vtab) ->
-    foldl(fun({V,Vtx}, Vt) ->
-		  gb_trees:update(V, Vtx, Vt)
-	  end, Vtab, Vs).
 
 magnet_radius(Sign, #tweak{mag_r=Falloff0}=T0) ->
     case Falloff0+Sign*?GROUND_GRID_SIZE/10 of

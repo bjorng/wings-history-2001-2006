@@ -8,19 +8,19 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.143 2003/08/29 08:32:37 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.144 2003/08/29 09:15:23 bjorng Exp $
 %%
 
 -module(wings_draw).
 -export([invalidate_dlists/1,update_dlists/1,update_sel_dlist/0,
-	 split/3,original_we/1,update_dynamic/2,
+	 changed_we/2,split/3,original_we/1,update_dynamic/2,join/1,
 	 update_mirror/0,smooth_dlist/2]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
 -include("wings.hrl").
 
--import(lists, [foreach/2,last/1,reverse/1,foldl/3,merge/1,sort/1,any/2]).
+-import(lists, [foreach/2,last/1,reverse/1,reverse/2,foldl/3,merge/1,sort/1,any/2]).
 
 -record(split,
 	{static_vs,
@@ -29,6 +29,7 @@
 	 dyn_plan,				%Plan for drawing dynamic faces.
 	 v2f=none,				%Vertex => face
 	 f2v=none,				%Face => vertex
+	 orig_ns,
 	 orig_we
 	}).
 
@@ -110,13 +111,10 @@ changed_we(#dlo{ns=Ns0}, #dlo{src_we=We}=D) ->
     Ns = changed_we_1(Ns0, We),
     D#dlo{ns=Ns}.
 
-changed_we_1(_, _) ->
-    none.
-%% Currently disabled.
-% changed_we_1(none, #we{fs=Ftab}=We) ->
-%     changed_we_2(gb_trees:to_list(Ftab), [], We, []);
-% changed_we_1(Ns, #we{fs=Ftab}=We) ->
-%     changed_we_2(gb_trees:to_list(Ftab), gb_trees:to_list(Ns), We, []).
+changed_we_1(none, #we{fs=Ftab}=We) ->
+    changed_we_2(gb_trees:to_list(Ftab), [], We, []);
+changed_we_1(Ns, #we{fs=Ftab}=We) ->
+    changed_we_2(gb_trees:to_list(Ftab), gb_trees:to_list(Ns), We, []).
 
 changed_we_2([{Face,Edge}|Fs], [{Face,Data}=Pair|Ns], We, Acc) ->
     Ps = changed_we_pos(Face, Edge, We),
@@ -414,8 +412,8 @@ update_mirror(D, _) -> D.
 %%% Splitting of objects into two display lists.
 %%%
 
-split(#dlo{split=#split{orig_we=#we{}=We}=Split}=D, Vs, St) ->
-    split(D#dlo{src_we=We}, Split, Vs, St);
+split(#dlo{split=#split{orig_we=#we{}=We,orig_ns=Ns}=Split}=D, Vs, St) ->
+    split(D#dlo{src_we=We,ns=Ns}, Split, Vs, St);
 split(D, Vs, St) ->
     split(D, #split{dyn_faces=sofs:set([], [face])}, Vs, St).
 
@@ -430,7 +428,7 @@ split(#dlo{src_we=#we{fs=Ftab}=We}=D, #split{v2f=none}=Split, Vs, St) ->
     F2V = sofs:relation(F2V0, [{face,vertex}]),
     V2F = sofs:converse(F2V),
     split(D, Split#split{v2f=V2F,f2v=F2V}, Vs, St);
-split(#dlo{mirror=M,src_sel=Sel,src_we=#we{fs=Ftab0}=We,proxy_data=Pd}=D,
+split(#dlo{mirror=M,src_sel=Sel,src_we=#we{fs=Ftab0}=We,proxy_data=Pd,ns=Ns0}=D,
       #split{v2f=V2F,f2v=F2V,dyn_faces=Faces0}=Split0, Vs0, St) ->
     Vs = sofs:set(Vs0, [vertex]),
     Faces1 = sofs:image(V2F, Vs),
@@ -460,7 +458,7 @@ split(#dlo{mirror=M,src_sel=Sel,src_we=#we{fs=Ftab0}=We,proxy_data=Pd}=D,
     DynPlan = wings_draw_util:prepare(FtabDyn, We, St),
     Split = Split0#split{static_vs=StaticVs,dyn_vs=DynVs,
 			 dyn_faces=Faces,dyn_plan=DynPlan,
-			 orig_we=We},
+			 orig_ns=Ns0,orig_we=We},
     #dlo{work=[List],mirror=M,vs=VsDlist,
 	 src_sel=Sel,src_we=WeDyn,split=Split,proxy_data=Pd}.
 
@@ -470,11 +468,12 @@ original_we(#dlo{src_we=We}) -> We.
 update_dynamic(#dlo{work=[_|_],src_we=We}=D, Vtab) when ?IS_LIGHT(We) ->
     wings_light:update_dynamic(D, Vtab);
 update_dynamic(#dlo{work=[Work|_],vs=VsList0,
-		    src_we=We0,split=Split}=D, Vtab0) ->
+		    src_we=We0,split=Split}=D0, Vtab0) ->
     #split{static_vs=StaticVs,dyn_vs=DynVs,dyn_plan=DynPlan} = Split,
     Vtab = gb_trees:from_orddict(merge([sort(Vtab0),StaticVs])),
     We = We0#we{vp=Vtab},
-    Dl = draw_faces(DynPlan, We),
+    D = changed_we(D0, D0),
+    Dl = draw_faces(DynPlan, D),
     VsList = update_dynamic_vs(VsList0, DynVs, We),
     update_dynamic_1(D#dlo{work=[Work,Dl],vs=VsList,src_we=We}).
 
@@ -524,6 +523,84 @@ split_vs_dlist(DynVs, {vertex,SelVs0}, #we{vp=Vtab}) ->
 	    {UnselDyn,[UnselDlist]}
     end;
 split_vs_dlist(_, _, _) -> {none,none}.
+
+%% Re-join display lists that have been split.
+join(#dlo{src_we=#we{vp=Vtab0},split=#split{orig_we=We0,orig_ns=Ns}}=D0) ->
+    #we{vp=OldVtab} = We0,
+
+    %% Heuristic for break-even. (Note that we don't know the exact number
+    %% of vertices that will be updated.)
+    Break = round(16*math:log(gb_trees:size(OldVtab)+1)/math:log(2)+0.5),
+    Vtab = case gb_trees:size(Vtab0) of
+	       Sz when Sz =< Break ->
+		   %% Update the gb_tree to allow sharing with the undo list.
+		   Vt = join_update(Vtab0, OldVtab),
+%  		   io:format("cmp: ~p% \n", [round(100*cmp(Vt, OldVtab)/
+%  						   gb_trees:size(OldVtab))]),
+		   Vt;
+	       _Sz ->
+		   %% Too much updated - faster to rebuild the gb_tree.
+		   %% (There would not have been much sharing anyway.)
+		   join_rebuild(Vtab0, OldVtab)
+	   end,
+%     io:format("~p ~p\n", [erts_debug:size([OldVtab,Vtab]),
+% 			   erts_debug:flat_size([OldVtab,Vtab])]),
+    We = We0#we{vp=Vtab},
+    D = D0#dlo{vs=none,drag=none,sel=none,split=none,src_we=We,ns=Ns},
+    changed_we(D, D).
+
+join_update(New, Old) ->
+    join_update(gb_trees:to_list(New), gb_trees:to_list(Old), Old).
+
+join_update([Same|New], [Same|Old], Acc) ->
+    join_update(New, Old, Acc);
+join_update([{V,P0}|New], [{V,OldP}|Old], Acc) ->
+    P = tricky_share(P0, OldP),
+    join_update(New, Old, gb_trees:update(V, P, Acc));
+join_update(New, [_|Old], Acc) ->
+    join_update(New, Old, Acc);
+join_update([], _, Acc) -> Acc.
+
+join_rebuild(New, Old) ->
+    join_rebuild(gb_trees:to_list(New), gb_trees:to_list(Old), []).
+
+join_rebuild([N|New], [O|Old], Acc) when N =:= O ->
+    join_rebuild(New, Old, [O|Acc]);
+join_rebuild([{V,P0}|New], [{V,OldP}|Old], Acc) ->
+    P = tricky_share(P0, OldP),
+    join_rebuild(New, Old, [{V,P}|Acc]);
+join_rebuild(New, [O|Old], Acc) ->
+    join_rebuild(New, Old, [O|Acc]);
+join_rebuild([], Old, Acc) ->
+    gb_trees:from_orddict(reverse(Acc, Old)).
+
+%% Too obvious to comment.
+tricky_share({X,Y,Z}=New, {OldX,OldY,OldZ})
+  when X =/= OldX, Y =/= OldY, Z =/= OldZ -> New;
+tricky_share({X,Y,Z}, {X,Y,_}=Old) ->
+    setelement(3, Old, Z);
+tricky_share({X,Y,Z}, {X,_,Z}=Old) ->
+    setelement(2, Old, Y);
+tricky_share({X,Y,Z}, {_,Y,Z}=Old) ->
+    setelement(1, Old, X);
+tricky_share({X,Y,Z}, {X,_,_}=Old) ->
+    {element(1, Old),Y,Z};
+tricky_share({X,Y,Z}, {_,Y,_}=Old) ->
+    {X,element(2, Old),Z};
+tricky_share({X,Y,Z}, {_,_,Z}=Old) ->
+    {X,Y,element(3, Old)}.
+
+% cmp({S,New}, {S,Old}) ->
+%     cmp(New, Old, 0).
+
+% cmp({_,_,NewSmaller,NewBigger}=New, {_,_,OldSmaller,OldBigger}=Old, N0) ->
+%     N1 = case erts_debug:same(New, Old) of
+% 	     false -> N0;
+% 	     true -> N0+1
+% 	 end,
+%     N = cmp(NewSmaller, OldSmaller, N1),
+%     cmp(NewBigger, OldBigger, N);
+% cmp(nil, nil, N) -> N.
 
 %%%
 %%% Drawing routines for workmode.
