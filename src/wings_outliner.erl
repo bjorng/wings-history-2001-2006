@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.5 2003/01/21 09:52:52 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.6 2003/01/21 10:15:21 bjorng Exp $
 %%
 
 -module(wings_outliner).
@@ -147,10 +147,9 @@ command({revert_image,Id}, Ost) ->
     keep.
 
 duplicate_object(Id, #ost{st=#st{shapes=Shs}=St0}) ->
-    keep.
-%     We = gb_trees:get(Id, Shs),
-%     St = wings_shape:new(Name, We, St0),
-%     wings_wm:send(geom, {new_state,St}).
+    We = gb_trees:get(Id, Shs),
+    St = wings_shape:insert(We, "copy", St0),
+    wings_wm:send(geom, {new_state,St}).
 
 delete_object(Id, #ost{st=#st{shapes=Shs0}=St0}) ->
     Shs = gb_trees:delete(Id, Shs0),
