@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.40 2002/04/11 08:20:39 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.41 2002/04/14 18:37:00 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -263,7 +263,7 @@ defaults() ->
      {active_vector_size,1.0},
      {active_vector_width,2.0},
      {active_vector_color,{0.0,0.0,0.65}},
-     {display_list_opt,false},
+     {display_list_opt,true},
      {advanced_menus,false}
     ].
 
