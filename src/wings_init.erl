@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_init.erl,v 1.1 2003/11/08 16:02:55 bjorng Exp $
+%%     $Id: wings_init.erl,v 1.2 2003/11/08 17:24:15 bjorng Exp $
 %%
 
 -module(wings_init).
@@ -100,11 +100,14 @@ try_video_mode(Ps, {W,H}, AcceptSoftware) ->
 		    %% We have found an acceptable video mode.
 		    %% On Windows, a bug in SDL makes it necessary
 		    %% to reinitialize SDL to get keyboard input working
-		    %% in case we have been changing video modes
-		    %% (because we rejected video modes because they were
-		    %% not hw-accelerated).
-		    sdl:quit(),
-		    sdl:init(?SDL_INIT_VIDEO bor ?SDL_INIT_NOPARACHUTE),
+		    %% in if we have rejected a working video mode
+		    %% that was not hw-accelerated.
+		    case get(wings_os_type) of
+			{win32,_} ->
+			    sdl:quit(),
+			    sdl:init(?SDL_INIT_VIDEO bor ?SDL_INIT_NOPARACHUTE);
+			_ -> ok
+		    end,
 		    Ebin = filename:dirname(code:which(?MODULE)),
 		    IconFile = filename:join(Ebin, "wings.icon"),
 		    catch sdl_video:wm_setIcon(sdl_video:loadBMP(IconFile),
