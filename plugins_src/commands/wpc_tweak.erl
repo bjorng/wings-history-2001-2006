@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.51 2004/04/12 05:37:20 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.52 2004/04/20 19:43:26 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -335,8 +335,8 @@ help(#tweak{magnet=true,mag_type=Type}) ->
     wings_wm:message(Msg, MagMsg).
 
 help_1(Type, [{Digit,Type}|T]) ->
-    wings_util:join_msg("[" ++ [$0+Digit] ++ "] <<" ++
-			wings_util:cap(atom_to_list(Type)) ++ ">>",
+    wings_util:join_msg("[" ++ [$0+Digit] ++ "] " ++
+			[{bold,wings_util:cap(atom_to_list(Type))}],
 			help_1(Type, T));
 help_1(Type, [{Digit,ThisType}|T]) ->
     wings_util:join_msg("[" ++ [$0+Digit] ++ "] " ++
@@ -417,9 +417,11 @@ begin_magnet(#tweak{magnet=true}=T, Vs, Center, #we{vp=Vtab0}=We) ->
     {[Va || {Va,_,_,_,_} <- Near],Mag}.
 
 near(Center, Vs, MagVs, Mirror, #tweak{mag_r=R,mag_type=Type}, We) ->
+    RSqr = R*R,
     M = foldl(fun({V,Pos}, A) ->
-		      case e3d_vec:dist(Pos, Center) of
-			  D when D =< R ->
+		      case e3d_vec:dist_sqr(Pos, Center) of
+			  DSqr when DSqr =< RSqr ->
+			      D = math:sqrt(DSqr),
 			      Inf = mf(Type, D, R),
 			      Matrix = mirror_matrix(V, Mirror),
 			      [{V,Pos,Matrix,D,Inf}|A];
@@ -446,7 +448,7 @@ magnet_tweak(#mag{orig=Orig,vs=Vs}=Mag, Pos) ->
 			 P = mirror_constrain(Plane, P1),
 			 [{V,P}|A];
 		    ({V,P0,Plane,_,Inf}, A) ->
-			 P1 = e3d_vec:add(P0, e3d_vec:mul(Vec, Inf)),
+			 P1 = e3d_vec:add_prod(P0, Vec, Inf),
 			 P = mirror_constrain(Plane, P1),
 			 [{V,P}|A]
 		 end, [], Vs),
