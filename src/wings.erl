@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.273 2003/10/25 19:45:35 bjorng Exp $
+%%     $Id: wings.erl,v 1.274 2003/10/25 20:00:09 bjorng Exp $
 %%
 
 -module(wings).
@@ -16,7 +16,6 @@
 -export([caption/1,redraw/1,redraw/2,init_opengl/1,command/2]).
 -export([mode_restriction/1,clear_mode_restriction/0,get_mode_restriction/0]).
 -export([create_toolbar/3]).
--export([set_temp_sel/2,clear_temp_sel/1]).
 
 -export([register_postdraw_hook/3,unregister_postdraw_hook/2]).
 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.85 2003/10/12 07:25:35 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.86 2003/10/25 20:00:09 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -145,8 +145,7 @@ magnet_message(Msg, Ns) ->
 	       $\s,wings_util:rmb_format("Magnet options")],
     wings_wm:message(Message, "").
 
-mode_restriction(Modes, #st{selmode=Mode}=St0) ->
-    St = wings:clear_temp_sel(St0),
+mode_restriction(Modes, #st{selmode=Mode}=St) ->
     wings:mode_restriction(Modes),
     case member(Mode, Modes) of
 	true -> St;
@@ -269,8 +268,6 @@ handle_event_4(quit, _Ss, _St) ->
 handle_event_4(init_opengl, _, St) ->
     erase_vector(),
     wings:init_opengl(St);
-handle_event_4({note,menu_aborted}, Ss, #st{temp_sel={_,_}}=St) ->
-    get_event(Ss#ss{vec=none}, wings:clear_temp_sel(St#st{sel=[]}));
 handle_event_4(_Event, Ss, St) ->
     get_event(Ss, St).
 
