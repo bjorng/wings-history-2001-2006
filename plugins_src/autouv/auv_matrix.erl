@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_matrix.erl,v 1.12 2003/08/16 17:50:34 bjorng Exp $
+%%     $Id: auv_matrix.erl,v 1.13 2004/02/18 11:52:55 raimo_niskanen Exp $
 
 -module(auv_matrix).
 
@@ -319,9 +319,7 @@ trans_mk_col_r([], B, C) ->
 trans_mk_col_r([[V | Row] | A], B, C) when float(V) ->
     trans_mk_col_r(A, [Row | B], [V | C]);
 trans_mk_col_r([Row | A], B, C) ->
-    trans_mk_col_r(A, [pop_z(Row) | B], push_v(1, C));
-trans_mk_col_r([[] | A], B, C) ->
-    trans_mk_col_r(A, [[] | B], push_v(1, C)).
+    trans_mk_col_r(A, [pop_z(Row) | B], push_v(1, C)).
 
 
 
