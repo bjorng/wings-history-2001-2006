@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.61 2003/03/27 10:25:11 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.62 2003/04/10 12:05:18 bjorng Exp $
 %%
 
 -module(wings_shape).
@@ -466,7 +466,7 @@ draw_icons(N, Objs, Ost, R, I, Y) ->
     gl:disable(?GL_TEXTURE_2D).
 
 draw_icons_1(_, done) -> done;
-draw_icons_1(_, {0,_,_,_,_,_}) -> done;
+draw_icons_1(_, {0,_,_,_,_,_,_}) -> done;
 draw_icons_1(#dlo{src_we=#we{id=Id}},
 	     {N,[#we{id=Id,perm=Perm}=We|Wes],#ost{sel=Sel,lh=Lh}=Ost,
 	      R,Active,Y,Wires}) ->
