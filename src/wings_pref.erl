@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.76 2003/03/03 06:30:48 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.77 2003/03/13 13:39:32 raimo_niskanen Exp $
 %%
 
 -module(wings_pref).
@@ -70,7 +70,8 @@ menu(_St) ->
      {"UI Preferences...",
       fun(_, _) ->
 	      {edit,{preferences,ui}}
-      end,"Edit colors of some user-interface elements",[]}
+      end,"Edit colors of some user-interface elements",[]},
+     {"Plugin Preferences",{plugin_preferences,[]}}
     ].
 
 command(prefs, _St) ->

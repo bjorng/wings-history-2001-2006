@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.16 2003/03/08 00:48:23 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.17 2003/03/13 13:39:30 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -26,21 +26,38 @@
 -define(TAG, yafray).
 -define(TAG_RENDER, yafray_render).
 
-%% Default values
+%%% Default values
+
+-define(DEF_ENABLED, true).
+-define(DEF_RENDERER, "yafray").
+-define(DEF_LOAD_IMAGE, true).
+
+%% Shader
 -define(DEF_IOR, 1.0).
 -define(DEF_MIN_REFLE, 0.0).
--define(DEF_SAMPLES, 1).
+-define(DEF_AUTOSMOOTH_ANGLE, 0.0).
+
+%% Render
+-define(DEF_AA_PASSES, 1).
 -define(DEF_RAYDEPTH, 3).
 -define(DEF_BIAS, 0.1).
--define(DEF_TOLERANCE, 0.1).
+-define(DEF_AA_THRESHOLD, 0.1).
 -define(DEF_WIDTH, 100).
 -define(DEF_HEIGHT, 100).
 -define(DEF_BACKGROUND_COLOR, {0.0,0.0,0.0}).
--define(DEF_AUTOSMOOTH_ANGLE, 0.0).
+
+%% Light
 -define(DEF_POWER, 1.0).
+-define(DEF_POINT_TYPE, pointlight).
+-define(DEF_CAST_SHADOWS, true).
+%% Spotlight
 -define(DEF_CONE_ANGLE, 45.0).
 -define(DEF_SPOT_EXPONENT, 2.0).
+%% Softlight
+-define(DEF_RES, 100).
+-define(DEF_RADIUS, 1).
 
+%% Modulator
 -define(DEF_MOD_MODE, off).
 -define(DEF_MOD_SIZE_X, 1.0).
 -define(DEF_MOD_SIZE_Y, 1.0).
@@ -58,20 +75,23 @@
 
 
 
+%% Exported plugin callback functions
+%%
+
 init() ->
+    init_pref(),
     true.
 
 menu({file,export}, Menu) ->
-    menu_entry(Menu);
+    append_if_enabled(Menu, menu_entry(export));
 menu({file,export_selected}, Menu) ->
-    menu_entry(Menu);
+    append_if_enabled(Menu, menu_entry(export));
 menu({file,render}, Menu) ->
-    menu_entry(Menu);
+    append_if_enabled(Menu, menu_entry(render));
+menu({edit,plugin_preferences}, Menu) ->
+    Menu++menu_entry(pref);
 menu(_, Menu) ->
     Menu.
-
-menu_entry(Menu) ->
-    Menu ++ [{"YafRay (.xml)",?TAG,[option]}].
 
 command({file,{export,{?TAG,A}}}, St) ->
     command_file(export, A, St);
@@ -79,34 +99,70 @@ command({file,{export_selected,{?TAG,A}}}, St) ->
     command_file(export_selected, A, St);
 command({file,{render,{?TAG,A}}}, St) ->
     command_file(render, A, St);
-command({file,{?TAG_RENDER,Pid,Result,Ack}}, _St) ->
-    RenderFile = erase(?TAG_RENDER),
-    Pid ! Ack,
-    case RenderFile of
-	undefined ->
-	    keep;
-	_ ->
-	    case Result of
-		ok ->
-		    case wpa:image_read([{filename,RenderFile},
-					 {alignment,1}]) of
-			#e3d_image{}=Image ->
-			    Id = wings_image:new("Rendered (YafRay)", Image),
-			    wings_image:window(Id),
-			    keep;
-			_ ->
-			    wpa:error("Render failed")
-		    end;
-		_ ->
-		    wpa:error("Render failed")
-	    end
-    end;
-command(_, _St) ->
+command({file,{?TAG_RENDER,Data}}, St) ->
+    command_file(?TAG_RENDER, Data, St);
+command({edit,{plugin_preferences,?TAG}}, St) ->
+    pref_edit(St);
+command(_Spec, _St) ->
+%    erlang:display({?MODULE,?LINE,Spec}),
     next.
+
+dialog({material_editor_setup,Name,Mat}, Dialog) ->
+    append_if_enabled(Dialog, material_dialog(Name, Mat));
+dialog({material_editor_result,Name,Mat}, Res) ->
+    material_result(Name, Mat, Res);
+dialog({light_editor_setup,Name,Ps}, Dialog) ->
+    append_if_enabled(Dialog, light_dialog(Name, Ps));
+dialog({light_editor_result,Name,Ps0}, Res) ->
+    light_result(Name, Ps0, Res);
+dialog(_X, Dialog) ->
+    io:format("~p\n", [{_X,Dialog}]),
+    Dialog.
+
+%%
+%% End of exported plugin callback functions
+
+
+
+init_pref() ->
+    Enabled = get_pref(enabled, ?DEF_ENABLED),
+    E = case Enabled of	
+	    true ->
+		Renderer = get_pref(renderer, ?DEF_RENDERER),
+		case filename:pathtype(Renderer) of
+		    absolute -> true;
+		    _ -> 
+			case os:find_executable(Renderer) of
+			    false -> false;
+			    _Path -> true
+			end
+		end;
+	    false ->
+		false
+	end,
+    put({?MODULE,enabled}, E),
+    E.
+
+append_if_enabled(Menu, PluginMenu) ->
+    case get({?MODULE,enabled}) of
+	true ->
+	    Menu++PluginMenu;
+	_ ->
+	    Menu
+    end.
+
+menu_entry(render) ->
+    [{"YafRay (.tga)",?TAG,[option]}];
+menu_entry(export) ->
+    [{"YafRay (.xml)",?TAG,[option]}];
+menu_entry(pref) ->
+    [{"YafRay",?TAG}].
+
+
 
 command_file(render, Attr, St) when is_list(Attr) ->
     set_pref(Attr),
-    case get(?TAG_RENDER) of
+    case get({?MODULE,rendering}) of
 	undefined ->
 	    wpa:export(props(tga), 
 		       fun_export_2(attr(St, [{?TAG_RENDER,true}|Attr])), St);
@@ -114,15 +170,31 @@ command_file(render, Attr, St) when is_list(Attr) ->
 	    wpa:error("Already rendering.")
     end;
 command_file(render, Ask, _St) when is_atom(Ask) ->
-    wpa:dialog(Ask, "YafRay Render Options", export_dialog(),
+    wpa:dialog(Ask, "YafRay Render Options", export_dialog(render),
 	       fun(Attr) -> {file,{render,{?TAG,Attr}}} end);
+command_file(?TAG_RENDER, {Pid,Result,Ack}, _St) ->
+    RenderFile = erase({?MODULE,rendering}),
+    Pid ! Ack,
+    case RenderFile of
+	undefined ->
+	    keep;
+	_ ->
+	    case Result of
+		load_image ->
+		    io:format("Loading rendered image~n"),
+		    load_image(RenderFile);
+		ok ->
+		    keep;
+		_ ->
+		    wpa:error("Rendering error")
+	    end
+    end;
 command_file(Op, Attr, St) when is_list(Attr) ->
     set_pref(Attr),
     wpa:Op(props(?TAG), fun_export_2(attr(St, Attr)), St);
 command_file(Op, Ask, _St) when is_atom(Ask) ->
-    wpa:dialog(Ask, "YafRay Export Options", export_dialog(),
+    wpa:dialog(Ask, "YafRay Export Options", export_dialog(export),
 	       fun(Attr) -> {file,{Op,{?TAG,Attr}}} end).
-    
 
 props(tga) ->
     [{ext,".tga"},{ext_desc,"Targa File"}];
@@ -137,50 +209,54 @@ fun_export_2(Attr) ->
 	    export(Attr, Filename, Contents)
     end.
 
+load_image(Filename) ->
+    case wpa:image_read([{filename,Filename},
+			 {alignment,1}]) of
+	#e3d_image{}=Image ->
+	    Id = wings_image:new("Rendered (YafRay)", Image),
+	    wings_image:window(Id),
+	    keep;
+	_ ->
+	    wpa:error("No image rendered")
+    end.
 
 
-dialog({material_editor_setup,_Name,Mat}, Dialog) ->
+
+material_dialog(_Name, Mat) ->
     YafRay = proplists:get_value(?TAG, Mat, []),
     IOR = proplists:get_value(ior, YafRay, ?DEF_IOR),
     MinRefle = proplists:get_value(min_refle, YafRay, ?DEF_MIN_REFLE),
+    AutosmoothAngle = 
+	proplists:get_value(autosmooth_angle, YafRay, ?DEF_AUTOSMOOTH_ANGLE),
     Modulators = proplists:get_value(modulators, YafRay, []),
-    Dialog ++ [{vframe,
-		[{hframe,
-		  [{vframe, [{label,"Index Of Reflection"},
-			     {label,"Minimum Reflection"}]},
-		   {vframe, [{text,IOR,
-			      [{range,{0.0,100.0}},
-			       {key,ior}]},
-			     {slider,{text,MinRefle,
-				      [{range,{0.0,1.0}},
-				       {key,min_refle}]}}]}]
-		 }|modulator_dialogs(Modulators, 1)],
-		[{title,"YafRay Options"}]}];
-dialog({material_editor_result,Name,Mat0}, [A,B|Res0]) ->
-    case A of
+    [{vframe,
+      [{hframe,
+	[{vframe, [{label,"Index Of Reflection"},
+		   {label,"Minimum Reflection"},
+		   {label,"Autosmooth Angle"}]},
+	 {vframe, [{text,IOR,
+		    [{range,{0.0,100.0}},
+		     {key,ior}]},
+		   {slider,{text,MinRefle,
+			    [{range,{0.0,1.0}},
+			     {key,min_refle}]}},
+		   {slider,{text,AutosmoothAngle,
+			    [{range,{0.0,180.0}},
+			     {key,autosmooth_angle}]}}]}
+	]}|modulator_dialogs(Modulators, 1)],
+      [{title,"YafRay Options"}]}].
+
+material_result(Name, Mat0, [IOR,MinRefle,AutosmoothAngle|Res0]=Res) ->
+    case IOR of
 	{ior,_} ->
-	    {Modulators,Res} = modulator_result(Res0),
-	    Mat = [{?TAG,[A,B,{modulators,Modulators}]}
+	    {Modulators,Res1} = modulator_result(Res0),
+	    Mat = [{?TAG,[IOR,MinRefle,AutosmoothAngle,
+			  {modulators,Modulators}]}
 		   |keydelete(?TAG, 1, Mat0)],
-	    {Mat,Res};
+	    {Mat,Res1};
 	_ ->
-	    exit({invalid_tag, {?MODULE, ?LINE, {Name,[A,B|Res0]}}})
-    end;
-dialog({light_editor_setup,_Name,Ps}, Dialog) ->
-    YafRay = proplists:get_value(?TAG, Ps, []),
-    Power = proplists:get_value(power, YafRay, 1.0),
-    Dialog ++ [{hframe,
-		[{vframe, [{label,"Power"}]},
-		 {vframe, [{text,Power,
-				    [{range,{0.0,10000.0}},
-				     {key,power}]}]}],
-		[{title,"YafRay Options"}]}];
-dialog({light_editor_result,_Name,Ps0}, [A|Res]) ->
-    Ps = [{?TAG,[A]}|keydelete(?TAG, 1, Ps0)],
-    {Ps,Res};
-dialog(_X, Dialog) ->
-    io:format("~p\n", [{_X,Dialog}]),
-    Dialog.
+	    exit({invalid_tag,{?MODULE,?LINE,[Name,Mat0,Res]}})
+    end.
 
 modulator_dialogs([], _) ->
     [{"Create a Modulator",false,[{key,create_modulator}]}];
@@ -265,27 +341,90 @@ modulator(Mode, [SizeX,SizeY,SizeZ,Opacity,Diffuse,Specular,Ambient,Shininess,
 		 {color1,Color1},{color2,Color2},{depth,Depth}],
     {{modulator,Ps},Res}.
 
+light_dialog(Name, Ps) ->
+    OpenGL = proplists:get_value(opengl, Ps, []),
+    YafRay = proplists:get_value(?TAG, Ps, []),
+    Type = proplists:get_value(type, OpenGL, []),
+    Power = proplists:get_value(power, YafRay, 1.0),
+    [{vframe,
+      [{hframe,[{vframe, [{label,"Power"}]},
+		{vframe,[{text,Power,
+			  [{range,{0.0,10000.0}},{key,power}]}]}]}|
+       light_dialog(Name, Type,YafRay)],
+      [{title,"YafRay Options"}]}].
+
+light_dialog(_Name, point, Ps) ->
+    Type = proplists:get_value(type, Ps, ?DEF_POINT_TYPE),
+    TypeDef = {type,Type},
+    CastShadows = proplists:get_value(cast_shadows, Ps, ?DEF_CAST_SHADOWS),
+    Bias = proplists:get_value(bias, Ps, ?DEF_BIAS),
+    Res = proplists:get_value(res, Ps, ?DEF_RES),
+    Radius = proplists:get_value(radius, Ps, ?DEF_RADIUS),
+    [{hframe,
+      [{key_alt,TypeDef,"Pointlight",pointlight},
+       {"Cast Shadows",CastShadows,[{key,cast_shadows}]}]},
+     {hframe,
+      [{key_alt,TypeDef,"Softlight",softlight},
+       {vframe,[{label,"Bias"},
+		{label,"Res"},
+		{label,"Radius"}]},
+       {vframe,[{text,Bias,[{range,0.0,1.0},{key,bias}]},
+		{text,Res,[{range,0,10000},{key,res}]},
+		{text,Radius,[{range,0,10000},{key,radius}]}]}]}].
+
+light_result(_Name, Ps0, [Power|Res0]) ->
+    {LightPs,Res1} = light_result(Res0),
+    Ps = [{?TAG,[Power|LightPs]}|keydelete(?TAG, 1, Ps0)],
+    {Ps,Res1}.
+
+light_result([{type,pointlight}=Type,CastShadows,Bias,Res,Radius|Tail]) ->
+    {[Type,CastShadows,Bias,Res,Radius],Tail};
+light_result([CastShadows,{type,softlight}=Type,Bias,Res,Radius|Tail]) ->
+    {[Type,CastShadows,Bias,Res,Radius],Tail};
+light_result(Tail) ->
+%%    erlang:display({?MODULE,?LINE,Tail}),
+    {[],Tail}.
 
 
-export_dialog() ->
-    Samples = get_pref(samples, ?DEF_SAMPLES),
+
+pref_edit(St) ->
+    Enabled = get_pref(enabled, true),
+    Renderer = get_pref(renderer, ?DEF_RENDERER),
+    Dialog =
+	[{hframe,[{"Enabled",Enabled,[{key,enabled}]},
+		  {label,"Command"},
+		  {text,Renderer,[{key,renderer}]}]}],
+    wpa:dialog("YafRay Options", Dialog, 
+	       fun (Attr) -> pref_result(Attr,St) end).
+
+pref_result(Attr, St) ->
+    set_pref(Attr),
+    init_pref(),
+    St.
+
+
+
+
+export_dialog(Operation) ->
+    AA_passes = get_pref(aa_passes, ?DEF_AA_PASSES),
     Raydepth = get_pref(raydepth, ?DEF_RAYDEPTH),
     Bias = get_pref(bias, ?DEF_BIAS),
-    Tolerance = get_pref(tolerance, ?DEF_TOLERANCE),
+    AA_threshold = get_pref(aa_threshold, ?DEF_AA_THRESHOLD),
     Width = get_pref(width, ?DEF_WIDTH),
     Height = get_pref(height, ?DEF_HEIGHT),
     BgColor = get_pref(background_color, ?DEF_BACKGROUND_COLOR),
-    AutosmoothAngle = get_pref(autosmooth_angle, ?DEF_AUTOSMOOTH_ANGLE),
+    LoadImage = get_pref(load_image, ?DEF_LOAD_IMAGE),
     [{hframe,
-      [{vframe,[{label,"Samples"},
-		{label,"Raydepth"}]},
-       {vframe,[{text,Samples,[{range,{1,1000}},{key,samples}]},
-		{text,Raydepth,[{range,{1,1000}},{key,raydepth}]}]},
-       {vframe,[{label,"Bias"},
-		{label,"Tolerance"}]},
-       {vframe,[{text,Bias,[{range,{0.0,1.0}},{key,bias}]},
-		{text,Tolerance,[{range,{0.0,100.0}},{key,tolerance}]}]}],
-      [{title,"Rendering"}]},
+      [{vframe,[{label,"AA_passes"},
+		{label,"AA_threshold"}]},
+       {vframe,[{text,AA_passes,[{range,{1,1000}},{key,aa_passes}]},
+		{text,AA_threshold,[{range,{0.0,100.0}},
+				 {key,aa_threshold}]}]},
+       {vframe,[{label,"Raydepth"},
+		{label,"Bias"}]},
+       {vframe,[{text,Raydepth,[{range,{1,1000}},{key,raydepth}]},
+		{text,Bias,[{range,{0.0,1.0}},{key,bias}]}]}],
+      [{title,"Render"}]},
      {hframe,
       [{vframe,[{label,"Default Color"}]},
        {vframe,[{color,BgColor,[{key,background_color}]}]}],
@@ -295,13 +434,12 @@ export_dialog() ->
        {vframe,[{text,Width,[{range,{1,10000}},{key,width}]}]},
        {vframe,[{label,"Height"}]},
        {vframe,[{text,Height,[{range,{1,10000}},{key,height}]}]}],
-      [{title,"Camera"}]},
-     {hframe,
-      [{vframe,[{label,"Autosmooth Angle"}]},
-       {vframe,[{slider,{text,AutosmoothAngle,
-			 [{range,{0.0,180.0}},
-			  {key,autosmooth_angle}]}}]}],
-      [{title,"Body"}]}].
+      [{title,"Camera"}]}|
+     case Operation of render ->
+	     [{hframe,[{"Load Image",LoadImage,[{key,load_image}]}]}];
+	 export ->
+	     []
+     end].
 
 
 
@@ -340,7 +478,7 @@ export(Attr, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
 	    %%
 	    section(F, "Objects"),
 	    foreach(fun (#e3d_object{name=Name,obj=Mesh}) ->
-			    export_object(F, "w_"++format(Name), Mesh, Attr),
+			    export_object(F, "w_"++format(Name), Mesh, Mats),
 			    println(F)
 		    end,
 		    Objs),
@@ -365,15 +503,17 @@ export(Attr, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
 	    println(F),
 	    println(F, "</scene>"),
 	    close(F),
+	    Renderer = get_pref(renderer, ?DEF_RENDERER),
+	    LoadImage = proplists:get_value(load_image,Attr,?DEF_LOAD_IMAGE),
 	    case Render of
 		true ->
 		    Parent = self(),
 		    spawn_link(
 		      fun () -> 
 			      file:delete(RenderFile),
-			      render(ExportFile, Parent) 
+			      render(Renderer, ExportFile, Parent, LoadImage) 
 		      end),
-		    put(?TAG_RENDER, RenderFile),
+		    put({?MODULE,rendering}, RenderFile),
 		    ok;
 		false ->
 		    ok
@@ -382,47 +522,80 @@ export(Attr, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
 
 
 
-render(Filename, Parent) ->
+render(Renderer, Filename, Parent, LoadImage) ->
     process_flag(trap_exit, true),
     Dirname = filename:dirname(Filename),
     Basename = filename:basename(Filename),
-    Cmd = "yafray "++Basename,
+    Cmd = Renderer++" "++Basename,
     Opts = [{line,8},{cd,Dirname},eof,stderr_to_stdout],
+    io:format("Rendering Job started ~p:~n>~s~n", [self(),Cmd]),
     case catch open_port({spawn,Cmd}, Opts) of
 	Port when port(Port) ->
-	    render_done(Filename, Parent, render_loop(Port, []));
+	    render_done(Filename, Parent, render_job(Port), LoadImage);
 	{'EXIT',Reason} ->
-	    render_done(Filename, Parent, {error,Reason})
+	    render_done(Filename, Parent, {error,Reason}, LoadImage)
     end.
 
-render_done(Filename, Parent, Result) ->
+render_done(Filename, Parent, ExitStatus, LoadImage) ->
+    Status =
+	case ExitStatus of
+	    0 ->
+		ok;
+	    undefined ->
+		ok;
+	    _ ->
+		ExitStatus
+	end,
+    Result =
+	case {Status,LoadImage} of
+	    {ok,true} ->
+		load_image;
+	    {ok,false} ->
+		ok;
+	    {{error,_},_} ->
+		Status;
+	    {Error,_} ->
+		{error,Error}
+	end,
+    io:format("~nRendering Job returned: ~p~n", [ExitStatus]),
     file:delete(Filename),
     render_cleanup(Parent, make_ref(), Result).
 
 render_cleanup(Parent, Ref, Result) ->
     Ack = {Parent,ack,Ref},
-    Command = {file,{?TAG_RENDER,self(),Result,Ack}},
+    Command = {file,{?TAG_RENDER,{self(),Result,Ack}}},
     Parent ! {timeout,Ref,{event,{action,Command}}},
     receive Ack -> 
+	    io:format("Rendering Job ready~n"),
 	    ok
     after 5000 -> 
 	    render_cleanup(Parent, Ref, Result)
     end.
 
-render_loop(Port, Buf) ->
+render_job(Port) ->
     receive
 	{Port,eof} ->
-	    ok;
+	    receive 
+		{Port,{exit_status,ExitStatus}} ->
+		    ExitStatus
+	    after 1 -> 
+		    undefined 
+	    end;
+	{Port,{exit_status,ExitStatus}} ->
+	    receive 
+		{Port,eof} -> 
+		    ok after 1 -> ok end,
+	    ExitStatus;
 	{Port,{data,{Tag,Data}}} ->
 	    io:put_chars(Data),
 	    case Tag of	eol -> io:nl(); _ -> ok end,
-	    render_loop(Port, []);
+	    render_job(Port);
 	{'EXIT',Port,Reason} ->
 	    {error,Reason};
 	Other ->
 	    io:format("Unexpected at ~s:~p: ~p~n", 
 		      [?MODULE_STRING,?LINE,Other]),
-	    render_loop(Port, Buf)
+	    render_job(Port)
     end.
 
 
@@ -484,7 +657,7 @@ export_shader(F, Name, Mat) ->
     println(F, "        <hard value=\"~.10f\"/>", 
 		   [proplists:get_value(shininess, OpenGL)*128.0]),
     export_rgb(F, reflected, proplists:get_value(ambient, OpenGL)),
-    export_rgb(F, transmited, 
+    export_rgb(F, transmitted, 
 	       {Dr*Transparency,Dg*Transparency,Db*Transparency,1.0}),
     IOR = proplists:get_value(ior, YafRay, ?DEF_IOR),
     MinRefle = proplists:get_value(min_refle, YafRay, ?DEF_MIN_REFLE),
@@ -550,19 +723,28 @@ export_rgb(F, Type, {R,G,B,_}) ->
 
 
 
-export_object(F, NameStr, #e3d_mesh{}=Mesh, Attr) ->
+export_object(F, NameStr, #e3d_mesh{}=Mesh, Mats) ->
     #e3d_mesh{fs=Fs,vs=Vs,tx=Tx} = e3d_mesh:triangulate(Mesh),
     %% Find the default material
     MM = sort(foldl(fun (#e3d_face{mat=[M|_]}, Ms) -> [M|Ms] end, [], Fs)),
     [{_Count,DefaultMaterial}|_] = reverse(sort(count_equal(MM))),
-    AutosmoothAngle = proplists:get_value(autosmooth_angle, Attr),
+    MatPs = proplists:get_value(DefaultMaterial, Mats, []),
+    OpenGL = proplists:get_value(opengl, MatPs),
+    YafRay = proplists:get_value(?TAG, MatPs, []),
+    IOR = proplists:get_value(ior, YafRay, ?DEF_IOR),
+    AutosmoothAngle = 
+	proplists:get_value(autosmooth_angle, YafRay, ?DEF_AUTOSMOOTH_ANGLE),
+    {Dr,Dg,Db,Opacity} = proplists:get_value(diffuse, OpenGL),
+    Transparency = 1 - Opacity,
     println(F, "<object name=\"~s\" shader_name=\"~s\" "++
-	    "shadow=\"on\" caus_IOR=\"1.0\"~n"++
+	    "shadow=\"on\" caus_IOR=\"~.10f\"~n"++
 	    "        emit_rad=\"on\" recv_rad=\"on\">~n"++
 	    "    <attributes>",
-	    [NameStr, "w_"++format(DefaultMaterial)]),
-    export_rgb(F, caus_rcolor, {0.0,0.0,0.0,1.0}),
-    export_rgb(F, caus_tcolor, {0.0,0.0,0.0,1.0}),
+	    [NameStr,"w_"++format(DefaultMaterial),IOR]),
+    export_rgb(F, caus_rcolor, 
+	       {Dr*Opacity,Dg*Opacity,Db*Opacity,1.0}),
+    export_rgb(F, caus_tcolor, 
+	       {Dr*Transparency,Dg*Transparency,Db*Transparency,1.0}),
     println(F, "    </attributes>"),
     case AutosmoothAngle of
 	0.0 ->
@@ -612,9 +794,9 @@ export_faces(F, [#e3d_face{vs=[A,B,C],tx=Tx,mat=[Mat|_]}|T],
 		 {Ua,Va} = element(1+Ta, TxT),
 		 {Ub,Vb} = element(1+Tb, TxT),
 		 {Uc,Vc} = element(1+Tc, TxT),
-		 [" u_a=\"",format(Ua),"\" v_a=\"",format(Va),
-		  "\" u_b=\"",format(Ub),"\" v_b=\"",format(Vb),
-		  "\" u_c=\"",format(Uc),"\" v_c=\"",format(Vc),"\""]
+		 [" u_a=\"",format(Ua),"\" v_a=\"",format(-Va),
+		  "\" u_b=\"",format(Ub),"\" v_b=\"",format(-Vb),
+		  "\" u_c=\"",format(Uc),"\" v_c=\"",format(-Vc),"\""]
 	 end,
     println(F, ["        <f a=\"",format(A),
 		"\" b=\"",format(B),"\" c=\"",format(C),"\"",
@@ -627,18 +809,32 @@ export_light(F, Name, Ps) ->
     OpenGL = proplists:get_value(opengl, Ps, []),
     YafRay = proplists:get_value(?TAG, Ps, []),
     Type = proplists:get_value(type, OpenGL, []),
-    Power = proplists:get_value(power, YafRay, ?DEF_POWER),
-    export_light(F, Name, Type, OpenGL, Power).
+    export_light(F, Name, Type, OpenGL, YafRay).
 
-export_light(F, Name, point, OpenGL, Power) ->
+export_light(F, Name, point, OpenGL, YafRay) ->
+    Power = proplists:get_value(power, YafRay, ?DEF_POWER),
     Position = proplists:get_value(position, OpenGL, {0.0,0.0,0.0}),
     Diffuse = proplists:get_value(diffuse, OpenGL, {1.0,1.0,1.0,0.1}),
-    println(F,"<light type=\"pointlight\" name=\"~s\" "++
-	    "power=\"~.3f\" cast_shadows=\"on\">", [Name, Power]),
+    Type = proplists:get_value(type, YafRay, ?DEF_POINT_TYPE),
+    println(F,"<light type=\"~w\" name=\"~s\" power=\"~.3f\" ", 
+	    [Type,Name,Power]),
+    case Type of
+	pointlight ->
+	    CastShadows = 
+		proplists:get_value(cast_shadows, YafRay, ?DEF_CAST_SHADOWS),
+	    println(F,"       cast_shadows=\"~s\">", [format(CastShadows)]);
+	softlight ->
+	    Bias = proplists:get_value(bias, YafRay, ?DEF_BIAS),
+	    Res = proplists:get_value(res, YafRay, ?DEF_RES),
+	    Radius = proplists:get_value(radius, YafRay, ?DEF_RADIUS),
+	    println(F,"       bias=\"~.6f\" res=\"~w\" radius=\"~w\">", 
+		    [Bias,Res,Radius])
+    end,
     export_pos(F, from, Position),
     export_rgb(F, color, Diffuse),
     println(F, "</light>~n~n", []);
-export_light(F, Name, infinite, OpenGL, Power) ->
+export_light(F, Name, infinite, OpenGL, YafRay) ->
+    Power = proplists:get_value(power, YafRay, ?DEF_POWER),
     Position = proplists:get_value(position, OpenGL, {0.0,0.0,0.0}),
     Diffuse = proplists:get_value(diffuse, OpenGL, {1.0,1.0,1.0,0.1}),
     println(F,"<light type=\"sunlight\" name=\"~s\" "++
@@ -646,7 +842,8 @@ export_light(F, Name, infinite, OpenGL, Power) ->
     export_pos(F, from, Position),
     export_rgb(F, color, Diffuse),
     println(F, "</light>");
-export_light(F, Name, spot, OpenGL, Power) ->
+export_light(F, Name, spot, OpenGL, YafRay) ->
+    Power = proplists:get_value(power, YafRay, ?DEF_POWER),
     Position = proplists:get_value(position, OpenGL, {0.0,0.0,0.0}),
     AimPoint = proplists:get_value(aim_point, OpenGL, {0.0,0.0,1.0}),
     ConeAngle = proplists:get_value(cone_angle, OpenGL, ?DEF_CONE_ANGLE),
@@ -661,7 +858,7 @@ export_light(F, Name, spot, OpenGL, Power) ->
     export_pos(F, to, AimPoint),
     export_rgb(F, color, Diffuse),
     println(F, "</light>");
-export_light(_F, Name, Type, _OpenGL, _Power) ->
+export_light(_F, Name, Type, _OpenGL, _YafRay) ->
     io:format("Ignoring unknown light \"~s\" type: ~p~n", [Name, format(Type)]).
 
 
@@ -733,13 +930,13 @@ export_background_sunsky(F, Name) ->
 
 
 export_render(F, CameraName, BackgroundName, Outfile, Attr) ->
-    Samples = proplists:get_value(samples, Attr),
+    AA_passes = proplists:get_value(aa_passes, Attr),
     Raydepth = proplists:get_value(raydepth, Attr),
     Bias = proplists:get_value(bias, Attr),
-    Tolerance = proplists:get_value(tolerance, Attr),
+    AA_threshold = proplists:get_value(aa_threshold, Attr),
     println(F, "<render camera_name=\"~s\" "++
-	    "samples=\"~w\" raydepth=\"~w\"~n"++
-	    "        bias=\"~.10f\" tolerance=\"~.10f\">~n"++
+	    "AA_passes=\"~w\" raydepth=\"~w\"~n"++
+	    "        bias=\"~.10f\" AA_threshold=\"~.10f\">~n"++
 	    "    <background_name value=\"~s\"/>~n"++
 	    "    <outfile value=\"~s\"/>~n"++
 	    "    <indirect_samples value=\"0\"/>~n"++
@@ -747,7 +944,7 @@ export_render(F, CameraName, BackgroundName, Outfile, Attr) ->
 	    "    <exposure value=\"~.10f\"/>~n"++
 	    "    <gamma value=\"1.0\"/>~n"++
 	    "    <fog_density value=\"0.0\"/>",
-	    [CameraName,Samples,Raydepth,Bias,Tolerance,
+	    [CameraName,AA_passes,Raydepth,Bias,AA_threshold,
 	     BackgroundName,Outfile,math:sqrt(2.0)]),
     export_rgb(F, fog_color, {1.0,1.0,1.0,1.0}),
     println(F, "</render>").
@@ -796,6 +993,10 @@ format(F) when is_float(F) ->
     end;
 format(I) when is_integer(I) ->
     integer_to_list(I);
+format(true) ->
+    "on";
+format(false) ->
+    "off";
 format(A) when is_atom(A) ->
     atom_to_list(A);
 format(L) when is_list(L) ->
