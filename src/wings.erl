@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.280 2003/10/31 20:04:39 bjorng Exp $
+%%     $Id: wings.erl,v 1.281 2003/11/02 08:27:40 bjorng Exp $
 %%
 
 -module(wings).
@@ -75,7 +75,20 @@ do_spawn(File, Flags) ->
 init(File) ->
     register(wings, self()),
     os:putenv("SDL_HAS3BUTTONMOUSE", "true"),
-    put(wings_os_type, os:type()),
+
+    OsType = os:type(),
+    put(wings_os_type, OsType),
+
+    case OsType of
+	{win32,_} ->
+	    io:format("\n\nNote: The above messages about failing "
+		      "to locate TCP/IP parameters are normal.\n"
+		      "It is done to prevent Erlang from contacting "
+		      "DNS name servers on the Internet\n"
+		      "(harmless, but no need for Wings to do it)\n\n");
+	_ -> ok
+    end,
+
     sdl:init(?SDL_INIT_VIDEO bor ?SDL_INIT_ERLDRIVER bor
 	     ?SDL_INIT_NOPARACHUTE),
     Ebin = filename:dirname(code:which(?MODULE)),

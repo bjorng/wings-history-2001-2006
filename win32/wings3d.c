@@ -8,7 +8,7 @@
  *  See the file "license.terms" for information on usage and redistribution
  *  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
  *
- *     $Id: wings3d.c,v 1.5 2003/09/15 15:50:21 bjorng Exp $
+ *     $Id: wings3d.c,v 1.6 2003/11/02 08:27:42 bjorng Exp $
  *
  */
 
@@ -54,7 +54,8 @@ WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR szCmdLine, int sw)
     --i;
   }
   install_dir[i] = '\0';
-  sprintf(cmd_line, "\"%s\\bin\\werl.exe\" -run wings_start start_halt",
+  sprintf(cmd_line, "\"%s\\bin\\werl.exe\" -env ERL_INET_ETC_DIR "
+	  "\\hklm\\software\\Wings3D -run wings_start start_halt",
           install_dir);
   if (argc > 1) {
     sprintf(cmd_line+strlen(cmd_line), " \"%s\"", argv[1]);
