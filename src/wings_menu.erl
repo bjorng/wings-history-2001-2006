@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.101 2003/06/25 16:50:56 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.102 2003/06/28 14:42:29 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -77,7 +77,7 @@ popup_menu(X, Y, Name, Menu) ->
 menu_setup(Type, X0, Y0, Name, Menu0, #mi{ns=Names0,adv=Adv}=Mi0) ->
     Names = [Name|Names0],
     Menu1 = wings_plugin:menu(list_to_tuple(reverse(Names)), Menu0),
-    Hotkeys = hotkeys(Names),
+    Hotkeys = wings_hotkey:matching(Names),
     Menu = normalize_menu(Menu1, Hotkeys, Adv),
     {MwL,MwM,MwR,Hs} = menu_dims(Menu),
     TotalW = (MwL+MwM+MwR) * ?CHAR_WIDTH + 8*?CHAR_WIDTH,
@@ -251,9 +251,6 @@ right_width(Ps) ->
 	false -> 0
     end.
 
-hotkeys(Names) ->
-    wings_hotkey:matching(Names).
-
 %%%
 %%% Event loop for menus.
 %%%
@@ -385,7 +382,7 @@ current_command(#mi{sel=none}) -> none;
 current_command(#mi{sel=Sel,menu=Menu,ns=Names,owner=Owner})
   when Owner == geom; element(1, Owner) == geom ->
     case element(Sel, Menu) of
-	{_,Name,_,_,Ps} when is_atom(Name) ->
+	{_,Name,_,_,Ps} when is_atom(Name); is_integer(Name) ->
 	    {build_command(Name, Names),have_option_box(Ps)};
 	{_,Fun,_,_,Ps} when is_function(Fun) ->
 	    Cmd = Fun(1, Names),
