@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.32 2001/11/29 13:41:01 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.33 2001/11/29 14:31:44 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -75,7 +75,7 @@ combine(Tvs) ->
     S = sofs:relation(Tvs),
     F = sofs:relation_to_family(S),
     %% The rest of this function is an optimisation.
-    map(fun({Id,[Fun]}) when function(Fun) -> {Id,Fun};
+    map(fun({Id,[Fun|_]}=Tv) when is_function(Fun) -> Tv;
 	   ({Id,L}) ->
 		SS = sofs:from_term(L, [[{vec,[vertex]}]]),
 		RR = sofs:union(SS),
@@ -250,23 +250,21 @@ motion_update({matrix,Tvs}, Dx, Dy, #st{drag=Drag,shapes=Shapes}=St) ->
     St#st{drag=Drag#drag{matrices=Mtxs}};
 motion_update(Tvs, Dx, Dy, #st{shapes=Shapes0}=St0) ->
     Shapes =
-	foldl(fun({Id,Trans}, Shs0) when function(Trans) ->
-		      Sh0 = gb_trees:get(Id, Shs0),
-		      case Trans(Sh0, Dx, Dy, St0) of
-			  {shape,Sh} ->
-			      gb_trees:update(Id, Sh, Shs0);
-			  {tvs,List} ->
-			      Sh0 = gb_trees:get(Id, Shs0),
-			      Sh = transform_vs(List, Dx, Dy, St0, Sh0),
-			      gb_trees:update(Id, Sh, Shs0)
-		      end;
+	foldl(fun({Id,[F0|_]=Trs}, Shs0) when is_function(F0) ->
+		      Sh = foldl(fun(Tr, Sh0) ->
+					 case Tr(Sh0, Dx, Dy, St0) of
+					     {shape,Sh} ->
+						 Sh;
+					     {tvs,List} ->
+						 transform_vs(List, Dx, Dy, St0, Sh0)
+					 end
+				 end, gb_trees:get(Id, Shs0), Trs),
+		      gb_trees:update(Id, Sh, Shs0);
 		 ({Id,List}, Shapes) ->
 		      Sh0 = gb_trees:get(Id, Shapes),
 		      Sh = transform_vs(List, Dx, Dy, St0, Sh0),
 		      gb_trees:update(Id, Sh, Shapes)
 	      end, Shapes0, Tvs),
-    #st{drag=Drag} = St0,
-    Ident = e3d_mat:identity(),
     St1 = St0#st{shapes=Shapes},
     St = update_display_lists(St1),
     make_sel_dlist(St).
@@ -344,7 +342,7 @@ faces({matrix,Tvs}, St) ->
 faces(Tvs, #st{shapes=Shapes}) ->
     [{Id,faces_1(Vs, gb_trees:get(Id, Shapes))} || {Id,Vs} <- Tvs].
 
-faces_1(Tr, #shape{sh=#we{fs=Ftab}=We}) when function(Tr) -> all_faces;
+faces_1([Fun|_]=Tr, Sh) when is_function(Fun) -> all_faces;
 faces_1(Vs0, #shape{sh=#we{}=We}) ->
     foldl(fun ({_,Vs}, Acc) ->
 		  faces_2(Vs, We, Acc)
