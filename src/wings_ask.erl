@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.80 2003/04/27 13:35:52 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.81 2003/04/27 18:30:40 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -26,7 +26,7 @@
 
 -define(IS_SHIFTED(Mod), ((Mod) band ?SHIFT_BITS =/= 0)).
 
--import(lists, [reverse/1,reverse/2,duplicate/2,keysearch/3]).
+-import(lists, [reverse/1,reverse/2,duplicate/2,keysearch/3,member/2]).
 
 -record(s,
 	{w,
@@ -80,7 +80,7 @@ ask_unzip([], Labels, Vals) ->
 %% Syntax of Qs.
 %% 
 %% {hframe,Qs [,Flags]}				-- Horizontal frame
-%% {vframe,Qs [,Flags]}				-- Vertival frame
+%% {vframe,Qs [,Flags]}				-- Vertical frame
 %%     Flags = [Flag]
 %%     Flag = {title,Title,String}
 %% 
@@ -175,7 +175,6 @@ get_event(S) ->
     {replace,fun(Ev) -> event(Ev, S) end}.
 
 event(redraw, S) ->
-    wings_util:button_message("Select or Drag"),
     redraw(S),
     keep;
 event({current_state,_}, _) ->
@@ -222,8 +221,6 @@ delete(S) ->
     delete_blanket(S),
     delete.
 
-mouse_event(_, _, #mousemotion{state=Bst}, _) when Bst band ?SDL_BUTTON_LMASK == 0 ->
-    keep;
 mouse_event(X0, Y0, #mousemotion{}=Ev, #s{focus=I,ox=Ox,oy=Oy}=S) ->
     X = X0-Ox,
     Y = Y0-Oy,
@@ -303,6 +300,16 @@ set_focus(I, #s{focus=OldFocus,fi=Fis,priv=Priv0,common=Common0}=S) ->
 field_event(Ev, #s{focus=I}=S) ->
     field_event(Ev, I, S).
 
+field_event(#mousemotion{x=X,y=Y,state=Bst}, _, #s{fi=Fis})
+  when Bst band ?SDL_BUTTON_LMASK == 0 ->
+    case mouse_to_field(1, Fis, X, Y) of
+	none ->
+	    wings_wm:allow_drag(false);
+	I ->
+	    #fi{flags=Flags} = element(I, Fis),
+	    wings_wm:allow_drag(member(drag, Flags))
+    end,
+    keep;
 field_event(Ev, I, #s{fi=Fis,priv=Priv0,common=Common0}=S) ->
     #fi{handler=Handler} = Fi = element(I, Fis),
     Fst0 = element(I, Priv0),
@@ -434,9 +441,9 @@ normalize({label,Label}, Fi) ->
 normalize({label,Label,Flags}, Fi) ->
     normalize_field(label(Label, Flags), Flags, Fi);
 normalize({color,Def}, Fi) ->
-    normalize_field(color(Def), [], Fi);
+    normalize_field(color(Def), [drag], Fi);
 normalize({color,Def,Flags}, Fi) ->
-    normalize_field(color(Def), Flags, Fi);
+    normalize_field(color(Def), [drag|Flags], Fi);
 normalize({alt,VarDef,Prompt,Val}, Fi) ->
     normalize_field(radiobutton(VarDef, Prompt, Val), [], Fi);
 normalize({key_alt,{Key,_}=VarDef,Prompt,Val}, Fi) ->

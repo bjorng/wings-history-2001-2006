@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.103 2003/04/27 17:14:13 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.104 2003/04/27 18:30:42 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -43,7 +43,7 @@
 -export([menubar/1,menubar/2,get_menubar/1]).
 
 %% Drag & Drop support.
--export([drag/3,drag/4]).
+-export([drag/3,drag/4,allow_drag/1]).
 
 %% Window property mangagement.
 -export([get_props/1,get_prop/1,get_prop/2,lookup_prop/1,lookup_prop/2,
@@ -843,6 +843,17 @@ window_below_1(_, _, _) -> none.
 	 drop_ok=false				%Drop is OK on this window.
 	}).
 
+allow_drag(false) -> allow_drag_1(arrow);
+allow_drag(true) -> allow_drag_1(pointing_hand).
+
+allow_drag_1(Cursor) ->
+    case get(wm_cursor) of
+	Cursor -> ok;
+	_ ->
+	    put(wm_cursor, Cursor),
+	    wings_io:set_cursor(Cursor)
+    end.
+
 drag(Ev, Rect, DropData) ->
     Redraw = fun() ->
 		     gl:pushAttrib(?GL_POLYGON_BIT bor ?GL_LINE_BIT),
@@ -851,7 +862,7 @@ drag(Ev, Rect, DropData) ->
 		     gl:enable(?GL_LINE_STIPPLE),
 		     gl:color3f(0, 0, 0),
 		     {W,H} = wings_wm:win_size(),
-		     gl:recti(0, 0, W-1, H-1),
+		     gl:rectf(0.5, 0.5, W-1, H-1),
 		     gl:popAttrib()
 	     end,
     drag(Ev, Rect, Redraw, DropData).

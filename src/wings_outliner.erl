@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.37 2003/04/27 13:35:52 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.38 2003/04/27 18:30:41 bjorng Exp $
 %%
 
 -module(wings_outliner).
@@ -32,7 +32,8 @@
 	 sel,					%Current selection.
 	 os,					%All objects.
 	 active,				%Number of active object.
-	 lh					%Line height.
+	 lh,					%Line height.
+	 drag_ok=false				%Drag is possible.
 	}).
 
 window(St) ->
@@ -71,7 +72,7 @@ event(resized, Ost) ->
 event(close, _) ->
     delete;
 event(got_focus, _) ->
-    Msg = wings_util:button_format("Select", "Drag",
+    Msg = wings_util:button_format("Select", [],
 				   "Show outliner menu (if selection) or "
 				   "creation menu (if no selection)"),
     wings_wm:message(Msg),
@@ -84,10 +85,33 @@ event({note,image_change}, #ost{st=St}=Ost0) ->
     Ost = update_state(St, Ost0),
     update_scroller(Ost),
     get_event(Ost);
-event(#mousebutton{button=1,y=Y,state=?SDL_PRESSED}, #ost{active=Act0}=Ost) ->
+event(#mousemotion{state=Bst,y=Y}, #ost{active=Act}=Ost)
+  when Act >= 0, Bst == 0 ->
+    wings_wm:allow_drag(Act =:= active_object(Y, Ost)),
+    keep;
+event(#mousemotion{state=Bst,y=Y}=Ev, #ost{active=Act,os=Objs,drag_ok=true}=Ost)
+  when Act >= 0, Bst band ?SDL_BUTTON_LMASK =/= 0 ->
+    case active_object(Y, Ost) of
+	Act -> keep;
+	_ ->
+	    drag_and_drop(Ev, lists:nth(Act+1, Objs)),
+	    keep
+    end;
+event(#mousebutton{button=1,y=Y,state=?SDL_PRESSED}, #ost{active=Act}=Ost)
+  when Act >= 0 ->
+    case active_object(Y, Ost) of
+	Act ->
+	    wings_wm:grab_focus(),
+	    get_event(Ost#ost{drag_ok=true});
+	_ ->
+	    get_event(Ost#ost{drag_ok=false})
+    end;
+event(#mousebutton{button=1,y=Y,state=?SDL_RELEASED}, #ost{active=Act0}=Ost) ->
+    wings_wm:release_focus(),
     case active_object(Y, Ost) of
 	Act0 -> keep;
 	Act ->
+	    wings_wm:allow_drag(true),
 	    wings_wm:dirty(),
 	    get_event(Ost#ost{active=Act})
     end;
@@ -95,13 +119,6 @@ event(#mousebutton{button=4,state=?SDL_RELEASED}, Ost) ->
     zoom_step(-1*lines(Ost) div 4, Ost);
 event(#mousebutton{button=5,state=?SDL_RELEASED}, Ost) ->
     zoom_step(lines(Ost) div 4, Ost);
-event(#mousebutton{y=Y,button=2,state=?SDL_PRESSED}=Ev, #ost{os=Objs}=Ost) ->
-    case active_object(Y, Ost) of
-	-1 -> keep;
-	Act ->
-	    drag_and_drop(Ev, lists:nth(Act+1, Objs)),
-	    get_event(Ost#ost{active=Act})
-    end;
 event(#mousebutton{}=Ev, #ost{st=St,active=Act}=Ost) ->
     case wings_menu:is_popup_event(Ev) of
 	no -> keep;
@@ -129,6 +146,9 @@ event({action,{outliner,Cmd}}, Ost) ->
     command(Cmd, Ost);
 event({action,{shape,_}}=Act, _) ->
     wings_wm:send(geom, Act);
+event(lost_focus, _) ->
+    wings_wm:allow_drag(false),
+    keep;
 event(Ev, Ost) ->
     case wings_hotkey:event(Ev) of
 	{select,deselect} ->
