@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex.erl,v 1.46 2003/09/26 07:41:14 bjorng Exp $
+%%     $Id: wings_vertex.erl,v 1.47 2003/11/15 21:16:36 bjorng Exp $
 %%
 
 -module(wings_vertex).
@@ -22,8 +22,7 @@
 	 flatten/3,flatten/4,
 	 dissolve_isolated/2,
 	 connect/3,force_connect/4,
-	 patch_vertex/3,pos/2,
-	 outer_partition/2,reachable/2,
+	 pos/2,outer_partition/2,reachable/2,
 	 isolated/1,edge_through/3,edge_through/4]).
 
 -include("wings.hrl").
@@ -554,14 +553,6 @@ connect_4(Iter0, Vend, NewEdge, NeRec0, Etab0) ->
 	       end,
     Etab = gb_trees:update(Final, FinalRec, Etab1),
     gb_trees:insert(NewEdge, NeRec, Etab).
-
-%% Patch the incident edge for a vertex.
-
-patch_vertex(V, Edge, Vct) ->
-    case gb_trees:get(V, Vct) of
-	Edge -> Vct;
-	_ -> gb_trees:update(V, Edge, Vct)
-    end.
 
 %% outer_partition(Faces, We) -> [[V]]
 %%  Returns a list of the vertices of the outer edges of the faces.
