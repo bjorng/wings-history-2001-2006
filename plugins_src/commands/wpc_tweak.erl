@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.33 2003/04/16 11:46:12 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.34 2003/04/17 09:06:02 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -59,13 +59,13 @@ menu({tools}, Menu0) ->
 menu(_, Menu) -> Menu.
 
 command({tools,tweak}, St0) ->
+    wings:mode_restriction([vertex,edge,face,body]),
     Active = wings_wm:this(),
     wings_wm:callback(fun() -> wings_util:menu_restriction(Active, [view]) end),
     St = wings_undo:init(St0#st{selmode=vertex,sel=[],sh=true}),
     wings_draw:update_dlists(St),
     T = #tweak{tmode=wait,orig_st=St0,st=St},
     help(T),
-    wings_wm:dirty(),
     {seq,push,update_tweak_handler(T)};
 command(_, _) -> next.
 
@@ -222,7 +222,11 @@ begin_drag(MM, St, T) ->
 			end, []).
 
 begin_drag_fun(#dlo{src_we=We}=D, _, _, _) when ?IS_LIGHT(We) -> D;
-
+begin_drag_fun(#dlo{src_sel={body,_},src_we=#we{vp=Vtab}=We}=D, _MM, _St, _T) ->
+    Vs = gb_trees:keys(Vtab),
+    Center = wings_vertex:center(Vs, We),
+    Id = e3d_mat:identity(),
+    D#dlo{drag={matrix,Center,Id,e3d_mat:expand(Id)}};
 begin_drag_fun(#dlo{src_sel={Mode,Els},src_we=We}=D0, MM, St, T) ->
     Vs0 = sel_to_vs(Mode, gb_sets:to_list(Els), We),
     Center = wings_vertex:center(Vs0, We),
@@ -246,18 +250,32 @@ end_drag(#dlo{src_we=#we{id=Id},drag=#drag{mag=Mag}}=D,
     Shs = gb_trees:update(Id, We, Shs0),
     St = St0#st{shapes=Shs},
     {D#dlo{vs=none,sel=none,drag=none,src_we=We},St};
+end_drag(#dlo{src_we=#we{id=Id,mirror=M},drag={matrix,_,Matrix,_}},
+	 #st{shapes=Shs0}=St0) ->
+    We0 = gb_trees:get(Id, Shs0),
+    We = wings_we:transform_vs(Matrix, We0),
+    Shs = gb_trees:update(Id, We, Shs0),
+    St = St0#st{shapes=Shs},
+    {#dlo{src_we=We,mirror=M},St};
 end_drag(D, St) -> {D,St}.
 
 sel_to_vs(vertex, Vs, _) -> Vs;
 sel_to_vs(edge, Es, We) -> wings_vertex:from_edges(Es, We);
-sel_to_vs(face, Fs, We) -> wings_vertex:from_faces(Fs, We);
-sel_to_vs(body, _, #we{vp=Vtab}) -> gb_trees:keys(Vtab).
+sel_to_vs(face, Fs, We) -> wings_vertex:from_faces(Fs, We).
 
 do_tweak(DX, DY) ->
     wings_draw_util:map(fun(D, _) ->
 				do_tweak(D, DX, DY)
 			end, []).
     				
+do_tweak(#dlo{drag={matrix,Pos0,Matrix0,_},
+	      src_we=#we{id=Id}}=D, DX, DY) ->
+    Matrices = wings_util:get_matrices(Id, original),
+    {Xs,Ys,Zs} = obj_to_screen(Matrices, Pos0),
+    Pos = screen_to_obj(Matrices, {Xs+DX,Ys-DY,Zs}),
+    Move = e3d_vec:sub(Pos, Pos0),
+    Matrix = e3d_mat:mul(e3d_mat:translate(Move), Matrix0),
+    D#dlo{drag={matrix,Pos,Matrix,e3d_mat:expand(Matrix)}};
 do_tweak(#dlo{drag=#drag{pos=Pos0,mag=Mag0,mm=MM}=Drag,
 	      src_we=#we{id=Id}}=D0, DX, DY) ->
     Matrices = wings_util:get_matrices(Id, MM),
@@ -278,10 +296,6 @@ screen_to_obj({MVM,PM,VP}, {Xs,Ys,Zs}) ->
 	{1, X,Y,Z} -> {X,Y,Z}			%Workaround for new ESDL (ugly).
     end.
 
-%%%
-%%% Magnetic tweak.
-%%%
-
 help(#tweak{magnet=false}) ->
     Msg = "[L] Drag vertices freely  [R] Exit tweak mode",
     wings_wm:message(Msg ++ "  " ++ wings_camera:help(),
@@ -299,6 +313,11 @@ help_1(Type, [{Digit,ThisType}|T]) ->
     "[" ++ [$0+Digit] ++ "] " ++
 	wings_util:cap(atom_to_list(ThisType)) ++ " " ++ help_1(Type, T);
 help_1(_, []) -> [].
+
+%%%
+%%% Magnetic tweak. Standard tweak is a special case of magnetic tweak
+%%% (vertices to be moved have the influence set to 1.0).
+%%%
 
 magnet_hotkey(C, #tweak{magnet=Mag,mag_type=Type0}=T) ->
     case hotkey(C) of
@@ -372,7 +391,11 @@ mf(spike, D0, R) when is_float(D0), is_float(R) ->
 
 magnet_tweak(#mag{orig=Orig,vs=Vs}=Mag, Pos) ->
     Vec = e3d_vec:sub(Pos, Orig),
-    Vtab = foldl(fun({V,P0,Plane,_,Inf}, A) ->
+    Vtab = foldl(fun({V,P0,Plane,_,1.0}, A) ->
+			 P1 = e3d_vec:add(P0, Vec),
+			 P = mirror_constrain(Plane, P1),
+			 [{V,P}|A];
+		    ({V,P0,Plane,_,Inf}, A) ->
 			 P1 = e3d_vec:add(P0, e3d_vec:mul(Vec, Inf)),
 			 P = mirror_constrain(Plane, P1),
 			 [{V,P}|A]
