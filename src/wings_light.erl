@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.35 2003/07/23 05:06:29 bjorng Exp $
+%%     $Id: wings_light.erl,v 1.36 2003/09/04 05:29:13 bjorng Exp $
 %%
 
 -module(wings_light).
@@ -212,7 +212,7 @@ position_sel() ->
     {[vertex,edge,face],
      fun(check, St) ->
 	     position_check_selection(St);
-	(exit, {_,#st{selmode=Mode,sel=Sel}=St}) ->
+	(exit, {_,_,#st{selmode=Mode,sel=Sel}=St}) ->
 	     case position_check_selection(St) of
 		 {none,""} ->
 		     {light,{position_highlight,{Mode,Sel}}};
