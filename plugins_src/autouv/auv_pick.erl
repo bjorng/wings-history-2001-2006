@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_pick.erl,v 1.13 2004/01/26 10:51:54 bjorng Exp $
+%%     $Id: auv_pick.erl,v 1.14 2004/03/06 08:57:10 bjorng Exp $
 %%
 
 -module(auv_pick).
@@ -84,13 +84,13 @@ handle_hilite_event(#mousemotion{x=X,y=Y}, #hl{prev=PrevHit,st=St}=HL) ->
 	none ->
 	    wings_wm:dirty(),
 	    insert_hilite_dl(none, none),
-	    wpc_autouv:update_dlists(St),
+	    wings_draw:invalidate_dlists(false, St),
 	    get_hilite_event(HL#hl{prev=none});
 	Hit ->
 	    wings_wm:dirty(),
 	    DL = hilite_draw_sel_dl(Hit, St),
 	    insert_hilite_dl(Hit, DL),
-	    wpc_autouv:update_dlists(St),
+	    wings_draw:invalidate_dlists(false, St),
 	    get_hilite_event(HL#hl{prev=Hit})
     end;
 handle_hilite_event(init_opengl, #hl{st=St}) ->
@@ -379,7 +379,7 @@ pick_event(#mousemotion{x=X,y=Y}, #pick{st=St0,op=Op}=Pick) ->
 	none -> keep;
 	{Op,St} ->
 	    wings_wm:dirty(),
-	    wpc_autouv:update_dlists(St),
+	    wings_draw:invalidate_dlists(false, St),
 	    get_pick_event(Pick#pick{st=St});
 	{_,_} -> keep
     end;

@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.191 2004/03/04 16:24:00 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.192 2004/03/06 08:57:10 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -19,7 +19,7 @@
 -include("e3d_image.hrl").
 -include("auv.hrl").
  
--export([init/0,menu/2,command/2,redraw/1,update_dlists/1]).
+-export([init/0,menu/2,command/2,redraw/1]).
 
 -import(lists, [sort/1,map/2,foldl/3,reverse/1,
 		append/1,delete/2,usort/1,max/1,min/1,
@@ -407,19 +407,19 @@ handle_event(init_opengl, St) ->
     wings:init_opengl(St),
     {_,_,W,H} = wings_wm:viewport(wings_wm:this()),
     Geom = wingeom(W, H),
-    get_event(reset_dl(update_geom(St, Geom)));
+    get_event(update_geom(St, Geom));
 handle_event(resized, St) ->
     {_,_,W,H} = wings_wm:viewport(wings_wm:this()),
     Geom = wingeom(W,H),
-    get_event(reset_dl(update_geom(St, Geom)));
+    get_event(update_geom(St, Geom));
 handle_event({new_state,#st{selmode=Mode,sel=Sel,shapes=Shs}}, #st{bb=Uvs}=St) ->
     GeomSt = wings_select_faces(Sel, St),
     wings_wm:send(geom, {new_state,GeomSt}),
-    get_event(reset_dl(St#st{selmode=Mode,sel=Sel,shapes=Shs,bb=Uvs#uvstate{st=GeomSt}}));
+    get_event(St#st{selmode=Mode,sel=Sel,shapes=Shs,bb=Uvs#uvstate{st=GeomSt}});
 handle_event({new_uv_state,St0}, _) ->
     St = update_selected_uvcoords(St0),
     wings_wm:dirty(),
-    get_event(reset_dl(St));
+    get_event(St);
 handle_event(Ev, St) ->
     case auv_pick:event(Ev, St) of
 	next -> handle_event_1(Ev, St);
@@ -450,11 +450,11 @@ handle_event_1({action,{auv,{draw_options,Opt}}}, #st{bb=Uvs}=St) ->
     wings_wm:send(geom, {new_state,GeomSt}),
     get_event(St#st{bb=Uvs#uvstate{st=GeomSt,matname=MatName}});
 %% Others
-handle_event_1({action,{auv,quit}}, St) ->
-    restore_wings_window(St),
+handle_event_1({action,{auv,quit}}, _St) ->
+    restore_wings_window(),
     delete;
-handle_event_1(close, St) ->
-    restore_wings_window(St),
+handle_event_1(close, _St) ->
+    restore_wings_window(),
     delete;
 handle_event_1({callback,Fun}, _) when is_function(Fun) ->
     Fun();
@@ -552,7 +552,7 @@ handle_drop({image,_,#e3d_image{width=W,height=H}=Im}, #st{bb=Uvs0}=St) ->
 	    {GeomSt,MatName} = add_material(Im, undefined, MatName0, GeomSt0),
 	    wings_wm:send(geom, {new_state,GeomSt}),
 	    Uvs = Uvs0#uvstate{st=GeomSt,matname=MatName},
-	    get_event(reset_dl(St#st{bb=Uvs}))
+	    get_event(St#st{bb=Uvs})
     end;
 handle_drop(_DropData, _) ->
     %%io:format("~P\n", [_DropData,40]),
@@ -565,7 +565,7 @@ update_selection(#st{selmode=Mode,sel=Sel}=St,
 		 #st{bb = #uvstate{st=#st{selmode=Mode,sel=Sel}} = Uvs} = AuvSt) ->
     get_event_nodraw(AuvSt#st{bb = Uvs#uvstate{st=St}});
 update_selection(#st{selmode=Mode,sel=Sel}=St, #st{bb=#uvstate{id=Id}=Uvs}=AuvSt0) ->
-    AuvSt = reset_dl(AuvSt0#st{sel=[], bb=Uvs#uvstate{st=St}}),
+    AuvSt = AuvSt0#st{sel=[], bb=Uvs#uvstate{st=St}},
     case keysearch(Id, 1, Sel) of
 	false ->
 	    get_event(AuvSt);
@@ -696,8 +696,8 @@ broken_event({current_state,geom_display_lists,St}, AuvSt) ->
 	    wings_wm:dirty(),
 	    pop
     end;
-broken_event(close, AuvSt) ->
-    restore_wings_window(AuvSt),
+broken_event(close, _) ->
+    restore_wings_window(),
     delete;
 broken_event(#keyboard{}=Ev, _St) ->
     %% To accept Undo.
@@ -715,8 +715,8 @@ broken_event(Ev, _) ->
 %%% Draw routines.
 %%%
 
-redraw(#st{mat=Mats,bb=Uvs}=St0) ->
-    update_dlists(St0#st{selmode=body}),
+redraw(#st{mat=Mats,bb=Uvs}=St) ->
+    update_dlists(St#st{selmode=body}),
     wings_util:button_message("Select", [], "Show menu"),
 
     #uvstate{geom={Left,Right,Bottom,Top},matname=MatN} = Uvs,
@@ -745,11 +745,11 @@ redraw(#st{mat=Mats,bb=Uvs}=St0) ->
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
     gl:color3b(0, 0, 0),
     gl:'begin'(?GL_LINE_LOOP),
-    D = Left/10,
-    gl:vertex2f(D, D),
-    gl:vertex2f(1-D, D),
-    gl:vertex2f(1-D, 1-D),
-    gl:vertex2f(D, 1-D),
+    Dist = Left/10,
+    gl:vertex2f(Dist, Dist),
+    gl:vertex2f(1-Dist, Dist),
+    gl:vertex2f(1-Dist, 1-Dist),
+    gl:vertex2f(Dist, 1-Dist),
     gl:'end'(),    
 
     %% Draw the background texture.
@@ -775,9 +775,9 @@ redraw(#st{mat=Mats,bb=Uvs}=St0) ->
     gl:depthFunc(?GL_LESS),
     gl:shadeModel(?GL_SMOOTH),
 
-    St = draw_charts(St0),
-    draw_selection(St),
-
+    wings_draw_util:fold(fun(D, _) ->
+				 draw_one_chart(D)
+			 end, []),
     gl:popAttrib(),
     St.
 
@@ -797,52 +797,29 @@ wingeom(W,H) ->
 	    {-WF,1+WF,-WF,H/W+WF}
     end.
 
-draw_charts(#st{sel=Sel,shapes=Shs,bb=#uvstate{dl=undefined}=Uvs}=St) ->
-    Dl = gl:genLists(1),
-    gl:newList(Dl, ?GL_COMPILE),
-    foreach(fun(#we{id=Id}=We) ->
-		    case lists:keymember(Id, 1, Sel) of
-			true -> ok;
-			false -> draw_chart(We, false)
-		    end
-	    end, gb_trees:values(Shs)),
-    gl:endList(),
-    draw_charts(St#st{bb=Uvs#uvstate{dl=Dl}});
-draw_charts(#st{bb=#uvstate{dl=DL}} = St) ->
-    gl:callList(DL),
-    St.
+draw_one_chart(#dlo{edges=Edges,sel=Sel}) ->
+    wings_draw_util:call(Edges),
+    wings_draw_util:call(Sel).
 
-draw_selection(#st{sel=Sel} = St) ->
-    case gb_sets:is_empty(Sel) of
-	true -> ok;
-	false ->
-	    {R,G,B} = wings_pref:get_value(selected_color),
-	    gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
-	    gl:enable(?GL_BLEND),
-	    gl:translatef(0, 0, 0.1),
-	    Settings = {R,G,B,0.7},
-	    wpa:sel_fold(fun(_, We, _) ->
-				 draw_chart(We, Settings)
-			 end, [], St),
-	    gl:disable(?GL_BLEND)
-    end.
+update_dlists(#st{}=St) ->
+    wings_draw:invalidate_dlists(false, St),
+    wings_draw_util:map(fun(D0, _) ->
+				D = update_edges(D0),
+				update_sel(D)
+			end, []).
 
-draw_chart(#we{name=#ch{fs=Fs}}=We, ColorMode) -> 
+update_edges(#dlo{edges=none,src_we=#we{name=#ch{fs=Fs}}=We}=D) ->
+    List = gl:genLists(1),
+    gl:newList(List, ?GL_COMPILE),
     gl:pushMatrix(),
     gl:lineWidth(1),
     gl:translatef(0, 0, 0.9),
     gl:color3f(0.1, 0.1, 0.1),
     draw_all_face_edges(Fs, We),
     gl:popMatrix(),
-    if
-	%% Selected %%
-	is_tuple(ColorMode), size(ColorMode) == 4 ->
-	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
-	    gl:color4fv(ColorMode),
-	    draw_faces(Fs, We#we{mode=material});
-	true ->
-	    ignore
-    end.
+    gl:endList(),
+    D#dlo{edges=List};
+update_edges(#dlo{}=D) -> D.
 
 draw_all_face_edges([F|Fs], We) ->
     draw_face_edges(F, We),
@@ -859,14 +836,25 @@ draw_faces(Fs, We) ->
     Draw = fun(Face) -> wings_draw_util:plain_face(Face, We) end,
     wings_draw_util:begin_end(fun() -> foreach(Draw, Fs) end).
 
-reset_dl(#st{bb=#uvstate{dl=undefined}}=St) -> St;
-reset_dl(#st{bb=#uvstate{dl=DL}=Uvs}=St) ->
-    gl:deleteLists(DL, 1),
-    St#st{bb=Uvs#uvstate{dl=undefined}}.
+update_sel(#dlo{sel=none,src_sel={body,_},src_we=#we{name=#ch{fs=Fs}}=We}=D) ->
+    List = gl:genLists(1),
+    gl:newList(List, ?GL_COMPILE),
+    {R,G,B} = wings_pref:get_value(selected_color),
+    gl:pushMatrix(),
+    gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
+    gl:enable(?GL_BLEND),
+    gl:translatef(0, 0, 0.1),
+    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
+    gl:color4f(R, G, B, 0.7),
+    draw_faces(Fs, We#we{mode=material}),
+    gl:disable(?GL_BLEND),
+    gl:popMatrix(),
+    gl:endList(),
+    D#dlo{sel=List};
+update_sel(#dlo{}=D) -> D.
 
-restore_wings_window(St) ->
-    wings_draw_util:delete_dlists(),
-    reset_dl(St).
+restore_wings_window() ->
+    wings_draw_util:delete_dlists().
 
 %% Generate a checkerboard image of 4x4 squares 
 %% with given side length in pixels.
@@ -889,11 +877,3 @@ pattern_repeat(N, D) ->
 	0 -> [B|B];
 	1 -> [D,B|B]
     end.
-
-%%%
-%%% Most of this code will be rewritten as we slowly change the
-%%% internal structures.
-%%%
-
-update_dlists(#st{}=St) ->
-    wings_draw:invalidate_dlists(false, St).
