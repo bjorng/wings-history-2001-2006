@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.34 2002/05/20 10:29:37 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.35 2002/06/04 19:47:53 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -111,10 +111,16 @@ add_materials([{Name,Mat0}|Ms], St0, NewNames) ->
     end;
 add_materials([], St, NewNames) -> {St,NewNames}.
 
-add_defaults(Props) ->
-    OpenGL0 = prop_get(opengl, Props),
+add_defaults([]) ->
+    add_defaults([{opengl,[]},{maps,[]}]);
+add_defaults(Props0) ->
+    OpenGL0 = prop_get(opengl, Props0),
     OpenGL = add_defaults_1(OpenGL0),
-    keyreplace(opengl, 1, Props, {opengl,OpenGL}).
+    Props = keyreplace(opengl, 1, Props0, {opengl,OpenGL}),
+    case prop_get(maps, Props) of
+	undefined -> [{maps,[]}|Props];
+	_ -> Props
+    end.
 
 add_defaults_1(P) ->
     Def = {1.0,1.0,1.0,1.0},
@@ -181,7 +187,7 @@ apply_material(Name, Mtab) when is_atom(Name) ->
     Shine = prop_get(shininess, OpenGL)*128,
     gl:materialfv(?GL_FRONT, ?GL_SHININESS, Shine),
     gl:materialfv(?GL_FRONT, ?GL_EMISSION, prop_get(emission, OpenGL)),
-    Maps = prop_get(maps, Mat),
+    Maps = prop_get(maps, Mat, []),
     case prop_get(diffuse, Maps, none) of
 	none -> gl:disable(?GL_TEXTURE_2D);
 	_DiffMap ->
@@ -352,7 +358,7 @@ color_1(U0, V0, {W,H,Bits}) ->
 %%% Texture support.
 
 init_texture(Name, Mat) ->
-    Maps = prop_get(maps, Mat),
+    Maps = prop_get(maps, Mat, []),
     case prop_get(diffuse, Maps, none) of
 	none -> ok;
 	{W,H,Bits} ->
