@@ -3,12 +3,12 @@
 %%
 %%     This module edits materials.
 %%
-%%  Copyright (c) 2001 Dan Gudmundsson, Bjorn Gustavsson
+%%  Copyright (c) 2001-2002 Dan Gudmundsson, Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_matedit.erl,v 1.14 2001/12/10 18:39:58 bjorng Exp $
+%%     $Id: wings_matedit.erl,v 1.15 2002/01/28 08:42:17 bjorng Exp $
 %%
 
 -module(wings_matedit).
@@ -413,7 +413,7 @@ select_butt(X0, OkS, CancelS, Size, S) ->
  	    
 scale_pos(X0, X1, Scale, Constraint) ->
     Len = (X0 - X1) / Scale,
-    if Len < 0 -> 0;
+    if Len < 0 -> 0.0;
        Len > Constraint -> Constraint;
        true -> Len
     end.

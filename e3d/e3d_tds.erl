@@ -4,12 +4,12 @@
 %%     Functions for reading and writing 3D Studio Max files (.tds),
 %%     version 3.
 %%
-%%  Copyright (c) 2001 Bjorn Gustavsson
+%%  Copyright (c) 2001-2002 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_tds.erl,v 1.9 2001/12/28 22:31:42 bjorng Exp $
+%%     $Id: e3d_tds.erl,v 1.10 2002/01/28 08:42:17 bjorng Exp $
 %%
 
 -module(e3d_tds).
@@ -453,6 +453,8 @@ make_rgb({R0,G0,B0}) when float(R0), float(G0), float(B0) ->
 make_rgb({R,G,B}) when integer(R), integer(G), integer(B) ->
     make_chunk(16#0011, <<R:8/little,G:8/little,B:8/little>>).
 
+make_percent(0) ->
+    make_percent(0.0);
 make_percent(Percent0) when float(Percent0) ->
     Percent = trunc(Percent0*100.0),
     make_chunk(16#0030, <<Percent:16/little>>).
