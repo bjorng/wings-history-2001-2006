@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.152 2003/09/07 05:32:57 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.153 2003/09/07 19:13:13 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -544,6 +544,8 @@ join(#dlo{src_we=#we{vp=Vtab0},ns=Ns1,split=#split{orig_we=We0,orig_ns=Ns0}}=D) 
 
 join_ns(We, _, _) when ?IS_LIGHT(We) ->
     none;
+join_ns(_, NsNew, none) ->
+    NsNew;
 join_ns(#we{fs=Ftab}, NsNew, NsOld) ->
     join_ns_1(gb_trees:to_list(NsNew), gb_trees:to_list(NsOld), Ftab, []).
 
