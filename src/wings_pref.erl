@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.97 2003/09/16 20:03:52 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.98 2003/09/19 05:03:42 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -46,11 +46,15 @@ finish() ->
     PrefFile = new_pref_file(),
     List0 = ets:tab2list(wings_state),
     List = prune_defaults(List0),
+    Format = case os:type() of
+		 {win32,_} -> "~p. \r\n";
+		 _ -> "~p. \n"
+	     end,
     Write = fun({{bindkey,_},_,default}) -> [];
 	       ({{bindkey,_},_,plugin}) -> [];
 	       ({{bindkey,_,_},_,default}) -> [];
 	       ({{bindkey,_,_},_,plugin}) -> [];
-	       (Else) -> io_lib:format("~p. \n", [Else])
+	       (Else) -> io_lib:format(Format, [Else])
 	    end,
     Str = lists:map(Write, List),
     catch file:write_file(PrefFile, Str),
