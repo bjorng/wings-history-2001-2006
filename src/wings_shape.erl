@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.14 2002/01/27 11:50:28 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.15 2002/02/03 07:20:09 bjorng Exp $
 %%
 
 -module(wings_shape).
@@ -16,7 +16,7 @@
 	 menu/3,command/2]).
 
 -include("wings.hrl").
--import(lists, [map/2,reverse/1,reverse/2,keymember/3]).
+-import(lists, [map/2,reverse/1,reverse/2,keymember/3,keysearch/3,sort/1]).
 
 new(Name, We0, #st{shapes=Shapes0,onext=Oid}=St) ->
     We = We0#we{name=Name,id=Oid},
@@ -72,9 +72,12 @@ menu(X, Y, #st{sel=Sel,shapes=Shapes}=St) ->
     Menu = Menu2,
     wings_menu:menu(X, Y, objects, Menu, St).
 
-state(0, Sel, Name) -> state_1(eye, Sel, Name);
-state(1, Sel, Name) -> state_1(lock, Sel, Name);
-state(2, Sel, Name) -> state_1(hidden, Sel, Name).
+state(0, IsSel, Name) ->
+    state_1(eye, IsSel, Name);
+state(1, IsSel, Name) ->
+    state_1(lock, IsSel, Name);
+state(Sel, IsSel, Name) when is_tuple(Sel) ->
+    state_1(hidden, IsSel, Name).
 
 state_1(C, false, Name) -> [C|Name];
 state_1(C, true, Name) -> "<" ++ [C] ++ "> " ++ Name.
@@ -83,9 +86,9 @@ choices(0, false) ->
     [{"Select",select}|more_choices()];
 choices(0, true) ->
     [{"Deselect",deselect}|more_choices()];
-choices(1, Sel) ->
+choices(1, _Sel) ->
     [{"Unlock",restore}];
-choices(2, Sel) ->
+choices(Sel, _IsSel) when is_tuple(Sel) ->
     [{"Show",restore}].
 
 more_choices() ->
@@ -124,7 +127,7 @@ rename_object(Id, #st{shapes=Shapes0}=St) ->
 
 hide_object(Id, St0) ->
     St = wings_sel:deselect_object(Id, St0),
-    update_permission(2, Id, St).
+    update_permission(get_sel(Id, St0), Id, St).
 
 lock_object(Id, St0) ->
     St = wings_sel:deselect_object(Id, St0),
@@ -133,26 +136,30 @@ lock_object(Id, St0) ->
 restore_object(Id, St) ->
     update_permission(0, Id, St).
 
-update_permission(Perm, Id, #st{shapes=Shs0}=St) ->
+update_permission(Perm, Id, #st{sel=Sel0,shapes=Shs0}=St) ->
     We = gb_trees:get(Id, Shs0),
     Shs = gb_trees:update(Id, We#we{perm=Perm}, Shs0),
-    wings_draw:model_changed(St#st{shapes=Shs}).
+    Sel = update_sel(We, Sel0),
+    wings_draw:model_changed(St#st{sel=Sel,shapes=Shs}).
 
 hide_others(ThisId, #st{shapes=Shs0,sel=Sel0}=St) ->
     Shs1 = map(fun(#we{id=Id}=We) when ThisId =:= Id -> {Id,We};
-		  (#we{id=Id}=We) -> {Id,We#we{perm=2}}
+		  (#we{id=Id}=We) ->
+		       {Id,We#we{perm=get_sel(Id, St)}}
 	       end, gb_trees:values(Shs0)),
     Shs = gb_trees:from_orddict(Shs1),
     Sel = [This || {Id,_}=This <- Sel0, Id =:= ThisId],
     wings_draw:model_changed(St#st{shapes=Shs,sel=Sel}).
 
-restore_all(#st{shapes=Shs0}=St) ->
+restore_all(#st{shapes=Shs0,sel=Sel0}=St) ->
     Shs1 = [{Id,We#we{perm=0}} || #we{id=Id}=We <- gb_trees:values(Shs0)],
     Shs = gb_trees:from_orddict(Shs1),
-    wings_draw:model_changed(St#st{shapes=Shs}).
+    Sel = [{Id,Set} || #we{id=Id,perm=Set}=We <- gb_trees:values(Shs0),
+		       is_tuple(Set)] ++ Sel0,
+    wings_draw:model_changed(St#st{shapes=Shs,sel=sort(Sel)}).
 
 hide_unselected(St) ->
-    update_unsel(2, St).
+    update_unsel(gb_sets:empty(), St).
 
 lock_unselected(St) ->
     update_unsel(1, St).
@@ -166,3 +173,13 @@ update_unsel(Perm, #st{shapes=Shs0,sel=Sel}=St) ->
 	       end, gb_trees:values(Shs0)),
     Shs = gb_trees:from_orddict(Shs1),
     wings_draw:model_changed(St#st{shapes=Shs}).
+
+get_sel(Id, #st{sel=Sel}) ->
+    case keysearch(Id, 1, Sel) of
+	false -> [];
+	{value,{Id,Set}} -> Set
+    end.
+
+update_sel(#we{id=Id,perm=Set}, Sel) when is_tuple(Set) ->
+    sort([{Id,Set}|Sel]);
+update_sel(_, Sel) -> Sel.

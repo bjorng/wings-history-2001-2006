@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.43 2002/01/28 21:53:47 bjorng Exp $
+%%     $Id: wings.hrl,v 1.44 2002/02/03 07:20:08 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -118,7 +118,10 @@
 	 perm=0,				%Permissions:
 						% 0 - Everything allowed.
 						% 1 - Visible, can't select.
-						% 2 - Invisible, can't select.
+						% [],GbSet - Invisible,
+						%  can't select. The GbSet
+						%  contains the object's
+						%  selection.
 	 name,					%Name.
 	 es,					%gb_tree containing edges
 	 vs,					%gb_tree containing vertices
@@ -130,8 +133,8 @@
 	 mode					%'vertex'/'material'/'uv'
 	 }).
 
--define(IS_VISIBLE(Perm), (Perm < 2)).
--define(IS_NOT_VISIBLE(Perm), (Perm >= 2)).
+-define(IS_VISIBLE(Perm), (Perm =< 1)).
+-define(IS_NOT_VISIBLE(Perm), (Perm > 1)).
 -define(IS_SELECTABLE(Perm), (Perm == 0)).
 -define(IS_NOT_SELECTABLE(Perm), (Perm =/= 0)).
 
