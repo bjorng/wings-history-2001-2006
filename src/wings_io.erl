@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.74 2002/11/24 09:46:28 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.75 2002/11/24 09:47:24 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -210,7 +210,7 @@ draw_icons(#io{w=W,h=H,icons=Icons0,selmodes=Modes}, St) ->
     gl:color3f(0.20, 0.20, 0.20),
     gl:'begin'(?GL_LINES),
     gl:vertex2f(0.5, H-2*?LINE_HEIGHT-2.5),
-    gl:vertex2f(W-1.5, H-2*?LINE_HEIGHT-2.5),
+    gl:vertex2f(W, H-2*?LINE_HEIGHT-2.5),
     gl:'end'(),
     gl:color3f(0, 0, 0),
     gl:enable(?GL_TEXTURE_2D),
