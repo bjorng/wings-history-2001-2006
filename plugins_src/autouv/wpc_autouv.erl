@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.281 2004/12/25 11:03:25 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.282 2004/12/26 07:01:27 bjorng Exp $
 %%
 
 -module(wpc_autouv).
@@ -791,7 +791,7 @@ new_geom_state_1(Shs, #st{bb=#uvstate{id=Id,st=#st{shapes=Orig}}}=AuvSt) ->
     end.
 
 rebuild_charts(We, St, ExtraCuts) ->
-    {Faces,FvUvMap} = auv_segment:fv_to_uv_map(We),
+    {Faces,FvUvMap} = ?TC(auv_segment:fv_to_uv_map(We)),
     {Charts0,Cuts0} = ?TC(auv_segment:uv_to_charts(Faces, FvUvMap, We)),
     {Charts1,Cuts} =
 	case ExtraCuts of
@@ -808,21 +808,29 @@ rebuild_charts(We, St, ExtraCuts) ->
     St#st{sel=[],shapes=Charts}.
 
 update_uv_tab(Cs, FvUvMap) ->
-    update_uv_tab_1(Cs, FvUvMap, 0.0, []).
+    update_uv_tab_1(Cs, FvUvMap, []).
 
-update_uv_tab_1([#we{id=Id,name=#ch{vmap=Vmap}}=We0|Cs], FvUvMap, Z, Acc) ->
+update_uv_tab_1([#we{id=Id,name=#ch{vmap=Vmap}}=We0|Cs], FvUvMap, Acc) ->
     Fs = wings_we:visible(We0),
     UVs0 = wings_face:fold_faces(
 	     fun(F, V, _, _, A) ->
 		     OrigV = auv_segment:map_vertex(V, Vmap),
-		     {X,Y} = gb_trees:get([F|OrigV], FvUvMap),
-		     [{V,{X,Y,Z}}|A]
+		     [{V,[F|OrigV]}|A]
 	     end, [], Fs, We0),
-    UVs = gb_trees:from_orddict(orddict:from_list(UVs0)),
+    UVs1 = update_uv_tab_2(sort(UVs0), FvUvMap, 0.0, []),
+    UVs = gb_trees:from_orddict(UVs1),
     We = We0#we{vp=UVs},
-    update_uv_tab_1(Cs, FvUvMap, Z, [{Id,We}|Acc]);
-update_uv_tab_1([], _, _, Acc) ->
+    update_uv_tab_1(Cs, FvUvMap, [{Id,We}|Acc]);
+update_uv_tab_1([], _, Acc) ->
     gb_trees:from_orddict(sort(Acc)).
+
+update_uv_tab_2([{V,_}|T], FvUvMap, Z, [{V,_}|_]=Acc) ->
+    update_uv_tab_2(T, FvUvMap, Z, Acc);
+update_uv_tab_2([{V,Key}|T], FvUvMap, Z, Acc) ->
+    {X,Y} = gb_trees:get(Key, FvUvMap),
+    Pos = {X,Y,Z},
+    update_uv_tab_2(T, FvUvMap, Z, [{V,Pos}|Acc]);
+update_uv_tab_2([], _, _, Acc) -> reverse(Acc).
 
 %% update_selection(GemoSt, AuvSt0) -> AuvSt
 %%  Update the selection in the AutoUV window given a selection
