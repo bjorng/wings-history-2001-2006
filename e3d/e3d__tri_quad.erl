@@ -9,14 +9,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__tri_quad.erl,v 1.10 2004/02/10 13:21:02 raimo_niskanen Exp $
+%%     $Id: e3d__tri_quad.erl,v 1.11 2004/02/19 18:41:47 dgud Exp $
 %%
 
 -module(e3d__tri_quad).
 -export([triangulate/1,triangulate_face/2,triangulate_face_with_holes/3,
 	 quadrangulate/1,quadrangulate_face/2,quadrangulate_face_with_holes/3]).
 
-%%-define(TESTING, true).
+%-define(TESTING, true).  % qqq
 
 -ifdef(TESTING).
 -export([test_tri/1,test_quad/1]).
@@ -142,7 +142,30 @@ vismask(A, B, Bord, Bit) ->
 	_ -> 0
     end.
 
-triface(Fl,Vtab) -> triface(Fl,Vtab,1,1,[]).
+triface(Fl,Vtab) -> 
+    %% We should have a qriteria for the start postion
+    %% to get a uniform triangulation, if we triangulates
+    %% a grid of squares for example.
+    %% I have choosen the least vertex pos in 3d space of the face.
+
+    Start = get_least_index(Fl ,Vtab),
+%    Start = 1, % qqq
+    Res = triface(Fl,Vtab,Start,1,[]),
+%    erlang:display(Res), %% qqq
+    Res.
+
+get_least_index([F|Fl], Vtab) ->
+    Best = element(F+1,Vtab),
+    get_least_index(Fl, Vtab, Best, 1, 2).
+
+get_least_index([], _, _, I, _) -> I;    
+get_least_index([H|R],Vtab, Curr,I,N) -> 
+    case element(H+1, Vtab) of
+	Pos when Pos < Curr ->
+	    get_least_index(R, Vtab, Pos, N, N+1);
+	_ ->
+	    get_least_index(R, Vtab, Curr,I, N+1)
+    end.
 
 triface(Fl,Vtab,Start,Incr,Acc) ->
     F = list_to_tuple(Fl),
@@ -156,7 +179,7 @@ triface(Fl,Vtab,Start,Incr,Acc) ->
 	    Vm1 = element(Im1,F),
 	    V0 = element(I,F),
 	    V1 = element(I1,F),
-	    %% io:format("new tri: ~p ~p ~p~n", [Vm1,V0,V1]),
+%	    io:format("new tri: ~p ~p ~p~n", [Vm1,V0,V1]), %qqq
 	    Fl1 = chopear(F, N, I),
 	    Incr1 = -Incr,
 	    Start1 =
