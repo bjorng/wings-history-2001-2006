@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.2 2002/02/11 12:27:01 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.3 2002/02/11 20:07:07 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -32,6 +32,7 @@
 %% Static data for each field.
 -record(fi,
 	{handler,				%Handler fun.
+	 flags,					%Flags field.
 	 x,y,					%Upper left position.
 	 lw,					%Label width.
 	 w,h					%Width, height.
@@ -45,39 +46,59 @@ ask(true, Qs, St, Fun) -> ask(Qs, St, Fun).
 
 ask(Qs0, Redraw, Fun) ->
     Qs1 = normalize(Qs0),
-    Sizes = sizes(Qs1),
-    Qs = propagate_sizes(Qs1, Sizes),
+    Qs = propagate_sizes(Qs1),
     {Fis0,Priv0} = flatten_fields(Qs),
     Fis = list_to_tuple(Fis0),
     Priv = list_to_tuple(Priv0),
-    {Lw,W0,H} = Sizes,
+    {#fi{lw=Lw,w=W0,h=H},_} = Qs,
     W = Lw+W0,
-    S = #s{w=W,h=H,call=Fun,fi=Fis,priv=Priv,focus=1,redraw=Redraw},
+    S0 = #s{w=W,h=H,call=Fun,fi=Fis,priv=Priv,focus=size(Fis),redraw=Redraw},
+    S = next_focus(S0, 1),
     {seq,{push,dummy},get_event(S)}.
 
 get_event(S) ->
     redraw(S),
     {replace,fun(Ev) -> event(Ev, S) end}.
 
-event(#keyboard{keysym=#keysym{sym=Sym,unicode=Unicode}}=Ev, S) ->
-    event_key(Sym, Unicode, Ev, S);
+event(#keyboard{keysym=#keysym{sym=Sym,mod=Mod,unicode=Unicode}}, S) ->
+    event_key({key,Sym,Mod,Unicode}, S);
+event(#resize{}=Ev, S) ->
+    wings_io:putback_event(Ev),
+    pop;
 event(Ev, S) ->
     field_event(Ev, S).
 
-event_key(?SDLK_ESCAPE, _, Ev, S) ->
+event_key({key,?SDLK_ESCAPE,_,_}, S) ->
     wings_io:putback_event(redraw),
     pop;
-event_key(_, $\t, Ev, #s{focus=I,fi=Fi}=S) when I =:= size(Fi) ->
-    get_event(S#s{focus=1});
-event_key(_, $\t, Ev, #s{focus=I}=S) ->
-    get_event(S#s{focus=I+1});
-event_key(?SDLK_KP_ENTER, _, Ev, S) ->
+event_key({key,?SDLK_TAB,Mod,_}, S) when Mod band ?SHIFT_BITS =/= 0 ->
+    get_event(next_focus(S, -1));
+event_key({key,?SDLK_TAB,Mod,_}, S) ->
+    get_event(next_focus(S, 1));
+event_key({key,_,Mod,$\t}, S) ->
+    get_event(next_focus(S, 1));
+event_key({key,?SDLK_KP_ENTER,_,_}, S) ->
     return_result(S);
-event_key(_, $\r, Ev, S) ->
+event_key({key,_,_,$\r}, S) ->
     return_result(S);
-event_key(_, _, Ev, S) ->
+event_key(Ev, S) ->
     field_event(Ev, S).
 
+next_focus(#s{focus=I}=S, Dir) ->
+    next_focus_1(I, Dir, S).
+
+next_focus_1(I0, Dir, #s{fi=Fis,priv=Priv}=S) ->
+    I = case I0+Dir of
+	    I1 when 0 < I1, I1 =< size(Fis) -> I1;
+	    0 -> size(Fis);
+	    _ -> 1
+	end,
+    #fi{handler=Handler} = Fi = element(I, Fis),
+    case Handler(is_inert, Fi, element(I, Priv)) of
+	true -> next_focus_1(I, Dir, S);
+	false -> S#s{focus=I}
+    end.
+    
 field_event(Ev, #s{focus=I,call=EndFun,fi=Fis,priv=Priv0}=S) ->
     #fi{handler=Handler} = Fi = element(I, Fis),
     Fst0 = element(I, Priv0),
@@ -89,16 +110,24 @@ return_result(#s{fi=Fis,priv=Priv}=S) ->
     return_result(1, Fis, Priv, S, []).
 
 return_result(I, Fis, Priv, S, Acc) when I =< size(Fis) ->
-    #fi{handler=Handler} = Fi = element(I, Fis),
+    #fi{handler=Handler,flags=Flags} = Fi = element(I, Fis),
     Fst = element(I, Priv),
-    case catch Handler(value, Fi, Fst) of
-	{'EXIT',Reason} ->
-	    exit(Reason);
-	{command_error,Error} ->
-	    wings_util:message(Error),
-	    get_event(S#s{focus=I});
-	Res ->
-	    return_result(I+1, Fis, Priv, S, [Res|Acc])
+    case Handler(is_inert, Fi, Fst) of
+	true -> return_result(I+1, Fis, Priv, S, Acc);
+	false ->
+	    case catch Handler(value, Fi, Fst) of
+		{'EXIT',Reason} ->
+		    exit(Reason);
+		{command_error,Error} ->
+		    wings_util:message(Error),
+		    get_event(S#s{focus=I});
+		Res0 ->
+		    Res = case property_lists:get_value(key, Flags) of
+			      undefined -> Res0;
+			      Key -> {Key,Res0}
+			  end,
+		    return_result(I+1, Fis, Priv, S, [Res|Acc])
+	    end
     end;
 return_result(_, _, _, #s{call=EndFun}=S, Res) ->
     case catch EndFun(reverse(Res)) of
@@ -125,7 +154,15 @@ redraw(#s{w=Xs,h=Ys,redraw=Redraw,focus=Focus,fi=Fi,priv=Priv}) ->
     end,
     wings_io:ortho_setup(),
     [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
-    gl:translated((W-Xs)/2, (H-Ys)/2, 0.0),
+    Tx = case (W-Xs)/2 of
+	     SmallX when SmallX < 10 -> 10;
+	     Tx0 -> Tx0
+	 end,
+    Ty = case (H-Ys)/2 of
+	     SmallY when SmallY < 36 -> 36;
+	     Ty0 -> Ty0
+	 end,
+    gl:translated(Tx, Ty, 0.0),
     wings_io:raised_rect(-16, -8, Xs+32, Ys+16, ?MENU_COLOR),
     draw_fields(1, Fi, Priv, Focus),
     wings_io:swap_buffers().
@@ -142,64 +179,110 @@ draw_fields(_, _, _, _) -> ok.
 %%%
 
 normalize(Qs) when is_list(Qs) ->
-    normalize({vframe,Qs}, #fi{x=0,y=0}, []);
+    normalize({vframe,Qs,[]});
 normalize(Qs) ->
-    normalize(Qs, #fi{x=0,y=0}, []).
+    normalize(Qs, #fi{x=0,y=0}).
 
-normalize({vframe,Qs}, Fi, Acc) ->
-    vframe(Qs, Fi, Acc).
+normalize({vframe,Qs,Flags}, Fi) ->
+    vframe(Qs, Fi, Flags);
+normalize({hframe,Qs,Flags}, Fi) ->
+    hframe(Qs, Fi, Flags, []);
+normalize(separator, Fi) ->
+    normalize_field(separator(), [], Fi);
+normalize({Prompt,Def}, Fi) when Def == false; Def == true ->
+    normalize_field(checkbox(Prompt, Def), [], Fi);
+normalize({Prompt,Def,Flags}, Fi) when Def == false; Def == true ->
+    normalize_field(checkbox(Prompt, Def), Flags, Fi);
+normalize({Prompt,Def}, Fi) ->
+    normalize_field(text_field(Prompt, Def), [], Fi);
+normalize({Prompt,Def,Flags}, Fi) ->
+    normalize_field(text_field(Prompt, Def), Flags, Fi).
 
-vframe([Q|Qs], #fi{y=Y}=Fi0, Acc) ->
-    {Handler,Priv,Lw,W,H} = normalize_field(Q),
-    Fi = Fi0#fi{handler=Handler,w=W,h=H,lw=Lw},
-    vframe(Qs, Fi#fi{y=Y+H}, [{Fi,Priv}|Acc]);
-vframe([], _Fi, Acc) ->
-    {Fis,Priv} = unzip(reverse(Acc)),
-    {vframe,Fis,Priv}.
+vframe(Qs, Fi, Flags) ->
+    vframe(Qs, Fi, Flags, []).
 
-normalize_field(separator) ->
-    separator();
-normalize_field({Prompt,Def}) when Def == false; Def == true ->
-    checkbox(Prompt, Def);
-normalize_field({Prompt,Def,Min,Max}) ->
-    text_field(Prompt, Def);
-normalize_field({Prompt,Def}) ->
-    text_field(Prompt, Def).
+vframe([Q|Qs], #fi{y=Y}=Fi0, Flags, Acc) ->
+    {#fi{h=H}=Fi,Priv} = normalize(Q, Fi0),
+    vframe(Qs, Fi#fi{y=Y+H}, Flags, [{Fi,Priv}|Acc]);
+vframe([], _, Flags, Fields0) ->
+    [{Fi,_}|_] = Fields = reverse(Fields0),
+    {Lw0,W0,H0} = frame_init_size(Flags),
+    {Lw,W,H} = vframe_size(Fields, Lw0, W0, H0),
+    Fun = frame_fun(),
+    {Fi#fi{handler=Fun,lw=Lw,w=W,h=H,flags=Flags},{vframe,Fields}}.
 
-unzip(L) -> unzip(L, [], []).
-unzip([{X,Y}|T], Xacc, Yacc) -> unzip(T, [X|Xacc], [Y|Yacc]);
-unzip([], Xacc, Yacc) -> {reverse(Xacc),reverse(Yacc)}.
+hframe([Q|Qs], #fi{x=X}=Fi0, Flags, Acc) ->
+    {#fi{lw=Lw,w=W}=Fi,Priv} = normalize(Q, Fi0),
+    hframe(Qs, Fi#fi{x=X+Lw+W}, Flags, [{Fi,Priv}|Acc]);
+hframe([], _, Flags, Fields0) ->
+    [{Fi,_}|_] = Fields = reverse(Fields0),
+    {Lw0,W0,H0} = frame_init_size(Flags),
+    {Lw,W,H} = hframe_size(Fields, Lw0, W0, H0),
+    Fun = frame_fun(),
+    {Fi#fi{handler=Fun,lw=Lw,w=W,h=H,flags=Flags},{vframe,Fields}}.
 
+normalize_field({Handler,Priv,Lw,W,H}, Flags, Fi) ->
+    {Fi#fi{handler=Handler,flags=Flags,w=W,h=H,lw=Lw},Priv}.
+
+frame_init_size(Flags) ->
+    case property_lists:is_defined(border, Flags) of
+	true -> {0,2*10,2*10};
+	false -> {0,0,0}
+    end.
+    
 max(A, B) when A > B -> A;
 max(A, B) -> B.
 
-sizes({vframe,Fis,Priv}) ->
-    vframe_size(Fis, 0, 0, 0).
-
-vframe_size([#fi{lw=Lw,w=W,h=H}|Fis], Lw0, W0, H0) ->
+vframe_size([{#fi{lw=Lw,w=W,h=H},_}|Fis], Lw0, W0, H0) ->
     vframe_size(Fis, max(Lw0, Lw), max(W0, W), H0+H);
 vframe_size([], Lw, W, H) -> {Lw,W,H}.
 
-propagate_sizes({vframe,Fis0,Priv}, Sizes) ->
-    Fis = vframe_propagate(Fis0, Sizes, []),
-    {vframe,Fis,Priv}.
+hframe_size([{#fi{lw=Lw,w=W,h=H},_}|Fis], Lw0, W0, H0) ->
+    hframe_size(Fis, Lw+Lw0, W+W0, max(H0, H));
+hframe_size([], Lw, W, H) -> {Lw,W,H}.
 
-vframe_propagate([#fi{lw=0}=Fi|Fis], {Lw,W,_}=Sz, Acc) ->
-    vframe_propagate(Fis, Sz, [Fi#fi{w=Lw+W}|Acc]);
-vframe_propagate([Fi|Fis], {Lw,W,_}=Sz, Acc) ->
-    vframe_propagate(Fis, Sz, [Fi#fi{lw=Lw,w=W}|Acc]);
+propagate_sizes({Fi,{vframe,Fields0}}) ->
+    Fields = vframe_propagate(Fields0, Fi, []),
+    {Fi,{vframe,Fields}};
+propagate_sizes({Fi,{hframe,Fields0}}) ->
+    Fields = hframe_propagate(Fields0, Fi, []),
+    {Fi,{hframe,Fields}};
+propagate_sizes(Other) -> Other.
+
+vframe_propagate([{#fi{lw=0}=Fi0,Priv}|Fis], #fi{lw=Lw,w=W}=Sz, Acc) ->
+    Fi = Fi0#fi{w=Lw+W},
+    vframe_propagate(Fis, Sz, [propagate_sizes({Fi,Priv})|Acc]);
+vframe_propagate([{Fi0,Priv}|Fis], #fi{lw=Lw,w=W}=Sz, Acc) ->
+    Fi = Fi0#fi{lw=Lw,w=W},
+    vframe_propagate(Fis, Sz, [propagate_sizes({Fi,Priv})|Acc]);
 vframe_propagate([], _, Acc) -> reverse(Acc).
 
-flatten_fields(List) ->
-    flatten_fields(List, [], []).
+hframe_propagate([{Fi0,Priv}|Fis], #fi{h=H}=Sz, Acc) ->
+    Fi = Fi0#fi{h=H},
+    hframe_propagate(Fis, Sz, [propagate_sizes({Fi,Priv})|Acc]);
+hframe_propagate([], _, Acc) -> reverse(Acc).
 
-flatten_fields({vframe,Fis,Priv}, FisAcc, PrivAcc) ->
-    vframe_flatten(Fis, Priv, FisAcc, PrivAcc).
+flatten_fields({Fi,P}) ->
+    {Fis,Priv} = flatten_fields(Fi, P, [], []),
+    {reverse(Fis),reverse(Priv)}.
 
-vframe_flatten([Fi|Fis], [P|Priv], FisAcc, PrivAcc) ->
-    vframe_flatten(Fis, Priv, [Fi|FisAcc], [P|PrivAcc]);
-vframe_flatten([], [], FisAcc, PrivAcc) ->
-    {reverse(FisAcc),reverse(PrivAcc)}.
+flatten_fields(Fi, {vframe,Fields}, FisAcc, PrivAcc) ->
+    frame_flatten(Fields, [Fi|FisAcc], [{vframe,[]}|PrivAcc]);
+flatten_fields(Fi, {hframe,Fields}, FisAcc, PrivAcc) ->
+    frame_flatten(Fields, [Fi|FisAcc], [{hframe,[]}|PrivAcc]);
+flatten_fields(Fi, Priv, FisAcc, PrivAcc) ->
+    {[Fi|FisAcc],[Priv|PrivAcc]}.
+
+frame_flatten([{Fi,Priv}|T], FisAcc0, PrivAcc0) ->
+    {FisAcc,PrivAcc} = flatten_fields(Fi, Priv, FisAcc0, PrivAcc0),
+    frame_flatten(T, FisAcc, PrivAcc);
+frame_flatten([], FisAcc, PrivAcc) -> {FisAcc,PrivAcc}.
+
+frame_fun() ->
+    fun({redraw,Active}, Fi, _Dummy) -> ok;
+       ({event,Ev}, Fi, Frame) -> Frame;
+       (is_inert, Fi, Frame) -> true
+    end.
 
 %%%
 %%% Separator.
@@ -214,8 +297,7 @@ separator_fun() ->
 	    separator_draw(Active, Fi);
        ({event,Ev}, Fi, Sep) ->
 	    Sep;
-       (value, Fi, Sep) ->
-	    none
+       (is_inert, Fi, Sep) -> true
     end.
 
 separator_draw(Active, #fi{x=X,y=Y,w=W}) ->
@@ -247,7 +329,7 @@ separator_draw(Active, #fi{x=X,y=Y,w=W}) ->
 checkbox(Label, Def) ->
     Cb = #cb{label=Label,state=Def},
     Fun = checkbox_fun(),
-    {Fun,Cb,0,(length(Label)+4)*?CHAR_WIDTH,?LINE_HEIGHT}.
+    {Fun,Cb,0,(length(Label)+5)*?CHAR_WIDTH,?LINE_HEIGHT}.
 
 checkbox_fun() ->
     fun({redraw,Active}, Fi, Cb) ->
@@ -255,7 +337,9 @@ checkbox_fun() ->
        ({event,Ev}, Fi, Cb) ->
 	    cb_event(Ev, Cb);
        (value, Fi, #cb{state=State}) ->
-	    State
+	    State;
+       (is_inert, Fi, Sep) ->
+	    false
     end.
 
 cb_draw(Active, #fi{x=X,y=Y0}, #cb{label=Label,state=State}) ->
@@ -272,7 +356,7 @@ cb_draw(Active, #fi{x=X,y=Y0}, #cb{label=Label,state=State}) ->
 	true -> ok
     end.
 
-cb_event(#keyboard{keysym=#keysym{unicode=$\s}}, #cb{state=State}=Cb) ->
+cb_event({key,_,_,$\s}, #cb{state=State}=Cb) ->
     Cb#cb{state=not State};
 cb_event(_, Cb) -> Cb.
 
@@ -348,9 +432,11 @@ term_fun() ->
 gen_text_handler({redraw,Active}, Fi, Ts) ->
     draw_text(Fi, Ts, Active);
 gen_text_handler({event,Ev}, Fi, Ts) ->
-    text_event(Ev, Ts).
+    text_event(Ev, Ts);
+gen_text_handler(is_inert, Fi, Ts) ->
+    false.
 
-text_event(#keyboard{keysym=#keysym{sym=Sym,unicode=Unicode}}, Ts) ->
+text_event({key,Sym,_,Unicode}, Ts) ->
     key(Sym, Unicode, Ts);
 text_event(_Ev, Ts) -> Ts.
 

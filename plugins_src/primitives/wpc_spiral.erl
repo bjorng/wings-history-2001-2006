@@ -25,9 +25,9 @@ command(_, _) -> next.
 %%% The rest are local functions.
 
 make_spiral(Ask, St) when is_atom(Ask) ->
-    wpa:ask(Ask, [{"Loops",2,0,100},
-		  {"Segments",16,0,100},
-		  {"Sections",8,0,100}],
+    wpa:ask(Ask, [{"Loops",2},
+		  {"Segments",16},
+		  {"Sections",8}],
 	    St, fun(Res) -> {shape,{spiral,Res}} end);
 make_spiral([L,Ns,Nl], St) ->
     Vs = spiral_vertices(Ns, Nl, L),
@@ -35,9 +35,9 @@ make_spiral([L,Ns,Nl], St) ->
     {new_shape,"spiral",Fs,Vs}.
  
 make_spring(Ask, St) when is_atom(Ask) ->
-    wpa:ask(Ask, [{"Loops",2,0,100},
-		  {"Segments",16,0,100},
-		  {"Sections",8,0,100}],
+    wpa:ask(Ask, [{"Loops",2},
+		  {"Segments",16},
+		  {"Sections",8}],
 	    St, fun(Res) -> {shape,{spring,Res}} end);
 make_spring([L,Ns,Nl], St) ->
     Vs = spiral_vertices2(Ns, Nl, L),

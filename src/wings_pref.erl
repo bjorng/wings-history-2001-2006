@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.29 2002/02/11 12:27:01 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.30 2002/02/11 20:07:07 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -54,65 +54,75 @@ prune_defaults(List) ->
     List -- [{Key,Val} || {_,Key,Val} <- presets()].
 
 menu(St) ->
-    menu_1(presets()).
+    [{"Color Preferences",fun(_, _) ->
+				  {edit,{preferences,color_prefs}}
+			  end,[],[]},
+     {"Other Preferences",fun(_, _) ->
+				  {edit,{preferences,other_prefs}}
+			  end,[],[]}].
 
--ifdef(DIALOG_BOXES).
-%% XXX Doesn't fully work yet.
-menu_1([{Desc,Key}|T0]) ->
-    {Items,T} = collect_items(T0, []),
-    Fun = fun(1, Ns) -> {edit,{preferences,Items}} end,
-    [{Desc,Fun,"Preferences...",[]}|menu_1(T)];
-menu_1([]) -> [].
+command(color_prefs, St) ->
+    Qs0 = [{vframe,[{"Background Color",background_color},
+		    {"Grid Color",grid_color},
+		    {"Face Color",face_color},
+		    {"Hard Edge Color",hard_edge_color}],[]},
+	   separator,
+	   {"Selection Color",selected_color},
+	   {"Unselected Hilite",unselected_hlite},
+	   {"Selected Hilite",selected_hlite},
+	   separator,
+	   {"+X Color",x_color},
+	   {"+Y Color",y_color},
+	   {"+Z Color",z_color},
+	   {"-X Color",neg_x_color},
+	   {"-Y Color",neg_y_color},
+	   {"-Z Color",neg_z_color}],
+    Qs = make_query(Qs0),
+    wings_ask:ask(Qs, St, fun(Res) -> {edit,{preferences,{set,Res}}} end);
+command(other_prefs, St) ->
+    Qs0 = [{"Show Axis Letters",show_axis_letters},
+	   {"Force Axis-aligned Grid",force_show_along_grid},
+	   separator,
+	   {"Vertex highlighting",vertex_hilite},
+	   {"Edge highlighting",edge_hilite},
+	   {"Face highlighting",face_hilite},
+	   {"Object highlighting",body_hilite},
+	   separator,
+	   {"Show Memory Used",show_memory_used},
+	   separator,
+	   {"Auto-rotate angle",auto_rotate_angle},
+	   {"Auto-rotate delay (ms)",auto_rotate_delay},
+	   separator,
+	   {"Auto-save interval (min) [0=off]",autosave_time},
+	   separator,
+	   {"Vector Display Size",active_vector_size},
+	   {"Vector Display Width",active_vector_width},
+	   {"Vector Display Color",active_vector_color},
+	   separator,
+	   {"Advanced Menus",advanced_menus}],
+    Qs = make_query(Qs0),
+    wings_ask:ask(Qs, St, fun(Res) -> {edit,{preferences,{set,Res}}} end);
+command({set,List}, St) ->
+    foreach(fun({Key,Val}) ->
+		    set_value(Key, Val),
+		    case Key of
+			background_color ->
+			    {R,G,B} = Val,
+			    gl:clearColor(R, G, B, 1.0);
+			Other -> ok
+		    end
+	    end, List),
+    wings_io:putback_event(redraw),
+    keep.
 
-collect_items([{Desc,Key,_}|T], A) ->
-    V = get_value(Key),
-    collect_items(T, [{Desc,V}|A]);
-collect_items([separator|T], A) ->
-    collect_items(T, [separator|A]);
-collect_items([{Desc,Key}|_]=T, A) ->
-    {reverse(A),T};
-collect_items([], A) ->
-    {reverse(A),[]}.
-command(Qs, St) when is_list(Qs) ->
-    wings_ask:ask(Qs, St, fun(Res) -> {edit,{preferences,{set,Res}}} end).
--else.
-menu_1([{Desc,Key}|T0]) ->
-    {Items,T} = collect_items(T0, []),
-    [{Desc,{Key,Items}}|menu_1(T)];
-menu_1([]) -> [].
-
-collect_items([{Desc,Key,Bool}|T], A) when Bool == false; Bool == true ->
-    I = case get_value(Key) of
-	    false -> {Desc,Key};
-	    true ->  {Desc,Key,[crossmark]}
-	end,
-    collect_items(T, [I|A]);
-collect_items([{Desc,Key,_}|T], A) -> collect_items(T, [{Desc,Key}|A]);
-collect_items([separator|T], A) -> collect_items(T, [separator|A]);
-collect_items([{Desc,Key}|_]=T, A) -> {reverse(A),T};
-collect_items([], A) -> {reverse(A),[]}.
-
-command(Key, St) when is_atom(Key) ->
-    {value,{Prompt,_,Def}} = keysearch(Key, 2, presets()),
-    command_1(Key, Prompt, Def, St).
-
-command_1(Key, Prompt, Bool, St) when Bool == false; Bool == true ->
-    set_value(Key, not get_value(Key)),
-    keep;
-command_1(Key, Prompt, _, St) ->
+make_query([_|_]=List)  ->
+    [make_query(El) || El <- List];
+make_query({Str,Key}) when is_list(Str) ->
     Def = get_value(Key),
-    wings_ask:ask([{Prompt,Def}], St,
-		  fun([Val]) ->
-			  set_value(Key, Val),
-			  case Key of
-			      background_color ->
-				  {R,G,B} = Val,
-				  gl:clearColor(R, G, B, 1.0);
-			      Other -> ok
-			  end,
-			  ignore
-		  end).
--endif.
+    {Str,Def,[{key,Key}]};
+make_query(Tuple) when is_tuple(Tuple) ->
+    list_to_tuple([make_query(El) || El <- tuple_to_list(Tuple)]);
+make_query(Other) -> Other.
 
 old_pref_file() ->
     case os:type() of

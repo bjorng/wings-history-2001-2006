@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.9 2002/02/10 18:17:11 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.10 2002/02/11 20:07:07 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -424,7 +424,7 @@ random(Percent, #st{selmode=Mode}=St) ->
 %%
 
 by_id(#st{selmode=body}=St) ->
-    ask([{"Object Id",0,0,unlimited}], St,
+    ask([{"Object Id",0}], St,
 	fun([Id]) ->
 		valid_sel("", [{Id,gb_sets:singleton(0)}], St)
 	end);
@@ -436,13 +436,13 @@ by_id(#st{selmode=face}=St) ->
     item_by_id("Face Id", St).
 
 item_by_id(Prompt, #st{sel=[{Id,_}]}=St) ->
-    ask([{Prompt,0,0,unlimited}], St,
+    ask([{Prompt,0}], St,
 	fun([Item]) ->
 		valid_sel(Prompt, [{Id,gb_sets:singleton(Item)}], St)
 	end);
 item_by_id(Prompt, St) ->
-    ask([{"Object Id",0,0,unlimited},
-	 {Prompt,0,0,unlimited}], St,
+    ask([{"Object Id",0},
+	 {Prompt,0}], St,
 	fun([Id,Item]) ->
 		valid_sel(Prompt, [{Id,gb_sets:singleton(Item)}], St)
 	end).

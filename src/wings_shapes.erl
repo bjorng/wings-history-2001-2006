@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shapes.erl,v 1.16 2002/02/10 18:17:11 bjorng Exp $
+%%     $Id: wings_shapes.erl,v 1.17 2002/02/11 20:07:07 bjorng Exp $
 %%
 
 -module(wings_shapes).
@@ -132,7 +132,7 @@ circle(N, Y, R) ->
     [{R*cos(I*Delta), Y, R*sin(I*Delta)} || I <- lists:seq(0, N-1)].
 
 cylinder(Ask, St) when is_atom(Ask) ->
-    ask(cylinder, Ask, St, [{"Sections",16,3,unlimited}]);
+    ask(cylinder, Ask, St, [{"Sections",16}]);
 cylinder([Sections], St) ->
     Fs = cylinder_faces(Sections),
     Vs = cylinder_vertices(Sections),
@@ -149,12 +149,12 @@ cylinder_vertices(N) ->
     circle(N, 1.0) ++ circle(N, -1.0).
 
 cone(Ask, St) when is_atom(Ask) ->
-    ask(cone, Ask, St, [{"Sections",16,3,unlimited}]);
+    ask(cone, Ask, St, [{"Sections",16}]);
 cone([N], St) ->
     Ns = lists:seq(0, N-1),
     Lower = lists:seq(0, N-1),
     C = circle(N, -1.0),
-    Vs = C ++ [{0.0, 1.0, 0.0}],
+    Vs = C ++ [{0.0,1.0,0.0}],
     Sides = [[N, (I+1) rem N, I] || I <- Ns],
     Fs = [Lower | Sides],
     build_shape("cone", Fs, Vs, St).
@@ -182,18 +182,14 @@ sphere_faces(Ns, Nl) ->
     Topf ++ Botf ++ lists:append(Slices).
 
 sphere(Ask, St) when is_atom(Ask) ->
-    ask(sphere, Ask, St,
-	[{"Sections",16,0,unlimited},
-	 {"Slices",8,0,unlimited}]);
+    ask(sphere, Ask, St, [{"Sections",16},{"Slices",8}]);
 sphere([Ns,Nl], St) ->
     Vs = sphere_circles(Ns, Nl) ++ [{0.0, 1.0, 0.0}, {0.0, -1.0, 0.0}],
     Fs = sphere_faces(Ns, Nl),
     build_shape("sphere", Fs, Vs, St).
     
 torus(Ask, St) when is_atom(Ask) ->
-    ask(torus, Ask, St,
-	[{"Sections",16,0,unlimited},
-	 {"Slices",8,0,unlimited}]);
+    ask(torus, Ask, St, [{"Sections",16},{"Slices",8}]);
 torus([Ns,Nl], St) ->
     Vs = torus_vertices(Ns, Nl, 0.75),
     Fs = torus_faces(Ns, Nl),
@@ -216,7 +212,7 @@ torus_vertices(Ns, Nl, Hs) ->
     lists:flatten(Circles).
 
 grid(Ask, St) when is_atom(Ask) ->
-    ask(grid, Ask, St, [{"Rows/cols",10,2,unlimited}]);
+    ask(grid, Ask, St, [{"Rows/cols",10}]);
 grid([Size], St) ->
     Vs = grid_vertices(Size),
     Fs = grid_faces(Size),
