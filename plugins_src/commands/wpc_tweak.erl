@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.40 2003/06/13 17:09:17 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.41 2003/08/14 14:28:31 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -136,9 +136,19 @@ handle_tweak_event1(init_opengl, #tweak{st=St}) ->
 handle_tweak_event1(quit=Ev, T) ->
     wings_wm:later(Ev),
     exit_tweak(T);
-handle_tweak_event1({current_state,St}=Ev, _) ->
+handle_tweak_event1({current_state,St}=Ev, T) ->
     case topological_change(St) of
-	false -> keep;
+	false ->
+	    update_tweak_handler(T#tweak{st=St});
+	true ->
+	    wings_wm:later(Ev),
+	    pop
+    end;
+handle_tweak_event1({new_state,St}=Ev, T) ->
+    case topological_change(St) of
+	false ->
+	    wings_draw:update_dlists(St),
+	    update_tweak_handler(T#tweak{st=St});
 	true ->
 	    wings_wm:later(Ev),
 	    pop
