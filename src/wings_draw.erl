@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.205 2004/05/16 14:51:08 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.206 2004/06/05 17:55:49 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -1020,6 +1020,6 @@ make_normals_dlist_1(face, Faces, We) ->
 		    gl:vertex3fv(C),
 		    N = wings_face:face_normal_cw(Vs, We),
 		    gl:vertex3fv(e3d_vec:add_prod(C, N, 0.3))
-	    end, gb_sets:to_list(Faces));
+	    end, wings_we:visible(gb_sets:to_list(Faces), We));
 make_normals_dlist_1(body, _, #we{fs=Ftab}=We) ->
     make_normals_dlist_1(face, gb_sets:from_list(gb_trees:keys(Ftab)), We).
