@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.110 2003/04/22 17:18:57 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.111 2003/04/23 11:33:06 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -526,9 +526,6 @@ merge_texture(ImageBins,Wd,Hd,W,H,Acc) ->
     {Col, Bins} = merge_texture_rows(ImageBins, 0, H, W, Wd, [], ImageBins),
     merge_texture(Bins,Wd,Hd,W,H,[Col|Acc]).
 
-tga_prop() ->
-    [{ext,".tga"},{ext_desc,"2D-Targa File"}].
-
 %%%%%%% Events handling and window redrawing 
    
 get_event(Uvs) ->
@@ -597,8 +594,6 @@ command_menu(vertex, X,Y, _Uvs) ->
 option_menu() ->
     [separator,
      {"Draw Options", edge_options, "Edit draw options"},
-     separator,
-     {"Export",export,"Export texture"},
      separator,
      {"Apply Texture", apply_texture, "Attach the current texture to the model"},
      separator,
@@ -770,21 +765,6 @@ handle_event(#keyboard{state=?SDL_PRESSED,keysym=Sym},
     end;
 handle_event({drop,_,DropData}, Uvs) ->
     handle_drop(DropData, Uvs);
-handle_event({action,{auv,export}}, Uvs0) ->
-    Ps = tga_prop(),
-    case wpa:export_filename(Ps, #st{}) of
-	aborted -> 
-	    get_event(Uvs0);	
-	FileName ->
-	    Image = ?SLOW(get_texture(Uvs0)),
-	    case ?SLOW((catch e3d_image:save(Image, FileName))) of
-		ok -> 			   
-		    get_event(Uvs0#uvstate{last_file = FileName});
-		{_, Error0} ->
-		    Error = FileName ++ ": " ++ file:format_error(Error0),
-		    wings_util:message("Export failed: " ++ Error)
-	    end
-    end;
 handle_event({action,{auv,apply_texture}},
 	     #uvstate{st=St0,sel=Sel0,areas=As0,
 		      orig_we=OWe,matname=MatName0}=Uvs) ->
