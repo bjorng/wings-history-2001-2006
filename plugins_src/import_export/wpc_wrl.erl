@@ -3,16 +3,15 @@
 %%
 %%     VRML export plugin.
 %%
-%%  Copyright (c) 2004 Sean Hinde, Danni Coy and Dan Gudmundsson
+%%  Copyright (c) 2004-2005 Sean Hinde, Danni Coy and Dan Gudmundsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_wrl.erl,v 1.15 2005/02/08 13:16:04 dgud Exp $
+%%     $Id: wpc_wrl.erl,v 1.16 2005/02/15 06:41:48 bjorng Exp $
 %%
 
 -module(wpc_wrl).
--author('Sean Hinde').
 
 %% Thanks KayosIII (Danni Aaron Coy) who wrote the export of UV coordinates 
 %%
@@ -79,9 +78,9 @@ dialog(export) ->
 export(File_name, Export0, Attr) ->
     %%io:format("~p~n~p~n",[Objs, Mat]),
     Filetype = proplists:get_value(default_filetype, Attr, ".jpg"),
-    ExportN  = proplists:get_value(include_normal, Attr, true),
-    ExportUV = proplists:get_value(include_uv, Attr, true),
-    ExportVC = proplists:get_value(include_color, Attr, true),
+    ExportN  = proplists:get_value(include_normals, Attr, true),
+    ExportUV = proplists:get_value(include_uvs, Attr, true),
+    ExportVC = proplists:get_value(include_colors, Attr, true),
     Export1 = wpa:save_images(Export0, filename:dirname(File_name), Filetype),
     Export = export_transform(Export1, Attr),
     #e3d_file{objs=Objs,mat=Mat,creator=Creator} = Export,

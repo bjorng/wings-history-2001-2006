@@ -3,12 +3,12 @@
 %%
 %%     Wavefront import/export.
 %%
-%%  Copyright (c) 2002-2004 Bjorn Gustavsson
+%%  Copyright (c) 2002-2005 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_obj.erl,v 1.12 2004/06/27 11:58:41 bjorng Exp $
+%%     $Id: wpc_obj.erl,v 1.13 2005/02/15 06:41:48 bjorng Exp $
 %%
 
 -module(wpc_obj).
@@ -105,7 +105,7 @@ dialog(export) ->
      {"Vue d'Esprit workaround",get_pref(dot_slash_mtllib, false),
       [{key,dot_slash_mtllib}]},
      panel,
-     wpa:dialog_template(?MODULE, export)].
+     wpa:dialog_template(?MODULE, export, [include_colors])].
 
 get_pref(Key, Def) ->
     wpa:pref_get(?MODULE, Key, Def).

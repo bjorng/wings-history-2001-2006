@@ -3,12 +3,12 @@
 %%
 %%     3ds max import/export.
 %%
-%%  Copyright (c) 2002-2004 Bjorn Gustavsson
+%%  Copyright (c) 2002-2005 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_3ds.erl,v 1.10 2004/06/27 11:58:16 bjorng Exp $
+%%     $Id: wpc_3ds.erl,v 1.11 2005/02/15 06:41:48 bjorng Exp $
 %%
 
 -module(wpc_3ds).
@@ -107,7 +107,7 @@ export_1(Filename, Contents0, Attr) ->
     end.
 
 dialog(Type) ->
-    [wpa:dialog_template(?MODULE, Type)].
+    [wpa:dialog_template(?MODULE, Type, [include_colors])].
 
 set_pref(KeyVals) ->
     wpa:pref_set(?MODULE, KeyVals).
