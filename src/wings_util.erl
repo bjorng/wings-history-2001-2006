@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.30 2002/03/04 19:32:58 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.31 2002/03/05 07:12:32 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -16,7 +16,7 @@
 	 message/1,yes_no/1,serious_yes_no/1,
 	 cap/1,upper/1,stringify/1,add_vpos/2,update_vpos/2,
 	 delete_any/2,
-	 tc/1,crash_log/1,validate/1]).
+	 tc/1,export_we/2,crash_log/1,validate/1]).
 -export([check_error/2,dump_we/2]).
 
 -define(NEED_OPENGL, 1).
@@ -62,18 +62,18 @@ stringify(Atom) when is_atom(Atom) ->
     cap(atom_to_list(Atom));
 stringify(Int) when integer(Int) ->
     integer_to_list(Int);
-stringify(Other) -> "UNKNOWN".
+stringify(_Other) -> "UNKNOWN".
 
 cap(Str) when is_atom(Str) -> cap(atom_to_list(Str));
 cap(Str) -> cap(Str, true).
 
 cap([Lower|T], true) when $a =< Lower, Lower =< $z ->
     [Lower-$a+$A|cap(T, false)];
-cap([$_|T], Any) ->
+cap([$_|T], _Any) ->
     [$\s|cap(T, true)];
-cap([H|T], Any) ->
+cap([H|T], _Any) ->
     [H|cap(T, false)];
-cap([], Flag) -> [].
+cap([], _Flag) -> [].
     
 upper(Str) when is_atom(Str) -> upper(atom_to_list(Str));
 upper([Lower|T]) when $a =< Lower, Lower =< $z ->
@@ -119,15 +119,28 @@ tc(Fun) ->
 show_edge(F, Edge, #edge{vs=Vs,ve=Ve,a=A,b=B,lf=Lf,rf=Rf,ltpr=Lpred,ltsu=Lsucc,
 			 rtpr=Rpred,rtsu=Rsucc}) ->
     io:format(F, "~p: vs=~p ve=~p\n", [Edge,Vs,Ve]),
-    io:format(F, "    a=~p b=~p\n", [A,B]),
+    io:format(F, "  a=~p b=~p\n", [A,B]),
     io:format(F, "  left: face=~p pred=~p succ=~p\n", [Lf,Lpred,Lsucc]),
     io:format(F, "  right: face=~p pred=~p succ=~p\n", [Rf,Rpred,Rsucc]).
 
-show_face(F, Face, #face{edge=Edge}) ->
-    io:format(F, "~p: edge=~p\n", [Face,Edge]).
+show_face(F, Face, #face{edge=Edge,mat=Mat}) ->
+    io:format(F, "~p: edge=~p mat=~p\n", [Face,Edge,Mat]).
 
 show_vertex(F, Vertex, #vtx{edge=Edge,pos=Pos}) ->
     io:format(F, "~p: edge=~p pos=~p\n", [Vertex,Edge,Pos]).
+
+%%%
+%%% Dump the winged-edge structure in a textual format.
+%%%
+
+export_we(Name, #st{shapes=Shs}) ->
+    case file:open(Name, [write,delayed_write]) of
+	{ok,F} ->
+	    foreach(fun(We) -> dump_we(F, We) end, gb_trees:values(Shs)),
+	    file:close(F);
+	{error,_}=Error ->
+	    Error
+    end.
 
 %%%
 %%% Crash log writing.
@@ -145,7 +158,7 @@ crash_log(BackTrace) ->
 log_file_dir() ->
     case catch log_file_dir(os:type()) of
 	Dir when is_list(Dir) -> Dir;
-	Other -> "."
+	_Other -> "."
     end.
 
 log_file_dir({unix,_}) -> os:getenv("HOME");
@@ -156,7 +169,7 @@ log_file_dir({win32,_}) ->
 	    case filename:basename(Name) of
 		"ebin" -> filename:dirname(Name);
 		"patches" -> filename:dirname(Name);
-		Other -> Name
+		_Other -> Name
 	    end
     end.
 	
@@ -166,14 +179,14 @@ open_log_file(Name) ->
     io:format(F, "Dump written ~p-~p-~p_~p-~p\n", [Y,Mo,D,H,Mi]),
     F.
 
-analyse(F, {_,[{Mod,Fun,Args}|_]}) when list(Args) ->
+analyse(F, {_,[{_Mod,_Fun,Args}|_]}) when list(Args) ->
     try_args(F, Args, 1);
-analyse(F, _) -> ok.
+analyse(_, _) -> ok.
 
 try_args(F, [A|As], Num) ->
     try_arg(F, A, Num),
     try_args(F, As, Num+1);
-try_args(F, _, _) -> ok.
+try_args(_, _, _) -> ok.
 
 try_arg(F, #st{shapes=Shapes}, N) ->
     arg(F, N),
@@ -187,18 +200,18 @@ try_arg(F, #we{}=We, N) ->
 try_arg(F, {I,_}=GbTree, N) when integer(I) ->
     case catch gb_trees:to_list(GbTree) of
 	{'EXIT',_} -> ok;
-	[{Id,#edge{}}|_]=Es ->
+	[{_,#edge{}}|_]=Es ->
 	    arg(F, N),
 	    dump_edges(F, Es);
-	[{Id,#face{}}|_]=Fs ->
+	[{_,#face{}}|_]=Fs ->
 	    arg(F, N),
 	    dump_faces(F, Fs);
-	[{Id,#vtx{}}|_]=Vs ->
+	[{_,#vtx{}}|_]=Vs ->
 	    arg(F, N),
 	    dump_vertices(F, Vs);
 	_ -> ok
     end;
-try_arg(F, A, N) -> ok.
+try_arg(_, _, _) -> ok.
 
 arg(F, N) ->
     io:format(F, "Argument #~p:\n", [N]).
@@ -206,7 +219,12 @@ arg(F, N) ->
 dump_shape(F, #we{}=We) ->
     dump_we(F, We).
 
-dump_we(F, #we{es=Etab,vs=Vtab,fs=Ftab}) ->
+dump_we(F, #we{name=Name,id=Id,mode=Mode,es=Etab,vs=Vtab,fs=Ftab,
+	       first_id=First,next_id=Next}) ->
+    io:put_chars(F, "\n"),
+    io:format(F, "OBJECT ~p: ~p\n", [Id,Name]),
+    io:format(F, "=======================\n", []),
+    io:format(F, "   mode=~p first_id=~p next_id=~p\n", [Mode,First,Next]),
     dump_vertices(F, gb_trees:to_list(Vtab)),
     dump_faces(F, gb_trees:to_list(Ftab)),
     dump_edges(F, gb_trees:to_list(Etab)).
@@ -263,7 +281,7 @@ validate_faces(#we{fs=Ftab}=We) ->
 	    end,
 	    gb_trees:to_list(Ftab)).
 
-walk_face_cw(Face, LastEdge, LastEdge, We, [_|_]=Acc) -> Acc;
+walk_face_cw(_Face, LastEdge, LastEdge, _We, [_|_]=Acc) -> Acc;
 walk_face_cw(Face, Edge, LastEdge, We, Acc) ->
     #we{es=Etab} = We,
     case catch gb_trees:get(Edge, Etab) of
@@ -279,7 +297,7 @@ walk_face_cw(Face, Edge, LastEdge, We, Acc) ->
 	      {face,Face,edge,Edge,last_edge,LastEdge,acc,Acc}}]
     end.
 
-walk_face_ccw(Face, LastEdge, LastEdge, We, [_|_]=Acc) -> Acc;
+walk_face_ccw(_Face, LastEdge, LastEdge, _We, [_|_]=Acc) -> Acc;
 walk_face_ccw(Face, Edge, LastEdge, We, Acc) ->
     #we{es=Etab} = We,
     case catch gb_trees:get(Edge, Etab) of
@@ -302,7 +320,7 @@ validate_vertex_tab(#we{es=Etab,vs=Vtab}=We) ->
 			    validate_edge_rec(Rec, We);
 			#edge{ve=V}=Rec ->
 			    validate_edge_rec(Rec, We);
-			Other ->
+			_Other ->
 			    erlang:fault({crasch,{vertex,V}}, [We])
 		    end
 	    end,
@@ -333,6 +351,6 @@ check_error(Mod, Line) ->
 	    erlang:fault(gl_error)
     end.
 -else.
-check_error(Mod, Line) ->
+check_error(_Mod, _Line) ->
     ok.
 -endif.
