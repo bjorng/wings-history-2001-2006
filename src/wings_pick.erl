@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.87 2003/05/07 21:09:41 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.88 2003/05/18 13:55:02 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -471,12 +471,9 @@ raw_pick(X0, Y0, St) ->
     wings_view:model_transformations(),
     select_draw(St),
     gl:flush(),
-    case gl:renderMode(?GL_RENDER) of
-	0 -> none;
-	NumHits ->
-	    HitData = sdl_util:readBin(HitBuf, 5*NumHits),
-	    Hits = get_hits(NumHits, HitData, []),
-	    filter_hits(Hits, X, Y, St)
+    case get_hits(HitBuf) of
+	none -> none;
+	Hits -> filter_hits(Hits, X, Y, St)
     end.
 
 update_selection({Mode,MM,{Id}}, #st{sel=Sel0}=St) ->
@@ -519,15 +516,20 @@ update_selection(Id, Item, [], Acc) ->
 %%% Pick up raw hits.
 %%%
 
-get_hits(0, _, Acc) -> Acc;
-get_hits(N, <<NumNames:32,_:32,_:32,Tail0/binary>>, Acc) ->
-    <<Names:NumNames/binary-unit:32,Tail/binary>> = Tail0,
-    Name = get_name(NumNames, Names, []),
-    get_hits(N-1, Tail, [Name|Acc]).
+get_hits(HitBuf) ->
+    gl:flush(),
+    case gl:renderMode(?GL_RENDER) of
+	0 -> none;
+	NumHits ->
+ 	    HitData = sdl_util:read(HitBuf, 5*NumHits),
+ 	    get_hits_1(NumHits, HitData, [])
+    end.
 
-get_name(0, _Tail, Acc) -> list_to_tuple(reverse(Acc));
-get_name(N, <<Name:32/signed,Names/binary>>, Acc) ->
-    get_name(N-1, Names, [Name|Acc]).
+get_hits_1(0, _, Acc) -> Acc;
+get_hits_1(N, [1,_,_,A|T], Acc) ->
+    get_hits_1(N-1, T, [{A}|Acc]);
+get_hits_1(N, [2,_,_,A,B|T], Acc) ->
+    get_hits_1(N-1, T, [{A,B}|Acc]).
 
 %%%
 %%% Filter hits to obtain just one hit.
@@ -725,7 +727,7 @@ restrict_hilite(face, Modes, Id, V, Edge, _Face, MM) ->
 
 pick_all(_DrawFaces, _X, _Y, W, H, St) when W < 1.0; H < 1.0 ->
     {none,St};
-pick_all(DrawFaces, X, Y0, W, H, St0) ->
+pick_all(DrawFaces, X, Y0, W, H, St) ->
     HitBuf = get(wings_hitbuf),
     gl:selectBuffer(?HIT_BUF_SIZE, HitBuf),
     gl:renderMode(?GL_SELECT),
@@ -738,16 +740,10 @@ pick_all(DrawFaces, X, Y0, W, H, St0) ->
     wings_view:perspective(),
     wings_view:model_transformations(),
     case DrawFaces of
-	true -> select_draw(St0);
-	false -> marquee_draw(St0)
+	true -> select_draw(St);
+	false -> marquee_draw(St)
     end,
-    gl:flush(),
-    case gl:renderMode(?GL_RENDER) of
-	0 -> {none,St0};
-	NumHits ->
- 	    HitData = sdl_util:readBin(HitBuf, 5*NumHits),
- 	    {get_hits(NumHits, HitData, []),St0}
-    end.
+    {get_hits(HitBuf),St}.
 
 marquee_draw(#st{selmode=edge}) ->
       Draw = fun(#we{es=Etab,vp=Vtab}) ->
