@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.80 2003/09/17 18:50:00 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.81 2003/09/22 14:30:25 dgud Exp $
 %%
 
 -module(wings_util).
@@ -27,7 +27,7 @@
 	 nice_float/1,
 	 menu_restriction/2,
 	 unique_name/2,
-	 init_gl_extensions/0,is_gl_ext/1,
+	 init_gl_extensions/0,is_gl_ext/1,is_gl_ext/2,
 	 init_gl_restrictions/0,is_gl_restriction/1,
 	 geom_windows/0,
 	 tc/3,export_we/2,crash_log/2,validate/1,validate/3,
@@ -312,10 +312,38 @@ init_gl_extensions() ->
     ets:new(wings_gl_ext, [named_table,public,ordered_set]),
     Exts0 = lists:sort(string:tokens(gl:getString(?GL_EXTENSIONS), " ")),
     Exts = [{list_to_atom(E)} || E <- Exts0],
-    ets:insert(wings_gl_ext, Exts).
+    ets:insert(wings_gl_ext, Exts),
+    [Major0, Minor0, Patch0|_] = string:tokens(gl:getString(?GL_VERSION), ". "),
+    Ver = case {catch list_to_integer(Major0),
+		catch list_to_integer(Minor0),
+		catch list_to_integer(Patch0)} of
+	      {{'EXIT',_}, _, _} ->
+		  {1,1,0};
+	      {_Major, {'EXIT',_}, _} ->
+		  {1,1,0};
+	      {Major, Minor, {'EXIT',_}} ->
+		  {Major,Minor,0}; 
+	      V ->
+		  V
+	  end,
+    ets:insert(wings_gl_ext, {version, Ver}).
 
+is_gl_ext([]) -> true;
+is_gl_ext([Name|R]) ->
+    is_gl_ext(Name) andalso is_gl_ext(R);
 is_gl_ext(Name) ->
     ets:member(wings_gl_ext, Name).
+%% Version orelse extension check.
+is_gl_ext(Wanted, List) ->
+    [{_,Actual}] = ets:lookup(wings_gl_ext, version),
+    version_match(Wanted, Actual) orelse is_gl_ext(List).
+
+version_match({Ma1,Mi1}, {Ma2,Mi2,_}) 
+  when Ma1 =< Ma2, Mi1 =< Mi2 -> true;
+version_match({Ma1,Mi1,P1}, {Ma2,Mi2,P2}) 
+  when Ma1 =< Ma2, Mi1 =< Mi2, P1 =< P2 -> true;
+version_match(_,_) ->
+    false.
 
 %%%
 %%% OpenGL restrictions (bugs and limitations).

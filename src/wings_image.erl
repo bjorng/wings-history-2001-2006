@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.25 2003/09/02 09:33:56 bjorng Exp $
+%%     $Id: wings_image.erl,v 1.26 2003/09/22 14:30:25 dgud Exp $
 %%
 
 -module(wings_image).
@@ -252,9 +252,22 @@ texture_format(#e3d_image{type=a8}) -> ?GL_ALPHA.
 
 %%  Hmmm we may want to used compressed alternatives if 
 %%  available (opengl 1.3) or compressed extension..
-internal_format(?GL_BGR) -> ?GL_RGB;
-internal_format(?GL_BGRA) -> ?GL_RGBA;
-internal_format(Else) -> Else.
+internal_format(Type) ->
+    Compress = wings_util:is_gl_ext({1,3}, 'GL_ARB_texture_compression'),
+    internal_format(Type, Compress).
+
+internal_format(?GL_BGR, false) -> ?GL_RGB;
+internal_format(?GL_BGRA, false) -> ?GL_RGBA;
+internal_format(Else, false) -> Else;
+internal_format(?GL_BGR, true) -> ?GL_COMPRESSED_RGB;
+internal_format(?GL_BGRA, true) -> ?GL_COMPRESSED_RGBA;
+internal_format(?GL_ALPHA, true) -> ?GL_COMPRESSED_ALPHA;
+internal_format(?GL_LUMINANCE, true) -> ?GL_COMPRESSED_LUMINANCE;
+internal_format(?GL_LUMINANCE_ALPHA, true) -> ?GL_COMPRESSED_LUMINANCE_ALPHA;
+internal_format(?GL_INTENSITY, true) -> ?GL_COMPRESSED_INTENSITY;
+internal_format(?GL_RGB, true) ->  ?GL_COMPRESSED_RGB;
+internal_format(?GL_RGBA, true) -> ?GL_COMPRESSED_RGBA;  
+internal_format(Else, _) -> Else.
 
 delete(Id, #ist{images=Images0}=S) ->
     gl:deleteTextures(1, [erase(Id)]),
