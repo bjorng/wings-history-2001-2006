@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp9_dialogs.erl,v 1.21 2003/12/21 19:12:02 bjorng Exp $
+%%     $Id: wp9_dialogs.erl,v 1.22 2003/12/21 21:01:03 bjorng Exp $
 %%
 
 -module(wp9_dialogs).
@@ -113,18 +113,61 @@ image_formats(Fs0) ->
 %%%
 
 open_dialog(Title, Props, Cont) ->
-    [{_,Def}|_] = Exts = file_filters(Props),
+    [{_,Def}|_] = Types = file_filters(Props),
+    Dir = proplists:get_value(directory, Props, "/"),
+    Ps = [{directory,Dir},{filetype,Def}],
+    {dialog,Qs,Ask} = do_dialog(Types, Title, Cont, Ps),
+    wings_ask:dialog(Title, Qs, Ask).
+
+do_dialog(Types, Title, Cont, Ps) ->
+    Dir = proplists:get_value(directory, Ps),
+    DefType = proplists:get_value(filetype, Ps),
+    Wc = atom_to_list(DefType),
+    Files = filelib:wildcard(filename:join(Dir, "*."++Wc)),
+    io:format("~p\n", [Files]),
+    ShowFiles = fun(X, Y, W, H, _Common) ->
+			wings_io:border(X, Y, W, H, {0.52,0.52,0.52}),
+			wings_io:text_at(X+5, Y+16, "Filter: "++atom_to_list(DefType)),
+			keep
+		end,
     Qs = {vframe,
-	  [{hframe,
+	  [{label,Dir},
+	   {text,Dir,[{key,directory},
+		      {hook,fun(is_minimized, _) -> true;
+			       (_, _) -> void
+			    end}]},
+	   {button,"Up",fun(_) -> ignore end,[{key,up},{hook,fun up_button/2}]},
+	   {custom,400,400,ShowFiles},
+	   separator,
+	   {hframe,
 	    [{vframe,
 	      [{label,"File name"},
 	       {label,"File format"}]},
 	     {vframe,
-	      [{text,""},
-	       {menu,Exts,Def}]},
-	     {vframe,[{button,Title,fun([Name|_]) -> Cont(Name) end,[ok]},
+	      [{text,"",[{key,filename}]},
+	       {menu,Types,DefType,[{key,filetype},{hook,fun menu_hook/2}]}]},
+	     {vframe,[{button,Title,
+		       fun(Res) ->
+			       Name = proplists:get_value(filename, Res),
+			       Cont(Name)
+		       end,[ok]},
 		      {button,"Cancel",fun(_) -> Cont(aborted) end,[cancel]}]}]}]},
-    wings_ask:dialog(Title, Qs, fun(_) -> ignore end).
+    Ask = fun(Res) ->
+		  do_dialog(Types, Title, Cont, Res)
+	  end,
+    {dialog,Qs,Ask}.
+
+menu_hook(update, {Var,_I,Val,Sto}) ->
+    {done,gb_trees:update(Var, Val, Sto)};
+menu_hook(_, _) -> void.
+
+up_button(update, {Var,_I,Val,Sto0}) ->
+    Dir0 = gb_trees:get(directory, Sto0),
+    Dir = filename:dirname(Dir0),
+    Sto1 = gb_trees:update(directory, Dir, Sto0),
+    Sto = gb_trees:update(Var, Val, Sto1),
+    {done,Sto};
+up_button(_, _) -> void.
 
 file_filters(Prop) ->
     Exts0 = case proplists:get_value(extensions, Prop, none) of
