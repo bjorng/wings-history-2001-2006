@@ -9,48 +9,52 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: wings.nsi,v 1.6 2004/06/01 05:23:29 bjorng Exp $
+#     $Id: wings.nsi,v 1.7 2004/10/27 06:32:35 bjorng Exp $
 #
 
-	!define MUI_PRODUCT "Wings 3D"
-	!define MUI_VERSION ${WINGS_VERSION}
+Name "Wings 3D ${WINGS_VERSION}"
 
-	!include "MUI.nsh"
+!include "MUI.nsh"
+
+Var STARTMENU_FOLDER
+Var MYTEMP
 
 ; General
-	OutFile "../wings-${WINGS_VERSION}.exe"
+OutFile "../wings-${WINGS_VERSION}.exe"
 
 ; Folder selection page
-	InstallDir "$PROGRAMFILES\wings3d_${WINGS_VERSION}"
+InstallDir "$PROGRAMFILES\wings3d_${WINGS_VERSION}"
+
 ; Remember install folder
-	InstallDirRegKey HKLM "SOFTWARE\Wings 3D\${WINGS_VERSION}" ""
+InstallDirRegKey HKLM "SOFTWARE\Wings 3D\${WINGS_VERSION}" ""
+
+; Registry keys where start menu folder is stored
+!define MY_STARTMENUPAGE_REGISTRY_ROOT HKLM
+!define MY_STARTMENUPAGE_REGISTRY_KEY "SOFTWARE\Wings 3D\${WINGS_VERSION}"
+!define MY_STARTMENUPAGE_REGISTRY_VALUENAME "Start Menu Folder"
 
 ; Set the default start menu folder
 
-	!define MUI_STARTMENUPAGE_DEFAULTFOLDER "${MUI_PRODUCT}"
+!define MUI_STARTMENUPAGE_DEFAULTFOLDER "Wings 3D ${WINGS_VERSION}"
 
-; Registry keys where start menu folder is stored
-  	!define MUI_STARTMENUPAGE_REGISTRY_ROOT "HKLM" 
-  	!define MUI_STARTMENUPAGE_REGISTRY_KEY \
-		"SOFTWARE\Wings 3D\${WINGS_VERSION}"
-  	!define MUI_STARTMENUPAGE_REGISTRY_VALUENAME "Start Menu Folder"
-
-; Temporary variable used here and there...
-  	!define TEMP $R0
+!define MUI_ICON "install.ico"
+!define MUI_UNICON "uninstall.ico"
   
 ;--------------------------------
 ;Modern UI Configuration
-        !define MUI_ICON "install.ico"
-        !define MUI_UNICON "${NSISDIR}\Contrib\Icons\normal-uninstall.ico"
-	!define MUI_WELCOMEPAGE
-  	!define MUI_COMPONENTSPAGE
-  	!define MUI_DIRECTORYPAGE
-  	!define MUI_STARTMENUPAGE
-  
-  	!define MUI_ABORTWARNING
-  
-  	!define MUI_UNINSTALLER
-  	!define MUI_UNCONFIRMPAGE
+!insertmacro MUI_PAGE_COMPONENTS
+!insertmacro MUI_PAGE_DIRECTORY
+
+!define MUI_STARTMENUPAGE_REGISTRY_ROOT ${MY_STARTMENUPAGE_REGISTRY_ROOT}
+!define MUI_STARTMENUPAGE_REGISTRY_KEY "${MY_STARTMENUPAGE_REGISTRY_KEY}"
+!define MUI_STARTMENUPAGE_REGISTRY_VALUENAME "${MY_STARTMENUPAGE_REGISTRY_VALUENAME}"
+
+!insertmacro MUI_PAGE_STARTMENU Application $STARTMENU_FOLDER
+
+!insertmacro MUI_PAGE_INSTFILES
+
+!insertmacro MUI_UNPAGE_CONFIRM
+!insertmacro MUI_UNPAGE_INSTFILES
 	
 ;--------------------------------
 ;Languages
@@ -77,11 +81,6 @@ SubSection /e "Wings 3D" SecWings
 Section "Base" SecWingsBase
 SectionIn 1 2 3 RO
 
-  	StrCmp ${MUI_STARTMENUPAGE_VARIABLE} "" 0 skip_silent_mode
-	StrCpy ${MUI_STARTMENUPAGE_VARIABLE} \
-		"${MUI_STARTMENUPAGE_DEFAULTFOLDER}"
-
-skip_silent_mode:
   	SetOutPath "$INSTDIR"
   	File /r AUTHORS license.terms Wings3D.exe
   	SetOutPath "$INSTDIR\lib"
@@ -99,60 +98,56 @@ skip_silent_mode:
   	WriteUninstaller "$INSTDIR\Uninstall.exe"
 	
 ; The startmenu stuff
-  	!insertmacro MUI_STARTMENU_WRITE_BEGIN
+  	!insertmacro MUI_STARTMENU_WRITE_BEGIN Application
 
 ; Try to use the Common startmenu...
   	SetShellVarContext All
   	ClearErrors
-  	CreateDirectory "$SMPROGRAMS\${MUI_STARTMENUPAGE_VARIABLE}"
-  	IfErrors 0 continue_create
-    	;MessageBox MB_OK "Error creating file"
-    	SetShellVarContext current
-    	CreateDirectory "$SMPROGRAMS\${MUI_STARTMENUPAGE_VARIABLE}"
-continue_create:
-  	CreateShortCut "$SMPROGRAMS\${MUI_STARTMENUPAGE_VARIABLE}\Wings 3D ${MUI_VERSION}.lnk" \
+  	CreateDirectory "$SMPROGRAMS\$STARTMENU_FOLDER"
+
+  	CreateShortCut "$SMPROGRAMS\$STARTMENU_FOLDER\Wings 3D ${WINGS_VERSION}.lnk" \
 		"$INSTDIR\Wings3D.exe"
   
   	!insertmacro MUI_STARTMENU_WRITE_END
 
   	WriteRegStr HKLM \
-		"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Wings 3D ${MUI_VERSION}" \
-		"DisplayName" "Wings 3D ${MUI_VERSION}"
+		"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Wings 3D ${WINGS_VERSION}" \
+		"DisplayName" "Wings 3D ${WINGS_VERSION}"
   	WriteRegStr HKLM \
-		"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Wings 3D ${MUI_VERSION}" \
+		"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Wings 3D ${WINGS_VERSION}" \
 		"UninstallString" "$INSTDIR\Uninstall.exe"
   	WriteRegDWORD HKLM \
-		"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Wings 3D ${MUI_VERSION}" \
+		"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Wings 3D ${WINGS_VERSION}" \
 		"NoModify" 1
   	WriteRegDWORD HKLM \
-		"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Wings 3D ${MUI_VERSION}" \
+		"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Wings 3D ${WINGS_VERSION}" \
 		"NoRepair" 1
 
 ; Check that the registry could be written, we only check one key,
 ; but it should be sufficient...
-  	ReadRegStr ${TEMP} "${MUI_STARTMENUPAGE_REGISTRY_ROOT}" \
-		"${MUI_STARTMENUPAGE_REGISTRY_KEY}" \
-		"${MUI_STARTMENUPAGE_REGISTRY_VALUENAME}"
+  	ReadRegStr $MYTEMP "${MY_STARTMENUPAGE_REGISTRY_ROOT}" \
+		"${MY_STARTMENUPAGE_REGISTRY_KEY}" \
+		"${MY_STARTMENUPAGE_REGISTRY_VALUENAME}"
 
-  	StrCmp ${TEMP} "" 0 done
+  	StrCmp $MYTEMP "" 0 done
 
 ; Now we're done if we are a superuser. If the registry stuff failed, we 
 ; do the things below...
 
-  	WriteRegStr HKCU "${MUI_STARTMENUPAGE_REGISTRY_KEY}" \
-		"${MUI_STARTMENUPAGE_REGISTRY_VALUENAME}" \
-		"${MUI_STARTMENUPAGE_VARIABLE}"
+  	WriteRegStr HKCU "${MY_STARTMENUPAGE_REGISTRY_KEY}" \
+		"${MY_STARTMENUPAGE_REGISTRY_VALUENAME}" \
+		"$STARTMENU_FOLDER"
   	WriteRegStr HKCU \
-		"Software\Microsoft\Windows\CurrentVersion\Uninstall\Wings 3D ${MUI_VERSION}" \
-		"DisplayName" "Wings 3D ${MUI_VERSION}"
+		"Software\Microsoft\Windows\CurrentVersion\Uninstall\Wings 3D ${WINGS_VERSION}" \
+		"DisplayName" "Wings 3D ${WINGS_VERSION}"
   	WriteRegStr HKCU \
-		"Software\Microsoft\Windows\CurrentVersion\Uninstall\Wings 3D ${MUI_VERSION}" \
+		"Software\Microsoft\Windows\CurrentVersion\Uninstall\Wings 3D ${WINGS_VERSION}" \
 		"UninstallString" "$INSTDIR\Uninstall.exe"
   	WriteRegDWORD HKCU \
-		"Software\Microsoft\Windows\CurrentVersion\Uninstall\Wings 3D ${MUI_VERSION}" \
+		"Software\Microsoft\Windows\CurrentVersion\Uninstall\Wings 3D ${WINGS_VERSION}" \
 		"NoModify" 1
   	WriteRegDWORD HKCU \
-		"Software\Microsoft\Windows\CurrentVersion\Uninstall\Wings 3D ${MUI_VERSION}" \
+		"Software\Microsoft\Windows\CurrentVersion\Uninstall\Wings 3D ${WINGS_VERSION}" \
 		"NoRepair" 1
 
 done:
@@ -197,12 +192,9 @@ continue_create:
 SectionEnd
 SubSectionEnd
 
-;Display the Finish header
-	!insertmacro MUI_SECTIONS_FINISHHEADER
-
 ;--------------------------------
 ;Descriptions
-	!insertmacro MUI_FUNCTIONS_DESCRIPTION_BEGIN
+	!insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
   	!insertmacro MUI_DESCRIPTION_TEXT ${SecWings} $(DESC_SecWings)
   	!insertmacro MUI_DESCRIPTION_TEXT ${SecWingsBase} $(DESC_SecWingsBase)
   	!insertmacro MUI_DESCRIPTION_TEXT ${SecWingsMakeDefault} $(DESC_SecWingsMakeDefault)
@@ -210,7 +202,7 @@ SubSectionEnd
 		$(DESC_SecWingsClutterDesktop)
   	!insertmacro MUI_DESCRIPTION_TEXT ${SecWingsClutterQuicklaunch} \
 		$(DESC_SecWingsClutterQuicklaunch)
-	!insertmacro MUI_FUNCTIONS_DESCRIPTION_END
+	!insertmacro MUI_FUNCTION_DESCRIPTION_END
  
 ;--------------------------------
 ;Uninstaller Section
@@ -238,50 +230,47 @@ Section Uninstall
   Delete "$INSTDIR\Uninstall.exe"
 
 ;Remove shortcut
-  	ReadRegStr ${TEMP} "${MUI_STARTMENUPAGE_REGISTRY_ROOT}" \
-		"${MUI_STARTMENUPAGE_REGISTRY_KEY}" \
-		"${MUI_STARTMENUPAGE_REGISTRY_VALUENAME}"
-	StrCmp ${TEMP} "" 0 end_try
+  	ReadRegStr $MYTEMP "${MY_STARTMENUPAGE_REGISTRY_ROOT}" \
+		"${MY_STARTMENUPAGE_REGISTRY_KEY}" \
+		"${MY_STARTMENUPAGE_REGISTRY_VALUENAME}"
+	StrCmp $MYTEMP "" 0 end_try
 ; Try HKCU instead...
-  	ReadRegStr ${TEMP} HKCU \
-		"${MUI_STARTMENUPAGE_REGISTRY_KEY}" \
-		"${MUI_STARTMENUPAGE_REGISTRY_VALUENAME}"
+  	ReadRegStr $MYTEMP HKCU \
+		"${MY_STARTMENUPAGE_REGISTRY_KEY}" \
+		"${MY_STARTMENUPAGE_REGISTRY_VALUENAME}"
 ; If this failed to, we have no shortcuts (eh?)
-  	StrCmp ${TEMP} "" noshortcuts
+  	StrCmp $MYTEMP "" noshortcuts
 end_try:
   	SetShellVarContext All
   	ClearErrors
 ; If we cannot find the shortcut, switch to current user context
-  	GetFileTime "$SMPROGRAMS\${TEMP}\Wings 3D ${MUI_VERSION}.lnk" $R1 $R2
+  	GetFileTime "$SMPROGRAMS\$MYTEMP\Wings 3D ${WINGS_VERSION}.lnk" $R1 $R2
   	IfErrors 0 continue_delete
     	;MessageBox MB_OK "Error removing file"
     	SetShellVarContext current
 continue_delete:
-  	Delete "$SMPROGRAMS\${TEMP}\Wings 3D ${MUI_VERSION}.lnk"
-  	RMDir "$SMPROGRAMS\${TEMP}" ;Only if empty
+  	Delete "$SMPROGRAMS\$MYTEMP\Wings 3D ${WINGS_VERSION}.lnk"
+  	RMDir "$SMPROGRAMS\$MYTEMP" ;Only if empty
 
 noshortcuts:
 ; We delete both in HKCU and HKLM, we don't really know were they might be...
   	DeleteRegKey /ifempty HKLM "SOFTWARE\Wings 3D\${WINGS_VERSION}"
   	DeleteRegKey /ifempty HKCU "SOFTWARE\Wings 3D\${WINGS_VERSION}"
-  	DeleteRegKey HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Wings 3D ${MUI_VERSION}"
-  	DeleteRegKey HKCU "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Wings 3D ${MUI_VERSION}"
+  	DeleteRegKey HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Wings 3D ${WINGS_VERSION}"
+  	DeleteRegKey HKCU "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Wings 3D ${WINGS_VERSION}"
 
   	RMDir "$INSTDIR"
 
-  	ReadRegStr ${TEMP} HKLM "SOFTWARE\Wings 3D\DefaultVersion" ""
+  	ReadRegStr $MYTEMP HKLM "SOFTWARE\Wings 3D\DefaultVersion" ""
 
-  	StrCmp ${TEMP} "${WINGS_VERSION}" 0 done
-	;MessageBox MB_OK ${TEMP}
+  	StrCmp $MYTEMP "${WINGS_VERSION}" 0 done
+	;MessageBox MB_OK $MYTEMP
   	DeleteRegKey HKCR ".wings"
   	DeleteRegKey HKCR "Wings3DFile"
 	DeleteRegKey HKLM "SOFTWARE\Wings 3D\DefaultVersion"
 
 done:
-	;MessageBox MB_OK ${TEMP}
-
-;Display the Finish header
-  	!insertmacro MUI_UNFINISHHEADER
+	;MessageBox MB_OK $MYTEMP
 
 SectionEnd ; end of uninstall section
 
@@ -296,8 +285,8 @@ SectionGetFlags ${SecWingsClutterDesktop} $0
 IntOp $0 $0 & ~1
 SectionSetFlags ${SecWingsClutterDesktop} $0
 
-;ReadRegStr ${TEMP} HKLM "SOFTWARE\Wings 3D\DefaultVersion" ""
-;StrCmp ${TEMP} "" 0 disable
+;ReadRegStr $MYTEMP HKLM "SOFTWARE\Wings 3D\DefaultVersion" ""
+;StrCmp $MYTEMP "" 0 disable
 
 ;SectionGetFlags ${SecWingsMakeDefault} $0
 ;IntOp $0 $0 | 16
