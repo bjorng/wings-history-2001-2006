@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.118 2003/11/13 18:36:28 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.119 2003/11/14 13:42:55 raimo_niskanen Exp $
 %%
 
 -module(wings_ask).
@@ -199,7 +199,7 @@ get_event(S) ->
     wings_wm:dirty(),
     {replace,
      fun(Ev) ->
-	     case catch event(Ev, S) of
+	     case catch event1(Ev, S) of
 		 {'EXIT',Reason} ->
 		     %% dmptree(S#s.fi),
 		     io:format("Dialog crashed for event ~p~n"
@@ -209,17 +209,27 @@ get_event(S) ->
 	     end
      end}.
 
-event(redraw, S) ->
+event1(redraw, S) ->
     ?DEBUG_DISPLAY(redraw),
     redraw(S);
+event1(got_focus, _) ->
+    wings_wm:message(" "),
+    keep;
+event1(lost_focus, _) ->
+    wings_wm:message("  "),
+    keep;
+event1(Ev=#mousemotion{}, S) ->
+    mouse_event(Ev, S);
+event1(Ev, S) -> 
+    wings_wm:message(""),
+    event(Ev, S).
+
 event({current_state,_}, _) ->
     keep;
 event(#keyboard{sym=Sym,mod=Mod,unicode=Unicode}, S) ->
     event_key({key,Sym,Mod,Unicode}, S);
 event(Ev=#mousebutton{}, S) ->
       mouse_event(Ev, S);
-event(Ev=#mousemotion{}, S) ->
-    mouse_event(Ev, S);
 event({drop,{X,Y},DropData}, S) ->
     drop_event(X, Y, DropData, S);
 event({action,Action}, S) ->
@@ -353,13 +363,13 @@ field_event(Ev=#mousemotion{x=X,y=Y,state=Bst}, S=#s{fi=Fi})
     case mouse_to_field(X, Y, Fi) of
 	[] ->
 	    wings_wm:allow_drag(false),
-	    wings_util:button_message("", "", "");
+	    wings_wm:message("");
 	Path=[#fi{flags=Flags,extra=Extra}|_] ->
 	    ?DEBUG_DISPLAY({field_event,[_I,Ev]}),
 	    wings_wm:allow_drag(member(drag, Flags)),
 	    case Extra of
 		#container{} -> field_event(Ev, S, Path);
-		_ -> wings_util:button_message("", "", "")
+		_ -> wings_wm:message("")
 	    end
     end, keep;
 field_event(Ev, S=#s{focus=I,mouse_focus=true,fi=Fi}) -> 
@@ -1170,7 +1180,7 @@ cb_event({key,_,_,$\s}, [#fi{key=Key,index=I}|_], Store) ->
     K = key(Key, I),
     Val = gb_trees:get(K, Store),
     {store,gb_trees:update(K, not Val, Store)};
-cb_event(#mousebutton{x=Xb,state=?SDL_PRESSED}, 
+cb_event(#mousebutton{x=Xb,state=?SDL_PRESSED,button=1}, 
 	 [#fi{x=X,key=Key,index=I}|_], Store) ->
     #cb{labelw=LblW,spacew=SpaceW} = gb_trees:get(-I, Store),
     if
@@ -1244,7 +1254,7 @@ rb_event(value, [#fi{index=I}|_], Store) ->
     end;
 rb_event({key,_,_,$\s}, [Fi=#fi{index=I}|_], Store) ->
     rb_set(Fi, gb_trees:get(-I, Store), I, Store);
-rb_event(#mousebutton{x=Xb,state=?SDL_RELEASED}, 
+rb_event(#mousebutton{x=Xb,state=?SDL_RELEASED,button=1}, 
 	 [Fi=#fi{x=X,index=I}|_], Store) ->
     #rb{labelw=LblW,spacew=SpaceW} = Rb = gb_trees:get(-I, Store),
     if
@@ -1354,7 +1364,7 @@ menu_event({key,_,_,$\s}, [Fi=#fi{hook=Hook,index=I}|_], Store) ->
     Val = gb_trees:get(Key, Store),
     Disabled = hook(Hook, menu_disabled, [Key, I, Store]),
     menu_popup(Fi, M, Val, Disabled);
-menu_event(#mousebutton{state=?SDL_PRESSED}, 
+menu_event(#mousebutton{state=?SDL_PRESSED,button=1}, 
 	   [Fi=#fi{hook=Hook,index=I}|_], Store) ->
     M = #menu{var=Var} = gb_trees:get(-I, Store),
     Key = key(Var, I),
@@ -1462,7 +1472,7 @@ popup_event(#mousemotion{y=Y}, #popup{menu=Menu,sel=Sel0}=Ps) ->
 	    end;
 	_ -> keep
     end;
-popup_event(#mousebutton{state=?SDL_RELEASED}, Ps) ->
+popup_event(#mousebutton{state=?SDL_RELEASED,button=1}, Ps) ->
     popup_key($ , 0, $ , Ps);
 popup_event(#keyboard{sym=Sym,mod=Mod,unicode=Unicode}, Ps) ->
     popup_key(Sym, Mod, Unicode, Ps);
@@ -1583,7 +1593,7 @@ button_event({redraw,Active}, [Fi=#fi{key=Key,hook=Hook,index=I}|_], Store) ->
     button_draw(Active, Fi, gb_trees:get(-I, Store), DisEnable);
 button_event(value, _Path, _Store) ->
     none;
-button_event(#mousebutton{x=X,y=Y,state=?SDL_RELEASED},
+button_event(#mousebutton{x=X,y=Y,state=?SDL_RELEASED,button=1},
 	     [#fi{x=Bx,y=By,w=W,h=H,index=I}|_], Store)
   when Bx =< X, X =< Bx+W, By =< Y, Y =< By+H ->
     #but{action=Action} = gb_trees:get(-I, Store),
@@ -1648,7 +1658,7 @@ col_event(#mousemotion{x=Xm,y=Ym}, [Fi=#fi{key=Key,index=I}|_], Store) ->
 	    RGB = gb_trees:get(key(Key, I), Store),
 	    {drag,{3*?CHAR_WIDTH,?CHAR_HEIGHT},{color,RGB}}
     end;
-col_event(#mousebutton{x=Xm,y=Ym,state=?SDL_RELEASED}, 
+col_event(#mousebutton{x=Xm,y=Ym,state=?SDL_RELEASED,button=1}, 
 	  [Fi=#fi{key=Key,index=I}|_], Store) ->
     case col_inside(Xm, Ym, Fi) of
 	true -> pick_color(key(Key, I), Store);
@@ -2048,11 +2058,11 @@ text_event({focus,false}, _Fi, Ts) ->
 text_event({focus,true}, _Fi, Ts) ->
     Str = get_text(Ts),
     Ts#text{bef=[],sel=length(Str),aft=Str};
-text_event(#mousebutton{x=X,state=?SDL_PRESSED}, Fi, Ts0) ->
+text_event(#mousebutton{x=X,state=?SDL_PRESSED,button=1}, Fi, Ts0) ->
     Ts = text_pos(X, Fi, Ts0),
     ?DEBUG_DISPLAY(Ts),
     Ts;
-text_event(#mousebutton{x=X,state=?SDL_RELEASED}, Fi, Ts0) ->
+text_event(#mousebutton{x=X,state=?SDL_RELEASED,button=1}, Fi, Ts0) ->
     Ts = text_sel(X, Fi, Ts0),
     ?DEBUG_DISPLAY(Ts),
     Ts;
@@ -2214,9 +2224,10 @@ slider_event(value, [#fi{flags=Flags,key=Key,index=I}|_], Store) ->
 	_ ->
 	    {value,gb_trees:get(key(Key, I), Store)}
     end;
-slider_event(#mousebutton{x=Xb,state=?SDL_RELEASED}, [Fi|_], Store) ->
+slider_event(#mousebutton{x=Xb,state=?SDL_RELEASED,button=1}, [Fi|_], Store) ->
     slider_event_move(Xb, Fi, Store);
-slider_event(#mousemotion{x=Xb}, [Fi|_], Store) ->
+slider_event(#mousemotion{x=Xb,state=Bst}, [Fi|_], Store) 
+  when (Bst band ?SDL_BUTTON_LMASK) =/= 0 ->
     slider_event_move(Xb, Fi, Store);
 slider_event({key,?SDLK_LEFT,_,_}, [Fi|_], Store) ->
     slider_move(-1, Fi, Store);
