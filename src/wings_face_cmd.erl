@@ -3,12 +3,12 @@
 %%
 %%     This module contains most of the face commands.
 %%
-%%  Copyright (c) 2001-2003 Bjorn Gustavsson
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.101 2004/02/08 15:29:32 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.102 2004/03/08 13:26:22 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -421,8 +421,7 @@ mirror_vs(Face, #we{vp=Vtab0}=We) ->
 mirror_move_vs({V,Pos0}, PlaneNormal, Center, A) ->
     ToCenter = e3d_vec:sub(Center, Pos0),
     Dot = e3d_vec:dot(ToCenter, PlaneNormal),
-    ToPlane = e3d_vec:mul(PlaneNormal, 2.0*Dot),
-    Pos = wings_util:share(e3d_vec:add(Pos0, ToPlane)),
+    Pos = wings_util:share(e3d_vec:add_prod(Pos0, PlaneNormal, 2.0*Dot)),
     [{V,Pos}|A].
 
 mirror_weld(0, _IterA0, FaceA, _IterB0, FaceB, _WeOrig, #we{fs=Ftab0}=We0) ->

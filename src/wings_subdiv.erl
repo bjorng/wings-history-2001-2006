@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.67 2004/02/07 13:41:01 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.68 2004/03/08 13:26:22 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -280,7 +280,7 @@ smooth_move_orig_1(V, S, MoveFun, We) ->
 			    N = N0 bsr 1,
 			    {1.0/(N*N),(N-2.0)/N}
 		    end,
-	    Pos = e3d_vec:add(e3d_vec:mul(Ps, A), e3d_vec:mul(S, B)),
+	    Pos = e3d_vec:add_prod(e3d_vec:mul(Ps, A), S, B),
 	    wings_util:share(Pos);
 	NumHard when NumHard =:= 2 ->
 	    Pos0 = e3d_vec:add([e3d_vec:mul(S, 6.0)|Hard]),

@@ -4,12 +4,12 @@
 %%     This module implements the Scale command plus
 %%     the interactive part of the Bevel (face) and Inset commands.
 %%
-%%  Copyright (c) 2001-2002 Bjorn Gustavsson.
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson.
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_scale.erl,v 1.48 2003/11/12 21:40:12 bjorng Exp $
+%%     $Id: wings_scale.erl,v 1.49 2004/03/08 13:26:22 bjorng Exp $
 %%
 
 -module(wings_scale).
@@ -132,7 +132,7 @@ inset_face(Face, #we{vp=Vtab}=We, Acc) ->
 				       "or more selected faces. "
 				       "(Use Cleanup.)");
 		  T0 ->
-		      PerpPos = e3d_vec:add(Pos, e3d_vec:mul(Dir, T0)),
+		      PerpPos = e3d_vec:add_prod(Pos, Dir, T0),
 		      Vec = e3d_vec:sub(Center, PerpPos),
 		      Dist = e3d_vec:len(Vec),
 		      A = [{Va,Vec,Dist},{Vb,Vec,Dist}|A0],

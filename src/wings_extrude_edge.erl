@@ -4,12 +4,12 @@
 %%     This module contains the Extrude (edge), Bevel (face/edge) and
 %%     Bump commands. (All based on edge extrusion.)
 %%
-%%  Copyright (c) 2001-2003 Bjorn Gustavsson
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.54 2003/10/02 19:36:00 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.55 2004/03/08 13:26:22 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -388,7 +388,7 @@ do_new_vertex(V, G, Edge, Center, ExtrudeDist, We0) ->
     #we{vp=Vtab0} = We,
     Pos0 = gb_trees:get(NewV, Vtab0),
     Dir = e3d_vec:sub(Pos0, Center),
-    Pos = e3d_vec:add(Center, e3d_vec:mul(Dir, ExtrudeDist/e3d_vec:len(Dir))),
+    Pos = e3d_vec:add_prod(Center, Dir, ExtrudeDist/e3d_vec:len(Dir)),
     Vtab = gb_trees:update(NewV, Pos, Vtab0),
     We#we{vp=Vtab}.
 
@@ -464,9 +464,9 @@ connect_inner({new,Va}, [Va,Vb,{new,Vb}], N, Face, ExtrudeDist, We0) ->
     APos = gb_trees:get(Va, Vtab),
     BPos = gb_trees:get(Vb, Vtab),
     Vec = e3d_vec:sub(APos, BPos),
-    Pos1 = e3d_vec:add(BPos, e3d_vec:mul(e3d_vec:cross(Vec, N), ExtrudeDist)),
+    Pos1 = e3d_vec:add_prod(BPos, e3d_vec:cross(Vec, N), ExtrudeDist),
     {We3,NewE} = wings_edge:fast_cut(Edge, Pos1, We2),
-    Pos2 = e3d_vec:add(APos, e3d_vec:mul(e3d_vec:cross(Vec, N), ExtrudeDist)),
+    Pos2 = e3d_vec:add_prod(APos, e3d_vec:cross(Vec, N), ExtrudeDist),
     We4 = wings_edge:dissolve_edge(TempE, We3),
     {We,_} = wings_edge:fast_cut(NewE, Pos2, We4),
     wings_util:validate(We),
@@ -484,7 +484,7 @@ connect_inner({new,V}, [V|[B,C,_|_]=Next], N, Face, ExtrudeDist, We0) ->
     VPos = gb_trees:get(V, Vtab),
     BPos = gb_trees:get(B, Vtab),
     Vec = e3d_vec:sub(VPos, BPos),
-    Pos = e3d_vec:add(VPos, e3d_vec:mul(e3d_vec:cross(Vec, N), ExtrudeDist)),
+    Pos = e3d_vec:add_prod(VPos, e3d_vec:cross(Vec, N), ExtrudeDist),
     {We,_} = wings_edge:fast_cut(Edge, Pos, We2),
     We;
 connect_inner({new,_}, [A|[B,C]], _, Face, _, We0) ->
@@ -502,7 +502,7 @@ connect_inner(C, [B|[A,{new,_}]], N, Face, ExtrudeDist, We0) ->
     APos = gb_trees:get(A, Vtab),
     BPos = gb_trees:get(B, Vtab),
     Vec = e3d_vec:sub(BPos, APos),
-    Pos = e3d_vec:add(APos, e3d_vec:mul(e3d_vec:cross(Vec, N), ExtrudeDist)),
+    Pos = e3d_vec:add_prod(APos, e3d_vec:cross(Vec, N), ExtrudeDist),
     {We,_} = wings_edge:fast_cut(Edge, Pos, We1),
     We;
 connect_inner(Current0, [A|[B,C,_|_]=Next], N, Face, ExtrudeDist, We0) ->
@@ -545,7 +545,7 @@ new_vertex_pos(A, B, C, N, ExtrudeDist, Vtab) ->
     VecA = e3d_vec:norm(e3d_vec:cross(VecA0, N)),
     VecB = e3d_vec:norm(e3d_vec:cross(VecB0, N)),
     Vec = average(VecA, VecB),
-    e3d_vec:add(BPos, e3d_vec:mul(Vec, ExtrudeDist)).
+    e3d_vec:add_prod(BPos, Vec, ExtrudeDist).
 
 average(Na, Nb) ->
     N = e3d_vec:norm(e3d_vec:add(Na, Nb)),

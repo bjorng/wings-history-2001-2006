@@ -3,12 +3,12 @@
 %%
 %%     This module handles interactive commands.
 %%
-%%  Copyright (c) 2001-2003 Bjorn Gustavsson
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.166 2003/12/09 08:17:03 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.167 2004/03/08 13:26:22 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -217,8 +217,7 @@ constrain_vs([{V,Pos0}=H|T], Vs, {N,Point}=Plane, Acc) ->
 	true ->
 	    ToPoint = e3d_vec:sub(Point, Pos0),
 	    Dot = e3d_vec:dot(ToPoint, N),
-	    ToPlane = e3d_vec:mul(N, Dot),
-	    Pos = e3d_vec:add(Pos0, ToPlane),
+	    Pos = e3d_vec:add_prod(Pos0, N, Dot),
 	    constrain_vs(T, Vs, Plane, [{V,Pos}|Acc])
     end;
 constrain_vs([], _, _, Acc) -> Acc.

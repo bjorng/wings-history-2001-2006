@@ -3,12 +3,12 @@
 %%
 %%     This module implements the Move command.
 %%
-%%  Copyright (c) 2001-2003 Bjorn Gustavsson
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_move.erl,v 1.48 2003/10/30 12:48:11 bjorng Exp $
+%%     $Id: wings_move.erl,v 1.49 2004/03/08 13:26:22 bjorng Exp $
 %%
 -module(wings_move).
 -export([setup/2,setup_we/4,plus_minus/3,magnet_move_fun/3]).
@@ -179,7 +179,7 @@ average_normals([{Na,Orig,Da}|[{Nb,_,Db}|_]=T]) ->
 	Det*Det >= 1.0E-9*abs(A*B) ->
 	    E = -e3d_vec:dot(Db, Diff),
 	    S = (B*E-C*D)/Det,
-	    NewPos = e3d_vec:add(Oa, e3d_vec:mul(Da, S)),
+	    NewPos = e3d_vec:add_prod(Oa, Da, S),
 	    e3d_vec:sub(NewPos, Orig);
 	true ->					%Parallel edges
 	    average_normals(T)

@@ -3,12 +3,12 @@
 %%
 %%     This module draws objects using OpenGL.
 %%
-%%  Copyright (c) 2001-2003 Bjorn Gustavsson
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.166 2004/03/08 11:10:41 raimo_niskanen Exp $
+%%     $Id: wings_draw.erl,v 1.167 2004/03/08 13:26:22 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -917,7 +917,7 @@ make_normals_dlist_1(vertex, Vs, #we{vp=Vtab}=We) ->
 		    Pos = gb_trees:get(V, Vtab),
 		    gl:vertex3fv(Pos),
 		    N = wings_vertex:normal(V, We),
-		    gl:vertex3fv(e3d_vec:add(Pos, e3d_vec:mul(N, 0.3)))
+		    gl:vertex3fv(e3d_vec:add_prod(Pos, N, 0.3))
 	    end, gb_sets:to_list(Vs));
 make_normals_dlist_1(edge, Edges, #we{es=Etab,vp=Vtab}=We) ->
     Et0 = sofs:relation(gb_trees:to_list(Etab), [{edge,data}]),
@@ -931,7 +931,7 @@ make_normals_dlist_1(edge, Edges, #we{es=Etab,vp=Vtab}=We) ->
 		    gl:vertex3fv(Mid),
 		    N = e3d_vec:average([wings_face:normal(Lf, We),
 					 wings_face:normal(Rf, We)]),
-		    gl:vertex3fv(e3d_vec:add(Mid, e3d_vec:mul(N, 0.3)))
+		    gl:vertex3fv(e3d_vec:add_prod(Mid, N, 0.3))
 	    end, Et);
 make_normals_dlist_1(face, Faces, We) ->
     foreach(fun(Face) ->
@@ -939,7 +939,7 @@ make_normals_dlist_1(face, Faces, We) ->
 		    C = wings_vertex:center(Vs, We),
 		    gl:vertex3fv(C),
 		    N = wings_face:face_normal_cw(Vs, We),
-		    gl:vertex3fv(e3d_vec:add(C, e3d_vec:mul(N, 0.3)))
+		    gl:vertex3fv(e3d_vec:add_prod(C, N, 0.3))
 	    end, gb_sets:to_list(Faces));
 make_normals_dlist_1(body, _, #we{fs=Ftab}=We) ->
     make_normals_dlist_1(face, gb_sets:from_list(gb_trees:keys(Ftab)), We).

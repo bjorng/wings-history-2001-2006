@@ -3,12 +3,12 @@
 %%
 %%     This module contains most edge command and edge utility functions.
 %%
-%%  Copyright (c) 2001-2003 Bjorn Gustavsson.
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson.
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.83 2003/11/22 08:20:07 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.84 2004/03/08 13:26:22 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -377,7 +377,7 @@ cut_pick_make_tvs(Edge, #we{id=Id,es=Etab,vp=Vtab,next_id=NewV}=We) ->
     {{general,[{Id,Fun}]},Sel}.
 
 cut_pick_marker([I], D, Edge, We0, Start, Dir, Char) ->
-    {X,Y,Z} = Pos = e3d_vec:add(Start, e3d_vec:mul(Dir, I)),
+    {X,Y,Z} = Pos = e3d_vec:add_prod(Start, Dir, I),
     {MM,PM,ViewPort} = wings_util:get_matrices(0, original),
     {Sx,Sy,_} = glu:project(X, Y, Z, MM, PM, ViewPort),
     Dl = gl:genLists(1),

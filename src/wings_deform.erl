@@ -3,12 +3,12 @@
 %%
 %%     This module contains the Deform commands for vertices.
 %%
-%%  Copyright (c) 2001-2003 Bjorn Gustavsson
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_deform.erl,v 1.37 2003/10/30 07:57:15 bjorng Exp $
+%%     $Id: wings_deform.erl,v 1.38 2004/03/08 13:26:22 bjorng Exp $
 %%
 
 -module(wings_deform).
@@ -140,8 +140,7 @@ crumple(normal, Vs0, #we{id=Id}=We, Acc) ->
 		  random:seed(Sa, Sb, Sc),
 		  foldl(fun({V,Pos0,N}, VsAcc) ->
 				{R1,_,_} = rnd(Dx/10),
-				Dis = e3d_vec:mul(N, R1),
-				Pos = e3d_vec:add(Pos0, Dis),
+				Pos = e3d_vec:add_prod(Pos0, N, R1),
 				[{V,Pos}|VsAcc]
 			end, A, VsPos)
 	  end,

@@ -3,18 +3,18 @@
 %%
 %%     Arithmetic on vectors and points (represented as three-tuples).
 %%
-%%  Copyright (c) 2001-2002 Bjorn Gustavsson
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_vec.erl,v 1.18 2003/08/25 17:18:25 bjorng Exp $
+%%     $Id: e3d_vec.erl,v 1.19 2004/03/08 13:26:21 bjorng Exp $
 %%
 
 -module(e3d_vec).
 
--export([zero/0,is_zero/1,add/1,add/2,sub/1,sub/2,mul/2,divide/2,neg/1,
-	 dot/2,cross/2,norm_cross/2,len/1,dist/2,norm/1,norm/3,
+-export([zero/0,is_zero/1,add/1,add/2,add_prod/3,sub/1,sub/2,mul/2,
+	 divide/2,neg/1,dot/2,cross/2,norm_cross/2,len/1,dist/2,norm/1,norm/3,
 	 normal/3,normal/1,average/1,average/2,average/4,
 	 bounding_box/1]).
 
@@ -27,9 +27,11 @@ zero() ->
 is_zero({0.0,0.0,0.0}) -> true;
 is_zero(_) -> false.
 
-add({V10,V11,V12}, {V20,V21,V22}) when is_float(V10), is_float(V11), is_float(V12),
-				       is_float(V20), is_float(V21), is_float(V22) ->
+add({V10,V11,V12}, {V20,V21,V22}) when is_float(V10), is_float(V11), is_float(V12) ->
     {V10+V20,V11+V21,V12+V22}.
+
+add_prod({V10,V11,V12}, {V20,V21,V22}, S) when is_float(S) ->
+    {S*V20+V10,S*V21+V11,S*V22+V12}.
 
 add([{V10,V11,V12}|T]) ->
     add(T, V10, V11, V12).
@@ -61,16 +63,16 @@ sub(A0, A1, A2, [{V10,V11,V12}|T]) ->
     sub(A0-V10, A1-V11, A2-V12, T);
 sub(A0, A1, A2, []) -> {A0,A1,A2}.
 
-mul({V10,V11,V12}, S) when is_float(V10), is_float(V11), is_float(V12), is_float(S) ->
+mul({V10,V11,V12}, S) when is_float(S) ->
     {V10*S,V11*S,V12*S}.
 
-divide({V10,V11,V12}, S) when is_float(V10), is_float(V11), is_float(V12), is_float(S) ->
-    {V10/S,V11/S,V12/S}.
+divide({V10,V11,V12}, S) ->
+    InvS = 1/S,
+    {V10*InvS,V11*InvS,V12*InvS}.
 
 neg({X,Y,Z}) -> {-X,-Y,-Z}.
 
-dot({V10,V11,V12}, {V20,V21,V22}) when is_float(V10), is_float(V11), is_float(V12),
-				       is_float(V20), is_float(V21), is_float(V22) ->
+dot({V10,V11,V12}, {V20,V21,V22}) when is_float(V10), is_float(V11), is_float(V12) ->
     V10*V20 + V11*V21 + V12*V22.
 
 cross({V10,V11,V12}, {V20,V21,V22}) when is_float(V10), is_float(V11), is_float(V12),
