@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.133 2002/04/25 15:14:36 bjorng Exp $
+%%     $Id: wings.erl,v 1.134 2002/04/26 13:07:24 bjorng Exp $
 %%
 
 -module(wings).
@@ -504,29 +504,24 @@ info(#st{shapes=Shapes,selmode=body,sel=[{Id,_}]}) ->
     shape_info(Sh);
 info(#st{shapes=Shapes,selmode=body,sel=Sel}) ->
     shape_info(Sel, Shapes);
-info(#st{selmode=vertex,sel=[{Id,Sel}],shapes=Shs}) ->
+info(#st{selmode=vertex,sel=[{_Id,Sel}]}=St) ->
     case gb_sets:size(Sel) of
 	0 -> "";
 	1 ->
 	    [V] = gb_sets:to_list(Sel),
 	    flat_format("Vertex: ~p", [V]);
-	2 ->
-	    We = gb_trees:get(Id, Shs),
-	    [Va,Vb] = gb_sets:to_list(Sel),
-	    Dist = e3d_vec:dist(wings_vertex:pos(Va, We), wings_vertex:pos(Vb, We)),
-	    flat_format("Vertices: ~p, ~p  D=~p", [Va,Vb,Dist]);
 	N when N < 5 ->
 	    Vs = gb_sets:to_list(Sel),
-	    item_list(Vs, "Vertices");
+	    measure(item_list(Vs, "Vertices"), St);
 	N ->
 	    flat_format("~p vertices selected", [N])
     end;
-info(#st{selmode=edge,sel=[{_,Sel}]}) ->
+info(#st{selmode=edge,sel=[{_,Sel}]}=St) ->
     case gb_sets:size(Sel) of
 	0 -> "";
 	1 ->
 	    [Edge] = gb_sets:to_list(Sel),
-	    flat_format("Edge: ~p", [Edge]);
+	    measure(flat_format("Edge: ~p", [Edge]), St);
 	N when N < 5 ->
 	    Edges = gb_sets:to_list(Sel),
 	    item_list(Edges, "Edges");
@@ -545,14 +540,54 @@ info(#st{selmode=face,sel=[{_,Sel}]}) ->
 	N ->
 	    flat_format("~p faces selected", [N])
     end;
-info(#st{selmode=Mode,sel=Sel}) ->
+info(#st{selmode=Mode,sel=Sel}=St) ->
     On = length(Sel),
     N = foldl(fun({_,S}, A) -> A+gb_sets:size(S) end, 0, Sel),
-    case Mode of
-	vertex -> flat_format("~p vertices selected in ~p objects", [N,On]);
-	edge -> flat_format("~p edges selected in ~p objects", [N,On]);
-	face -> flat_format("~p faces selected in ~p objects", [N,On])
-    end.
+    Str = case Mode of
+	      vertex ->
+		  flat_format("~p vertices selected in ~p objects", [N,On]);
+	      edge ->
+		  flat_format("~p edges selected in ~p objects", [N,On]);
+	      face ->
+		  flat_format("~p faces selected in ~p objects", [N,On])
+	  end,
+    measure(Str, St).
+
+measure(Base, #st{selmode=vertex,sel=[{Id,Vs}],shapes=Shs}) ->
+    case gb_sets:size(Vs) of
+	2 ->
+	    We = gb_trees:get(Id, Shs),
+ 	    [Va,Vb] = gb_sets:to_list(Vs),
+ 	    Dist = e3d_vec:dist(wings_vertex:pos(Va, We),
+				wings_vertex:pos(Vb, We)),
+	    Base ++ flat_format("  D=~p", [Dist]);
+	_ -> Base
+    end;
+measure(Base, #st{selmode=vertex,sel=[{IdA,VsA},{IdB,VsB}],shapes=Shs}) ->
+    case gb_sets:size(VsA) == 1 andalso gb_sets:size(VsB) == 1 of
+	false -> Base;
+	true ->
+	    WeA = gb_trees:get(IdA, Shs),
+	    WeB = gb_trees:get(IdB, Shs),
+ 	    [Va] = gb_sets:to_list(VsA),
+ 	    [Vb] = gb_sets:to_list(VsB),
+ 	    Dist = e3d_vec:dist(wings_vertex:pos(Va, WeA),
+				wings_vertex:pos(Vb, WeB)),
+	    Base ++ flat_format("  D=~p", [Dist]);
+	_ -> Base
+    end;
+measure(Base, #st{selmode=edge,sel=[{Id,Es}],shapes=Shs}) ->
+    case gb_sets:size(Es) of
+	1 ->
+	    We = gb_trees:get(Id, Shs),
+ 	    [Edge] = gb_sets:to_list(Es),
+	    #edge{vs=Va,ve=Vb} = gb_trees:get(Edge, We#we.es),
+ 	    Dist = e3d_vec:dist(wings_vertex:pos(Va, We),
+				wings_vertex:pos(Vb, We)),
+	    Base ++ flat_format("  L=~p", [Dist]);
+	_ -> Base
+    end;
+measure(Base, _) -> Base.
 
 item_list(Items, Desc) ->
     item_list(Items, ": ", Desc).
