@@ -8,14 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mat.erl,v 1.7 2001/09/17 07:19:18 bjorng Exp $
+%%     $Id: e3d_mat.erl,v 1.8 2001/11/18 19:23:39 bjorng Exp $
 %%
 
 -module(e3d_mat).
 
 -export([identity/0,compress/1,expand/1,
 	 translate/1,translate/3,scale/1,scale/3,rotate/2,
-	 mul/2,mul_point/2]).
+	 mul/2,mul_point/2,mul_vector/2]).
 
 identity() ->
     Zero = 0.0,
@@ -119,6 +119,21 @@ mul_point({A,B,C,0.0,D,E,F,0.0,G,H,I,0.0,Tx,Ty,Tz,1.0}, {X,Y,Z})
     share(X*A + Y*D + Z*G + Tx,
 	  X*B + Y*E + Z*H + Ty,
 	  X*C + Y*F + Z*I + Tz).
+
+mul_vector({A,B,C,D,E,F,G,H,I,Tx,Ty,Tz}, {X,Y,Z})
+  when float(A), float(B), float(C), float(D), float(E),
+       float(F), float(G), float(H), float(I), 
+       float(Tx), float(Ty), float(Tz), float(X), float(Y), float(Z) ->
+    share(X*A + Y*D + Z*G,
+	  X*B + Y*E + Z*H,
+	  X*C + Y*F + Z*I);
+mul_vector({A,B,C,0.0,D,E,F,0.0,G,H,I,0.0,Tx,Ty,Tz,1.0}, {X,Y,Z})
+  when float(A), float(B), float(C), float(D), float(E),
+       float(F), float(G), float(H), float(I), 
+       float(Tx), float(Ty), float(Tz), float(X), float(Y), float(Z) ->
+    share(X*A + Y*D + Z*G,
+	  X*B + Y*E + Z*H,
+	  X*C + Y*F + Z*I).
 
 share(X, X, X) -> {X,X,X};
 share(X, X, Z) -> {X,X,Z};
