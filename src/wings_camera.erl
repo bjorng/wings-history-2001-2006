@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.44 2002/10/02 15:10:31 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.45 2002/10/06 16:58:23 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -185,9 +185,14 @@ nendo(_, _) -> next.
 
 nendo_event(#mousebutton{button=1,state=?SDL_RELEASED}, Camera, _, _, _) ->
     stop_camera(Camera);
-nendo_event(#mousebutton{button=3,state=?SDL_RELEASED}, Camera, _, _, View) ->
-    wings_view:set_current(View),
-    stop_camera(Camera);
+nendo_event(#mousebutton{button=3,state=?SDL_RELEASED}, Camera, Rd, MR, View) ->
+    case sdl_keyboard:getModState() of
+	Mod when Mod band ?CTRL_BITS =/= 0 ->
+	    get_nendo_event(Camera, Rd, MR, View);
+	_Mod ->
+	    wings_view:set_current(View),
+	    stop_camera(Camera)
+    end;
 nendo_event(#mousemotion{x=X,y=Y,state=Buttons}, Camera0, Redraw, true, View) ->
     {Dx,Dy,Camera} = camera_mouse_range(X, Y, Camera0),
     case Buttons band 6 of
