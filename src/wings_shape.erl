@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.59 2003/02/27 19:22:47 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.60 2003/03/12 08:21:01 bjorng Exp $
 %%
 
 -module(wings_shape).
@@ -69,7 +69,7 @@ replace(Id, We0, #st{shapes=Shapes0}=St) ->
 	}).
 
 window(St) ->
-    Name = {object,wings_wm:active_window()},
+    Name = {object,wings_wm:this()},
     case wings_wm:is_window(Name) of
 	true ->
 	    wings_wm:raise(Name),
@@ -203,10 +203,10 @@ update_state_1(#st{sel=Sel,shapes=Shs}=St, Ost) ->
     Ost#ost{st=St,sel=Sel,os=gb_trees:values(Shs),n=gb_trees:size(Shs)}.
 
 update_scroller(#ost{n=0}) ->
-    Name = wings_wm:active_window(),
+    Name = wings_wm:this(),
     wings_wm:set_knob(Name, 0.0, 1.0);
 update_scroller(#ost{first=First,n=N}=Ost) ->
-    Name = wings_wm:active_window(),
+    Name = wings_wm:this(),
     Lines = lines(Ost),
     wings_wm:set_knob(Name, First/N, Lines/N).
     
@@ -384,7 +384,7 @@ toggle_sel_all_1(#we{id=Id,perm=P}, #ost{st=St}) when ?IS_SELECTABLE(P) ->
 toggle_sel_all_1(_, _) -> ok.
 
 toggle_wire(#we{id=Id}, _) ->
-    {_,Client} = wings_wm:active_window(),
+    {_,Client} = wings_wm:this(),
     W0 = wings_wm:get_prop(Client, wireframed_objects),
     W = case gb_sets:is_member(Id, W0) of
 	    false -> gb_sets:insert(Id, W0);
@@ -394,7 +394,7 @@ toggle_wire(#we{id=Id}, _) ->
     wings_wm:dirty().
 
 toggle_wire_all(#we{id=Id}, #ost{st=#st{shapes=Shs}}) ->
-    {_,Client} = wings_wm:active_window(),
+    {_,Client} = wings_wm:this(),
     W0 = wings_wm:get_prop(Client, wireframed_objects),
     W1 = case gb_sets:is_empty(gb_sets:delete_any(Id, W0)) of
 	     true -> gb_sets:from_ordset(gb_trees:keys(Shs));
@@ -457,7 +457,7 @@ draw_objects_1(N, [#we{name=Name}|Wes],
     draw_objects_1(N-1, Wes, Ost, R, Active-1, Y+Lh).
 
 draw_icons(N, Objs, Ost, R, I, Y) ->
-    {_,Client} = wings_wm:active_window(),
+    {_,Client} = wings_wm:this(),
     gl:enable(?GL_TEXTURE_2D),
     gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
     Wires = wings_wm:get_prop(Client, wireframed_objects),
@@ -606,5 +606,5 @@ update_sel(#we{id=Id,perm={SMode,Elems0}}, #st{selmode=Mode,sel=Sel}=St) ->
 update_sel(_, #st{sel=Sel}) -> Sel.
 
 send_client(Message) ->
-    {_,Client} = wings_wm:active_window(),
+    {_,Client} = wings_wm:this(),
     wings_wm:send(Client, Message).
