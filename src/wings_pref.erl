@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.121 2004/05/17 17:51:11 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.122 2004/06/17 09:57:58 raimo_niskanen Exp $
 %%
 
 -module(wings_pref).
@@ -674,6 +674,8 @@ defaults() ->
      {selection_style,solid},
      {hide_sel_while_dragging,false},
      {hide_sel_in_camera_moves,false},
+     {negative_height,24},
+     {negative_width,36},
 
      %% Compatibility preferences.
      {text_display_lists,true},

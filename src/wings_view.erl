@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.151 2004/06/10 05:49:28 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.152 2004/06/17 09:57:59 raimo_niskanen Exp $
 %%
 
 -module(wings_view).
@@ -442,22 +442,279 @@ sel_mirror_objects(St) ->
 		      (_, We, A) -> [We|A]
 		   end, [], St).
 
+
+
+-define(RANGE_FOV, {1.0,180.0}).
+-define(RANGE_NEAR_CLIP, {0.01,1000.0}).
+-define(RANGE_FAR_CLIP, {100.0,infinity}).
+-define(RANGE_ZOOM_SLIDER, {-1.0,4.0}).
+-define(RANGE_NEGATIVE_SIZE, {1,infinity}).
+
 camera() ->
     Active = wings_wm:this(),
     View0 = wings_wm:get_prop(Active, current_view),
+    NegH = wings_pref:get_value(negative_height),
+    NegW = wings_pref:get_value(negative_width),
     #view{fov=Fov0,hither=Hither0,yon=Yon0} = View0,
-    Qs = [{label_column,
-	   [{"Field of View",{text,Fov0,[{range,1.0,180.0}]}},
-	    {"Near Clipping Plane",{text,Hither0,
-				      [{range,0.001,1000.0}]}},
-	    {"Far Clipping Plane",{text,Yon0,
-				   [{range,100.0,9.9e307}]}}]}],
+    NegativeFormat =
+	case {NegH,NegW} of
+	    {24,36} -> {24,36};
+	    {60,60} -> {60,60};
+	    _ -> custom
+	end,
+    Props = 
+	camera_propconv(from_fov, 
+			[{negative_height,NegH},{negative_width,NegW},
+			 {fov,Fov0}]),
+    LensType = pget(lens_type, Props),
+    LensLength = pget(lens_length, Props),
+    Zoom = pget(zoom, Props),
+    ZoomSlider = pget(zoom_slider, Props),
+    FovHook = 
+	fun (update, {Var,_I,Val,Sto}) ->
+		{store,camera_update_1(Var, Val, Sto)};
+	    (_, _) -> void
+	end,
+    LensFrame =
+	{vframe,
+	 [{hframe,
+	   [{label,"Negative Format"},
+	    {menu,
+	     [{"24x36",{24,36}},{"60x60",{60,60}},{"Custom",custom}],
+	     NegativeFormat,
+	     [{key,negative_format},layout,
+	     {hook,
+	      fun (update, {Var,_I,Val,Sto}) ->
+		      {store,camera_update_1(Var, Val, Sto)};
+		  (_, _)  -> void
+	      end}]},
+	    {hframe,
+	     [{text,
+	       NegH,
+	       [{key,negative_height},{range,?RANGE_NEGATIVE_SIZE},
+		{hook,
+		 fun (update, {Var,_I,Val,Sto}) ->
+			 {store,camera_update_1(Var, Val, Sto)};
+		     (_, _)  -> void
+		 end}]},
+	      {label,"x"},
+	      {text,
+	       NegW,
+	       [{key,negative_width},{range,?RANGE_NEGATIVE_SIZE},
+		{hook,
+		 fun (update, {Var,_I,Val,Sto}) ->
+			 {store,camera_update_1(Var, Val, Sto)};
+		     (_, _)  -> void
+		 end}]}],
+	     [{hook,
+	       fun (is_disabled, {_Var,_I,Sto}) ->
+		       gbget(negative_format, Sto) =/= custom;
+		   (update, {Var,_I,Val,Sto}) ->
+		       {store,camera_update_2(Var, Val, Sto)};
+		   (_, _) -> void
+	       end}]}]},
+	  {hframe,
+	   [{menu,
+	     [{"Wide-Angle Lens",wide_angle},
+	      {"Moderate Wide-Angle Lens",moderate_wide_angle},
+	      {"Standard Lens",standard},
+	      {"Portrait Telephoto Lens",short_tele},
+	      {"Telephoto Lens",tele},
+	      {"Custom Lens",custom}],
+	     LensType,
+	     [{key,lens_type},
+	      {hook,
+	       fun (is_minimized, {_Var,_I,Sto}) ->
+		       gbget(negative_format, Sto) =:= custom;
+		   (update, {Var,_I,Val,Sto}) ->
+		       {store,camera_update_2(Var, Val, Sto)};
+		   (_, _) -> void
+	       end}]},
+	    panel,
+	    {label,"Length"},
+	    {text,
+	     LensLength,
+	     [{key,lens_length},
+	      {hook,
+	       fun (update, {Var,_I,Val,Sto}) ->
+		       {store,camera_update_2(Var, Val, Sto)};
+		   (_, _) -> void
+	       end}]}]},
+	  {hframe,
+	   [{slider,
+	     [{key,zoom_slider},{range,?RANGE_ZOOM_SLIDER},
+	      {value,ZoomSlider},
+	      {hook,
+	       fun (update, {Var,_I,Val,Sto}) ->
+		       {store,camera_update_2(Var, Val, Sto)};
+		   (_, _) -> void
+	       end}]},
+	    {text,
+	     Zoom,
+	     [{key,zoom},
+	      {hook,
+	       fun (update, {Var,_I,Val,Sto}) ->
+		       {store,camera_update_2(Var, Val, Sto)};
+		   (_, _) -> void
+	       end}]},
+	    {label,"x Zoom"}]}],
+	 [{title,"Lens"},{minimized,true}]},
+    Qs = 
+	[LensFrame,
+	 {hframe,
+	  [{vframe,[{label,"Field of View"},
+		    {label,"Near Clipping Plane"},
+		    {label, "Far Clipping Plane"}]},
+	   {vframe,[{text,Fov0,[{range,?RANGE_FOV},{key,fov},{hook,FovHook}]},
+		    {text,Hither0,[{range,?RANGE_NEAR_CLIP}]},
+		    {text,Yon0,[{range,?RANGE_FAR_CLIP}]}]},
+	   {vframe,[help_button(camera_settings_fov),
+		    panel,
+		    panel]}]}],
     wings_ask:dialog("Camera Settings", Qs,
-		     fun([Fov,Hither,Yon]) ->
+		     fun([_,
+			  {negative_format,_},
+			  {negative_height,_},{negative_width,_},
+			  {lens_type,_},{lens_length,_},
+			  {zoom_slider,_},{zoom,_},
+			  {fov,Fov},Hither,Yon]=Ps) ->
+			     {NH,NW} = camera_propconv_negative_format(Ps),
 			     View = View0#view{fov=Fov,hither=Hither,yon=Yon},
 			     wings_wm:set_prop(Active, current_view, View),
+			     wings_pref:set_value(negative_height, NH),
+			     wings_pref:set_value(negative_width, NW),
 			     ignore
 		     end).
+
+camera_update_1(Var, Val, Sto) ->
+    Props = gbget(lists:delete(Var, [fov,negative_format,
+				     negative_height,negative_width]), Sto),
+    gbupdate(camera_propconv(from_fov, [{Var,Val}|Props]),
+	     gbupdate(Var, Val, Sto)).
+
+camera_update_2(Var, Val, Sto) ->
+    Props0 = gbget([negative_format,negative_height,negative_width], Sto),
+    Props1 = camera_propconv(fov, [{Var,Val}|Props0])++Props0,
+    Props = camera_propconv(from_fov, Props1)++Props1,
+    gbupdate(proplists:delete(Var, Props), gbupdate(Var, Val, Sto)).
+
+camera_propconv(from_fov, Props) ->
+    {NegH,NegW} = NegF = camera_propconv_negative_format(Props),
+    Fov = pget(fov, Props),
+    LensLength = 
+	case catch 0.5*NegH/math:tan(Fov*math:pi()/360) of
+	    {'EXIT',_} -> 0.0;
+	    L when is_float(L) -> L
+	end,
+    LensType =
+	camera_lens_type(NegF, LensLength),
+    Zoom =
+	LensLength / math:sqrt(NegH*NegH + NegW*NegW),
+    ZoomSlider = 
+	case catch math:log(Zoom) / math:log(2) of
+	    {'EXIT',_} -> 
+		{Z,_} = ?RANGE_ZOOM_SLIDER,
+		Z;
+	    Z when is_float(Z) -> Z
+	end,
+    [{lens_length,LensLength},
+     {lens_type,LensType},
+     {zoom,Zoom},
+     {zoom_slider,wings_util:limit(ZoomSlider, ?RANGE_ZOOM_SLIDER)}];
+camera_propconv(fov, Props) ->
+    {NegH,NegW} = NegF = camera_propconv_negative_format(Props),
+    Zoom = 
+	case pget(zoom_slider, Props) of
+	    undefined -> 
+		pget(zoom, Props);
+	    ZoomSlider ->
+		math:pow(2, ZoomSlider)
+	end,
+    LensLength = 
+	case Zoom of
+	    undefined ->
+		case pget(lens_type, Props) of
+		    custom ->
+			pget(lens_length, Props);
+		    undefined ->
+			pget(lens_length, Props);
+		    LensType -> 
+			camera_lens_length(NegF, LensType)
+		end;
+	    _ ->
+		Zoom * math:sqrt(NegH*NegH + NegW*NegW)
+	end,
+    Fov = 
+	if is_float(LensLength) ->
+		case catch 360*math:atan(0.5*NegH/LensLength)/math:pi() of
+		    {'EXIT',_} -> 180.0;
+		    F when is_float(F) -> F
+		end
+	end,
+    [{fov,wings_util:limit(Fov, ?RANGE_FOV)}].
+
+camera_propconv_negative_format(Props) ->
+    case pget(negative_format, Props) of
+	{_,_} = NegativeFormat -> 
+	    NegativeFormat;
+	_ -> 
+	    {pget(negative_height, Props),
+	     pget(negative_width, Props)}
+    end.
+
+camera_lens_type({24,36}, LensLength) ->
+    case round(LensLength) of
+	24 -> wide_angle;
+	35 -> moderate_wide_angle;
+	50 -> standard;
+	85 -> short_tele;
+	135 -> tele;
+	_ -> custom
+    end;
+camera_lens_type({60,60}, LensLength) ->
+    case round(LensLength) of
+	40 -> wide_angle;
+	60 -> moderate_wide_angle;
+	80 -> standard;
+	150 -> short_tele;
+	250 -> tele;
+	_ -> custom
+    end;
+camera_lens_type(_, _) -> custom.
+
+camera_lens_length({24,36}, LensType) ->
+    float(case LensType of
+	      wide_angle          -> 24;
+	      moderate_wide_angle -> 35;
+	      standard            -> 50;
+	      short_tele          -> 85;
+	      tele                -> 135
+	  end);
+camera_lens_length({60,60}, LensType) ->
+    float(case LensType of
+	      wide_angle          -> 40;
+	      moderate_wide_angle -> 60;
+	      standard            -> 80;
+	      short_tele          -> 150;
+	      tele                -> 250
+	  end);
+camera_lens_length(_, _) -> undefined.
+
+
+
+gbget([], _Sto) -> [];
+gbget([Key|Keys], Sto) -> [{Key,gb_trees:get(Key, Sto)}|gbget(Keys, Sto)];
+gbget(Key, Sto) -> gb_trees:get(Key, Sto).
+
+gbupdate(Key, Val, Sto) -> gb_trees:update(Key, Val, Sto).
+
+gbupdate([], Sto) -> Sto;
+gbupdate([{Key,Val}|KVs], Sto) ->
+    gbupdate(KVs, gbupdate(Key, Val, Sto)).
+
+pget(Key, Props) -> proplists:get_value(Key, Props).
+%%% pget(Key, Props, Default) -> proplists:get_value(Key, Props, Default).
+
 
 
 %%%
@@ -1029,3 +1286,27 @@ pos_legend({X,Y,Z}) ->
     [[if Val < 0 -> $-;
 	 true    -> $+ end,Char] 
      || {Abs,Char,Val} <- L, Abs >= Max*0.4142135624]. % tan(22.5 degrees)
+
+
+
+help_button(Subject) ->
+    Title = help(title, Subject),
+    TextFun = fun () -> help(text, Subject) end,
+    {help,Title,TextFun}.
+
+help(title, camera_settings_fov) ->
+    "Camera Settings: Field of View";
+help(text, camera_settings_fov) ->
+    [<<"Sets the vertical field of view, i.e the "
+      "angle from lower to upper border seen from the camera. ">>,
+     <<"The Lens controls sets the field of view "
+      "according to other perhaps more well-known entities, "
+      "at least for a photographer. "
+      "The negative size is stored among the user preferences.">>,
+     <<"The Lens controls make the height of the picture right for the "
+      "choosen lens, so if you do not have the same aspect ratio "
+      "for the negative size in the Lens frame, as for the size of "
+      "the Geometry window, the width will be in error.">>,
+     <<"Note: the zoom factor is relative a standard lens length of "
+      "the negative diagonal, while only the negative height affects "
+      "the effective lens length.">>].
