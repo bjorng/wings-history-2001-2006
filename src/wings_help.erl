@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.16 2002/07/12 17:45:21 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.17 2002/07/13 06:36:29 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -166,7 +166,7 @@ handle_help_event(quit=Ev, _) ->
 handle_help_event(_, _) -> delete.
 
 redraw({Lines,Xs,Ys}) ->
-    ortho_setup(),
+    wings_io:ortho_setup(),
     wings_io:raised_rect(0, 0, Xs, Ys),
     gl:color3f(0.0, 0.0, 0.0),
     gl:recti(3, 3, Xs-3, Ys-3),
@@ -180,7 +180,7 @@ redraw({Lines,Xs,Ys}) ->
 		  Y+?LINE_HEIGHT
 	  end, 0, Lines);
 redraw(splash) ->
-    ortho_setup(),
+    wings_io:ortho_setup(),
     [_,_,Xs,Ys] = gl:getIntegerv(?GL_VIEWPORT),
     wings_io:raised_rect(0, 0, Xs, Ys),
     gl:color3f(0.0, 0.0, 0.0),
@@ -195,17 +195,3 @@ redraw(splash) ->
     gl:disable(?GL_TEXTURE_2D),
     gl:color3f(0.0, 0.0, 0.0),
     wings_io:text_at(10, 155, "Wings 3D " ++ ?WINGS_VERSION).
-
-ortho_setup() ->
-    [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
-    ?CHECK_ERROR(),
-    gl:pixelStorei(?GL_UNPACK_ALIGNMENT, 1),
-    gl:shadeModel(?GL_FLAT),
-    gl:disable(?GL_DEPTH_TEST),
-    gl:matrixMode(?GL_PROJECTION),
-    gl:loadIdentity(),
-    glu:ortho2D(0.0, W, H, 0.0),
-    gl:matrixMode(?GL_MODELVIEW),
-    gl:loadIdentity(),
-    gl:color3f(0.0, 0.0, 0.0),
-    ?CHECK_ERROR().

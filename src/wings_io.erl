@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.53 2002/06/24 18:43:26 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.54 2002/07/13 06:36:29 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -517,17 +517,17 @@ cleanup_after_drawing() ->
     gl:drawBuffer(?GL_BACK).
 
 ortho_setup() ->
-    #io{w=W,h=H} = get_state(),
     ?CHECK_ERROR(),
+    [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
     gl:pixelStorei(?GL_UNPACK_ALIGNMENT, 1),
     gl:shadeModel(?GL_FLAT),
     gl:disable(?GL_DEPTH_TEST),
     gl:matrixMode(?GL_PROJECTION),
     gl:loadIdentity(),
-    glu:ortho2D(0.0, W, H, 0.0),
+    glu:ortho2D(0, W, H, 0),
     gl:matrixMode(?GL_MODELVIEW),
     gl:loadIdentity(),
-    gl:color3f(0.0, 0.0, 0.0),
+    gl:color3f(0, 0, 0),
     ?CHECK_ERROR().
 
 get_state() ->
