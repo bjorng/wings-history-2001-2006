@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.9 2001/11/23 14:37:53 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.10 2001/11/23 17:25:48 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -26,10 +26,17 @@
 	 op					%add/delete
 	}).
 
+-record(marque,
+	{ox,oy,					%Original X,Y.
+	 cx,cy,					%Current X,Y.
+	 st
+	}).
+
 pick(X, Y, St0) ->
     case do_pick(X, Y, St0) of
 	none ->
-	    Pick = #pick{st=St0},
+	    wings_io:setup_for_drawing(),
+	    Pick = #marque{ox=X,oy=Y,st=St0},
 	    {seq,{push,dummy},get_marque_event(Pick)};
 	{Op,St} ->
 	    wings:redraw(St),
@@ -43,8 +50,40 @@ pick(X, Y, St0) ->
 get_marque_event(Pick) ->
     {replace,fun(Ev) -> marque_event(Ev, Pick) end}.
 
-marque_event(#mousebutton{button=1,state=?SDL_RELEASED}, Pick) -> pop;
+marque_event(#mousemotion{x=X,y=Y}, #marque{cx=Cx,cy=Cy}=M) ->
+    draw_marque(Cx, Cy, M),
+    draw_marque(X, Y, M),
+    get_marque_event(M#marque{cx=X,cy=Y});
+marque_event(#mousebutton{x=X0,y=Y0,button=1,state=?SDL_RELEASED}, M) ->
+    #marque{ox=Ox,oy=Oy,st=St0} = M,
+    wings_io:cleanup_after_drawing(),
+    X = (Ox+X0)/2.0,
+    Y = (Oy+Y0)/2.0,
+    W = abs(Ox-X)*2.0,
+    H = abs(Oy-Y)*2.0,
+    St = case pick_all(X, Y, W, H, St0) of
+	     none -> St0;
+	     St1 ->
+		 wings_io:putback_event({new_selection,St1}),
+		 St1
+	 end,
+    wings:redraw(St),
+    pop;
 marque_event(Event, Pick) -> keep.
+
+draw_marque(undefined, undefined, _) -> ok;
+draw_marque(X, Y, #marque{ox=Ox,oy=Oy}) ->
+    gl:color3f(1.0, 1.0, 1.0),
+    gl:enable(?GL_COLOR_LOGIC_OP),
+    gl:logicOp(?GL_XOR),
+    gl:'begin'(?GL_LINE_LOOP),
+    gl:vertex2i(X, Oy),
+    gl:vertex2i(X, Y),
+    gl:vertex2i(Ox, Y),
+    gl:vertex2i(Ox, Oy),
+    gl:'end'(),
+    gl:flush(),
+    gl:disable(?GL_COLOR_LOGIC_OP).
 
 %%
 %% Drag picking.
@@ -72,7 +111,6 @@ do_pick(X0, Y0, #st{hit_buf=HitBuf,shapes=Shapes,selmode=Mode}=St0) ->
     gl:initNames(),
     
     gl:matrixMode(?GL_PROJECTION),
-    gl:pushMatrix(),
     gl:loadIdentity(),
 
     [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
@@ -83,8 +121,6 @@ do_pick(X0, Y0, #st{hit_buf=HitBuf,shapes=Shapes,selmode=Mode}=St0) ->
     wings_view:perspective(),
     St = select_draw(St0),
 
-    gl:matrixMode(?GL_PROJECTION),
-    gl:popMatrix(),
     gl:flush(),
     case gl:renderMode(?GL_RENDER) of
 	0 -> none;
@@ -123,6 +159,20 @@ update_selection(Id, Item, [], Acc) ->
     {add,reverse(Acc, [{Id,gb_sets:singleton(Item)}])}.
 
 %%%
+%%% Pick up raw hits.
+%%%
+
+get_hits(0, _, Acc) -> sort(Acc);
+get_hits(N, <<NumNames:32,Z0:32,_:32,Tail0/binary>>, Acc) ->
+    <<Names:NumNames/binary-unit:32,Tail/binary>> = Tail0,
+    Name = get_name(NumNames, Names, []),
+    get_hits(N-1, Tail, [{Z0,Name}|Acc]).
+
+get_name(0, Tail, Acc) -> list_to_tuple(reverse(Acc));
+get_name(N, <<Name:32,Names/binary>>, Acc) ->
+    get_name(N-1, Names, [Name|Acc]).
+
+%%%
 %%% Filter hits to obtain just one hit.
 %%%
 
@@ -130,7 +180,7 @@ filter_hits(Hits, X, Y, #st{selmode=Mode,shapes=Shs}) ->
     EyePoint = wings_view:eye_point(),
     filter_hits_1(Hits, Shs, Mode, X, Y, EyePoint).
 
-filter_hits_1([{_,[Id,Face]}|Hits], Shs, Mode, X, Y, EyePoint) ->
+filter_hits_1([{_,{Id,Face}}|Hits], Shs, Mode, X, Y, EyePoint) ->
     #shape{sh=We} = gb_trees:get(Id, Shs),
     Vs = [V|_] = wings_face:surrounding_vertices(Face, We),
     N = wings_face:face_normal(Vs, We),
@@ -141,16 +191,6 @@ filter_hits_1([{_,[Id,Face]}|Hits], Shs, Mode, X, Y, EyePoint) ->
     end;
 filter_hits_1([], St, Mode, X, Y, EyePoint) -> none.
     
-get_hits(0, _, Acc) -> sort(Acc);
-get_hits(N, <<NumNames:32,Z0:32,_:32,Tail0/binary>>, Acc) ->
-    <<Names:NumNames/binary-unit:32,Tail/binary>> = Tail0,
-    Name = get_name(NumNames, Names, []),
-    get_hits(N-1, Tail, [{Z0,Name}|Acc]).
-
-get_name(0, Tail, Acc) -> reverse(Acc);
-get_name(N, <<Name:32,Names/binary>>, Acc) ->
-    get_name(N-1, Names, [Name|Acc]).
-
 %%
 %% Given a selection hit, return the correct vertex/edge/face/body.
 %%
@@ -226,6 +266,98 @@ project(Objx, Objy, ObjZ, ModelMatrix0, ProjMatrix0, [Vx,Vy,Vw,Vh]) ->
     {true,X,Y,Z}.
 
 %%
+%% Pick all in the given rectangle (with center at X,Y).
+%%
+
+pick_all(X0, Y0, W, H, St) ->
+    #st{hit_buf=HitBuf,shapes=Shapes,selmode=Mode} = St,
+    gl:selectBuffer(?HIT_BUF_SIZE, HitBuf),
+    gl:renderMode(?GL_SELECT),
+    gl:initNames(),
+    gl:matrixMode(?GL_PROJECTION),
+    gl:loadIdentity(),
+    [_,_,_,Wh] = ViewPort = gl:getIntegerv(?GL_VIEWPORT),
+    X = float(X0),
+    Y = Wh-float(Y0),
+    glu:pickMatrix(X, Y, W, H, ViewPort),
+    wings_view:perspective(),
+    wings_view:model_transformations(St),
+    marque_draw(St),
+    gl:flush(),
+    case gl:renderMode(?GL_RENDER) of
+	0 -> none;
+	NumHits ->
+ 	    HitData = sdl_util:readBin(HitBuf, ?HIT_BUF_SIZE),
+ 	    Hits = get_all_hits(NumHits, HitData, []),
+	    add_to_selection(Hits, St)
+    end.
+
+get_all_hits(0, _, Acc) -> Acc;
+get_all_hits(N, <<NumNames:32,_:32,_:32,Tail0/binary>>, Acc) ->
+    <<Names:NumNames/binary-unit:32,Tail/binary>> = Tail0,
+    Name = get_name(NumNames, Names, []),
+    get_all_hits(N-1, Tail, [Name|Acc]).
+
+add_to_selection(Hits0, #st{selmode=body}=St) ->
+    Hits1 = sofs:relation(Hits0, [{id,data}]),
+    Hits2 = sofs:domain(Hits1),
+    Zero = sofs:from_term([0], [data]),
+    Hits = sofs:constant_function(Hits2, Zero),
+    add_to_sel_1(Hits, St);
+add_to_selection(Hits0, #st{sel=Sel}=St) ->
+    Hits1 = sofs:relation(Hits0, [{id,data}]),
+    Hits = sofs:relation_to_family(Hits1),
+    add_to_sel_1(Hits, St).
+
+add_to_sel_1(Hits, #st{sel=Sel0}=St) ->
+    Sel1 = [{Id,gb_sets:to_list(Items)} || {Id,Items} <- Sel0],
+    Sel2 = sofs:from_external(Sel1, [{id,[data]}]),
+    Sel3 = sofs:union(Hits, Sel2),
+    Sel4 = sofs:relation_to_family(Sel3),
+    Sel5 = sofs:family_union(Sel4),
+    Sel6 = sofs:to_external(Sel5),
+    Sel = [{Id,gb_sets:from_list(Items)} || {Id,Items} <- Sel6],
+    St#st{sel=Sel}.
+    
+marque_draw(#st{selmode=edge}=St) ->
+    foreach_we(
+      fun(#we{vs=Vtab}=We) ->
+	      gl:pushName(0),
+	      wings_util:foreach_edge(
+		fun(Edge, #edge{vs=Vstart,ve=Vend}, _Sh) ->
+			gl:loadName(Edge),
+			gl:'begin'(?GL_LINES),
+			gl:vertex3fv(lookup_pos(Vstart, Vtab)),
+			gl:vertex3fv(lookup_pos(Vend, Vtab)),
+			gl:'end'()
+		end, We),
+	      gl:popName()
+      end, St);
+marque_draw(#st{selmode=vertex}=St) ->
+    foreach_we(fun(#we{}=We) ->
+		       gl:pushName(0),
+		       wings_util:fold_vertex(
+			 fun(V, #vtx{pos=Pos}, _) ->
+				 gl:loadName(V),
+				 gl:'begin'(?GL_POINTS),
+				 gl:vertex3fv(Pos),
+				 gl:'end'()
+			 end, [], We),
+		       gl:popName()
+	       end, St);
+marque_draw(St) ->
+    foreach_we(fun(We) ->
+		       gl:pushName(0),
+		       wings_util:fold_face(
+			 fun(Face, #face{edge=Edge}, _) ->
+				 gl:loadName(Face),
+				 draw_face(Face, Edge, We)
+			 end, [], We),
+		       gl:popName()
+	       end, St).
+
+
+%%
 %% Draw for the purpose of picking the items that the user clicked on.
 %%
 
@@ -256,32 +388,9 @@ select_draw_1(St) ->
 		       gl:popName()
 	       end, St).
 
-% select_draw_1(#st{selmode=edge}=St) ->
-%     foreach_we(
-%       fun(#we{vs=Vtab}=We) ->
-% 	      gl:pushName(0),
-% 	      wings_util:foreach_edge(
-% 		fun(Edge, #edge{vs=Vstart,ve=Vend}, _Sh) ->
-% 			gl:loadName(Edge),
-% 			gl:'begin'(?GL_LINES),
-% 			gl:vertex3fv(lookup_pos(Vstart, Vtab)),
-% 			gl:vertex3fv(lookup_pos(Vend, Vtab)),
-% 			gl:'end'()
-% 		end, We),
-% 	      gl:popName()
-%       end, St);
-% select_draw_1(#st{selmode=vertex}=St) ->
-%     foreach_we(fun(#we{}=We) ->
-% 		       gl:pushName(0),
-% 		       wings_util:fold_vertex(
-% 			 fun(V, #vtx{pos=Pos}, _) ->
-% 				 gl:loadName(V),
-% 				 gl:'begin'(?GL_POINTS),
-% 				 gl:vertex3fv(Pos),
-% 				 gl:'end'()
-% 			 end, [], We),
-% 		       gl:popName()
-% 	       end, St).
+%%
+%% Utilities.
+%%
 
 lookup_pos(Key, Tree) ->
     #vtx{pos=Pos} = gb_trees:get(Key, Tree),
