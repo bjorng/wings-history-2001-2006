@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.24 2002/04/17 07:19:17 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.25 2002/04/18 12:16:35 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -32,16 +32,21 @@ sub_menu(_St) ->
 command(camera_mode, St) ->
     DefVar = {mode,wings_pref:get_value(camera_mode, blender)},
     ZoomFlag0 = wings_pref:get_value(wheel_zooms, true),
+    ZoomFactor0 = wings_pref:get_value(wheel_zoom_factor, 25),
     Qs = [{vframe,[{alt,DefVar,"Wings/Blender",blender},
 		   {alt,DefVar,"Nendo",nendo},
 		   {alt,DefVar,"3ds max",tds},
 		   {alt,DefVar,"Maya",maya}],
 	   [{title,"Camera Mode"}]},
-	  {"Scroll wheel zooms",ZoomFlag0}],
+	  {vframe,
+	   [{"Wheel zooms",ZoomFlag0},
+	    {hframe,[{label,"Zoom Factor"},{text,ZoomFactor0},{label,"%"}]}],
+	   [{title,"Scroll Wheel"}]}],
     wings_ask:dialog(Qs, St,
-		  fun([Mode,ZoomFlag]) ->
+		  fun([Mode,ZoomFlag,ZoomFactor]) ->
 			  wings_pref:set_value(camera_mode, Mode),
 			  wings_pref:set_value(wheel_zooms, ZoomFlag),
+			  wings_pref:set_value(wheel_zoom_factor, ZoomFactor),
 			  ignore
 		  end).
 
@@ -302,7 +307,7 @@ zoom_step(Dir) ->
 	true ->
 	    wings_wm:dirty(),
 	    #view{distance=Dist} = View = wings_view:current(),
-	    Delta = Dir*Dist/4,
+	    Delta = Dir*Dist*wings_pref:get_value(wheel_zoom_factor)/100,
 	    wings_view:set_current(View#view{distance=Dist+Delta}),
 	    keep
     end.
