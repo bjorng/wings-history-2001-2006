@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.41 2002/12/29 20:29:14 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.42 2002/12/30 16:59:07 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -502,7 +502,12 @@ find_active_1([#win{x=Wx,y=Wy,w=W,h=H,name=Name}|T], X, Y) ->
     end;
 find_active_1(_, _, _) -> find_active_2(none).
 
-find_active_2({controller,_}=Name) -> Name;
+find_active_2({controller,Client}=Name) ->
+    case get(wm_focus) of
+ 	undefined -> Name;
+	Client -> Name;
+ 	Focus -> Focus
+    end;
 find_active_2(Name) ->
     case get(wm_focus) of
  	undefined -> Name;
