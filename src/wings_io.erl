@@ -8,14 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.69 2002/11/23 08:56:45 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.70 2002/11/23 09:04:10 bjorng Exp $
 %%
 
 -module(wings_io).
 -export([init/0,menubar/1,resize/2,
 	 icon_restriction/1,clear_icon_restriction/0,get_icon_restriction/0,
 	 arrow/0,hourglass/0,
-	 draw_ui/1,
 	 update/1,
 	 event/1,button/2,
 	 info/1,message/1,message_right/1,clear_message/0,
@@ -175,26 +174,17 @@ get_icon_restriction() ->
     #io{selmodes=Modes} = get_state(),
     Modes.
 
-draw_ui(St) ->
-    display(fun(Io) -> update(Io, St) end, ?GL_BACK).
-
 update(St) ->
-    display(fun(Io) -> update(Io, St) end, ?GL_BACK).
-
-%% Internal.
-display(F, Buf) ->
     #io{w=W,h=H} = Io = get_state(),
-    gl:drawBuffer(Buf),
     setup_for_drawing(W, H),
-    put_state(F(Io)),
+    update_1(Io, St),
     cleanup_after_drawing(),
     ok.
 
-update(#io{h=H}=Io, St) ->
+update_1(#io{h=H}=Io, St) ->
     draw_icons(Io, St),
     draw_panes(Io),
-    maybe_show_mem_used(H),
-    Io.
+    maybe_show_mem_used(H).
 
 maybe_show_mem_used(H) ->
     case wings_pref:get_value(show_memory_used) of
