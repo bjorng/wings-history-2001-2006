@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_obj.erl,v 1.11 2004/01/04 16:32:31 bjorng Exp $
+%%     $Id: wpc_obj.erl,v 1.12 2004/06/27 11:58:41 bjorng Exp $
 %%
 
 -module(wpc_obj).
@@ -114,9 +114,9 @@ set_pref(KeyVals) ->
     wpa:pref_set(?MODULE, KeyVals).
 
 export_transform(Contents, Attr) ->
-    Mat = e3d_mat:scale(proplists:get_value(export_scale, Attr, 1.0)),
+    Mat = wpa:export_matrix(Attr),
     e3d_file:transform(Contents, Mat).
 
 import_transform(Contents, Attr) ->
-    Mat = e3d_mat:scale(proplists:get_value(import_scale, Attr, 1.0)),
-    e3d_file:transform(Contents, Mat).
+    Mat = wpa:import_matrix(Attr),
+    e3d_file:transform_matrix(Contents, Mat).
