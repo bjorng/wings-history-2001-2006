@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_scale.erl,v 1.26 2002/03/02 21:24:51 bjorng Exp $
+%%     $Id: wings_scale.erl,v 1.27 2002/03/04 19:32:58 bjorng Exp $
 %%
 
 -module(wings_scale).
@@ -77,7 +77,9 @@ inset_face(Face, #we{vs=Vtab}=We, Acc) ->
 	      ToCenter = e3d_vec:sub(Center, Pos),
 	      case catch e3d_vec:dot(Dir, ToCenter) / DirSqr of
 		  {'EXIT',_} ->
-		      wings_util:error("Too small face");
+		      wings_util:error("There are too short edges in one "
+				       "or more selected faces. "
+				       "(Use Cleanup.)");
 		  T0 ->
 		      PerpPos = e3d_vec:add(Pos, e3d_vec:mul(Dir, T0)),
 		      Vec = e3d_vec:sub(Center, PerpPos),

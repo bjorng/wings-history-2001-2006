@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.29 2002/02/10 18:17:11 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.30 2002/03/04 19:32:58 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -57,9 +57,9 @@ serious_yes_no(Question) ->
 stringify({{_,_,_},{_,_,_}}) ->
     "(vector)";
 stringify({Atom,Other}) when is_atom(Atom) ->
-    wings_util:cap(atom_to_list(Atom)) ++ "|" ++ stringify(Other);
+    cap(atom_to_list(Atom)) ++ "|" ++ stringify(Other);
 stringify(Atom) when is_atom(Atom) ->
-    wings_util:cap(atom_to_list(Atom));
+    cap(atom_to_list(Atom));
 stringify(Int) when integer(Int) ->
     integer_to_list(Int);
 stringify(Other) -> "UNKNOWN".
@@ -116,9 +116,10 @@ tc(Fun) ->
 %% Dumping of data structures.
 %% 
 
-show_edge(F, Edge, #edge{vs=Vs,ve=Ve,lf=Lf,rf=Rf,ltpr=Lpred,ltsu=Lsucc,
+show_edge(F, Edge, #edge{vs=Vs,ve=Ve,a=A,b=B,lf=Lf,rf=Rf,ltpr=Lpred,ltsu=Lsucc,
 			 rtpr=Rpred,rtsu=Rsucc}) ->
     io:format(F, "~p: vs=~p ve=~p\n", [Edge,Vs,Ve]),
+    io:format(F, "    a=~p b=~p\n", [A,B]),
     io:format(F, "  left: face=~p pred=~p succ=~p\n", [Lf,Lpred,Lsucc]),
     io:format(F, "  right: face=~p pred=~p succ=~p\n", [Rf,Rpred,Rsucc]).
 

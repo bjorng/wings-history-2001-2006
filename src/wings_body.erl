@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.24 2002/03/04 12:53:11 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.25 2002/03/04 19:32:58 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -57,6 +57,8 @@ command(combine, St) ->
     {save_state,model_changed(combine(St))};
 command(separate, St) ->
     {save_state,model_changed(separate(St))};
+command(auto_smooth, St) ->
+    auto_smooth(St);
 command({auto_smooth,Ask}, St) ->
     auto_smooth(Ask, St);
 command({flip,Plane}, St) ->
@@ -87,7 +89,7 @@ convert_selection(#st{sel=Sel0}=St) ->
 cleanup(Ask, St) when is_atom(Ask) ->
     Qs = [{"Short edges",true,[{key,short_edges}]},
 	  {"Length tolerance",1.0E-3,[{range,{1.0E-5,10.0}}]},
-	  {"Winged Vertices",true,[{key,winged_vs}]}],
+	  {"Isolated Vertices",true,[{key,winged_vs}]}],
     wings_ask:ask(Ask,
 		  {vframe, Qs, [{title,"Remove"}]}, St,
 		  fun(Res) -> {body,{cleanup,Res}} end);

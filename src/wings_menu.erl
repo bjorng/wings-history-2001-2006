@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.29 2002/03/03 16:59:26 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.30 2002/03/04 19:32:58 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -439,7 +439,7 @@ check_option_box(Act, X, Ps, #mi{xleft=Xleft,w=W}) ->
     case have_option_box(Ps) of
 	false -> Act;
 	true ->
-	    Clicked = X >= Xleft+W-2*?CHAR_WIDTH,
+	    Clicked = X >= Xleft+W-3*?CHAR_WIDTH,
 	    {Act,Clicked}
     end.
 
