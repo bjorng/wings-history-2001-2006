@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_image.erl,v 1.3 2001/10/24 12:03:30 dgud Exp $
+%%     $Id: e3d_image.erl,v 1.4 2001/11/01 12:47:20 dgud Exp $
 %%
 
 -module(e3d_image).
@@ -43,6 +43,10 @@ load(FileName, Opts) when list(FileName), list(Opts) ->
 		e3d__tga:load(FileName, Opts);
 	    ".bmp" ->
 		e3d__bmp:load(FileName, Opts);
+	    ".tif" -> 
+		e3d__tif:load(FileName, Opts);
+	    "tiff" -> 
+		e3d__tif:load(FileName, Opts);
 	    _ ->
 		{error, {not_supported, Extension}}
 	end,
@@ -61,6 +65,10 @@ save(Image = #e3d_image{}, Filename, Opts) ->
 	    e3d__tga:save(Image, Filename, Opts);
 	".bmp" ->
 	    e3d__bmp:save(Image, Filename, Opts);
+	".tif" -> 
+	    e3d__tif:save(Image, Filename, Opts);
+	"tiff" -> 
+	    e3d__tif:save(Image, Filename, Opts);
 	_ ->
 	    {error, {not_supported, Extension}}
     end.
@@ -88,7 +96,7 @@ convert(In = #e3d_image{type = FromType, image = Image,
     OrderConv = order_conv(FromOrder, ToOrder),
     
     New = ?MODULE:TypeConv(0, W, Image, OldPaddLength, NewPadd, OrderConv, [[]]),    
-    In#e3d_image{image = New, type = ToType}.
+    In#e3d_image{image = New, type = ToType, alignment = ToAlm, order = ToOrder}.
 
 %% Func: bytes_pp(Type) 
 %% Rets: integer()
