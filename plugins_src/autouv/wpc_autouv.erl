@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.125 2003/07/09 15:59:56 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.126 2003/07/10 09:31:32 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -109,8 +109,7 @@ create_autouv_window(Id, #st{shapes=Shs}=St) ->
     wings_wm:toplevel(Name, Title, {X,Y,highest}, {W,H},
 		      [resizable,closable,menubar,{properties,Props},
 		       {toolbar,fun(N, P, Wi) -> wings:create_toolbar(N, P, Wi) end}], Op),
-    wings_wm:send(Name, {init_uvmapping,We}),
-    keep.
+    wings_wm:send(Name, {init_uvmapping,We}).
 
 auv_event({init_uvmapping,#we{mode=Mode}=We}, St) ->
     wings:init_opengl(St),
@@ -415,9 +414,6 @@ setup_view({Left,Right,Bottom,Top}, Uvs) ->
 	     matname=MatN} = Uvs,
     gl:disable(?GL_CULL_FACE),
     gl:disable(?GL_LIGHTING),
-
-    %%gl:enable(?GL_DEPTH_TEST),
-    %%gl:depthFunc(?GL_ALWAYS),    
 
     gl:matrixMode(?GL_PROJECTION),
     gl:loadIdentity(),
@@ -760,7 +756,8 @@ handle_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,x=MX,y=MY}
 	    CX = if OX > MX -> MX + BW div 2; true -> MX - BW div 2 end,
 	    CY = if OY > MY -> MY + BH div 2; true -> MY - BH div 2 end,
 	    %%		    ?DBG("BW ~p BH ~p Center ~p \n",[BW,BH, {CX,CY}]),
-	    case select(Mode, CX,(OH-CY), BW,BH, Curr0, ViewP) of
+	    case select_1(Mode, CX,(OH-CY), BW,BH, gb_trees:to_list(Curr0),
+			Curr0, ViewP) of
 		none -> 
 		    get_event(Uvs0#uvstate{op = undefined});
 		Hits -> 
@@ -1070,29 +1067,25 @@ select(Mode, X,Y, Objects, {XYS,XM,XYS,YM}=ViewP) ->
     XT = (XM-XYS)*X/UVW+XYS,
     YT = (YM-XYS)*Y/UVH+XYS,
     case find_selectable(XT,YT, gb_trees:to_list(Objects), []) of
-	[] -> 
-	    none;
-	Possible ->
-	    select(Mode, X,Y, 3,3, gb_trees:from_orddict(Possible), ViewP)
+	[] -> none;
+	Possible -> select_1(Mode, X,Y, 3,3, Possible, Objects, ViewP)
     end.
 
-select(Mode, X,Y, W, H, Objects0, {XYS,XM,XYS,YM}) ->
+select_1(Mode, X,Y, W, H, Possible, All, {XYS,XM,XYS,YM}) ->
     {_,_,UVW,UVH} = wings_wm:viewport(),
     HitBuf = get(wings_hitbuf),
     gl:selectBuffer(?HIT_BUF_SIZE, HitBuf),
     gl:renderMode(?GL_SELECT),
     gl:initNames(),
-    [_WX,_WY,WH,WW]= gl:getIntegerv(?GL_VIEWPORT),
     gl:viewport(0,0,UVW,UVH),
     gl:matrixMode(?GL_PROJECTION),
     gl:loadIdentity(),
     glu:pickMatrix(float(X), float(Y), W,H, {0,0,UVW,UVH}),
-    glu:ortho2D(XYS,XM,XYS,YM),
+    glu:ortho2D(XYS, XM, XYS, YM),
     gl:matrixMode(?GL_MODELVIEW),
     gl:loadIdentity(),
-    select_draw(gb_trees:to_list(Objects0), Mode),
+    select_draw(Possible, Mode),
     gl:flush(),
-    gl:viewport(0,0,WH,WW),	    
     case gl:renderMode(?GL_RENDER) of
 	0 -> 
 	    none;
@@ -1100,7 +1093,7 @@ select(Mode, X,Y, W, H, Objects0, {XYS,XM,XYS,YM}) ->
 	    HitData = sdl_util:read(HitBuf, 5*NumHits),
 	    Hits = get_hits(NumHits, HitData),
 	    map(fun(Hit) -> 
-			HitArea = gb_trees:get(Hit, Objects0),
+			HitArea = gb_trees:get(Hit, All),
 			{[Hit], HitArea}
 		end, lists:usort(Hits))
     end.
