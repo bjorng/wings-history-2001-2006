@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.217 2003/02/24 05:02:16 bjorng Exp $
+%%     $Id: wings.erl,v 1.218 2003/02/25 06:55:08 bjorng Exp $
 %%
 
 -module(wings).
@@ -86,7 +86,7 @@ do_spawn(File, Root, Flags) ->
     %% too long.
     Fun = fun() -> init(File, Root) end,
     spawn_opt(erlang, apply, [Fun,[]],
-	      [{fullsweep_after,16384},{min_heap_size,128*1204}|Flags]).
+	      [{fullsweep_after,16384},{min_heap_size,32*1204}|Flags]).
 
 root_dir() ->
     get(wings_root_dir).
