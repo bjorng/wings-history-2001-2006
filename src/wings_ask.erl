@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.149 2003/12/26 08:04:42 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.150 2003/12/26 21:11:18 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -34,7 +34,7 @@
 -define(BUTTON_MASK,
 	(?SDL_BUTTON_LMASK bor ?SDL_BUTTON_MMASK bor ?SDL_BUTTON_RMASK)).
 
--import(lists, [reverse/1,reverse/2,duplicate/2,keysearch/3,member/2]).
+-import(lists, [reverse/1,reverse/2,duplicate/2,keysearch/3,member/2,map/2]).
 
 %%%-define(DEBUG, [event,tree,other]).
 -ifdef(DEBUG).
@@ -233,8 +233,11 @@ ask_unzip([], Labels, Vals) ->
 %% See slider regular field below. This is a {hframe,...} containing
 %% two fields.
 %%
-%%
-%%
+%% {button,{text,Def,Flags}}                    -- Text field with a Browse button
+%%    Flags = [Flag]
+%%    Flag = {props,DialogBoxProperties}|{dialog_type,DialogType}|RegularFlags
+%%    DialogType = open|save
+%% 
 %% Regular fields (dialog tree leafs).
 %% Additional types:
 %%     RegularFlags = [RegularFlag]
@@ -1002,6 +1005,19 @@ mktree({menu,Menu,Def}, Sto, I) ->
 mktree({menu,Menu,Def,Flags}, Sto, I) when is_list(Flags) ->
     mktree_menu(Menu, Def, Sto, I, Flags);
 %%
+mktree({button,{text,_,Flags}=Text}, Sto, I) ->
+    Ps = proplists:get_value(props, Flags),
+    ButtonFlags0 = case proplists:get_value(key, Flags, 0) of
+		       K when is_integer(K) -> [{key,K-1}|Flags];
+		       _ -> Flags
+		   end,
+    ButtonFlags1 = map(fun({key,K}) -> {text_key,K};
+			  (Other) -> Other
+		       end, ButtonFlags0),
+    TextKey = proplists:get_value(text_key, ButtonFlags1),
+    ButtonFlags = [{hook,browse_hook_fun(Ps, TextKey)}|ButtonFlags1],
+    Button = {button,"Browse",keep,ButtonFlags},
+    mktree({hframe,[Text,Button]}, Sto, I);
 mktree({button,Action}, Sto, I) when is_atom(Action) ->
     mktree_button(Action, Sto, I, []);
 mktree({button,Action,Flags}, Sto, I) when is_atom(Action), is_list(Flags) ->
@@ -2136,8 +2152,8 @@ mktree_button(Action, Sto, I, Flags) ->
     mktree_button(button_label(Action), Action, Sto, I, Flags).
 
 mktree_button(Label, Action, Sto, I, Flags) ->
-    W = lists:max([wings_text:width([$\s,$\s|Label]),
-		   wings_text:width(" cancel ")]),
+    W = max(wings_text:width([$\s,$\s|Label]),
+	    wings_text:width(" cancel ")),
     Fun = fun button_event/3,
     Fi = #fi{key=Key} = 
 	mktree_leaf(Fun, enabled, undefined, W, ?LINE_HEIGHT+2+2, I, Flags),
@@ -2171,6 +2187,13 @@ button_event({key,_,_,$\s},
 	{store,Store} -> {Action,Store};
 	Result -> Result
     end;
+button_event({drop,{filename,Filename}}, [#fi{index=Index,flags=Flags}|_], Store) ->
+    case proplists:get_value(text_key, Flags, none) of
+	none ->
+	    keep;
+	TextKey ->
+	    {store,gb_trees:update(var(TextKey, Index), Filename, Store)}
+    end;
 button_event(_Ev, _Path, _Store) -> keep.
 
 button_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #but{label=Label}, DisEnabled) ->
@@ -2194,7 +2217,20 @@ button_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #but{label=Label}, DisEnabled) ->
     gl:color3b(0, 0, 0),
     keep.
 
-
+browse_hook_fun(Ps0, TextKey) ->
+    fun(update, {_,I,_,Sto0}) ->
+	    Name0 = gb_trees:get(var(TextKey, I), Sto0),
+	    Dir = filename:dirname(filename:absname(Name0)),
+	    Ps = [{directory,Dir}|Ps0],
+	    Parent = wings_wm:this(),
+	    F = fun(aborted) -> ignore;
+		   (Name) ->
+			wings_wm:send(Parent, {drop,{filename,Name}})
+		end,
+	    wings_plugin:call_ui({file,open_dialog,Ps,F}),
+	    keep;
+       (_, _) -> void
+    end.
 
 %%%
 %%% Color box.
@@ -2510,7 +2546,18 @@ gen_text_handler({redraw,Active,DisEnabled},
     Val = gb_trees:get(var(Key, I), Store),
     draw_text(Fi, gb_trees:get(-I, Store), Val, DisEnabled, Active);
 gen_text_handler(value, [#fi{key=Key,index=I}|_], Store) ->
-    {value,gb_trees:get(var(Key, I), Store)};
+    {value,gb_trees:get(var(Key, I),Store)};
+gen_text_handler({focus,true}, [#fi{key=Key,index=I}|_], Sto0) ->
+    %% Another field may have updated this field (e.g. a Browse button)
+    %% while we were out of focus. Therefore, don't trust anything in
+    %% #text{} structure (particularily not 'last_val').
+    Ts0 = gb_trees:get(-I, Sto0),
+    K = var(Key, I),
+    Val = gb_trees:get(K, Sto0),
+    ValStr = text_val_to_str(Val),
+    Ts = Ts0#text{first=0,cpos=0,bef=[],sel=length(ValStr),aft=ValStr},
+    Sto = gb_trees:update(-I, Ts#text{last_val=Val},Sto0),
+    {store,Sto};
 gen_text_handler(Ev, [Fi=#fi{key=Key,index=I,hook=Hook,flags=Flags,w=W}|_], Sto0) ->
     #text{last_val=Val0} = Ts0 = gb_trees:get(-I, Sto0),
     K = var(Key, I),
@@ -2518,7 +2565,7 @@ gen_text_handler(Ev, [Fi=#fi{key=Key,index=I,hook=Hook,flags=Flags,w=W}|_], Sto0
 	      Val0 -> Ts0;
 	      Val1 ->
 		  ValStr = text_val_to_str(Val1),
-		  Ts0#text{bef=[],aft=ValStr}
+		  Ts0#text{sel=0,first=0,cpos=0,bef=[],aft=ValStr}
 	  end,
     Ts2 = text_event(Ev, Fi, Ts1),
     Ts = text_adjust_first(Ts2, W),
@@ -2672,9 +2719,6 @@ text_event({focus,false}, _Fi, Ts0) ->
     Ts = validate_string(Ts0),
     Str = get_text(Ts),
     Ts#text{first=0,cpos=0,bef=[],aft=Str,sel=0};
-text_event({focus,true}, _Fi, Ts) ->
-    Str = get_text(Ts),
-    Ts#text{first=0,cpos=0,bef=[],sel=length(Str),aft=Str};
 text_event(#mousebutton{x=X,state=?SDL_PRESSED,button=1}, Fi, Ts0) ->
     text_pos(X, Fi, Ts0);
 text_event(#mousebutton{x=X,state=?SDL_RELEASED,button=1}, Fi,
