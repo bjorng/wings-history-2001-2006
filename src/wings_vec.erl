@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.61 2003/02/17 07:16:29 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.62 2003/02/25 13:33:31 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -223,8 +223,7 @@ redraw(#ss{info=Info}, St) ->
     Message = [wings_util:button_format("Select", [], "Execute"),$\s,
 	       wings_util:rmb_format("Menu")],
     wings_wm:message(Message),
-    wings_draw_util:render(St),
-    wings_io:info(Info),
+    wings:redraw(Info, St),
     wings_wm:current_state(St#st{vec=none}).
 
 set_last_axis(#ss{is_axis=true}, #st{vec={{_,_,_},{_,_,_}}=Vec}) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.79 2003/02/24 06:09:45 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.80 2003/02/25 13:33:33 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -58,14 +58,13 @@
 	{h,					%Handler (fun).
 	 msg=[],				%Current message.
 	 msg_right=[],				%Right-side message.
-	 menubar=none				%Menubar for this window.
+	 menubar=[]				%Menubar for this window.
 	}).
 
 %%%
 %%% Process dictionary usage:
 %%%
 %%% wm_active		Currently active window (handling current event).
-%%% wm_main		Last active window that has a menu.
 %%% wm_focus		Actual focus window (implicitly or grabbed).
 %%% wm_focus_grab	Window name of forced focus window or 'undefined'.
 %%% wm_windows		All windows.
@@ -90,8 +89,6 @@ init() ->
     new(desktop, {0,0,0}, {0,0}, {push,fun desktop_event/1}),
     new(message, {0,0,?Z_LOWEST_DYNAMIC-1}, {0,0},
 	{push,fun message_event/1}),
-    new(menubar, {0,0,?Z_LOWEST_DYNAMIC-1}, {0,0}, init_menubar()),
-    put(wm_main, geom),
     init_opengl(),
     resize_windows(W, H).
 
@@ -285,9 +282,12 @@ update_window(Name, Updates) ->
     dirty().
 
 update_linked_z([N|Ns], Dz) ->
-    #win{z=Z} = Data = get_window_data(N),
-    put_window_data(N, Data#win{z=Z+Dz}),
-    update_linked_z(Ns, Dz);
+    case get_window_data(N) of
+	#win{z=Hidden} when Hidden < 0 -> ok;
+	#win{z=Z}=Data ->
+	    put_window_data(N, Data#win{z=Z+Dz}),
+	    update_linked_z(Ns, Dz)
+    end;
 update_linked_z([], _) -> ok.
 
 update_window_1([{dx,Dx}|T], #win{x=X}=Win) ->
@@ -479,6 +479,10 @@ dispatch_event(#resize{w=W,h=H}) ->
     init_opengl(),
     resize_windows(W, H),
     dirty();
+dispatch_event(quit) ->
+    foreach(fun(Name) ->
+		    send(Name, quit)
+	    end, gb_trees:keys(get(wm_windows)));
 dispatch_event({wm,WmEvent}) ->
     wm_event(WmEvent);
 dispatch_event(Event) ->
@@ -507,13 +511,6 @@ update_focus(Active) ->
 resize_windows(W, H) ->    
     Event = #resize{w=W,h=H},
 
-    MenubarData0 = get_window_data(menubar),
-    MenubarH = ?CHAR_HEIGHT+6,
-    MenubarData1 = MenubarData0#win{x=0,y=0,w=W,h=MenubarH},
-    put_window_data(menubar, MenubarData1),
-    MenubarData = send_event(MenubarData1, Event#resize{w=W}),
-    put_window_data(menubar, MenubarData),
-
     MsgData0 = get_window_data(message),
     MsgH = ?CHAR_HEIGHT+7,
     MsgY = H-MsgH,
@@ -523,7 +520,7 @@ resize_windows(W, H) ->
     put_window_data(message, MsgData),
 
     DesktopData0 = get_window_data(desktop),
-    DesktopData = DesktopData0#win{x=0,y=MenubarH,w=W,h=H-MsgH-MenubarH},
+    DesktopData = DesktopData0#win{x=0,y=0,w=W,h=H-MsgH},
     put_window_data(desktop, DesktopData).
 
 do_dispatch(Active, Ev) ->
@@ -566,17 +563,15 @@ maybe_clear(late, false) ->
 maybe_clear(_, _) -> ok.
 
 clear_background() ->
-    case active_window() of
-	geom -> ok;
-	Name ->
-	    %% "Optimization": Check if we really need to clear the area
-	    %% occupied by the window. We actually lose time on my iMac.
-	    %% But given a slow OpenGL implementation, it should be a
-	    %% win (I hope).
-	    case any_windows_below(Name) of
-		true -> clear_background_1(Name);
-		false -> ok
-	    end
+    Name = active_window(),
+
+    %% "Optimization": Check if we really need to clear the area
+    %% occupied by the window. We actually lose time on my iMac.
+    %% But given a slow OpenGL implementation, it should be a
+    %% win (I hope).
+    case any_window_below(Name) of
+	true -> clear_background_1(Name);
+	false -> ok
     end.
 
 clear_background_1(Name) ->
@@ -601,19 +596,19 @@ clear_background_1(Name) ->
     gl:'end'(),
     gl:popAttrib().
 
-any_windows_below(Name) ->
+any_window_below(Name) ->
     Windows = gb_trees:values(get(wm_windows)),
     #win{x=X,y=Y,z=Z,w=W,h=H} = get_window_data(Name),
-    any_windows_below_1(Windows, Z, {X,Y,W+W,Y+H}).
+    any_window_below_1(Windows, Z, {X,Y,W+W,Y+H}).
 
-any_windows_below_1([#win{z=ThisZ}|T], Z, Rect) when Z < ThisZ; ThisZ =< 0 ->
-    any_windows_below_1(T, Z, Rect);
-any_windows_below_1([W|T], Name, Rect) ->
+any_window_below_1([#win{z=ThisZ}|T], Z, Rect) when Z < ThisZ; ThisZ =< 0 ->
+    any_window_below_1(T, Z, Rect);
+any_window_below_1([W|T], Name, Rect) ->
     case possible_intersection(W, Rect) of
 	true -> true;
-	false -> any_windows_below_1(T, Name, Rect)
+	false -> any_window_below_1(T, Name, Rect)
     end;
-any_windows_below_1([], _, _) -> false.
+any_window_below_1([], _, _) -> false.
 
 possible_intersection(#win{x=X,y=Y,w=W,h=H}, {Left,Top,Right,Bot}) ->
     if
@@ -1009,113 +1004,6 @@ draw_completions(F) ->
     gl:popAttrib(),
 
     Res.
-
-%%
-%% The menubar window.
-%%
-
--define(MENU_MARGIN, 8).
--define(MENU_ITEM_SPACING, 3).
-
--record(mb,
-	{bar=none,
-	 sel=none,
-	 win=none,
-	 st
-	}).
-
-init_menubar() ->
-    {seq,push,get_menu_event(#mb{sel=none})}.
-
-get_menu_event(Mb) ->
-    {replace,fun(Ev) -> menubar_event(Ev, Mb) end}.
-
-menubar_event(redraw, Mb) ->
-    menubar_redraw(Mb);
-menubar_event(got_focus, _) ->
-    dirty();
-menubar_event(quit, _) ->
-    send(geom, quit);
-menubar_event({action,_}=Action, _) ->
-    send(geom, Action);
-menubar_event(clear_menu_selection, Mb) ->
-    dirty(),
-    get_menu_event(Mb#mb{sel=none});
-menubar_event({current_state,St}, Mb) ->
-    get_menu_event(Mb#mb{st=St});
-menubar_event(#mousebutton{button=1,x=X0,state=?SDL_PRESSED},
-	      #mb{sel=Sel}=Mb) ->
-    case menubar_hit(X0, Mb) of
-	none -> keep;
-	{_,Sel,_} -> keep;
-	{X,Name,Fun} -> menu_open(X, Name, Fun, Mb)
-    end;
-menubar_event(#mousemotion{x=X0}, #mb{sel=Sel}=Mb) ->
-    case menubar_hit(X0, Mb) of
-	none -> keep;
-	{_,Sel,_} -> keep;
-	{X,Name,Fun} when Sel =/= none ->
-	    menu_open(X, Name, Fun, Mb);
-	_ -> keep
-    end;
-menubar_event(_, _) -> keep.
-
-menu_open(X, Name, Fun, #mb{win=Win,st=St}=Mb) ->
-    Menu = Fun(St),
-    {_,_,_,H} = viewport(),
-    wings_menu:menu(X, H-1, Win, Name, Menu),
-    get_menu_event(Mb#mb{sel=Name}).
-
-menubar_redraw(Mb) ->
-    {_,_,W,H} = viewport(),
-    wings_io:ortho_setup(),
-    wings_io:set_color(?PANE_COLOR),
-    gl:rectf(0, 0, W, H-1),
-    gl:color3f(0.2, 0.2, 0.2),
-    gl:'begin'(?GL_LINES),
-    gl:vertex2f(0.5, H-1),
-    gl:vertex2f(W, H-1),
-    gl:'end'(),
-    Main = get(wm_main),
-    case get_menubar(Main) of
-	none -> keep;
-	Menubar ->
-	    menubar_redraw_1(Menubar, Mb),
-	    get_menu_event(Mb#mb{bar=Menubar,win=Main})
-    end.
-
-menubar_redraw_1(Menubar, #mb{sel=Sel}) ->
-    menubar_draw(Menubar, ?MENU_MARGIN, Sel).
-
-menubar_draw([{Desc,Name,_}|T], X, Sel) ->
-    W = ?CHAR_WIDTH*(?MENU_ITEM_SPACING+length(Desc)),
-    if
-	Name =:= Sel ->
-	    {_,_,_,H} = viewport(),
-	    wings_io:border(X+2-?MENU_MARGIN, 0,
-			    W, H-2, wings_pref:get_value(menu_color));
-	true -> ok
-    end,
-    gl:color3f(0, 0, 0),
-    wings_io:text_at(X, ?CHAR_HEIGHT, Desc),
-    menubar_draw(T, X+W, Sel);
-menubar_draw([], _, _) -> keep.
-
-menubar_hit(X0, #mb{bar=Bar}=Mb) ->
-    case X0-?MENU_MARGIN of
-	X when X < 0 -> none;
-	X -> menubar_hit_1(Bar, Mb, X, 0)
-    end.
-
-menubar_hit_1([{Desc,Name,Fun}|T], Mb, RelX, X) ->
-    case ?CHAR_WIDTH*length(Desc) of
-	W when RelX < W ->
-	    {X+2,Name,Fun};
-	W ->
-	    Iw = W+?MENU_ITEM_SPACING*?CHAR_WIDTH,
-	    menubar_hit_1(T, Mb, RelX-Iw, X+Iw)
-    end;
-menubar_hit_1([], _, _, _) -> none.
 
 %%%
 %%% Toplevel: create a window and a controller window at the same time.

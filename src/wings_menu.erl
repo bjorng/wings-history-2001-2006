@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.89 2003/02/17 07:16:29 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.90 2003/02/25 13:33:28 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -116,7 +116,7 @@ menu_setup(Type, X0, Y0, Name, Menu0, #mi{ns=Names0,adv=Adv}=Mi0) ->
     Mi = Mi0#mi{ymarg=Margin,shortcut=MwL+1,w=TotalW-10,h=Mh,hs=Hs,
 		sel=none,ns=Names,menu=Menu,adv=Adv,type=Type},
     #mi{level=Level} = Mi,
-    setup_menu_killer(),
+    setup_menu_killer(Mi),
     Op = {seq,push,get_menu_event(Mi)},
     WinName = {menu,Level},
     wings_wm:delete({menu,Level}),
@@ -132,27 +132,33 @@ delete_from(Level) ->
 	    delete_from(Level+1)
     end.
 
-setup_menu_killer() ->
+setup_menu_killer(#mi{owner=Owner}) ->
     case wings_wm:is_window(menu_killer) of
-	true -> ok;
+	true ->
+	    wings_wm:raise(menu_killer);
 	false ->
-	    Op = {push,fun menu_killer/1},
+	    Op = {push,fun(Ev) -> menu_killer(Ev, Owner) end},
 	    {TopW,TopH} = wings_wm:top_size(),
-	    {_,BarH} = wings_wm:win_size(menubar),
-	    wings_wm:new(menu_killer, {0,BarH,highest},
-			 {TopW,TopH-BarH}, Op)
+	    wings_wm:new(menu_killer, {0,0,highest},
+			 {TopW,TopH}, Op)
+    end,
+    Menubar = {menubar,Owner},
+    case wings_wm:is_window(Menubar) of
+	false -> ok;
+	true -> wings_wm:raise(Menubar)
     end.
 
-menu_killer(#mousebutton{button=1,state=?SDL_PRESSED}) ->
-    kill_menus();
-menu_killer(#keyboard{keysym=#keysym{sym=27}}) -> %Escape.
-    kill_menus();
-menu_killer(_) -> keep.
+menu_killer(#mousebutton{button=1,state=?SDL_PRESSED}, Owner) ->
+    kill_menus(Owner);
+menu_killer(#keyboard{keysym=#keysym{sym=27}}, Owner) -> %Escape.
+    kill_menus(Owner);
+menu_killer(_, _) -> keep.
 
-kill_menus() ->    
-    wings_wm:send(menubar, clear_menu_selection),
+kill_menus(Owner) ->
     foreach(fun({menu,_}=Name) ->
 		    wings_wm:delete(Name);
+	       ({menubar,Win}=Name) when Win =:= Owner ->
+		    wings_wm:send(Name, clear_menu_selection);
 	       (_) -> ok
 	    end, wings_wm:windows()),
     delete.
@@ -282,10 +288,13 @@ handle_menu_event(#mi{}=Mi, _) ->				%Key bound/unbound.
 handle_menu_event(clear_submenu, #mi{level=Level}) ->
     delete_from(Level+1);
 handle_menu_event(quit, Mi) ->
-    wings_wm:send(menubar, clear_menu_selection),
-    wings_io:putback_event(quit),
+    clear_menu_selection(Mi),
+    wings_wm:later(quit),
     delete_all(Mi);
 handle_menu_event(_, _) -> keep.
+
+clear_menu_selection(#mi{owner=Owner}) ->
+    wings_wm:send({menubar,Owner}, clear_menu_selection).
 
 mousemotion(X, Y, Mi0) ->
     Mi1 = update_highlight(X, Y, Mi0),
@@ -338,7 +347,7 @@ call_action(X, Act, Button, Ns, Ps, Mi) ->
     end.
 
 do_action(Action, #mi{owner=Owner}=Mi) ->
-    wings_wm:send(menubar, clear_menu_selection),
+    clear_menu_selection(Mi),
     wings_wm:send_after_redraw(Owner, {action,Action}),
     delete_all(Mi).
 
@@ -346,7 +355,7 @@ handle_key(Ev, Mi) ->
     handle_key_1(key(Ev), Mi).
 
 handle_key_1(cancel, Mi) ->
-    wings_wm:send(menubar, clear_menu_selection),
+    clear_menu_selection(Mi),
     delete_all(Mi);
 handle_key_1(delete, Mi0) ->
     %% Delete hotkey bound to this entry.
@@ -419,7 +428,7 @@ popup_submenu(Button, X0, Y0, SubName, SubMenu0,
     case expand_submenu(Button, SubName, SubMenu0, Mi) of
 	ignore -> keep;
 	Action when is_tuple(Action); is_atom(Action) ->
-	    wings_wm:send(menubar, clear_menu_selection),
+	    clear_menu_selection(Mi),
 	    wings_wm:send(Owner, {action,Action}),
 	    delete_all(Mi);
 	SubMenu when is_list(SubMenu) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.56 2003/02/23 10:36:46 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.57 2003/02/25 13:33:31 bjorng Exp $
 %%
 
 -module(wings_shape).
@@ -97,7 +97,7 @@ event(resized, Ost) ->
 event(redraw, Ost) ->
     wings_io:ortho_setup(),
     {W,H} = wings_wm:win_size(),
-    wings_io:border(0, 0, W-0.5, H-1, ?PANE_COLOR),
+    wings_io:border(0, 0, W-1, H-1, ?PANE_COLOR),
     draw_objects(Ost),
     keep;
 event({current_state,St}, Ost0) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.91 2003/02/17 20:56:01 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.92 2003/02/25 13:33:27 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -16,7 +16,7 @@
 	 arrow/0,hourglass/0,
 	 info/1,
 	 blend/2,
-	 border/5,sunken_rect/5,raised_rect/4,raised_rect/5,
+	 border/5,border/6,sunken_rect/5,raised_rect/4,raised_rect/5,
 	 text_at/2,text_at/3,text/1,menu_text/3,space_at/2,
 	 draw_icon/3,draw_icon/5,draw_icon/7,draw_char/1,
 	 set_color/1]).
@@ -109,14 +109,16 @@ blend(Color, Draw) ->
     Draw(Color),
     gl:disable(?GL_BLEND).
     
-border(X0, Y0, Mw0, Mh0, FillColor) ->
+border(X, Y, W, H, FillColor) ->
+    border(X, Y, W, H, FillColor, {0.20,0.20,0.20}).
+
+border(X0, Y0, Mw, Mh, FillColor, BorderColor)
+  when is_integer(X0), is_integer(Y0), is_integer(Mw), is_integer(Mh) ->
     X = X0 + 0.5,
     Y = Y0 + 0.5,
-    Mw = Mw0 - 0.5,
-    Mh = Mh0 + 0.5,
     set_color(FillColor),
-    gl:rectf(X0, Y0, X0+Mw0, Y0+Mh0),
-    gl:color3f(0.20, 0.20, 0.20),
+    gl:rectf(X0, Y0, X0+Mw, Y0+Mh),
+    set_color(BorderColor),
     gl:'begin'(?GL_LINE_LOOP),
     gl:vertex2f(X, Y+Mh),
     gl:vertex2f(X, Y),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.65 2003/02/03 20:58:02 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.66 2003/02/25 13:33:25 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -844,7 +844,7 @@ menu_draw(#fi{x=X,y=Y0,w=W,h=H}, #menu{key=Key,menu=Menu}=M) ->
     wings_io:text_at(X+5, Y, Val),
 
     Xr = X + W-8,
-    wings_io:border(Xr-1.5, Y-9, 10, 10, ?PANE_COLOR),
+    wings_io:border(Xr-1, Y-9, 10, 10, ?PANE_COLOR),
     gl:color3f(0, 0, 0),
     Arrows = <<
 	      2#00010000,

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.16 2003/02/17 19:17:45 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.17 2003/02/25 13:33:33 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -38,21 +38,14 @@ toplevel(Name, Title, Pos, Size, Flags, Op) ->
 	}).
 
 new_controller(Client, Title, Flags) ->
-    TitleBarH = title_height(),
-    {{X,Y},{W0,_}} = wings_wm:win_rect(Client),
     Z = wings_wm:win_z(Client),
     Controller = {controller,Client},
     ctrl_create_windows(reverse(sort(Flags)), Client),
-    W = case wings_wm:is_window({vscroller,Client}) of
-	    false -> W0;
-	    true -> W0 + vscroller_width()
-	end,
-    Size = {W,TitleBarH},
     Cs = #ctrl{title=Title},
-    wings_wm:new(Controller, {X,Y-TitleBarH,Z}, Size,
+    wings_wm:new(Controller, {0,0,Z}, {1,title_height()},
 		 {seq,push,get_ctrl_event(Cs)}),
     wings_wm:link(Client, Controller),
-    ctrl_anchor(Client, Flags, Size, TitleBarH),
+    ctrl_anchor(Client, Flags),
     keep.
 
 ctrl_create_windows([vscroller|Flags], Client) ->
@@ -66,8 +59,6 @@ ctrl_create_windows([{toolbar,Create}|Flags], Client) ->
     Z = wings_wm:win_z(Client),
     Toolbar = {toolbar,Client},
     Create(Toolbar, {X,Y,Z}, W),
-    {_,H} = wings_wm:win_size(Toolbar),
-    wings_wm:update_window(Client, [{dy,H},{dh,-H}]),
     wings_wm:link(Client, Toolbar),
     ctrl_create_windows(Flags, Client);
 ctrl_create_windows([resizable|Flags], Client) ->
@@ -81,22 +72,31 @@ ctrl_create_windows([closable|Flags], Client) ->
 ctrl_create_windows([{properties,Props}|Flags], Client) ->
     foreach(fun({K,V}) -> wings_wm:set_prop(Client, K, V) end, Props),
     ctrl_create_windows(Flags, Client);
+ctrl_create_windows([menubar|Flags], Client) ->
+    Name = create_menubar(Client),
+    wings_wm:link(Client, Name),
+    ctrl_create_windows(Flags, Client);
 ctrl_create_windows([_|Flags], Client) ->
     ctrl_create_windows(Flags, Client);
 ctrl_create_windows([], _) -> [].
 
-ctrl_anchor(Controlled, Flags, Size, TitleBarH) ->
+ctrl_anchor(Client, Flags) ->
     case keysearch(anchor, 1, Flags) of
-	false -> ok;
+	false ->
+	    %% Dummy update to position and size all helper windows properly.
+	    wings_wm:update_window(Client, [{dx,0}]);
 	{value,{anchor,Anchor}} ->
-	    ctrl_anchor_1(Anchor, Controlled, Size, TitleBarH)
+	    {_,Y} = controller_pos(Client),
+	    {_,Cy} = wings_wm:win_ul(Client),
+	    ctrl_anchor_1(Anchor, Client, Cy-Y)
     end.
 
-ctrl_anchor_1(nw, Client, _, Th) ->
+ctrl_anchor_1(nw, Client, Th) ->
     wings_wm:update_window(Client, [{dy,Th}]);
-ctrl_anchor_1(ne, Client, {W,_}, Th) ->
+ctrl_anchor_1(ne, Client, Th) ->
+    W = controller_width(Client),
     wings_wm:update_window(Client, [{dx,-W},{dy,Th}]);
-ctrl_anchor_1(sw, Client, _, Th) ->
+ctrl_anchor_1(sw, Client, Th) ->
     {_,H} = wings_wm:win_size(Client),
     wings_wm:update_window(Client, [{dy,Th-H}]).
 
@@ -153,22 +153,10 @@ ctrl_event(#mousebutton{}=Ev, _) ->
     end,
     keep;
 ctrl_event({window_updated,Client}, _) ->
-    {{X,Y},{W,_}} = wings_wm:win_rect(Client),
+    W = controller_width(Client),
     H = ?LINE_HEIGHT+3,
-    Updates0 = case wings_wm:is_window({vscroller,Client}) of
-		   false -> [];
-		   true -> [{dw,vscroller_width()}]
-	       end,
-    Toolbar = {toolbar,Client},
-    Updates1 = case wings_wm:is_window(Toolbar) andalso
-		   not wings_wm:is_hidden(Toolbar) of
-		   false ->
-		       Updates0;
-		   true ->
-		       {_,ToolbarH} = wings_wm:win_size(Toolbar),
-		       [{dy,-ToolbarH}|Updates0]
-	       end,
-    Updates = [{pos,{X,Y-H}},{w,W},{h,H}|Updates1],
+    Pos = controller_pos(Client),
+    Updates = [{pos,Pos},{w,W},{h,H}],
     Self = {controller,Client},
     wings_wm:update_window(Self, Updates),
     keep;
@@ -196,7 +184,7 @@ ctrl_redraw(#ctrl{title=Title}) ->
 	   end,
     wings_io:blend(wings_pref:get_value(Pref),
 		   fun(C) ->
-			   wings_io:border(0, 0, W-0.5, TitleBarH, C)
+			   wings_io:border(0, 0, W-1, TitleBarH-1, C)
 		   end),
     wings_io:set_color(wings_pref:get_value(title_text_color)),
     wings_io:text_at(10, TitleBarH-5, Title),
@@ -572,7 +560,7 @@ drag(Y0, #ss{knob_prop=Prop,track_pos=TrackPos}) ->
 redraw(#ss{knob_pos=Pos,knob_prop=Prop}) ->
     wings_io:ortho_setup(),
     {W,H} = wings_wm:win_size(),
-    wings_io:border(0.0, 0.0, W-0.5, H, ?PANE_COLOR),
+    wings_io:border(0, 0, W-1, H, ?PANE_COLOR),
     gl:color3f(0.2, 0.2, 0.2),
     gl:rectf(2.5, H*Pos, W-4.5, H*(Pos+Prop)),
     keep.
@@ -615,22 +603,114 @@ close_event({window_updated,Client}) ->
     keep;
 close_event(_) -> keep.
 
-closer_pos(Client) ->
-    {{X0,Y0},{W,_}} = wings_wm:win_rect(Client),
-    TitleH = title_height(),
-    Y1 = Y0 - TitleH + (TitleH-14) div 2 + 1,
-    Toolbar = {toolbar,Client},
-    Y = case wings_wm:is_window(Toolbar) andalso not wings_wm:is_hidden(Toolbar) of
-	    false -> Y1;
-	    true ->
-		{_,ToolbarH} = wings_wm:win_size(Toolbar),
-		Y1-ToolbarH
-	end,
+%%
+%% Menubar for each window.
+%%
+
+-define(MENU_MARGIN, 8).
+-define(MENU_ITEM_SPACING, 2).
+-define(MENU_HEIGHT, (?CHAR_HEIGHT+6)).
+
+-record(mb,
+	{sel=none,
+	 bar=[],
+	 st
+	}).
+
+create_menubar(Client) ->
+    Name = {menubar,Client},
     Z = wings_wm:win_z(Client),
-    case wings_wm:is_window({vscroller,Client}) of
-	false ->  {X0+W-16,Y,Z+1};
-	true -> {X0+W+13-16,Y,Z+1}
+    wings_wm:new(Name, {1,1,Z}, {1,?MENU_HEIGHT},
+		 {seq,push,get_menu_event(#mb{sel=none})}),
+    Name.
+
+get_menu_event(Mb) ->
+    {replace,fun(Ev) -> menubar_event(Ev, Mb) end}.
+
+menubar_event(redraw, Mb) ->
+    menubar_redraw(Mb);
+menubar_event(got_focus, _) ->
+    wings_wm:dirty();
+menubar_event({action,_}=Action, _) ->
+    wings_wm:send(geom, Action);
+menubar_event(clear_menu_selection, Mb) ->
+    {_,Client} = Self = wings_wm:active_window(),
+    wings_wm:update_window(Self, [{z,wings_wm:win_z(Client)}]),
+    wings_wm:dirty(),
+    get_menu_event(Mb#mb{sel=none});
+menubar_event({current_state,St}, Mb) ->
+    get_menu_event(Mb#mb{st=St});
+menubar_event(#mousebutton{button=1,x=X0,state=?SDL_PRESSED},
+	      #mb{sel=Sel}=Mb) ->
+    case menubar_hit(X0, Mb) of
+	none -> keep;
+	{_,Sel,_} -> keep;
+	{X,Name,Fun} -> menu_open(X, Name, Fun, Mb)
+    end;
+menubar_event(#mousemotion{x=X0}, #mb{sel=Sel}=Mb) ->
+    case menubar_hit(X0, Mb) of
+	none -> keep;
+	{_,Sel,_} -> keep;
+	{X,Name,Fun} when Sel =/= none ->
+	    menu_open(X, Name, Fun, Mb);
+	_ -> keep
+    end;
+menubar_event({window_updated,Client}, _) ->
+    Pos = menubar_pos(Client),
+    Size = {controller_width(Client),?MENU_HEIGHT},
+    wings_wm:move(wings_wm:active_window(), Pos, Size),
+    keep;
+menubar_event(_, _) -> keep.
+
+menu_open(Xrel, Name, Fun, #mb{st=St}=Mb) ->
+    Menu = Fun(St),
+    {menubar,Client} = Self = wings_wm:active_window(),
+    wings_wm:raise(Client),
+    {X,Y} = wings_wm:win_ll(Self),
+    wings_menu:menu(X+Xrel, Y-1, Client, Name, Menu),
+    get_menu_event(Mb#mb{sel=Name}).
+
+menubar_redraw(Mb) ->
+    {menubar,Client} = wings_wm:active_window(),
+    wings_io:ortho_setup(),
+    {W,H} = wings_wm:win_size(Client),
+    wings_io:border(0, 0, W-1, H-1, ?PANE_COLOR),
+    Menubar = wings_wm:get_menubar(Client),
+    menubar_redraw_1(Menubar, Mb),
+    get_menu_event(Mb#mb{bar=Menubar}).
+
+menubar_redraw_1(Menubar, #mb{sel=Sel}) ->
+    menubar_draw(Menubar, ?MENU_MARGIN, Sel).
+
+menubar_draw([{Desc,Name,_}|T], X, Sel) ->
+    W = ?CHAR_WIDTH*(?MENU_ITEM_SPACING+length(Desc)),
+    if
+	Name =:= Sel ->
+	    {_,_,_,H} = wings_wm:viewport(),
+	    wings_io:border(X+2-?MENU_MARGIN, 0,
+			    W, H-2, wings_pref:get_value(menu_color));
+	true -> ok
+    end,
+    gl:color3f(0, 0, 0),
+    wings_io:text_at(X, ?CHAR_HEIGHT, Desc),
+    menubar_draw(T, X+W, Sel);
+menubar_draw([], _, _) -> keep.
+
+menubar_hit(X0, #mb{bar=Bar}=Mb) ->
+    case X0-?MENU_MARGIN of
+	X when X < 0 -> none;
+	X -> menubar_hit_1(Bar, Mb, X, 0)
     end.
+
+menubar_hit_1([{Desc,Name,Fun}|T], Mb, RelX, X) ->
+    case ?CHAR_WIDTH*length(Desc) of
+	W when RelX < W ->
+	    {X+2,Name,Fun};
+	W ->
+	    Iw = W+?MENU_ITEM_SPACING*?CHAR_WIDTH,
+	    menubar_hit_1(T, Mb, RelX-Iw, X+Iw)
+    end;
+menubar_hit_1([], _, _, _) -> none.
 
 %%%
 %%% Common utilities.
@@ -639,3 +719,47 @@ closer_pos(Client) ->
 is_resizeable() ->
     {_,Client} = wings_wm:active_window(),
     wings_wm:is_window({resizer,Client}).
+
+controller_pos(Client) ->
+    {_,H} = wings_wm:win_size({controller,Client}),
+    {X,Y} = menubar_pos(Client),
+    {X,Y-H}.
+
+controller_width(Client) ->
+    {W,_} = wings_wm:win_size(Client),
+    case wings_wm:is_window({vscroller,Client}) of
+	false -> W;
+	true -> W + vscroller_width()
+    end.
+
+menubar_pos(Client) ->
+    UL = toolbar_pos(Client),
+    Name = {menubar,Client},
+    case wings_wm:is_window({menubar,Client}) of
+	false -> UL;
+	true ->
+	    {_,H} = wings_wm:win_size(Name),
+	    {X,Y} = UL,
+	    {X,Y-H}
+    end.
+
+toolbar_pos(Client) ->
+    UL = wings_wm:win_ul(Client),
+    Toolbar = {toolbar,Client},
+    case wings_wm:is_window(Toolbar) andalso not wings_wm:is_hidden(Toolbar) of
+	false ->
+	    UL;
+	true ->
+	    {_,ToolbarH} = wings_wm:win_size(Toolbar),
+	    {X,Y} = UL,
+	    {X,Y-ToolbarH}
+    end.
+
+closer_pos(Client) ->
+    {X,_} = wings_wm:win_ul(Client),
+    TitleH = title_height(),
+    {_,Y0} = menubar_pos(Client),
+    Y = Y0 - TitleH + (TitleH-14) div 2 + 1,
+    Z = wings_wm:win_z(Client),
+    W = controller_width(Client),
+    {X+W-16,Y,Z+1}.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.218 2003/02/25 06:55:08 bjorng Exp $
+%%     $Id: wings.erl,v 1.219 2003/02/25 13:33:22 bjorng Exp $
 %%
 
 -module(wings).
@@ -145,16 +145,19 @@ init(File, Root) ->
     caption(St),
     wings_wm:init(),
     init_menubar(),
+
     Op = main_loop_noredraw(St),		%Replace crash handler
 						%with this handler.
+    
     Props = wings_view:initial_properties(),
     {{X,Y},{W,H}} = wings_wm:win_rect(desktop),
-    wings_wm:toplevel(geom, "Geometry", {X,Y,1}, {W,H-20},
+    wings_wm:toplevel(geom, "Geometry", {X,Y,highest}, {W,H-40},
 		      [resizable,{anchor,nw},{toolbar,fun create_toolbar/3},
-		       {properties,Props}],
+		       menubar,{properties,Props}],
 		      Op),
-    open_file(File),
+    wings_wm:menubar(geom, get(wings_menu_template)),
 
+    open_file(File),
     restore_windows(St),
     wings_wm:current_state(St),
     case catch wings_wm:enter_event_loop() of
@@ -184,8 +187,11 @@ new_viewer({X,Y}, Size, ToolbarHidden, St) ->
     wings_wm:toplevel(Name, Title, {X,Y,highest}, Size,
 		      [resizable,closable,{anchor,nw},
 		       {toolbar,fun create_toolbar/3},
+		       menubar,
 		       {properties,Props}],
 		      Op),
+    wings_wm:menubar(Name, get(wings_menu_template)),
+
     if
 	ToolbarHidden -> wings_wm:hide({toolbar,Name});
 	true -> ok
@@ -313,7 +319,10 @@ handle_event_3(redraw, St) ->
     redraw(St),
     main_loop_noredraw(St#st{vec=none});
 handle_event_3(quit, St) ->
-    do_command({file,quit}, St);
+    case wings_wm:active_window() of
+	geom -> do_command({file,quit}, St);
+	_ -> keep
+    end;
 handle_event_3({new_state,St}, St0) ->
     wings_wm:dirty(),
     save_state(St0, St);
@@ -546,7 +555,7 @@ init_menubar() ->
 	     {"Tools",tools,fun tools_menu/1},
 	     {"Window",window,fun window_menu/1},
 	     {"Help",help,fun(St) -> wings_help:menu(St) end}],
-    wings_wm:menubar(geom, Menus).
+    put(wings_menu_template, Menus).
 
 edit_menu(St) ->
     [{"Undo/Redo",undo_toggle},
@@ -1009,13 +1018,7 @@ button_redraw(#but{mode=Mode,buttons=Buttons,sh=Sh0}) ->
     Sh = button_sh_filter(Mode, Sh0),
     wings_io:ortho_setup(),
     {W,H} = wings_wm:win_size(),
-    wings_io:border(0, 0.5, W-0.5, H-1.5, ?PANE_COLOR),
-    gl:color3f(0.20, 0.20, 0.20),
-    gl:'begin'(?GL_LINES),
-    gl:vertex2f(0.5, 0.5),
-    gl:vertex2f(W, 0.5),
-    gl:'end'(),
-    gl:color3f(0, 0, 0),
+    wings_io:border(0, 0, W-1, H-1, ?PANE_COLOR),
     gl:enable(?GL_TEXTURE_2D),
     gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
     foreach(fun({X,Name}) ->

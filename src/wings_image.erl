@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.17 2003/02/25 07:29:25 bjorng Exp $
+%%     $Id: wings_image.erl,v 1.18 2003/02/25 13:33:27 bjorng Exp $
 %%
 
 -module(wings_image).
@@ -337,7 +337,7 @@ redraw(Id) ->
     Aspect = Iw/Ih,
     {W0,H0} = wings_wm:win_size(),
     wings_io:ortho_setup(),
-    wings_io:border(0, 0, W0-0.5, H0-1, ?PANE_COLOR),
+    wings_io:border(0, 0, W0-1, H0-1, ?PANE_COLOR),
     X = 1,
     Y = 1,
     W1 = W0-2,

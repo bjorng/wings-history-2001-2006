@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.26 2003/02/07 18:25:02 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.27 2003/02/25 13:33:30 bjorng Exp $
 %%
 
 -module(wings_outliner).
@@ -61,7 +61,7 @@ get_event(Ost) ->
 event(redraw, Ost) ->
     wings_io:ortho_setup(),
     {W,H} = wings_wm:win_size(),
-    wings_io:border(0, 0, W-0.5, H-1, ?PANE_COLOR),
+    wings_io:border(0, 0, W-1, H-1, ?PANE_COLOR),
     draw_objects(Ost),
     keep;
 event(resized, Ost) ->
