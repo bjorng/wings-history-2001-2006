@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.97 2003/10/21 21:22:10 raimo_niskanen Exp $
+%%     $Id: wings_ask.erl,v 1.98 2003/10/22 15:41:55 raimo_niskanen Exp $
 %%
 
 -module(wings_ask).
@@ -946,14 +946,19 @@ menu_event(init, _Fi, I, Store) ->
 menu_event(value, _Fi, I, Store) ->
     #menu{var=Var} = gb_trees:get(-I, Store),
     {value,gb_trees:get(ck(Var, I), Store)};
-menu_event({key,_,_,$\s}, Fi, I, Store) ->
+menu_event({key,_,_,$\s}, #fi{hook=Hook}=Fi, I, Store) ->
     #menu{var=Var} = M = gb_trees:get(-I, Store),
-    menu_popup(Fi, M, gb_trees:get(ck(Var, I), Store)),
-    keep;
-menu_event(#mousebutton{button=1,state=?SDL_PRESSED}, Fi, I, Store) ->
+    Ck = ck(Var, I),
+    Val = gb_trees:get(Ck, Store),
+    Disabled = hook_menu_disabled(Hook, Ck, I, Store),
+    menu_popup(Fi, M, Val, Disabled);
+menu_event(#mousebutton{button=1,state=?SDL_PRESSED}, #fi{hook=Hook}=Fi, 
+	   I, Store) ->
     #menu{var=Var} = M = gb_trees:get(-I, Store),
-    menu_popup(Fi, M, gb_trees:get(ck(Var, I), Store)),
-    keep;
+    Ck = ck(Var, I),
+    Val = gb_trees:get(Ck, Store),
+    Disabled = hook_menu_disabled(Hook, Ck, I, Store),
+    menu_popup(Fi, M, Val, Disabled);
 menu_event({popup_result,Val}, _Fi, I, Store) ->
     #menu{var=Var} = gb_trees:get(-I, Store),
     {store,gb_trees:update(ck(Var, I), Val, Store)};
@@ -1006,18 +1011,28 @@ menu_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #menu{menu=Menu}, Val, DisEnable) ->
 	 menu					%Tuple.
 	}).
 
-menu_popup(#fi{x=X0,y=Y0,w=W}, #menu{menu=Menu0}, Val) ->
+menu_popup(#fi{x=X0,y=Y0,w=W}, #menu{menu=Menu0}, Val, Disabled) ->
     {X1,Y1} = wings_wm:local2global(X0+?HMARGIN, Y0+?VMARGIN),
-    Sel = popup_find_index(Menu0, Val, 1),
-    Menu = list_to_tuple(Menu0),
-    Mh = size(Menu)*?LINE_HEIGHT,
-    Ps = #popup{parent=wings_wm:this(),sel=Sel,orig_sel=Sel,menu=Menu},
-    Op = {seq,push,get_popup_event(Ps)},
-    X = X1-2*?CHAR_WIDTH,
-    Y = Y1-2-(Sel-1)*?LINE_HEIGHT,
-    wings_wm:new(menu_popup, {X,Y,highest}, {W+2*?CHAR_WIDTH,Mh+10}, Op),
-    wings_wm:grab_focus(menu_popup).
+    case [V || {_,X}=V <- Menu0, not lists:member(X, Disabled)] of
+	[] -> ok;
+	Menu1 ->
+	    Sel = popup_find_index(Menu1, Val),
+	    Menu = list_to_tuple(Menu1),
+	    Mh = size(Menu)*?LINE_HEIGHT,
+	    Ps = #popup{parent=wings_wm:this(),sel=Sel,orig_sel=Sel,menu=Menu},
+	    Op = {seq,push,get_popup_event(Ps)},
+	    X = X1-2*?CHAR_WIDTH,
+	    Y = Y1-2-(Sel-1)*?LINE_HEIGHT,
+	    wings_wm:new(menu_popup, {X,Y,highest}, 
+			 {W+2*?CHAR_WIDTH,Mh+10}, Op),
+	    wings_wm:grab_focus(menu_popup)
+    end,
+    keep.
 
+popup_find_index(Menu, Val) ->
+    popup_find_index(Menu, Val, 1).
+
+popup_find_index([], _Val, _I) -> 1;
 popup_find_index([{_,Val}|_], Val, I) -> I;
 popup_find_index([_|T], Val, I) -> popup_find_index(T, Val, I+1).
 
@@ -1144,6 +1159,7 @@ button_event(_Ev, _Fi, _I, _Store) -> keep.
 
 button_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #but{label=Label}, DisEnable) ->
     Y = Y0+?CHAR_HEIGHT+2,
+    case DisEnable of disable -> gl:enable(?GL_POLYGON_STIPPLE); _ -> ok end,
     blend(fun(Col) ->
 		  case DisEnable of
 		      disable ->
@@ -1161,6 +1177,7 @@ button_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #but{label=Label}, DisEnable) ->
 	    keep;
 	true -> keep
     end,
+    case DisEnable of disable -> gl:disable(?GL_POLYGON_STIPPLE); _ -> ok end,
     DisEnable.
 
 
@@ -1915,8 +1932,8 @@ hook_is_disabled(Hook, Var, I, Store) ->
 	_ when is_function(Hook) ->
 	    case Hook(is_disabled, {Var,I,Store}) of
 		void -> keep;
-		true -> enable;
-		false -> disable
+		true -> disable;
+		false -> enable
 	    end
     end.
 
@@ -1927,6 +1944,16 @@ hook_update(Hook, Var, I, Val, Store) ->
 	_ when is_function(Hook) ->
 	    case Hook(update, {Var,I,Val,gb_trees:update(Var, Val, Store)}) of
 		void -> keep;
+		Result -> Result
+	    end
+    end.
+
+hook_menu_disabled(Hook, Var, I, Store) ->
+    case Hook of
+	undefined -> keep;
+	_ when is_function(Hook) ->
+	    case Hook(menu_disabled, {Var,I,Store}) of
+		void -> [];
 		Result -> Result
 	    end
     end.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.43 2003/09/26 17:34:17 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.44 2003/10/22 15:41:55 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -298,7 +298,7 @@ load_image(Filename) ->
     case wpa:image_read([{filename,Filename},
 			 {alignment,1}]) of
 	#e3d_image{}=Image ->
-	    Id = wings_image:new("Rendered (YafRay)", Image),
+	    Id = wings_image:new_temp("<<Rendered>>", Image),
 	    wings_image:window(Id),
 	    keep;
 	_ ->

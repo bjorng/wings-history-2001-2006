@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_test_ask.erl,v 1.4 2003/10/21 21:22:09 raimo_niskanen Exp $
+%%     $Id: wpc_test_ask.erl,v 1.5 2003/10/22 15:41:55 raimo_niskanen Exp $
 %%
 
 -module(wpc_test_ask).
@@ -159,11 +159,17 @@ command_dialog_r() ->
       {color,{0.0,0.0,1.0}},
       {hframe,[{text,1.23},
 	       {button,"Ok",ok,[{hook,disable_hook(c)}]}]},
-      {menu,[{"A",a},{"B",b},{"C",c}],{m,a}}
+      {menu,[{"A",a},{"B",b},{"C",c}], {m, a},
+       [{hook,fun (menu_disabled, {_Var,_I,Sto}) ->
+		      case gb_trees:get(c, Sto) of
+			  true -> [];
+			  _ -> [c]
+		      end;
+		  (_, _) -> void
+	      end}]}
      ]}.
 
-	   
-%%%    keep
+
 
 color_update(T, {K1,K2}, {Ka,Kb,Kc}) ->
     fun (update, {_Key,Val,Store0}) ->
@@ -193,9 +199,9 @@ color_update(v, V, H, S) ->
 
 disable_hook(V) ->
     fun (is_disabled, {_Var,I,Store}) when integer(V) ->
-	    gb_trees:get(I+V, Store);
+	    not gb_trees:get(I+V, Store);
 	(is_disabled, {_Var,_I,Store}) ->
-	    gb_trees:get(V, Store);
+	    not gb_trees:get(V, Store);
 	(_, _) ->
 	    void
     end.

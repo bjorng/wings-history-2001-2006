@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.86 2003/10/18 19:03:12 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.87 2003/10/22 15:41:56 raimo_niskanen Exp $
 %%
 
 -module(wings_camera).
@@ -59,9 +59,21 @@ command(camera_mode, _St) ->
     #view{fov=Fov0,hither=Hither0,yon=Yon0} = View0,
     Qs = [{vframe,
 	   [{menu,[{"One",1},{"Two",2},{"Three",3}],
-	     wings_pref:get_value(num_buttons)}],
+	     wings_pref:get_value(num_buttons),
+	    [{hook,fun (menu_disabled, {_Var,I,Sto}) ->
+			   Mode = gb_trees:get(I+2, Sto),
+			   case lists:member(Mode, [mirai,maya,tds,mb]) of
+			       true -> [1,2];
+			       _ ->
+				   case Mode of
+				       blender -> [1];
+				       nendo -> []
+				   end
+			   end;
+		       (_, _) -> void
+		   end}]}],
 	   [{title,"Mouse Buttons"}]},
-	  {vframe,camera_modes(),[{title,"Camera Mode"}]},
+	  {vframe,camera_modes(-2),[{title,"Camera Mode"}]},
 	  {vframe,
 	   [{hframe,[{slider,{text,PanSpeed0,
 			      [{range,{1,50}}]}}]}],
@@ -69,7 +81,13 @@ command(camera_mode, _St) ->
 	  {vframe,
 	   [{"Wheel Zooms",ZoomFlag0},
 	    {hframe,[{label,"Zoom Factor"},
-		     {text,ZoomFactor0,[{range,{1,50}}]},{label,"%"}]}],
+		     {text,ZoomFactor0,
+		      [{range,{1,50}},
+		       {hook,fun (is_disabled, {_Var,I,Sto}) ->
+				    not gb_trees:get(I-3, Sto);
+				 (_, _) -> void
+			     end}]},
+		     {label,"%"}]}],
 	   [{title,"Scroll Wheel"}]},
 	  {vframe,
 	   [{label_column,
@@ -106,9 +124,18 @@ again(Mode, Buttons) ->
     wings_util:error("The " ++ desc(Mode) ++ " camera mode requires at least " ++
 		     integer_to_list(Buttons) ++ " buttons.").
       
-camera_modes() ->
+camera_modes(DI) ->
     Modes = [mirai,nendo,maya,tds,blender,mb],
-    [{menu,[{desc(Mode),Mode} || Mode <- Modes],wings_pref:get_value(camera_mode)}].
+    [{menu,[{desc(Mode),Mode} || Mode <- Modes],
+      wings_pref:get_value(camera_mode),
+      [{hook,fun (menu_disabled, {_Var,I,Sto}) ->
+		     case gb_trees:get(I+DI, Sto) of
+			 1 -> [mirai,maya,tds,blender,mb];
+			 2 -> [mirai,maya,tds,mb];
+			 3 -> []
+		     end;
+		 (_, _) -> void
+	     end}]}].
 
 desc(blender) -> "Blender";
 desc(nendo) -> "Nendo";
