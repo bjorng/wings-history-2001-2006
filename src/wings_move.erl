@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_move.erl,v 1.25 2002/01/31 07:43:31 bjorng Exp $
+%%     $Id: wings_move.erl,v 1.26 2002/02/07 11:49:08 bjorng Exp $
 %%
 
 -module(wings_move).
@@ -21,13 +21,13 @@ setup(Type, #st{selmode=body,sel=Sel}=St) ->
     Vec = vector(Type),
     Fun = translate_fun(Vec),
     Ids = [{Id,Fun} || {Id,_} <- Sel],
-    wings_drag:init_drag({matrix,Ids}, constraint(Type), distance, St);
+    wings_drag:setup({matrix,Ids}, unit(Type), flags(Type), St);
 setup(Type, #st{selmode=Mode}=St) ->
     Vec = vector(Type),
     Tvs = wings_sel:fold(fun(Items, We, Acc) ->
 				 setup_1(Mode, We, Items, Vec, Acc)
 			 end, [], St),
-    wings_drag:init_drag(Tvs, constraint(Type), distance, St).
+    wings_drag:setup(Tvs, unit(Type), flags(Type), St).
 
 setup_1(Mode, #we{id=Id}=We, Items, Vec, Acc) ->
     Tv = setup_we(Mode, Vec, Items, We),
@@ -41,7 +41,8 @@ plus_minus(Type, Tvs, St) ->
 plus_minus_1(Type, Constraint, Tvs0, #st{selmode=Mode}=St) ->
     Vec = vector(Type),
     Tvs = plus_minus_2(Mode, Vec, Tvs0, []),
-    wings_drag:init_drag(Tvs, {radius,Constraint}, distance, St#st{inf_r=1.0}).
+    wings_drag:setup(Tvs, unit(Type, [falloff]),
+		     flags(Type), St#st{inf_r=1.0}).
 
 plus_minus_2(Mode, Vec, [{Items,NewVs,We}|T], Acc0) ->
     Tv = setup_we(Mode, Vec, Items, We),
@@ -72,29 +73,34 @@ setup_we(edge, Vec, Items, We) ->
 setup_we(face, Vec, Items, We) ->
     faces_to_vertices(Items, We, Vec).
 
-constraint(free) -> view_dependent;
-constraint(intrude) -> {0.025,1.0E200};
-constraint(Other) -> none.
+unit(Type) ->
+    unit(Type, []).
+
+unit(free, T) -> [dx,dy|T];
+unit(intrude, T) -> [{distance,{0.025,9.0E307}}|T];
+unit(_, T) -> [distance|T].
+
+flags(free) -> [screen_relative];
+flags(_) -> [].
 
 vector({_,{_,_,_}=Vec}) -> Vec;
 vector(Other) -> wings_util:make_vector(Other).
 
 pm_move_fun(Tv) ->
-    fun({Dx,R}, Acc) ->
-	    wings_drag:message([Dx], distance),
+    fun([Dx,R], Acc) ->
 	    foldl(fun({Vec,VsPos}, A) ->
 			  wings_drag:translate(Vec, Dx, VsPos, A)
 		  end, Acc, Tv)
     end.
 
 free_move_fun(MoveSel) ->
-    fun({Dx,Dy,R}, Acc) ->
-	    MoveSel({Dx,Dy}, Acc)
+    fun([Dx,Dy,R], Acc) ->
+	    MoveSel([Dx,Dy], Acc)
     end.
 
 move_away_fun(Tv) ->
-    fun({Dx,R}, Acc) -> move_away(R, Tv, Acc);
-       ({Dx,Dy,R}, Acc) -> move_away(R, Tv, Acc)
+    fun([Dx,R], Acc) -> move_away(R, Tv, Acc);
+       ([Dx,Dy,R], Acc) -> move_away(R, Tv, Acc)
     end.
 
 move_away(R0, Tv, Acc) ->
@@ -314,8 +320,7 @@ smallest_angle([], Na, Dot, N) -> {N,Dot}.
 %%
 
 translate_fun(free) ->
-    fun(Matrix0, {Dx,Dy}) ->
-	    wings_drag:message([Dx,Dy], distance),
+    fun(Matrix0, [Dx,Dy]) ->
 	    #view{azimuth=Az,elevation=El} = wings_view:current(),
 	    M0 = e3d_mat:mul(Matrix0, e3d_mat:rotate(-Az, {0.0,1.0,0.0})),
 	    M1 = e3d_mat:mul(M0, e3d_mat:rotate(-El, {1.0,0.0,0.0})),
@@ -323,8 +328,7 @@ translate_fun(free) ->
 	    e3d_mat:translate(Xt, Yt, Zt)
     end;
 translate_fun({Xt0,Yt0,Zt0}) ->
-    fun(Matrix0, Dx) when float(Dx) ->
-	    wings_drag:message([Dx], distance),
+    fun(Matrix0, [Dx]) when float(Dx) ->
 	    Xt = Xt0*Dx,
 	    Yt = Yt0*Dx,
 	    Zt = Zt0*Dx,
@@ -343,7 +347,7 @@ make_tvs(Vs, Vec, We) -> [{Vec,Vs}].
 move_fun(VsPos) ->
     fun(view_changed, NewWe) ->
 	    move_fun(wings_util:update_vpos(VsPos, NewWe));
-       ({Dx,Dy}, Acc) ->
+       ([Dx,Dy], Acc) ->
 	    #view{azimuth=Az,elevation=El} = wings_view:current(),
 	    M0 = e3d_mat:rotate(-Az, {0.0,1.0,0.0}),
 	    M = e3d_mat:mul(M0, e3d_mat:rotate(-El, {1.0,0.0,0.0})),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_region.erl,v 1.2 2002/01/30 09:12:24 bjorng Exp $
+%%     $Id: wpc_region.erl,v 1.3 2002/02/07 11:49:07 bjorng Exp $
 %%
 
 -module(wpc_region).
@@ -47,20 +47,20 @@ command({face,{move,region}}, St) ->
 		    Id = wpa:obj_id(We),
 		    [{Id,move_region(Faces, We)}|Acc]
 	    end, [], St),
-    wings_drag:init_drag(Tvs, none, percent, St);
+    wpa:drag(Tvs, [distance], St);
 command({face,{scale,region}}, St) ->
     Tvs = wpa:sel_fold(
 	    fun(Faces, We, Acc) ->
 		    Id = wpa:obj_id(We),
 		    [{Id,scale_region(Faces, We)}|Acc]
 	    end, [], St),
-    wings_drag:init_drag(Tvs, {-1.0,?HUGE}, percent, St);
+    wpa:drag(Tvs, [{percent,{-1.0,?HUGE}}], St);
 command({face,{rotate,region}}, St) ->
     Tvs = wpa:sel_fold(
 	    fun(Faces, We, Acc) ->
 		    rotate_region(Faces, We, Acc)
 	    end, [], St),
-    wings_drag:init_drag(Tvs, none, angle, St);
+    wpa:drag(Tvs, [angle], St);
 command({face,{flatten,region}}, St) ->
     wpa:sel_map(
       fun(Faces, We) ->
@@ -139,13 +139,11 @@ rotate_region(OuterVs0, Faces, We, Acc) ->
     [{Id,{Vs,rotate_fun(Center, VsPos, PlaneNormal)}}|Acc].
 
 rotate_fun(Center, VsPos, Axis) ->
-    fun(Dx, A) ->
-	    rotate(Center, Axis, Dx, VsPos, A)
+    fun([Angle], A) ->
+	    rotate(Center, Axis, Angle, VsPos, A)
     end.
 
-rotate({Cx,Cy,Cz}, Axis, Dx, VsPos, Acc0) ->
-    Angle = 15*Dx,
-    wings_drag:message([Angle], angle),
+rotate({Cx,Cy,Cz}, Axis, Angle, VsPos, Acc0) ->
     M0 = e3d_mat:translate(Cx, Cy, Cz),
     M1 = e3d_mat:mul(M0, e3d_mat:rotate(Angle, Axis)),
     M = e3d_mat:mul(M1, e3d_mat:translate(-Cx, -Cy, -Cz)),

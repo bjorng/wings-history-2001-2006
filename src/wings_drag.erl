@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.51 2002/02/03 07:22:41 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.52 2002/02/07 11:49:08 bjorng Exp $
 %%
 
 -module(wings_drag).
--export([init_drag/3,init_drag/4,do_drag/1,message/2,translate/4]).
+-export([setup/3,setup/4,do_drag/1,translate/4]).
 
 -define(NEED_ESDL, 1).
 -define(NEED_OPENGL, 1).
@@ -25,7 +25,7 @@
 -define(DL_DYNAMIC, (?DL_DRAW_BASE+3)).
 
 -import(lists, [foreach/2,map/2,foldl/3,sort/1,keysort/2,
-		reverse/1,concat/1]).
+		reverse/1,concat/1,member/2]).
 
 -record(drag,
 	{x,					%Original 2D position
@@ -35,8 +35,8 @@
 	 xt=0,                                  %Last warp length
 	 yt=0,
 	 tvs,					%[{Vertex,Vec}...]
-	 constraint,				%Constraints for motion
 	 unit,					%Unit that drag is done in.
+	 flags=[],				%Flags.
 	 new,					%New objects.
 	 sel,					%Massaged selection.
 	 matrices=none,				%Transformation matrices.
@@ -48,18 +48,15 @@
 	{faces,
 	 edges}).
 
-init_drag(Tvs, Constraint, St) ->
-    init_drag_1(Tvs, Constraint, none, St).
+setup(Tvs, Unit, St) ->
+    setup(Tvs, Unit, [], St).
 
-init_drag(Tvs, Constraint, Unit, St) ->
-    init_drag_1(Tvs, Constraint, Unit, St).
-
-init_drag_1(Tvs, Constraint, Unit, #st{inf_r=Falloff}=St) ->
+setup(Tvs, Unit, Flags, #st{inf_r=Falloff}=St) ->
     {_,X,Y} = sdl_mouse:getMouseState(),
-    Drag = #drag{x=X,y=Y,constraint=Constraint,unit=Unit,falloff=Falloff},
-    init_drag_2(Tvs, Drag, St).
+    Drag = #drag{x=X,y=Y,unit=Unit,flags=Flags,falloff=Falloff},
+    init_1(Tvs, Drag, St).
 
-init_drag_2(Tvs0, Drag0, #st{selmode=Mode,sel=Sel0}=St0) ->
+init_1(Tvs0, Drag0, #st{selmode=Mode,sel=Sel0}=St0) ->
     St = wings_draw:model_changed(St0),
     wings_draw:make_vec_dlist(St),
     case combine(Tvs0) of
@@ -180,9 +177,8 @@ get_drag_event(Drag) ->
 get_drag_event_1(Drag) ->
     {replace,fun(Ev) -> handle_drag_event(Ev, Drag) end}.
 
-% handle_drag_event(#keyboard{keysym=#keysym{sym=9}}, Drag) ->
-%     numeric_input(Drag);
-%% XXX Not ready yet.
+handle_drag_event(#keyboard{keysym=#keysym{sym=9}}, Drag) ->
+    numeric_input(Drag);
 handle_drag_event(Event, Drag) ->
     case wings_camera:event(Event, fun() -> redraw(Drag) end) of
 	next -> handle_drag_event_1(Event, Drag);
@@ -242,9 +238,10 @@ numeric_input(Drag0) ->
     Move0 = constrain(Dx0, Dy0, Drag1),
     wings_util:ask(true,
 		   make_query(Move0, Drag1),
-		   fun(Vals) ->
+		   fun(aborted) -> keep;
+		      (Move1) ->
+			   Move = make_move(Move1, Drag1),
 			   wings_io:ungrab(),
-			   Move = make_move(Vals),
 			   Drag = motion_update(Move, Drag1),
 			   cleanup(Drag),
 			   St = normalize(Drag),
@@ -253,19 +250,39 @@ numeric_input(Drag0) ->
 			   pop
 		   end).
 
-make_move([Val]) -> Val;
-make_move(Vals) -> list_to_tuple(Vals).
+make_query(Move, #drag{unit=Units}) ->
+    make_query_1(Units, Move).
 
-make_query({Dx,Dy,Dist}, Drag) ->
-    [{"Dx",Dx},{"Dy",Dy},{"Dist:",Dist}];
-make_query({Dx,Dy}, Drag) ->
-    [{"Dx",Dx},{"Dy",Dy}];
-make_query(P, #drag{unit=percent}) ->
-    [{"Percent/100",P}];
-make_query(A, #drag{unit=angle}) ->
-    [{"Angle",A}];
-make_query(Dx, Drag) ->
-    [{"Dx",Dx}].
+make_query_1([{percent,{Min,Max}}|Units], [V|Vals]) ->
+    [{"P",V*100.0}|make_query_1(Units, Vals)];
+make_query_1([percent|Units], [V|Vals]) ->
+    [{"P",V*100.0}|make_query_1(Units, Vals)];
+make_query_1([{U,{Min,Max}}|Units], [V|Vals]) ->
+    [{qstr(U),V}|make_query_1(Units, Vals)];
+make_query_1([U|Units], [V|Vals]) ->
+    [{qstr(U),V}|make_query_1(Units, Vals)];
+make_query_1([], []) -> [].
+
+qstr(distance) -> "Dx";
+qstr(dx) -> "Dx";
+qstr(dy) -> "Dy";
+qstr(falloff) -> "R";
+qstr(angle) -> "A";
+qstr(percent) -> "P";
+qstr(Atom) -> atom_to_list(Atom).
+
+make_move(Move, #drag{unit=Units}) ->
+    make_move_1(Units, Move).
+
+make_move_1([{percent,_}=Unit|Units], [V|Vals]) ->
+    [constrain_range(Unit, V/100)|make_move_1(Units, Vals)];
+make_move_1([percent|Units], [V|Vals]) ->
+    [V/100|make_move_1(Units, Vals)];
+make_move_1([{U,{Min,Max}}=Unit|Units], [V|Vals]) ->
+    make_move_1([U|Units], [constrain_range(Unit, V)|Vals]);
+make_move_1([U|Units], [V|Vals]) ->
+    [V|make_move_1(Units, Vals)];
+make_move_1([], []) -> [].
 
 cleanup(#drag{matrices=none}) -> ok;
 cleanup(#drag{matrices=Mtxs}) ->
@@ -282,11 +299,14 @@ magnet_radius(Sign, #drag{falloff=Falloff0}=Drag0) ->
 	Other -> Drag0
     end.
 
-view_changed(#drag{constraint=view_dependent}=Drag0) ->
-    {_,X,Y} = sdl_mouse:getMouseState(),
-    Drag = Drag0#drag{x=X,y=Y,xs=0,ys=0},
-    view_changed_1(Drag);
-view_changed(Drag) -> Drag.
+view_changed(#drag{flags=Flags}=Drag0) ->
+    case member(screen_relative, Flags) of
+	false -> Drag0;
+	true ->
+	    {_,X,Y} = sdl_mouse:getMouseState(),
+	    Drag = Drag0#drag{x=X,y=Y,xs=0,ys=0},
+	    view_changed_1(Drag)
+    end.
 
 view_changed_1(#drag{matrices=none}=Drag) ->
     #drag{tvs=Tvs0,new=New} = Drag,
@@ -331,42 +351,52 @@ mouse_range(X0, Y0, #drag{x=OX,y=OY,xs=Xs0,ys=Ys0, xt=Xt0, yt=Yt0}=Drag) ->
 	     Drag#drag{xs=Xs,ys=Ys,xt=XD0, yt=YD0}}
     end.
 
-constrain(Dx0, Dy0, #drag{unit=Unit,constraint=Constraint}=Drag) ->
+constrain(Dx0, _Dy, #drag{unit=[angle]}=Drag) ->
+    Dx = case sdl_keyboard:getModState() of
+	     Mod when Mod band ?SHIFT_BITS =/= 0,
+		      Mod band ?CTRL_BITS =/= 0 ->
+		 trunc(150*Dx0)/150;
+	     Mod when Mod band ?CTRL_BITS =/= 0 ->
+		 trunc(15*Dx0)/15;
+	     Mod when Mod band ?SHIFT_BITS =/= 0 ->
+		 float(trunc(Dx0));
+	     Mod -> Dx0
+	 end,
+    [15*Dx];
+constrain(Dx0, Dy0, #drag{unit=Unit,flags=Flags}=Drag) ->
     {Dx,Dy} = case sdl_keyboard:getModState() of
 		  Mod when Mod band ?SHIFT_BITS =/= 0,
 			   Mod band ?CTRL_BITS =/= 0 ->
-		      D = if
-			      Unit == angle -> 150.0;
-			      true -> 100.0
-			  end,
+		      D = 100.0,
 		      {trunc(D*Dx0)/D,trunc(D*Dy0)/D};
 		  Mod when Mod band ?CTRL_BITS =/= 0 ->
-		      D = if
-			      Unit == angle -> 15.0;
-			      true -> 10.0
-			  end,
+		      D = 10.0,
 		      {trunc(D*Dx0)/D,trunc(D*Dy0)/D};
 		  Mod when Mod band ?SHIFT_BITS =/= 0 ->
 		      {float(trunc(Dx0)),float(trunc(Dy0))};
 		  Mod -> {Dx0,Dy0}
 	      end,
-    constrain_1(Constraint, Dx, Dy, Drag).
+    constrain_1(Unit, Dx, Dy, Drag).
 
-constrain_1({radius,view_dependent}, Dx, Dy, #drag{falloff=Falloff}=Drag) ->
-    {Dx,Dy,Falloff};
-constrain_1({radius,none}, Dx, Dy, #drag{falloff=Falloff}=Drag) ->
-    {Dx,Falloff};
-constrain_1(none, Dx, Dy, Drag) -> Dx;
-constrain_1(view_dependent, Dx, Dy, Drag) -> {Dx,Dy};
-constrain_1({Min,Max}, Dx, Dy, Drag) when Dx < Min -> Min;
-constrain_1({Min,Max}, Dx, Dy, Drag) when Dx > Max -> Max;
-constrain_1(Other, Dx, Dy, Drag) -> Dx.
+constrain_1([U], Dx, _Dy, _Drag) ->
+    [constrain_range(U, Dx)];
+constrain_1([U,falloff], Dx, _Dy, #drag{falloff=Falloff}) ->
+    [constrain_range(U, Dx),Falloff];
+constrain_1([U1,U2,falloff], Dx, Dy, #drag{falloff=Falloff}) ->
+    [constrain_range(U1, Dx),constrain_range(U2, Dy),Falloff];
+constrain_1([U1,U2], Dx, Dy, _Drag) ->
+    [constrain_range(U1, Dx),constrain_range(U2, Dy)].
+
+constrain_range({_,{Min,Max}}, D) when D < Min -> Min;
+constrain_range({_,{Min,Max}}, D) when D > Max -> Max;
+constrain_range(_, D) -> D.
 
 %%%
 %%% Update selection for new mouse position.
 %%%
 
 motion_update(Move, #drag{tvs={matrix,Tvs}}=Drag) ->
+    progress(Move, Drag),
     gl:newList(?DL_DYNAMIC_FACES, ?GL_COMPILE),
     Mtxs = foldl(fun({Id,Trans,Matrix0}, Acc) when function(Trans) ->
 			 Matrix = Trans(Matrix0, Move),
@@ -383,6 +413,7 @@ motion_update(Move, #drag{tvs={matrix,Tvs}}=Drag) ->
     gl:endList(),
     Drag#drag{matrices=Mtxs};
 motion_update(Move, #drag{tvs=Tvs,sel=Sel}=Drag) ->
+    progress(Move, Drag),
     gl:newList(?DL_DYNAMIC_FACES, ?GL_COMPILE),
     New = motion_update_1(Tvs, Move, Drag, []),
     gl:endList(),
@@ -399,8 +430,7 @@ motion_update_1([], Move, Drag, A) -> A.
 
 transform_vs([F0|_]=Fs, Move, Drag, Acc) when is_function(F0) ->
     foldl(fun(F, A) -> F(Move, A) end, Acc, Fs);
-transform_vs(Tvs, Dx, Drag, Acc) ->
-    message([Dx], Drag),
+transform_vs(Tvs, [Dx], Drag, Acc) ->
     foldl(fun({Vec,Vs}, A) ->
 		  translate(Vec, Dx, Vs, A)
 	  end, Acc, Tvs).
@@ -412,26 +442,31 @@ translate({Xt0,Yt0,Zt0}, Dx, VsPos, Acc) ->
 		  [{V,Vtx#vtx{pos=Pos}}|A]
 	  end, Acc, VsPos).
 
-message(L, #drag{unit=Unit}) ->
-    message_0(L, Unit);
-message(L, Unit) when is_atom(Unit) ->
-    message_0(L, Unit).
+progress(Move, #drag{unit=Units}) ->
+    Msg = progress_units(Units, Move),
+    wings_io:message(lists:flatten(Msg)).
 
-message_0([_]=L, none) ->
-    message_1("~-10.2f", L);
-message_0([U], percent) ->
-    message_1("P:~10.2f%", [U*100.0]);
-message_0([_]=L, distance) ->
-    message_1("D:~-10.2f", L);
-message_0([_]=L, angle) ->
-    message_1("A:~-10.2f", L);
-message_0([_,_]=L, none) ->
-    message_1("~-10.2f ~-10.2f", L);
-message_0([_,_]=L, distance) ->
-    message_1("DX:~-10.2f DY:~-10.2f", L).
-
-message_1(Format, List) ->
-    wings_io:message(lists:flatten(io_lib:format(Format, List))).
+progress_units([{Unit,_}|Units], [N|Ns]) ->
+    [unit(Unit, N)|progress_units(Units, Ns)];
+progress_units([Unit|Units], [N|Ns]) ->
+    [unit(Unit, N)|progress_units(Units, Ns)];
+progress_units([], []) -> [].
+    
+unit(angle, A) ->
+    io_lib:format("A: ~-10.2f", [A]);
+unit(distance, D) ->
+    io_lib:format("D: ~-10.2f", [D]);
+unit(dx, D) ->
+    io_lib:format("DX: ~-10.2f", [D]);
+unit(dy, D) ->
+    io_lib:format("DY: ~-10.2f", [D]);
+unit(percent, P) ->
+    ["P: ",io_lib:format("~.2f", [P*100.0]),$%];
+unit(falloff, R) ->
+    io_lib:format("R: ~-10.2f", [R]);
+unit(Unit, Move) ->
+    io:format("~p\n", [{Unit,Move}]),
+    [].
 
 normalize(#drag{new=New,matrices=none,st=#st{shapes=Shs0}=St}) ->
     Shs = foldl(fun({Id,We}, A) ->

@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.20 2002/02/06 17:01:09 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.21 2002/02/07 11:49:08 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -42,7 +42,8 @@ bump(Faces, #we{id=Id}=We0, Acc) ->
 bevel(St0) ->
     {St,{Tvs,Sel,Limit}} =
 	wings_sel:mapfold(fun bevel_edges/3, {[],[],1.0E300}, St0),
-    wings_drag:init_drag(Tvs, {0.0,Limit}, wings_sel:set(face, Sel, St)).
+    wings_drag:setup(Tvs, [{distance,{0.0,Limit}}],
+		    wings_sel:set(face, Sel, St)).
 
 bevel_edges(Edges, #we{id=Id,es=Etab,next_id=Next}=We0, {Tvs,Ss,Limit0}) ->
     {We1,OrigVs} = extrude_edges(Edges, We0),
@@ -66,7 +67,7 @@ bevel_edges(Edges, #we{id=Id,es=Etab,next_id=Next}=We0, {Tvs,Ss,Limit0}) ->
 
 bevel_faces(St0) ->
     {St,{Tvs,C}} = wings_sel:mapfold(fun bevel_faces/3, {[],1.0E300}, St0),
-    wings_drag:init_drag(Tvs, {0.0,C}, St).
+    wings_drag:setup(Tvs, [{distance,{0.0,C}}], St).
 
 bevel_faces(Faces, #we{id=Id,es=Etab,next_id=Next}=We0, {Tvs,Limit0}) ->
     Edges = wings_edge:from_faces(Faces, We0),

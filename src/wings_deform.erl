@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_deform.erl,v 1.22 2002/01/27 15:52:32 bjorng Exp $
+%%     $Id: wings_deform.erl,v 1.23 2002/02/07 11:49:08 bjorng Exp $
 %%
 
 -module(wings_deform).
@@ -16,7 +16,7 @@
 
 -include("wings.hrl").
 -import(lists, [map/2,foldl/3,reverse/1]).
--define(HUGE, 1.0E300).
+-define(HUGE, 1.0E307).
 -define(PI, 3.1416).
 -compile({inline,[{mix,2}]}).
 
@@ -80,9 +80,7 @@ expand_effects([], Acc) ->
 
 command(crumple, St) -> crumple(St);
 command(inflate, St) -> inflate(St);
-command({taper,{Primary,Effect}}, St) ->
-    io:format("~p\n", [{Primary,Effect}]),
-    taper(Primary, Effect, St);
+command({taper,{Primary,Effect}}, St) -> taper(Primary, Effect, St);
 command({twist,Axis}, St) -> twist(Axis, St);
 command({twisty_twist,Axis}, St) -> twisty_twist(Axis, St).
 
@@ -92,14 +90,13 @@ command({twisty_twist,Axis}, St) -> twisty_twist(Axis, St).
 
 crumple(St) ->
     Tvs = wings_sel:fold(fun crumple/3, [], St),
-    wings_drag:init_drag(Tvs, {0.0,10.0}, St).
+    wings_drag:setup(Tvs, [{distance,{0.0,10.0}}], St).
 
 crumple(Vs0, #we{id=Id}=We, Acc) ->
     {Sa,Sb,Sc} = now(),
     Vs = gb_sets:to_list(Vs0),
     VsPos = wings_util:add_vpos(Vs, We),
-    Fun = fun(Dx, A) ->
-		  wings_drag:message([Dx], percent),
+    Fun = fun([Dx], A) ->
 		  random:seed(Sa, Sb, Sc),
 		  foldl(fun({V,#vtx{pos={X0,Y0,Z0}}=Rec}, VsAcc) ->
 				{R1,R2,R3} = rnd(Dx/4),
@@ -134,7 +131,7 @@ rnd(Sc) when float(Sc) ->
 
 inflate(St) ->
     Tvs = wings_sel:fold(fun inflate/3, [], St),
-    wings_drag:init_drag(Tvs, none, percent, St).
+    wings_drag:setup(Tvs, [percent], St).
 
 inflate(Vs0, #we{id=Id,vs=Vtab}=We, Acc) ->
     Vs = gb_sets:to_list(Vs0),
@@ -165,7 +162,7 @@ taper(Primary, Effect, St) ->
     Tvs = wings_sel:fold(fun(Vs, We, Acc) ->
 				 taper_2(Vs, We, Primary, Effect, Acc)
 			 end, [], St),
-    wings_drag:init_drag(Tvs, {-1.0,?HUGE}, St).
+    wings_drag:setup(Tvs, [{percent,{-1.0,?HUGE}}], St).
 
 taper_2(Vs, #we{id=Id}=We, Primary, Effect, Acc) ->
     [MinR,MaxR] = wings_vertex:bounding_box(Vs, We),
@@ -184,8 +181,7 @@ taper_3(Id, Vs0, We, Range, Key, Effect, MinR, MaxR, Acc) ->
     Tf = taper_fun(Key, Effect, MinR, MaxR),
     Vs = gb_sets:to_list(Vs0),
     VsPos = wings_util:add_vpos(Vs, We),
-    Fun = fun(Dx, A) ->
-		  wings_drag:message([Dx], percent),
+    Fun = fun([Dx], A) ->
 		  U = Dx + 1.0,
 		  foldl(fun({V,#vtx{pos=Pos0}=Rec}, VsAcc) ->
 				Pos = Tf(U, Pos0),
@@ -235,7 +231,7 @@ twist(Axis, St) ->
     Tvs = wings_sel:fold(fun(Vs, We, Acc) ->
 				 twist(Vs, We, Axis, Acc)
 			 end, [], St),
-    wings_drag:init_drag(Tvs, none, angle, St).
+    wings_drag:setup(Tvs, [angle], St).
 
 twist(Vs0, #we{id=Id}=We, Axis, Acc) ->
     Key = key(Axis),
@@ -287,7 +283,7 @@ twisty_twist(Axis, St) ->
     Tvs = wings_sel:fold(fun(Vs, We, Acc) ->
 				 twisty_twist(Vs, We, Axis, Acc)
 			 end, [], St),
-    wings_drag:init_drag(Tvs, none, angle, St).
+    wings_drag:setup(Tvs, [angle], St).
 
 twisty_twist(Vs0, #we{id=Id}=We, Axis, Acc) ->
     Tf = twisty_twist_fun(Axis),
@@ -336,10 +332,8 @@ key(z) -> 3.
 
 twister_fun(Vs, Tf, Min, Range, We) ->
     VsPos = wings_util:add_vpos(Vs, We),
-    fun(Dx, A) ->
-	    Angle = Dx * 15,
+    fun([Angle], A) ->
 	    U = (Angle / 180.0 * ?PI)/Range,
-	    wings_drag:message([Angle], angle),
 	    foldl(fun({V,#vtx{pos=Pos0}=Rec}, VsAcc) ->
 			  Pos = Tf(U, Min, Pos0),
 			  [{V,Rec#vtx{pos=Pos}}|VsAcc]

@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_scale.erl,v 1.21 2002/01/27 11:46:35 bjorng Exp $
+%%     $Id: wings_scale.erl,v 1.22 2002/02/07 11:49:08 bjorng Exp $
 %%
 
 -module(wings_scale).
@@ -45,34 +45,29 @@ setup(Type, #st{selmode=body}=St) ->
     init_drag({matrix,Tvs}, St).
 
 init_drag(Tvs, St) ->
-    wings_drag:init_drag(Tvs, {-1.0,?HUGE}, percent, St).
+    wings_drag:setup(Tvs, [{percent,{-1.0,?HUGE}}], [], St).
 
 inset(St) ->
     Tvs = wings_sel:fold(
 	    fun(Faces, #we{id=Id}=We, Acc) ->
 		    [{Id,inset(Faces, We)}|Acc]
 	    end, [], St),
-    wings_drag:init_drag(Tvs, {-?HUGE,1}, percent, St).
+    wings_drag:setup(Tvs, [{percent,{-?HUGE,1}}], [], St).
 
 inset(Faces, We) ->
-    inset(gb_sets:iterator(Faces), We, {[],?HUGE}).
+    inset(gb_sets:to_list(Faces), We, {[],?HUGE}).
     
-inset(Iter0, We, {Vs0,Min}=Acc) ->
-    case gb_sets:next(Iter0) of
-	none ->
-	    Vs = map(fun({V,Vec,Dist}) ->
-			     if
-				 Dist > Min ->
-				     {V,e3d_vec:mul(Vec, Min/Dist)};
-				 true -> {V,Vec}
-			     end
-		     end, Vs0),
-	    R = sofs:relation(Vs),
-	    F = sofs:relation_to_family(R),
-	    foldl(fun average_vectors/2, [], sofs:to_external(F));
-	{Face,Iter} ->
-	    inset(Iter, We, inset_face(Face, We, Acc))
-    end.
+inset([Face|Faces], We, Acc) ->
+    inset(Faces, We, inset_face(Face, We, Acc));
+inset([], We, {Vs0,Min}=Acc) ->
+    Vs = map(fun({V,Vec,Dist}) when Dist > Min ->
+		     {V,e3d_vec:mul(Vec, Min/Dist)};
+		({V,Vec,_Dist}) ->
+		     {V,Vec}
+	     end, Vs0),
+    R = sofs:relation(Vs),
+    F = sofs:relation_to_family(R),
+    foldl(fun average_vectors/2, [], sofs:to_external(F)).
 
 inset_face(Face, #we{vs=Vtab}=We, Acc) ->
     Vs0 = wings_face:surrounding_vertices(Face, We),
@@ -129,8 +124,7 @@ faces_to_vertices(Faces0, We, Type) ->
 body_to_vertices(We, Type) ->
     Center = e3d_vec:average(wings_vertex:bounding_box(We)),
     {Xt0,Yt0,Zt0} = filter_vec(Type, {1.0,1.0,1.0}),
-    fun(Matrix0, Dx) when float(Dx) ->
-	    wings_drag:message([Dx], percent),
+    fun(Matrix0, [Dx]) when float(Dx) ->
 	    Xt = 1.01+Xt0*Dx,
 	    Yt = 1.01+Yt0*Dx,
 	    Zt = 1.01+Zt0*Dx,

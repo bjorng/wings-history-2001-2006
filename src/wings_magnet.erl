@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_magnet.erl,v 1.21 2002/01/27 11:50:28 bjorng Exp $
+%%     $Id: wings_magnet.erl,v 1.22 2002/02/07 11:49:08 bjorng Exp $
 %%
 
 -module(wings_magnet).
@@ -39,14 +39,17 @@ command({Type,Dir}, #st{selmode=vertex}=St) ->
     Tvs = wings_sel:fold(fun(Vs, We, Acc) ->
 				 setup_1(Vs, We, Vec, Type, Acc)
 			 end, [], St),
-    wings_drag:init_drag(Tvs, {radius,constraint(Dir)}, St#st{inf_r=1.0}).
+    wings_drag:setup(Tvs, unit(Dir), flags(Dir), St#st{inf_r=1.0}).
 
 setup_1(Vs, #we{id=Id}=We, Vec, Type, Acc) ->
     Tv = vertices_to_vertices(gb_sets:to_list(Vs), We, Type, Vec),
     [{Id,Tv}|Acc].
 
-constraint(free) -> view_dependent;
-constraint(Other) -> none.
+unit(free) -> [dx,dy,falloff];
+unit(_) -> [distance,falloff].
+
+flags(free) -> [screen_relative];
+flags(_) -> [].
 
 directions() ->
     [{"Normal",normal},
@@ -140,19 +143,17 @@ magnet_fun(DF, Vec, Center, VsPos) ->
     fun(view_changed, NewWe) ->
 	    magnet_fun(DF, Center, Vec,
 		       wings_util:update_vpos(VsPos, NewWe));
-       ({Dx,Falloff}, A) ->
+       ([Dx,Falloff], A) ->
 	    move(Dx, Falloff, DF, Vec, Center, VsPos, A);
-       ({Dx,Dy,Falloff}, A) ->
+       ([Dx,Dy,Falloff], A) ->
 	    free_move(Dx, Dy, Falloff, DF, Center, VsPos, A)
     end.
 
 move(Dx, Falloff, DF, Vec0, Center, VsPos, A) ->
-    wings_drag:message([Dx], distance),
     Vec = e3d_vec:mul(Vec0, Dx),
     magnet_move(Falloff, DF, Vec, Center, VsPos, A).
 
 free_move(Dx, Dy, Falloff, DF, Center, VsPos, A) ->
-    wings_drag:message([Dx,Dy], distance),
     #view{azimuth=Az,elevation=El} = wings_view:current(),
     M0 = e3d_mat:rotate(-Az, {0.0,1.0,0.0}),
     M = e3d_mat:mul(M0, e3d_mat:rotate(-El, {1.0,0.0,0.0})),

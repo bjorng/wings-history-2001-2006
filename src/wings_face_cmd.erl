@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.34 2002/02/06 17:01:09 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.35 2002/02/07 11:49:08 bjorng Exp $
 %f%
 
 -module(wings_face_cmd).
@@ -694,16 +694,16 @@ lift_from_edge(Dir, EdgeSel, St0) ->
 	    end, {EdgeSel,[]}, St0),
     case Res of
 	{St,{[],Tvs}} when Dir == rotate ->
-	    wings_drag:init_drag(Tvs, none, angle, St);
+	    wings_drag:setup(Tvs, [angle], St);
 	{St,{[],Tvs}} when Dir == free ->
-	    wings_drag:init_drag(Tvs, view_dependent, distance, St);
+	    wings_drag:setup(Tvs, [dx,dy], [screen_relative], St);
 	{St,{[],Tvs}} ->
-	    wings_drag:init_drag(Tvs, none, distance, St);
+	    wings_drag:setup(Tvs, [distance], St);
 	{_,_} -> lift_sel_mismatch()
     end.
 
 lift_sel_mismatch() ->
-    throw({command_error, "Face and edge selections don't match."}).
+    throw({command_error,"Face and edge selections don't match."}).
 	
 lift_from_edge(Dir, Faces, Edges, We0, Tv) ->
     EsFs0 = wings_face:fold_faces(

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.19 2002/02/06 17:01:09 bjorng Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.20 2002/02/07 11:49:08 bjorng Exp $
 %%
 
 -module(wings_vertex_cmd).
@@ -110,7 +110,8 @@ bevel(#st{sel=Vsel}=St0) ->
 		  {We,{[{Id,Tv}|Tvs],[{Id,Fs}|Fa]}}
 	  end, {[],[]}, St0),
     {Min,Tvs} = bevel_normalize(Tvs0, Vsel),
-    wings_drag:init_drag(Tvs, {0.0,Min}, wings_sel:set(face, FaceSel, St)).
+    wings_drag:setup(Tvs, [{distance,{0.0,Min}}],
+			  wings_sel:set(face, FaceSel, St)).
 
 bevel_vertices(Iter0, Vs, WeOrig, We0, Acc0, Facc) ->
     case gb_sets:next(Iter0) of
@@ -250,7 +251,7 @@ connect(Vs, #we{}=We) ->
 
 tighten(St0) ->
     {St,Tvs} = wings_sel:mapfold(fun tighten/3, [], St0),
-    wings_drag:init_drag(Tvs, none, St).
+    wings_drag:setup(Tvs, [percent], St).
 
 tighten(Vs, #we{id=Id,vs=Vtab}=We, Acc) when is_list(Vs) ->
     Tv = foldl(

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_rotate.erl,v 1.20 2002/02/01 22:39:43 bjorng Exp $
+%%     $Id: wings_rotate.erl,v 1.21 2002/02/07 11:49:08 bjorng Exp $
 %%
 
 -module(wings_rotate).
@@ -47,10 +47,10 @@ setup(Type, #st{selmode=body}=St) ->
     init_drag({matrix,Tvs}, Vec, St).
 
 init_drag(Tvs, Vec, St) ->
-    wings_drag:init_drag(Tvs, constraint(Vec), angle, St).
+    wings_drag:setup(Tvs, [angle], flags(Vec), St).
 
-constraint(free) -> view_dependent;
-constraint(Other) -> none.
+flags(free) -> [screen_relative];
+flags(_) -> [].
 
 make_vector({{_,_,_},{_,_,_}}=VecCenter) -> VecCenter;
 make_vector(Other) -> wings_util:make_vector(Other).
@@ -114,20 +114,16 @@ body_to_vertices(We, Vec) ->
 
 body_rotate_fun(We, free) ->
     {Cx,Cy,Cz} = wings_vertex:center(We),
-    fun(Matrix0, {Dx,Dy}) when float(Dx) ->
-	    wings_drag:message([Dx], angle),
-	    A = 15*Dx,
+    fun(Matrix0, [Angle]) when float(Angle) ->
 	    Vec = view_vector(),
 	    M0 = e3d_mat:mul(Matrix0, e3d_mat:translate(Cx, Cy, Cz)),
-	    M = e3d_mat:mul(M0, e3d_mat:rotate(A, Vec)),
+	    M = e3d_mat:mul(M0, e3d_mat:rotate(Angle, Vec)),
 	    e3d_mat:mul(M, e3d_mat:translate(-Cx, -Cy, -Cz))
     end;
 body_rotate_fun(We, {{Cx,Cy,Cz},Vec}) ->
-    fun(Matrix0, Dx) when float(Dx) ->
-	    A = 15*Dx,
-	    wings_drag:message([A], angle),
+    fun(Matrix0, [Angle]) when float(Angle) ->
 	    M0 = e3d_mat:mul(Matrix0, e3d_mat:translate(Cx, Cy, Cz)),
-	    M = e3d_mat:mul(M0, e3d_mat:rotate(A, Vec)),
+	    M = e3d_mat:mul(M0, e3d_mat:rotate(Angle, Vec)),
 	    e3d_mat:mul(M, e3d_mat:translate(-Cx, -Cy, -Cz))
     end;
 body_rotate_fun(We, Vec) ->
@@ -154,15 +150,11 @@ rotate_fun(Center, VsPos, Axis) ->
 	    NewAxis = view_vector(),
 	    NewVsPos = wings_util:update_vpos(VsPos, NewWe),
 	    rotate_fun(Center, NewVsPos, NewAxis);
-       ({Dx,Dy}, A) ->
-	    rotate(Center, Axis, Dx, VsPos, A);
-       (Dx, A) ->
+       ([Dx], A) ->
 	    rotate(Center, Axis, Dx, VsPos, A)
     end.
 
-rotate({Cx,Cy,Cz}, Axis, Dx, VsPos, Acc0) ->
-    Angle = 15*Dx,
-    wings_drag:message([Angle], angle),
+rotate({Cx,Cy,Cz}, Axis, Angle, VsPos, Acc0) ->
     M0 = e3d_mat:translate(Cx, Cy, Cz),
     M1 = e3d_mat:mul(M0, e3d_mat:rotate(Angle, Axis)),
     M = e3d_mat:mul(M1, e3d_mat:translate(-Cx, -Cy, -Cz)),
