@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.117 2003/11/13 15:25:48 raimo_niskanen Exp $
+%%     $Id: wings_ask.erl,v 1.118 2003/11/13 18:36:28 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -963,16 +963,21 @@ frame_event(#mousemotion{x=Xm,y=Ym,state=Bst},
 	true ->
 	    Minimized = gb_trees:get(key(Key, I), Store),
 	    case Minimized of
-		true -> wings_util:button_message(
-			  "Expand frame and minimize siblings",
-			  "",
-			  "Expand frame");
-		false -> wings_util:button_message(
-			   "Minimize frame", "", "Minimize frame");
-		undefined -> wings_util:button_message("", "", "")
+		true ->
+		    wings_util:button_message(
+		      "Expand this frame; collapse other frames",
+		      "",
+		      "Expand this frame");
+		false ->
+		    wings_util:button_message(
+		      "Collapse this frame", "", "Collapse this frame");
+		undefined ->
+		    wings_wm:message("")
 	    end;
-	false -> wings_util:button_message("", "", "")
-    end;
+	false ->
+	    wings_wm:message("")
+    end,
+    keep;
 frame_event(#mousebutton{x=Xb,y=Yb,button=Button,state=?SDL_RELEASED}, 
 	    Path=[#fi{x=X0,y=Y0}|_], 
 	    Store) ->
