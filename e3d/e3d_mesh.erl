@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mesh.erl,v 1.31 2003/11/03 22:56:57 dgud Exp $
+%%     $Id: e3d_mesh.erl,v 1.32 2003/11/04 13:00:19 dgud Exp $
 %%
 
 -module(e3d_mesh).
@@ -466,13 +466,11 @@ rn_make_map([], _, []) -> gb_trees:empty().
 partition_1(Faces, He0) ->
     E2FL = par_pairs(sofs:to_external(Faces), []),
     E2F0 = sofs:relation(E2FL, [{edge,face}]),
-    %% DBG
+    %% Remove edges which have more than 2 faces.
     ProblematicEds = prob_eds(lists:sort(E2FL), []),
     Del = sofs:set(ProblematicEds, [edge]),
     E2F = sofs:drestriction(E2F0,Del),
-%    io:format("~p: ~p ~p ~n", [?LINE, length(sofs:to_external(E2F0)), 
-%			       length(sofs:to_external(E2F))]), 
-    %% DBG
+    
     F0 = sofs:relation_to_family(E2F),
     CR = sofs:canonical_relation(sofs:range(F0)),
     F1 = sofs:relation_to_family(CR),
@@ -480,38 +478,38 @@ partition_1(Faces, He0) ->
     G = sofs:family_to_digraph(F),
     Cs = digraph_utils:strong_components(G),
     digraph:delete(G),
+
     F2E = sofs:converse(E2F),
     He = sofs:set(He0, [edge]),
+    %% Find faces where all edges are bad and thus the face has been lost.
+    LostFaces0 = sofs:difference(sofs:range(E2F0), sofs:range(E2F)),
+    LostFaces = sofs:to_external(LostFaces0),
     foldl(fun(C, A) ->
 		  Part = sofs:set(C, [face]),
 		  FacePart0 = sofs:restriction(Faces, Part),
-		  %% DBG 
-		  E2FNew = sofs:to_external(FacePart0),
-		  FacePart1 = 
-		      case prob_eds(lists:sort(par_pairs(E2FNew,[])), []) of
-			  [] -> FacePart0;
-			  Edges -> 
-%			      io:format("Still got probs ~p ~n", [Edges]),
-			      Eds = sofs:set(Edges,[edge]),
-			      Bad = sofs:restriction(E2F0, Eds),
-			      BadF0 = sofs:relation_to_family(Bad),
-			      BadF1 = sofs:to_external(sofs:range(BadF0)),
-			      %% I'm desperate 
-			      %% Delete some faces that cause problems..
-			      BadF2 = [BFs || [_,_|BFs] <- BadF1],
-			      DelF = sofs:set(lists:append(BadF2), [face]),
-% 			      io:format("bad ~p~ndel ~p~n", 
-% 					[BadF1,
-% 					 BadF2]),
-			      sofs:drestriction(FacePart0, DelF)
-		      end,
-		  %% DBG
-		  FacePart = sofs:to_external(FacePart1),
 		  Es0 = sofs:image(F2E, Part),
 		  Es1 = sofs:intersection(He, Es0),
 		  Es = sofs:to_external(Es1),
-		  [{FacePart,Es}|A]
-	  end, [], Cs).
+		  FNew = sofs:to_external(FacePart0),
+		  case prob_eds(lists:sort(par_pairs(FNew,[])), []) of
+		      [] -> 
+			  [{FNew,Es}|A];
+		      Edges -> 
+			  %%  io:format("Still got probs ~p ~n", [Edges]),
+			  Eds = sofs:set(Edges,[edge]),
+			  Bad = sofs:restriction(E2F0, Eds),
+			  BadF0 = sofs:relation_to_family(Bad),
+			  BadF1 = sofs:to_external(sofs:range(BadF0)),
+			  %% I'm desperate 
+			  %% Delete some faces that cause problems..
+			  BadF2 = [BFs || [_,_|BFs] <- BadF1],
+			  DelF = sofs:set(lists:append(BadF2), [face]),
+			  Good = sofs:drestriction(FacePart0, DelF),
+			  Other0 = sofs:restriction(FacePart0, DelF),
+			  Other = [{[Face],Es} || Face <- sofs:to_external(Other0)],
+			  Other ++ [{sofs:to_external(Good),Es}|A]
+		  end
+	  end, [], [LostFaces|Cs]).
 
 par_pairs([{Face,#e3d_face{vs=Vs}}|Fs], Acc) ->
     par_pairs(Fs, par_pairs_1(Vs, Vs, Face, Acc));
