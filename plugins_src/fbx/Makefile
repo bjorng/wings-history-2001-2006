@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.4 2005/03/12 09:28:51 bjorng Exp $
+#     $Id: Makefile,v 1.5 2005/04/06 17:49:32 bjorng Exp $
 #
 FBXSDK = FBXSDK60
 LIBDIR=../../plugins/fbx
@@ -60,7 +60,7 @@ LD_FLAGS = $(OS_LDFLAGS) $(LIBS)
 LIBS = -L$(LIB_DIR) -lfbxsdk
 
 ERLC = erlc
-ERLC_FLAGS = -I$(WINGS_E3D) -o $(LIBDIR)
+ERLC_FLAGS = -I$(WINGS_E3D) -o $(LIBDIR) +debug_info
 
 OBJS = wings_fbx_driver.$(OBJ) wings_fbx.$(OBJ)
 
