@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile.win32,v 1.4 2002/05/13 10:48:19 bjorng Exp $
+#     $Id: Makefile.win32,v 1.5 2002/05/16 07:07:32 bjorng Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -24,6 +24,7 @@ ESDL_PATH=..\..\..\esdl
 TARGET_FILES= \
 	$(EBIN)\wpc_region.beam \
 	$(EBIN)\wpc_triquad_cmd.beam \
+	$(EBIN)\wpc_turnedge.beam \
 	$(EBIN)\wpc_tweak.beam
 
 REMOVE_FILES=$(TARGET_FILES:.beam=.removed)
