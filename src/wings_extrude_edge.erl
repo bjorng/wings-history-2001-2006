@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.60 2004/11/13 04:39:26 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.61 2004/12/14 07:29:45 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -98,7 +98,7 @@ bevel_faces(Faces, #we{id=Id,mirror=MirrorFace}=We0, {Tvs,Limit0}) ->
     {We1,OrigVs,_,Forbidden} = extrude_edges(Edges, Dist, We0#we{mirror=none}),
     case {gb_trees:size(We0#we.es),gb_trees:size(We1#we.es)} of
 	{Same,Same} ->
-	wings_util:error(?STR(bevel_faces,1,"Object is too small to bevel."));
+	    wings_util:error(?__(1,"Object is too small to bevel."));
 	{_,_} ->
 	    We2 = wings_edge:dissolve_edges(Edges, We1),
 	    Tv0 = bevel_tv(OrigVs, We2, Forbidden),
@@ -151,7 +151,12 @@ bevel_limit(Tv, We, Limit) ->
 		       bevel_limit_1(V, Vec, We, A)
 	       end, [], Tv),
     L = wings_util:rel2fam(L0),
-    bevel_min_limit(L, We, Limit).
+    try
+	bevel_min_limit(L, We, Limit)
+    catch
+	error:badarith ->
+	    extrude_problem()
+    end.
 
 bevel_limit_1(V, Vec, #we{vp=Vtab}=We, Acc) ->
     Pos = gb_trees:get(V, Vtab),
@@ -218,6 +223,12 @@ bevel_min_limit([{{Va,Vb},[{_,D1}]}|Tail], #we{vp=Vtab}=We, Min0) ->
 	    end
     end;
 bevel_min_limit([], _, Min) -> Min.
+
+extrude_problem() ->
+    M = ?__(1,"Can't extrude/bevel; two or more vertices are "
+	    "probably too near to each other.\n"
+	    "The Cleanup command might help."),
+    wings_util:error(M).
 
 %%
 %% The Extrude command (for edges).
@@ -433,7 +444,7 @@ connect(G, [C|Cs], ExtrudeDist, Wid, #we{mirror=Mirror}=We0, Closed) ->
 		    connect(G, Cs, ExtrudeDist, Wid, We0, [Face|Closed])
 	    end;
 	[_] ->
-	    wings_util:error(?STR(connect,1,"Can't extrude/bevel; try Cleanup."));
+	    extrude_problem();
 	[Va0,Vb0] ->
 	    case digraph_get_path(G, Va0, Vb0) of
 		[{_,Mirror}|_] ->
