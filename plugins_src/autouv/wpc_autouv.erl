@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.176 2003/12/02 20:31:05 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.177 2003/12/16 20:12:06 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -986,12 +986,13 @@ broken_event(Ev, _) ->
 %%% Draw routines.
 %%%
 draw_area(#we{name=#ch{fs=Fs},he=Tbe}=We,
-	  #setng{color = ColorMode, edges = EdgeMode}=Options, Materials) -> 
+	  #setng{color=ColorMode,edges=EdgeMode}=Options, Materials) -> 
     gl:pushMatrix(),
     gl:lineWidth(Options#setng.edge_width),
+
     %% Draw Materials and Vertex Colors
-    if
-	EdgeMode == border_edges ->
+    case EdgeMode of
+	border_edges ->
 	    %% Draw outer edges only
 	    #we{es=Etab,vp=Vtab}=We,
 	    gl:pushMatrix(),
@@ -1029,14 +1030,13 @@ draw_area(#we{name=#ch{fs=Fs},he=Tbe}=We,
 	    lists:foreach(DrawEdge, Tbe),
 	    gl:glEnd(),
 	    gl:popMatrix();
-	EdgeMode == all_edges ->
+	all_edges ->
 	    gl:pushMatrix(),
-	    gl:translatef(0,0,0.9),
-	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
+	    gl:translatef(0, 0, 0.9),
 	    gl:color3f(0.6, 0.6, 0.6),
-	    draw_faces(Fs, We#we{mode=material}),
+	    draw_all_face_edges(Fs, We),
 	    gl:popMatrix();
-	EdgeMode == no_edges ->
+	no_edges ->
 	    ok
     end,
     if
@@ -1060,6 +1060,22 @@ draw_area(#we{name=#ch{fs=Fs},he=Tbe}=We,
 	    ignore
     end,
     gl:popMatrix().
+
+draw_all_face_edges([F|Fs], We) ->
+    draw_face_edges(F, We),
+    draw_all_face_edges(Fs, We);
+draw_all_face_edges([], _) -> ok.
+
+draw_face_edges(Face, #we{vp=Vtab}=We) ->
+    Vs = wings_face:vertices_cw(Face, We),
+    draw_face_edges_1(Vs, Vtab, []).
+
+draw_face_edges_1([V|Vs], Vtab, Acc) ->
+    draw_face_edges_1(Vs, Vtab, [gb_trees:get(V, Vtab)|Acc]);
+draw_face_edges_1([], _, VsPos) ->
+    gl:'begin'(?GL_LINE_LOOP),
+    foreach(fun(P) -> gl:vertex3fv(P) end, VsPos),
+    gl:'end'().
 
 draw_faces(Fs, We) ->
     Draw = fun(Face) -> face(Face, We) end,
