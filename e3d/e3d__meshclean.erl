@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__meshclean.erl,v 1.5 2001/09/17 07:19:18 bjorng Exp $
+%%     $Id: e3d__meshclean.erl,v 1.6 2001/10/17 07:47:47 bjorng Exp $
 %%
 
 -module(e3d__meshclean).
@@ -33,15 +33,17 @@ interior_bad_faces(Fs) ->
     Edges = build_edges(Faces),
     NameEdgeFace = sofs:relation(Edges, [{name,{edge,face}}]),
     Fam = sofs:relation_to_family(NameEdgeFace),
-    Bad = sofs:specification(fun({_,[{{Va,Vb},_},{{Vb,Va},_}]}) -> false;
-				(_) -> true end, Fam),
+    SpecFun = {external,fun([{{Va,Vb},_},{{Vb,Va},_}]) -> false;
+			   (_) -> true end},
+    Bad = sofs:family_specification(SpecFun, Fam),
     BadFaces = sofs:range(sofs:union_of_family(Bad)),
-    BadNameEdgeFace = sofs:restriction(fun({_,{_,F}}) -> F end,
-				       NameEdgeFace, BadFaces),
-    BadNameFace = sofs:projection(fun({N,{_,F}}) -> {N,F} end,
-				  BadNameEdgeFace),
-    BadNameFaceFam = sofs:relation_to_family(BadNameFace),
-    SuspectFaces = sofs:range(BadNameFaceFam),
+    RestrFun = {external,fun({_,{_,F}}) -> F end},
+    BadNameEdgeFace = sofs:restriction(RestrFun, NameEdgeFace, BadFaces),
+
+    ProjFun = {external,fun({N,{_,F}}) -> {N,F} end},
+    BadNameFace = sofs:projection(ProjFun, BadNameEdgeFace),
+    SuspectFaces = sofs:range(sofs:relation_to_family(BadNameFace)),
+
     Connected0 = sofs:specification(
 		   fun(Set) ->
 			   sofs:no_elements(Set) =:= 2

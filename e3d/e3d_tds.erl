@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_tds.erl,v 1.6 2001/09/17 07:19:18 bjorng Exp $
+%%     $Id: e3d_tds.erl,v 1.7 2001/10/17 07:47:47 bjorng Exp $
 %%
 
 -module(e3d_tds).
@@ -307,35 +307,25 @@ hexd(D) when 0 =< D, D =< 9 -> D+$0;
 hexd(D) when 10 =< D, D =< 16 -> D+$A-10.
 
 clean_mesh(#e3d_mesh{fs=Fs0,vs=Vs0}=Mesh) ->
-    R0 = indexed_relation(0, Vs0, [{old_vertex,pos}]),
-    R = sofs:converse(R0),
-    Fam = sofs:relation_to_family(R),
-    S = set_to_indexed_relation(0, Fam, vertex), %[{vertex,{pos,old_vertex}}]
+    R = sofs:relation(append_index(Vs0), [{pos,old_vertex}]),
+    Fam = sofs:to_external(sofs:relation_to_family(R)),
+    S0 = reverse(append_index(Fam)),
+    Vs = [{X,Y,Z} || {{<<X:32/?FLOAT,Y:32/?FLOAT,Z:32/?FLOAT>>,_},_} <- S0],
 
-    Map0 = sofs:projection(fun({V,{_,OVList}}) -> {V,OVList} end, S),
+    S = sofs:from_external(S0, [{{pos,[old_vertex]},vertex}]),
+    SetFun = {external,fun({{_,OVList},V}) -> {V,OVList} end},
+    Map0 = sofs:projection(SetFun, S),
     Map1 = sofs:family_to_relation(Map0),
     Map2 = sofs:converse(Map1),
     Map = gb_trees:from_orddict(sofs:to_external(Map2)),
-
     Fs = map_faces(Fs0, Map),
-    
-    Vs1 = sofs:to_external(S),
-    Vs = [{X,Y,Z} || {_,{<<X:32/?FLOAT,Y:32/?FLOAT,Z:32/?FLOAT>>,_}} <- Vs1],
 
     dbg("Vertices: before ~w, after cleaning ~w\n", [length(Vs0),length(Vs)]),
     Mesh#e3d_mesh{fs=Fs,vs=Vs}.
 
-indexed_relation(I, List, [{IndexType,_}]=Type) when atom(IndexType) ->
-    ISet = make_index(List, I, []),
-    sofs:relation(ISet, Type).
-
-set_to_indexed_relation(I, SofsSet, IndexType) when atom(IndexType) ->
-    [Type] = sofs:type(SofsSet),
-    ISet = make_index(sofs:to_external(SofsSet), I, []),
-    sofs:from_external(reverse(ISet), [{IndexType,Type}]).
-
-make_index([H|T], I, Acc) -> make_index(T, I+1, [{I,H}|Acc]);
-make_index([], I, Acc) -> Acc.
+append_index(L) -> append_index(L, 0, []).
+append_index([H|T], I, Acc) -> append_index(T, I+1, [{H,I}|Acc]);
+append_index([], I, Acc) -> Acc.
 
 map_faces(Fs, Map) ->
     map_faces(Fs, Map, []).
