@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_placement.erl,v 1.23 2004/05/02 09:49:36 bjorng Exp $
+%%     $Id: auv_placement.erl,v 1.24 2004/05/08 15:12:41 bjorng Exp $
 
 -module(auv_placement).
 
@@ -18,24 +18,24 @@
 
 -export([place_areas/1,group_edge_loops/2, center_rotate/2]).
 
--import(lists, [max/1, sort/1, map/2, reverse/1]).
+-import(lists, [max/1,sort/1,map/2,reverse/1]).
 
 %% Returns a gb_tree with areas...
-place_areas([]) -> [];
 place_areas(Areas0) ->
-    Rotate = fun(#we{name=Ch0}=We0, {C,BBs}) ->
+    Rotate = fun(#we{id=Id,name=Ch0}=We0, BBs) ->
 		     Fs = wings_we:visible(We0),
-		     {{Dx,Dy}=Size, Vs} = center_rotate(Fs, We0),
+		     {{Dx,Dy}=Size,Vs} = center_rotate(Fs, We0),
 		     Ch = Ch0#ch{size=Size},
-		     We = We0#we{id=C,vp=gb_trees:from_orddict(Vs),name=Ch},
-		     {We,{C+1, [{Dx,Dy,C}|BBs]}}
+		     We = We0#we{vp=gb_trees:from_orddict(Vs),name=Ch},
+		     {We,[{Dx,Dy,Id}|BBs]}
 	     end,
-    {Areas1, {_,Sizes0}} = lists:mapfoldl(Rotate, {1,[]}, Areas0),
+    {Areas1,Sizes0} = lists:mapfoldl(Rotate, [], Areas0),
 %    ?DBG("~p~n",[Sizes0]),    
     {Positions0, Max} = fill(Sizes0, [0,0]),
 %    ?DBG("~p~n",[Positions0]),
     Scale  = 1 / max(Max),
-    move_and_scale_charts(Areas1, lists:sort(Positions0), Scale, []).
+    move_and_scale_charts(Areas1, lists:sort(Positions0), Scale, []);
+place_areas([]) -> [].
 
 center_rotate(Fs, We) ->
     VL = rotate_area(Fs, We),
@@ -145,73 +145,6 @@ rotate_area(Fs, #we{vp=VTab}=We) ->
        true ->
 	    Vs
     end.
-
--define(X(Vtx), element(1,element(2,Vtx))).
--define(Y(Vtx), element(2,element(2,Vtx))).
--define(Z(Vtx), element(3,element(2,Vtx))).
--define(Id(Vtx), element(1, Vtx)).
--define(Pos(Vtx), element(2,Vtx)). 
-
-%angle_to_min_area(VsList, Vpos) ->
-%    ?DBG("List ~p ~n", [VsList]),
-%    {{P1,Xmin},{P2,Xmax},{P3,Ymin},{P4,Ymax}} = 
-%	wpc_autouv:maxmin(VsList),
-%    First = {FirstKey,_} = hd(VsList),
-%    {LastKey,T0} = 
-%	lists:foldl(fun(Next = {NId,_}, {Current,Tree}) ->
-%			    {NId, gb_trees:insert(Current,Next,Tree)}
-%		    end, 
-%		    {FirstKey, gb_trees:empty()}, tl(VsList)),
-%    T1 = gb_trees:insert(LastKey, First,T0),
-%    Area = (Xmax-Xmin)*(Ymax-Ymin),
-%    P1p = {P1,(gb_trees:get(P1, Vpos))#vtx.pos},   
-%    P2p = {P2,(gb_trees:get(P2, Vpos))#vtx.pos},
-%    P3p = {P3,(gb_trees:get(P3, Vpos))#vtx.pos},   
-%    P4p = {P4,(gb_trees:get(P4, Vpos))#vtx.pos},
-%    Ax = math:atan2(?Y(P2p)-?Y(P1p), ?X(P2p)-?X(P1p)),
-%    Ay = math:atan2(?X(P4p)-?X(P3p), ?Y(P4p)-?Y(P3p)),
-%    angle_to_min_area(0.0,Ax,P1p,P2p,Ay,P3p,P4p,{0.0,Area},T1).
-
-%angle_to_min_area(Ta,_Ax,_P1,_P2,_Ay,_P3,_P4, {A,_},_)
-%  when Ta > (3.14159/4) ->
-%    A;
-%angle_to_min_area(Ta,Ax0,P1,P2,Ay0,P3,P4,Old={_,Area0},Next) ->
-%    NP1 = gb_trees:get(?Id(P1),Next),NP2 = gb_trees:get(?Id(P2),Next),
-%    NP3 = gb_trees:get(?Id(P3),Next),NP4 = gb_trees:get(?Id(P4),Next),
-%    AP1 = math:atan2(abs(?X(NP1)-?X(P1)),abs(?Y(NP1)-?Y(P1))),
-%    AP2 = math:atan2(abs(?X(NP2)-?X(P2)),abs(?Y(NP2)-?Y(P2))),
-%    AP3 = math:atan2(abs(?Y(NP3)-?Y(P3)),abs(?X(NP3)-?X(P3))),
-%    AP4 = math:atan2(abs(?Y(NP4)-?Y(P4)),abs(?X(NP4)-?X(P4))),
-%    Min = lists:min([AP1,AP2,AP3,AP4]),
-%    NewA = Min-Ta,
-%    Ax1 = Ax0+NewA,
-%    Ay1 = Ay0+NewA,
-%    L1 = e3d_vec:dist(?Pos(P1),?Pos(P2)) * math:cos(Ax1),
-%    L2 = e3d_vec:dist(?Pos(P3),?Pos(P4)) * math:cos(Ay1),    
-%    NewArea = L1*L2,
-%    Area1 = if 
-%		NewArea<0 -> %% Assert
-%		    Old;
-%		NewArea<Area0 ->{Min,NewArea};
-%		true -> Old
-%	    end,    
-%    Deg45 = math:pi()/4,
-%    if Min > Deg45 ->
-%%	    ?DBG("Rot quit ~p ~p ~n", [Min,Old]),
-%	    angle_to_min_area(Min,Ax0,P1,P2,Ay0,P3,P4,Old,Next);
-%       true ->
-%%	    ?DBG("Rot cont ~p ~p was ~p~n", [Min,Area1,Old]),
-%	    case Min of
-%		AP1 ->
-%		    angle_to_min_area(Min,Ax1,NP1,P2,Ay1,P3,P4,Area1,Next);
-%		AP2 ->
-%		    angle_to_min_area(Min,Ax1,P1,NP2,Ay1,P3,P4,Area1,Next);
-%		AP3 -> 
-%		    angle_to_min_area(Min,Ax1,P1,P2,Ay1,NP3,P4,Area1,Next);
-%		AP4 -> 
-%		    angle_to_min_area(Min,Ax1,P1,P2,Ay1,P3,NP4,Area1,Next)
-%	    end
-%    end.
 			          
 %% Group edgeloops and return a list sorted by total dist.
 %% [{TotDist, [{V1,V2,Edge,Dist},...]}, ...]
@@ -229,7 +162,7 @@ group_edge_loops(Fs, We) ->
 				  {V1,V2,Edge,Dist}
 			  end
 		  end,
-	    Eds2  = lists:map(Map, Eds1),
+	    Eds2  = map(Map, Eds1),
 	    Loops = sort_edges(Eds2),
 	    Add = fun({_,_,_,Dist}, Acc) ->  Acc + Dist end,
 	    SumLoops = [{lists:foldl(Add, 0, Loop), Loop} 

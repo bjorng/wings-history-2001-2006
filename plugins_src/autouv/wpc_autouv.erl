@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.231 2004/05/08 13:50:31 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.232 2004/05/08 15:12:44 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -271,7 +271,8 @@ init_edit(Faces0, We0) ->
     FvUvMap = auv_segment:fv_to_uv_map(Faces, We0),
     {Charts1,Cuts} = auv_segment:uv_to_charts(Faces, FvUvMap, We0),
     Charts2 = auv_segment:cut_model(Charts1, Cuts, We0),
-    Charts = build_map(Charts2, FvUvMap, 1, []),
+    Charts3 = auv_segment:finalize_charts(Charts2),
+    Charts = build_map(Charts3, FvUvMap, []),
     gb_trees:from_orddict(sort(Charts)).
 
 has_proper_uvs(Face, #we{mirror=Face}) -> false;
@@ -280,28 +281,22 @@ has_proper_uvs(Face, We) ->
 	     (_, _) -> false
 	  end, true, wings_face:vertex_info(Face, We)).
 
-build_map([{Fs,Vmap,#we{fs=Ftab}=We0}|T], FvUvMap, No, Acc) ->
+build_map([#we{id=Id,name=#ch{vmap=Vmap}}=We0|T], FvUvMap, Acc) ->
     %% XXX Because auv_segment:cut_model/3 distorts the UV coordinates
     %% (bug in wings_vertex_cmd), we must fetch the UV coordinates
     %% from the original object.
+    Fs = wings_we:visible(We0),
+    Z = zero(),
     UVs0 = wings_face:fold_faces(
 	     fun(F, V, _, _, A) ->
 		     OrigV = auv_segment:map_vertex(V, Vmap),
-		     UV = gb_trees:get({F,OrigV}, FvUvMap),
-		     [{V,UV}|A]
+		     {X,Y} = gb_trees:get({F,OrigV}, FvUvMap),
+		     [{V,{X,Y,Z}}|A]
 	     end, [], Fs, We0),
-    UVs1 = ordsets:from_list(UVs0),
-    %% Assertion.
-    true = sofs:is_a_function(sofs:relation(UVs1, [{atom,atom}])),
-    Z = zero(),
-    UVs = [{V,{X,Y,Z}} || {V,{X,Y}} <- UVs1],
-    Fs = sort(Fs),
-    HiddenFaces = ordsets:subtract(gb_trees:keys(Ftab), Fs),
-    We1 = wings_we:hide_faces(HiddenFaces, We0),
-    Chart = #ch{size=undefined,vmap=Vmap},
-    We = We1#we{name=Chart,id=No,vp=gb_trees:from_orddict(UVs)},
-    build_map(T, FvUvMap, No+1, [{No,We}|Acc]);
-build_map([], _, _, Acc) -> Acc.
+    UVs = gb_trees:from_orddict(orddict:from_list(UVs0)),
+    We = We0#we{vp=UVs},
+    build_map(T, FvUvMap, [{Id,We}|Acc]);
+build_map([], _, Acc) -> reverse(Acc).
 
 zero() ->
     0.0.
