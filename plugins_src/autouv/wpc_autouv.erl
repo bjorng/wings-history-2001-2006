@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.20 2002/10/20 08:59:39 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.21 2002/10/22 13:05:43 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -992,31 +992,14 @@ handle_event(#mousebutton{state=?SDL_PRESSED,button=?SDL_BUTTON_LEFT,x=MX,y=MY},
 %% #mousebutton{state = ?SDL_RELEASED, x = MX, y = MY} ->
 %%     ?DBG("Untrapped Mouse event at ~p Y ~p~n", [{MX,MY}, {Y0, H}]),
 %%     get_event(Uvs0);
-handle_event(MB=#mousebutton{state=?SDL_PRESSED,button=Butt,x=MX}, 
+handle_event(MB=#mousebutton{x=MX}, 
 	     Uvs0 = #uvstate{geom = {{_,_,_,_OH},{X0,_,_,_,_,_,_}},
 			     op = Op})
   when MX < X0, Op == undefined ->
-    case Butt of 
-	?SDL_BUTTON_MIDDLE ->
-	    wings_camera:event(MB, fun() -> draw_windows(Uvs0) end);
-	_Else ->
-	    case sdl_keyboard:getModState() of
-		Mod when Mod band ?CTRL_BITS =/= 0 ->
-		    wings_camera:event(MB, fun() -> draw_windows(Uvs0) end);
-		_ ->
-		    keep
-	    end
+    case wings_camera:event(MB, fun() -> draw_windows(Uvs0) end) of
+	next -> keep;
+	Other -> Other
     end;
-handle_event(MB=#mousebutton{button=Butt}, Uvs0) ->
-    case Butt of %% Only get release events from scrollwheel
-	4 ->
-	    wings_camera:event(MB, fun() -> draw_windows(Uvs0) end);
-	5 -> 
-	    wings_camera:event(MB, fun() -> draw_windows(Uvs0) end);
-	_ ->
-	    keep
-    end;
-
 handle_event(#keyboard{state = ?SDL_PRESSED, keysym = Sym}, 
 	     Uvs0=#uvstate{sel = Sel0,areas=As=#areas{we=We,as=Curr0}}) ->
     case Sym of
