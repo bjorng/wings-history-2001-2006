@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_ndo.erl,v 1.9 2001/11/25 18:21:10 bjorng Exp $
+%%     $Id: wings_ff_ndo.erl,v 1.10 2001/12/07 19:49:25 bjorng Exp $
 %%
 
 -module(wings_ff_ndo).
@@ -73,7 +73,8 @@ read_object_1(<<L:16,T0/binary>>) ->
 	    {Vtab,T5} = read_vertices(T4),
 	    T = skip_rest(T5),
 	    We0 = #we{mode=vertex,es=Etab,vs=Vtab,fs=Ftab,he=Htab},
-	    We = set_next_id(We0),
+	    We1 = set_next_id(We0),
+	    We = clean_bad_edges(We1),
 	    {Name,We,T}
     end.
 
@@ -161,6 +162,23 @@ set_next_id(#we{es=Etab,vs=Vtab,fs=Ftab}=We) ->
 % show_first(Bin) ->
 %     io:format("~w\n", [Bin]).
 
+clean_bad_edges(#we{es=Etab}=We) ->
+    clean_bad_edges(gb_trees:keys(Etab), We).
+
+clean_bad_edges([Edge|T], #we{es=Etab}=We0) ->
+    We = case gb_trees:lookup(Edge, Etab) of
+	     none -> We0;
+	     {value,#edge{ltpr=Same,ltsu=Same,rtpr=Same,rtsu=Same}} ->
+		 io:format("Bad edge: ~w\n", [Edge]),
+		 We0;
+	     {value,#edge{ltpr=Same,ltsu=Same}} ->
+		 wings_edge:dissolve_edge(Edge, We0);
+	     {value,#edge{rtpr=Same,rtsu=Same}} ->
+		 wings_edge:dissolve_edge(Edge, We0);
+	     {value,Other} -> We0
+	 end,
+    clean_bad_edges(T, We);
+clean_bad_edges([], We) -> We.
 
 %%
 %% Export.
