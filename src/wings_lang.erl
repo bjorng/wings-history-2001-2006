@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_lang.erl,v 1.6 2004/10/14 05:58:54 bjorng Exp $
+%%     $Id: wings_lang.erl,v 1.7 2004/10/16 06:14:16 bjorng Exp $
 %%
 %%  Totally rewritten but Riccardo is still the one who did the hard work.
 %%
@@ -16,12 +16,11 @@
 -module(wings_lang).
 -include("wings.hrl").
 
-%% Wings api
--export([init/0, str/2, str/4, 
-	 available_languages/0, 
-	 load_language/1]).
+%% Wings API.
+-export([init/0,str/2,
+	 available_languages/0,load_language/1]).
 
-%% Translation support tools
+%% Translation support tools.
 -export([generate_template/0,generate_template/1,diff/1,diff/2]).
 
 -import(lists, [reverse/1,reverse/2]).
@@ -33,14 +32,12 @@ str(Key, DefStr) ->
     case get(?MODULE) of
 	?DEF_LANG -> DefStr;
 	_ -> %% Be safe and catch
-	    case catch ets:lookup(?MODULE,Key) of
-		[{_,Str}] -> binary_to_list(Str);
-		_ -> DefStr
+	    try ets:lookup_element(?MODULE, Key, 2) of
+		Str -> binary_to_list(Str)
+	    catch
+		error:_ -> DefStr
 	    end
     end.
-
-str(K1,K2,K3,DefStr) ->
-    str({K1,K2,K3}, DefStr).
 
 init() ->
     wings_pref:set_default(language, ?DEF_LANG),
@@ -82,11 +79,14 @@ load_language(Root, [Dir|Dirs], Lang) ->
 load_language2(Dir, [File|Fs], Lang) ->
     case catch lists:nthtail(length(File)-length(Lang), File) of
 	Lang -> 
-	    case file:consult(filename:join(Dir,File)) of
-		{ok, Terms} -> load_file(Terms);
-		Error ->
-		    io:format("Couldn't read language file ~p: ~p~n",
-			      [File, Error])
+	    case file:consult(filename:join(Dir, File)) of
+		{ok,Terms} -> load_file(Terms);
+		{error,{Line,Mod,Info}} ->
+		    io:format("~s, line ~p: ~s\n",
+			      [File,Line,Mod:format_error(Info)]);
+		Other ->
+ 		    io:format("Problem reading language file ~p:\n~p\n",
+			      [File,Other])
 	    end;
 	_ ->
 	    Path = filename:join(Dir,File),
