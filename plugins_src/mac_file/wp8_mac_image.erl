@@ -3,12 +3,12 @@
 %%
 %%     Image reading and writing for Mac OS X.
 %%
-%%  Copyright (c) 2002-2003 Bjorn Gustavsson
+%%  Copyright (c) 2002-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp8_mac_image.erl,v 1.6 2004/01/07 16:09:48 bjorng Exp $
+%%     $Id: wp8_mac_image.erl,v 1.7 2004/06/29 08:34:37 bjorng Exp $
 %%
 
 -module(wp8_mac_image).
@@ -95,7 +95,11 @@ read_image_2(<<W:32/native,H:32/native,SamplesPerPixel0:32/native,BytesPerRow:32
 	     0 -> 1;
 	     1 -> 2;
 	     2 -> 4;
-	     3 -> 4
+	     3 -> 4;
+ 	     A when A >= 32 -> 64;
+ 	     A when A >= 16 -> 32;
+ 	     A when A >= 8 -> 16;
+ 	     A when A >= 4 -> 8
 	 end,
     Image = #e3d_image{type=Type,bytes_pp=SamplesPerPixel,
 		       alignment=Al,order=upper_left,
