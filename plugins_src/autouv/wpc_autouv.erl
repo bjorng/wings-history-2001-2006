@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.181 2004/02/11 20:03:15 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.182 2004/02/12 15:13:00 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -187,20 +187,17 @@ discard_uvmap(#we{fs=Ftab}=We0, St) ->
 
 do_edit(MatName0, Faces, We, St) ->
     {Edges,Areas,MatName} = init_edit(MatName0, Faces, We),
-    TexSz = get_texture_size(MatName, St),
-    Options = #setng{color=false,texbg=true,texsz=TexSz},
-    create_uv_state(Edges, Areas, MatName, Options, We, St).
+    create_uv_state(Edges, Areas, MatName, We, St).
 
 %%%%%%
 
 init_show_maps(Map0, #we{es=Etab}=We, St) ->
     Map1  = auv_placement:place_areas(Map0),
-    Map2  = find_boundary_edges(Map1, []),
-    Map   = gb_trees:from_orddict(Map2),
+    Map   = gb_trees:from_orddict(Map1),
     Edges = gb_trees:keys(Etab),
-    create_uv_state(Edges, Map, none, #setng{}, We, St).
+    create_uv_state(Edges, Map, none, We, St).
 
-create_uv_state(Edges, Map, MatName, Options, We, GeomSt) ->
+create_uv_state(Edges, Map, MatName, We, GeomSt) ->
     wings:mode_restriction([body]),
     wings_wm:current_state(#st{selmode=body,sel=[]}),
     {_,Geom} = init_drawarea(),
@@ -210,17 +207,11 @@ create_uv_state(Edges, Map, MatName, Options, We, GeomSt) ->
 		   geom=Geom,
 		   orig_we=We,
 		   edges=Edges,
-		   matname=MatName,
-		   option=Options},
+		   matname=MatName},
     St = GeomSt#st{selmode=body,sel=[],shapes=Map,bb=Uvs},
     Name = wings_wm:this(),
     wings_wm:set_prop(Name, drag_filter, fun drag_filter/1),
     get_event(St).
-
-find_boundary_edges([{Id,#we{name=#ch{fs=Fs}}=We}|Cs], Acc) ->
-    Be = auv_util:outer_edges(Fs, We),
-    find_boundary_edges(Cs, [{Id,We#we{he=Be}}|Acc]);
-find_boundary_edges([], Acc) -> sort(Acc).
    
 insert_uvcoords(Charts, Id, MatName, #st{shapes=Shs0}=St) ->
     We0 = gb_trees:get(Id, Shs0),
@@ -289,8 +280,7 @@ init_edit(MatName, Faces, We0) ->
     {Charts1,Cuts} = auv_segment:uv_to_charts(Faces, FvUvMap, We0),
     Charts = auv_segment:cut_model(Charts1, Cuts, We0),
     Map1 = build_map(Charts, FvUvMap, 1, []),
-    Map2 = find_boundary_edges(Map1, []),
-    Map  = gb_trees:from_orddict(Map2),
+    Map  = gb_trees:from_orddict(Map1),
     Edges= gb_trees:keys(We0#we.es),
     {Edges,Map,MatName}.
 
@@ -330,15 +320,15 @@ get_material(Face, Materials, We) ->
     Mat = gb_trees:get(MatName, Materials),
     proplists:get_value(diffuse, proplists:get_value(opengl, Mat)).
 
-get_texture_size(MatName, #st{mat=Materials}) ->
-    Mat = gb_trees:get(MatName, Materials),
-    Maps = proplists:get_value(maps, Mat, []),
-    case proplists:get_value(diffuse, Maps, none) of
-	none -> {512,512};
-	ImageId ->
-	    #e3d_image{width=W,height=H} = wings_image:info(ImageId),
-	    {W,H}
-    end.	     
+% get_texture_size(MatName, #st{mat=Materials}) ->
+%     Mat = gb_trees:get(MatName, Materials),
+%     Maps = proplists:get_value(maps, Mat, []),
+%     case proplists:get_value(diffuse, Maps, none) of
+% 	none -> {512,512};
+% 	ImageId ->
+% 	    #e3d_image{width=W,height=H} = wings_image:info(ImageId),
+% 	    {W,H}
+%     end.
 
 add_material(Tx = #e3d_image{},Name,none,St0) ->
     MatName0 = list_to_atom(Name++"_auv"),
@@ -371,12 +361,11 @@ wingeom(W,H) ->
 	    {-WF,1+WF,-WF,H/W+WF}
     end.
 
-draw_texture(#uvstate{dl=undefined,option=Options,areas=As}=Uvs) ->
-    Materials = (Uvs#uvstate.origst)#st.mat,
+draw_texture(#uvstate{dl=undefined,areas=As}=Uvs) ->
     Dl = gl:genLists(1),
     gl:newList(Dl, ?GL_COMPILE),
     foreach(fun(#we{}=We) ->
-		    draw_area(We, Options, Materials)
+		    draw_area(We, false)
 	    end, gb_trees:values(As)),
     gl:endList(),
     draw_texture(Uvs#uvstate{dl=Dl});
@@ -392,12 +381,11 @@ draw_selection(Uvs) ->
     gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
     gl:enable(?GL_BLEND),
     gl:translatef(0.0, 0.0, 0.1),
-    Settings = #setng{color={R,G,B,0.7},edges=all_edges},
-    sel_foreach(fun(We) -> draw_area(We, Settings, []) end, Uvs),
+    Settings = {R,G,B,0.7},
+    sel_foreach(fun(We) -> draw_area(We, Settings) end, Uvs),
     gl:disable(?GL_BLEND).
 
-setup_view(#uvstate{geom={Left,Right,Bottom,Top},st=#st{mat=Mats},
-		    option=#setng{texbg=TexBg},matname=MatN}) ->
+setup_view(#uvstate{geom={Left,Right,Bottom,Top},st=#st{mat=Mats},matname=MatN}) ->
     gl:disable(?GL_CULL_FACE),
     gl:disable(?GL_LIGHTING),
 
@@ -429,10 +417,9 @@ setup_view(#uvstate{geom={Left,Right,Bottom,Top},st=#st{mat=Mats},
 
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
     gl:color3f(1.0, 1.0, 1.0),   %%Clear
-    case TexBg of
-	true when MatN == none -> ok;
-	true -> wings_material:apply_material(MatN, Mats);
-	false -> ok
+    case has_texture(MatN,Mats) of
+	false -> ok;
+	_ -> wings_material:apply_material(MatN, Mats)
     end,
     gl:'begin'(?GL_QUADS),
     gl:texCoord2f(0,0),    gl:vertex3f(0,0,-0.9),
@@ -486,50 +473,9 @@ command_menu(vertex, X, Y) ->
 
 option_menu() ->
     [separator,
-     {"Draw Options",draw_options,"Edit draw options"},
-     separator,
-     {"Apply Texture",apply_texture,"Attach the current texture to the model"}].
-
-draw_options(#st{bb=#uvstate{option=Option}}) ->
-    [MaxTxs0|_] = gl:getIntegerv(?GL_MAX_TEXTURE_SIZE),
-    MaxTxs = min([4096,MaxTxs0]),
-    
-    Qs = [{vradio,[{"Draw All Edges",    all_edges},
-		   {"Draw Border Edges", border_edges},
-		   {"Don't Draw Edges",  no_edges}], 
-	   Option#setng.edges, [{title,"Edge Options"}]},
-	  {vframe,[{"Use Face/Vertex Color on Border Edges", Option#setng.edge_color},
-		   {label_column, [{"Edge width",  {text, Option#setng.edge_width}}]}],
-	   [{title, "Overdraw options"}]},
-	  {vframe,[{"Show Colors (or texture)",Option#setng.color},
-		   {"Texture Background (if available)", Option#setng.texbg}],
-	   [{title, "Display Color and texture?"}]},
-	  {vradio,gen_tx_sizes(MaxTxs, []),element(1, Option#setng.texsz),
-	   [{title,"Texture Size"}]}],
-    wings_ask:dialog("Draw Options", Qs,
-		     fun([EMode,BEC,BEW,Color,TexBg,TexSz]) ->
-			     Opt = #setng{edges=EMode,
-					  edge_color=BEC,
-					  edge_width=BEW,
-					  color=Color, 
-					  texbg=TexBg,
-					  texsz={TexSz,TexSz}},
-			     {auv,{draw_options,Opt}}
-		     end).
-
-gen_tx_sizes(Sz, Acc) when Sz < 128 -> Acc;
-gen_tx_sizes(Sz, Acc) ->
-    Bytes = Sz*Sz*3,
-    Mb = 1024*1024,
-    SzStr = if
-		Bytes < 1024*1024 ->
-		    io_lib:format("(~pKb)",[Bytes div 1024]);
-		true ->
-		    io_lib:format("(~pMb)",[Bytes div Mb])
-	    end,
-    Str0 = io_lib:format("~px~p ", [Sz,Sz]),
-    Str = lists:flatten([Str0|SzStr]),
-    gen_tx_sizes(Sz div 2, [{Str,Sz}|Acc]).
+%      {"Draw Options",draw_options,"Edit draw options"},
+%      separator,
+     {"Create Texture",create_texture,"Make and Attach a texture to the model"}].
 
 quit_menu(#st{bb=#uvstate{st=St,matname=MatN}}) ->
     A1 = {"Save UV Coordinates and Texture",quit_uv_tex},
@@ -608,20 +554,19 @@ handle_event_1(#keyboard{state=?SDL_PRESSED,sym=?SDLK_SPACE}, #st{bb=#uvstate{st
     wings_wm:send(geom, {new_state,wpa:sel_set(face, [], St)});
 handle_event_1({drop,_,DropData}, St) ->
     handle_drop(DropData, St);
-handle_event_1({action,{auv,apply_texture}},
-	       #st{bb=#uvstate{st=GeomSt0,orig_we=OWe,matname=MatName0}=Uvs}=St) ->
-    Tx = ?SLOW(auv_texture:get_texture(Uvs)),
+%% Create Texture (see auv_texture)
+handle_event_1({action,{auv,create_texture}},St) ->
+    auv_texture:draw_options(St);
+handle_event_1({action,{auv,{draw_options,Opt}}}, #st{bb=Uvs}=St) ->
+    #uvstate{st=GeomSt0,orig_we=OWe,matname=MatName0} = Uvs,
+    Tx = ?SLOW(auv_texture:get_texture(Uvs, Opt)),
     Charts = all_charts(Uvs),
     #we{name=Name,id=Id} = OWe,
     {GeomSt1,MatName} = add_material(Tx, Name, MatName0, GeomSt0),
     GeomSt = insert_uvcoords(Charts, Id, MatName, GeomSt1),
     wings_wm:send(geom, {new_state,GeomSt}),
     get_event(St#st{bb=Uvs#uvstate{st=GeomSt,matname=MatName}});
-handle_event_1({action,{auv,draw_options}}, St) ->
-    draw_options(St);
-handle_event_1({action,{auv,{draw_options,Opt}}}, #st{bb=Uvs0}=St) ->
-    Uvs = Uvs0#uvstate{option=Opt},
-    get_event(reset_dl(St#st{bb=Uvs}));
+%% Others
 handle_event_1({action,{auv,quit}}, St) ->
     quit_menu(St);
 handle_event_1(close, St) ->
@@ -711,11 +656,10 @@ handle_drop({image,_,#e3d_image{width=W,height=H}=Im}, #st{bb=Uvs0}=St) ->
     case W =:= H andalso is_power_of_two(W) of
 	false -> keep;
 	true ->
-	    #uvstate{st=GeomSt0,orig_we=#we{name=Name},option=Opt0,matname=MatName0} = Uvs0,
+	    #uvstate{st=GeomSt0,orig_we=#we{name=Name},matname=MatName0} = Uvs0,
 	    {GeomSt,MatName} = add_material(Im, Name, MatName0, GeomSt0),
 	    wings_wm:send(geom, {new_state,GeomSt}),
-	    Opt = Opt0#setng{color=false,edges=no_edges,texbg=true},
-	    Uvs = Uvs0#uvstate{st=GeomSt,matname=MatName,option=Opt},
+	    Uvs = Uvs0#uvstate{st=GeomSt,matname=MatName},
 	    get_event(reset_dl(St#st{bb=Uvs}))
     end;
 handle_drop(_DropData, _) ->
@@ -869,81 +813,22 @@ broken_event(Ev, _) ->
 %%%
 %%% Draw routines.
 %%%
-draw_area(#we{name=#ch{fs=Fs},he=Tbe}=We,
-	  #setng{color=ColorMode,edges=EdgeMode}=Options, Materials) -> 
+draw_area(#we{name=#ch{fs=Fs}}=We,ColorMode) -> 
     gl:pushMatrix(),
-    gl:lineWidth(Options#setng.edge_width),
-
-    %% Draw Materials and Vertex Colors
-    case EdgeMode of
-	border_edges ->
-	    %% Draw outer edges only
-	    #we{es=Etab,vp=Vtab}=We,
-	    gl:pushMatrix(),
-	    DrawEdge = 
-		case We#we.mode of
-		    material when Options#setng.edge_color == true -> 
-			gl:translatef(0,0,-0.5),
-			fun({Edge,Face}) ->
-				#edge{vs=Va,ve=Vb} = gb_trees:get(Edge, Etab),
-				gl:color4fv(get_material(Face, Materials, We)),
-				gl:vertex3fv(wings_vertex:pos(Va, Vtab)),
-				gl:vertex3fv(wings_vertex:pos(Vb, Vtab))
-			end;
-		    vertex when Options#setng.edge_color == true -> 
-			gl:translatef(0,0,-0.5),
-			fun({Edge,_}) ->
-				#edge{vs=Va, a=VaC, ve=Vb, b=VbC} =
-				    gb_trees:get(Edge, Etab),
-				gl:color3fv(VaC),
-				gl:vertex3fv(wings_vertex:pos(Va, Vtab)),
-				gl:color3fv(VbC),
-				gl:vertex3fv(wings_vertex:pos(Vb, Vtab))
-			end;
-		    _ ->
-			gl:translatef(0,0,0.5),
-			fun({Edge, _}) ->
-				#edge{vs = Va, ve = Vb} =
-				    gb_trees:get(Edge, Etab),
-				gl:vertex3fv(wings_vertex:pos(Va, Vtab)),
-				gl:vertex3fv(wings_vertex:pos(Vb, Vtab))
-			end
-		end,
-	    gl:glBegin(?GL_LINES),
-	    gl:color3f(0.6, 0.6, 0.6),
-	    lists:foreach(DrawEdge, Tbe),
-	    gl:glEnd(),
-	    gl:popMatrix();
-	all_edges ->
-	    gl:pushMatrix(),
-	    gl:translatef(0, 0, 0.9),
-	    gl:color3f(0.6, 0.6, 0.6),
-	    draw_all_face_edges(Fs, We),
-	    gl:popMatrix();
-	no_edges ->
-	    ok
-    end,
+    gl:lineWidth(1),
+    gl:translatef(0, 0, 0.9),
+    gl:color3f(0.6, 0.6, 0.6),
+    draw_all_face_edges(Fs, We),
+    gl:popMatrix(),
     if
-	ColorMode == true ->
-	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
-	    MatName = wings_material:get(hd(Fs), We),
-	    wings_material:apply_material(MatName, Materials),
-	    lists:foreach(fun(Face) ->
-				  gl:color4fv(get_material(Face, Materials, We)),
-				  draw_faces([Face], We)
-			  end, Fs),
-	    case has_texture(MatName, Materials) of
-		true -> gl:disable(?GL_TEXTURE_2D);
-		false -> ignore
-	    end;
+	%% Selected %%
 	is_tuple(ColorMode), size(ColorMode) == 4 ->
 	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
 	    gl:color4fv(ColorMode),
 	    draw_faces(Fs, We#we{mode = material});
 	true ->
 	    ignore
-    end,
-    gl:popMatrix().
+    end.
 
 draw_all_face_edges([F|Fs], We) ->
     draw_face_edges(F, We),
@@ -952,24 +837,13 @@ draw_all_face_edges([], _) -> ok.
 
 draw_face_edges(Face, #we{vp=Vtab}=We) ->
     Vs = wings_face:vertices_cw(Face, We),
-    draw_face_edges_1(Vs, Vtab, []).
-
-draw_face_edges_1([V|Vs], Vtab, Acc) ->
-    draw_face_edges_1(Vs, Vtab, [gb_trees:get(V, Vtab)|Acc]);
-draw_face_edges_1([], _, VsPos) ->
     gl:'begin'(?GL_LINE_LOOP),
-    foreach(fun(P) -> gl:vertex3fv(P) end, VsPos),
+    foreach(fun(V) -> gl:vertex3fv(gb_trees:get(V, Vtab)) end, Vs),
     gl:'end'().
 
 draw_faces(Fs, We) ->
-    Draw = fun(Face) -> face(Face, We) end,
+    Draw = fun(Face) -> wings_draw_util:plain_face(Face, We) end,
     wings_draw_util:begin_end(fun() -> foreach(Draw, Fs) end).
-
-%% XXX Wrong.
-face(Face, #we{mode=material}=We) ->
-    wings_draw_util:plain_face(Face, We);
-face(Face, #we{mode=vertex}=We) ->
-    wings_draw_util:vcol_face(Face, We).
 
 reset_dl(#st{bb=#uvstate{dl=undefined}}=St) -> St;
 reset_dl(#st{bb=#uvstate{dl=DL}=Uvs}=St) ->

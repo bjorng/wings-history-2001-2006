@@ -8,10 +8,10 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_texture.erl,v 1.1 2004/02/11 20:03:15 dgud Exp $
+%%     $Id: auv_texture.erl,v 1.2 2004/02/12 15:13:00 dgud Exp $
 
 -module(auv_texture).
--export([get_texture/1]).
+-export([get_texture/1, get_texture/2, draw_options/0]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -20,12 +20,85 @@
 -include("e3d_image.hrl").
 -include("auv.hrl").
 
--import(lists, [foreach/2, reverse/1]).
+-import(lists, [foreach/2, reverse/1, min/1,max/1]).
+
+-record(opt, {texsz = {512, 512},   %% Texture size
+		texbg = false,        %% Texture background
+		color = true,         %% Texture drawing options
+		edges = all_edges,    %% Draw edges ??
+		edge_color = false,   %% Use vertex/face color on edges
+		edge_width = 2.0      %% Edge Thickness (overdraw help)
+	       }).
+
+%% Menu
+
+draw_options() ->
+    [MaxTxs0|_] = gl:getIntegerv(?GL_MAX_TEXTURE_SIZE),
+    MaxTxs = min([4096,MaxTxs0]),
+    Option = list_to_prefs(get_pref(draw_prefs, list_to_prefs(#opt{}))),
+    
+    Qs = [{vradio,[{"Draw All Edges",    all_edges},
+		   {"Draw Border Edges", border_edges},
+		   {"Don't Draw Edges",  no_edges}], 
+	   Option#opt.edges, [{title,"Edge Options"}]},
+	  {vframe,[{"Use Face/Vertex Color on Border Edges", Option#opt.edge_color},
+		   {label_column, [{"Edge width",  {text, Option#opt.edge_width}}]}],
+	   [{title, "Overdraw options"}]},
+	  {vframe,[{"Show Colors (or texture)",Option#opt.color},
+		   {"Texture Background (if available)", Option#opt.texbg}],
+	   [{title, "Display Color and texture?"}]},
+	  {vradio,gen_tx_sizes(MaxTxs, []),element(1, Option#opt.texsz),
+	   [{title,"Texture Size"}]}],
+    wings_ask:dialog("Draw Options", Qs,
+		     fun(Options) ->
+			     Opt = list_to_prefs(Options),
+			     set_pref([draw_prefs, pref_to_list(Opt)]),
+			     {auv,{draw_options,Opt}}
+		     end).
+
+get_pref(Key, Def) ->
+    wpa:pref_get(autouv, Key, Def).
+
+set_pref(KeyVals) ->
+    wpa:pref_set(autouv, KeyVals).
+
+pref_to_list(#opt{edges=EMode,edge_color=BEC,
+		    edge_width=BEW, color=Color, 
+		    texbg=TexBg, texsz={TexSz,TexSz}}) ->
+    [{edges,EMode}, {edge_color,BEC},{edge_width,BEW}, 
+     {color, Color},{texbg,TexBg}, {texsz=TexSz}].
+
+list_to_prefs([{edges,EMode}, {edge_color,BEC},{edge_width,BEW}, 
+	       {color, Color},{texbg,TexBg}, {texsz=TexSz}]) ->
+    #opt{edges=EMode,edge_color=BEC,
+	   edge_width=BEW, color=Color, 
+	   texbg=TexBg, texsz={TexSz,TexSz}};
+list_to_prefs([EMode,BEC,BEW,Color,TexBg,TexSz]) ->
+    #opt{edges=EMode,edge_color=BEC,
+	   edge_width=BEW, color=Color, 
+	   texbg=TexBg, texsz={TexSz,TexSz}}.
+
+gen_tx_sizes(Sz, Acc) when Sz < 128 -> Acc;
+gen_tx_sizes(Sz, Acc) ->
+    Bytes = Sz*Sz*3,
+    Mb = 1024*1024,
+    SzStr = if
+		Bytes < 1024*1024 ->
+		    io_lib:format("(~pKb)",[Bytes div 1024]);
+		true ->
+		    io_lib:format("(~pMb)",[Bytes div Mb])
+	    end,
+    Str0 = io_lib:format("~px~p ", [Sz,Sz]),
+    Str = lists:flatten([Str0|SzStr]),
+    gen_tx_sizes(Sz div 2, [{Str,Sz}|Acc]).
 
 %%% Texture Creation
 
-get_texture(#uvstate{option=Options, st=#st{mat=Mats}, areas=As, matname=MatN}) ->
-    #setng{texsz={TexW,TexH}, texbg=TexBg} = Options,
+get_texture(Uvs) ->    
+    Ops = list_to_prefs(get_pref(draw_prefs, list_to_prefs(#opt{}))),
+    get_pref(Uvs, Ops).
+get_texture(#uvstate{st=#st{mat=Mats}, areas=As, matname=MatN}, Options) ->
+    #opt{texsz={TexW,TexH}, texbg=TexBg} = Options,
     MI = {Mats,TexBg,MatN},
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     Current = wings_wm:viewport(),
@@ -129,11 +202,11 @@ calc_texsize(Vp, Tex, Orig) ->
 
 
 %%%
-draw_area(#we{name=#ch{fs=Fs},he=Tbe}=We,
-	  #setng{color=ColorMode,edges=EdgeMode}=Options, Materials) -> 
+draw_area(#we{name=#ch{fs=Fs}}=We,
+	  #opt{color=ColorMode,edges=EdgeMode}=Options, Materials) -> 
     gl:pushMatrix(),
-    gl:lineWidth(Options#setng.edge_width),
-
+    gl:lineWidth(Options#opt.edge_width),
+    Tbe = auv_util:outer_edges(Fs, We),
     %% Draw Materials and Vertex Colors
     case EdgeMode of
 	border_edges ->
@@ -142,15 +215,15 @@ draw_area(#we{name=#ch{fs=Fs},he=Tbe}=We,
 	    gl:pushMatrix(),
 	    DrawEdge = 
 		case We#we.mode of
-		    material when Options#setng.edge_color == true -> 
+		    material when Options#opt.edge_color == true -> 
 			gl:translatef(0,0,-0.5),
 			fun({Edge,Face}) ->
 				#edge{vs=Va,ve=Vb} = gb_trees:get(Edge, Etab),
-				gl:color4fv(wpc_autouv:get_material(Face, Materials, We)),
+				gl:color4fv(wpc_autouv:get_material(Face,Materials,We)),
 				gl:vertex3fv(wings_vertex:pos(Va, Vtab)),
 				gl:vertex3fv(wings_vertex:pos(Vb, Vtab))
 			end;
-		    vertex when Options#setng.edge_color == true -> 
+		    vertex when Options#opt.edge_color == true -> 
 			gl:translatef(0,0,-0.5),
 			fun({Edge,_}) ->
 				#edge{vs=Va, a=VaC, ve=Vb, b=VbC} =
