@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.20 2002/11/27 06:20:36 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.21 2002/12/01 10:36:03 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -134,8 +134,8 @@ handle_tweak_event1(#resize{}=Ev, T) ->
 handle_tweak_event1(quit=Ev, T) ->
     wings_io:putback_event(Ev),
     exit_tweak(T);
-handle_tweak_event1(Ev, #tweak{st=St0}=T) ->
-    case wings_hotkey:event(Ev, St0) of
+handle_tweak_event1({action,Action}, #tweak{st=St0}=T) ->
+    case Action of
 	{select,less} ->
 	    update_tweak_handler(magnet_radius(-1, T));
 	{select,more} ->
@@ -159,6 +159,11 @@ handle_tweak_event1(Ev, #tweak{st=St0}=T) ->
 	    wings_draw:update_dlists(St),
 	    update_tweak_handler(T#tweak{st=St});
 	_Ignore -> keep
+    end;
+handle_tweak_event1(Ev, #tweak{st=St}) ->
+    case wings_hotkey:event(Ev, St) of
+	next -> keep;
+	Other -> wings_wm:send(geom, {action,Other})
     end.
 
 exit_tweak(#tweak{orig_st=St,st=#st{shapes=Shs}}) ->
