@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.47 2003/10/23 21:32:59 dgud Exp $
+%%     $Id: wpc_opengl.erl,v 1.48 2003/10/24 11:12:38 dgud Exp $
 
 -module(wpc_opengl).
 
@@ -82,21 +82,9 @@ dialog_qs(render) ->
     Shadow = get_pref(render_shadow, false),
     BumpMap  = get_pref(render_bumps, false),
 
-    Bump = case wings_util:is_gl_ext({1,3}, bump_exts()) of 
-	       true -> 
-		   [{"Render Self-Shadows (Bump maps)", BumpMap, [{key,render_bumps}]}];
-	       false ->
-		   []
-	   end,
-
-    Stencil = 
-	case hd(gl:getIntegerv(?GL_STENCIL_BITS)) >= 8 of
-	    true -> 
-		[{"Render Shadows",Shadow,[{key,render_shadow}]}|Bump];
-	    false ->
-		Bump
-	end,
-		     
+    BumpP = wings_util:is_gl_ext({1,3}, bump_exts()), 
+    StencilP = hd(gl:getIntegerv(?GL_STENCIL_BITS)) >= 8,
+    
     [{menu,[{"Render to Image Window",preview},
 	    {"Render to File",file}],
       DefOutput,[{key,output_type}]},
@@ -107,8 +95,11 @@ dialog_qs(render) ->
 						  {range,1,4}]}]},
      {hframe,
       [{label,"Background Color"},{color,Back,[{key,background_color}]}]},
-     {"Render Alpha Channel",Alpha,[{key,render_alpha}]}|
-     Stencil].
+     {"Render Alpha Channel",Alpha,[{key,render_alpha}]},
+     {"Render Shadows",Shadow,
+      [{key,render_shadow}, {hook, fun(is_disabled, _) -> not StencilP; (_,_) -> void end}]},
+     {"Render Self-Shadows (Bump maps)", BumpMap, 
+      [{key,render_bumps}, {hook, fun(is_disabled, _) -> not BumpP; (_,_) -> void end}]}].
 
 aa_frame() ->
     HaveAccum = have_accum(),
@@ -198,19 +189,19 @@ get_filename(Attr, St) ->
 	    end
     end.
 
+del_list(X) when integer(X) ->
+    gl:deleteLists(X,1);
+del_list({[Smooth,TrL],_Tr}) ->
+    del_list(Smooth),
+    del_list(TrL);
+del_list(_) -> ok.
+
 render_exit(#r{lights=Lights, data=D}) ->
     gl:getError(),
-    foreach(fun(#light{sv=L}) ->
-		    foreach(fun(DL) -> gl:deleteLists(DL,1) end,L)
+    foreach(fun(#light{sv=L1, dl=L2}) ->
+		    foreach(fun(DL) -> del_list(DL) end,L1++L2)
 	    end, Lights),
-    foreach(fun(#d{l=DL,we= #we{id=Id}}) ->
-		    erase({?MODULE,Id,has_bumps}),
-		    erase({?MODULE,Id,matFs}),
-		    foreach(fun(L) when integer(L) -> 
-				    gl:deleteLists(L,1);
-			    (_) -> ok
-			    end,[get_opaque(DL),get_transp(DL)])
-	    end, D),
+    foreach(fun(#d{l=DL}) -> del_list(DL) end, D),
     gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
     wings_wm:dirty().
 
@@ -460,10 +451,14 @@ draw_with_shadows(false, L=#light{sv=Shadow,dl=DLs}, _Mats) ->
     gl:depthFunc(?GL_LESS),
     gl:enable(?GL_CULL_FACE),
     gl:cullFace(?GL_FRONT),
-    gl:stencilOp(?GL_KEEP, ?GL_INCR, ?GL_KEEP),    
+    {Inc,Dec} = case wings_util:is_gl_ext({1,4}, ['GL_EXT__stencil_wrap']) of
+		    true -> {?GL_INCR_WRAP, ?GL_DECR_WRAP};
+		    false -> {?GL_INCR, ?GL_DECR}
+		end,
+    gl:stencilOp(?GL_KEEP, Inc, ?GL_KEEP),    
     foreach(fun(DL) -> gl:callList(DL) end, Shadow),
     gl:cullFace(?GL_BACK),
-    gl:stencilOp(?GL_KEEP, ?GL_DECR, ?GL_KEEP),
+    gl:stencilOp(?GL_KEEP, Dec, ?GL_KEEP),
     foreach(fun(DL) -> gl:callList(DL) end, Shadow),
 
     gl:stencilFunc(?GL_EQUAL, ?STENCIL_INIT, 16#FFFFFFFF),
@@ -910,8 +905,12 @@ bump_exts() ->
 create_bumped(#d{l=DL}, false, _,_) -> DL;  % No Bumps use default DL
 create_bumped(#d{l=DL,we=We}, _,_,_)        % Vertex mode can't have bumps.
   when We#we.mode == vertex -> DL;
-create_bumped(#d{matfs=MatFs,we=We},true,Mtab,#light{pos=LPos}) -> 
-    draw_faces(MatFs, We, Mtab, mult_inverse_model_transform(LPos)).
+create_bumped(#d{matfs=MatFs,we=We},true,Mtab,#light{pos=LPos, type=Type}) -> 
+    LType = case Type of 
+		infinite -> dir;
+		_ -> pos
+	    end,
+    draw_faces(MatFs, We, Mtab, {LType,mult_inverse_model_transform(LPos)}).
 	
 mult_inverse_model_transform(Pos) ->
     #view{origin=Origin,distance=Dist,azimuth=Az,
@@ -1010,7 +1009,7 @@ do_draw_bumped([{Face, [[UV1|N1],[UV2|N2],[UV3|N3]]}|Fs], Txt, We, L) ->
     gl:normal3fv(N1),
     texCoord(UV1, true, ?GL_TEXTURE1),
 %    io:format("V=~p.~p~n",[V1,[UV1|N1]]),
-    bumpCoord(TBN1, e3d_vec:sub(L,V1)),
+    bumpCoord(TBN1, V1, L),
     texCoord(UV1, Txt,  ?GL_TEXTURE3),
     gl:vertex3fv(V1),
 
@@ -1018,7 +1017,7 @@ do_draw_bumped([{Face, [[UV1|N1],[UV2|N2],[UV3|N3]]}|Fs], Txt, We, L) ->
     gl:normal3fv(N2),
     texCoord(UV2, true, ?GL_TEXTURE1),
 %    io:format("V=~p.~p~n",[V2,[UV2|N2]]),
-    bumpCoord(TBN2, e3d_vec:sub(L,V2)),
+    bumpCoord(TBN2, V2, L),
     texCoord(UV2, Txt,  ?GL_TEXTURE3),
     gl:vertex3fv(V2),
 
@@ -1026,7 +1025,7 @@ do_draw_bumped([{Face, [[UV1|N1],[UV2|N2],[UV3|N3]]}|Fs], Txt, We, L) ->
     gl:normal3fv(N3),
     texCoord(UV3, true, ?GL_TEXTURE1),
 %    io:format("V=~p.~p~n",[V3,[UV3|N3]]),
-    bumpCoord(TBN3, e3d_vec:sub(L,V3)),
+    bumpCoord(TBN3, V3, L),
     texCoord(UV3, Txt,  ?GL_TEXTURE3),
     gl:vertex3fv(V3),
     do_draw_bumped(Fs, Txt, We, L).
@@ -1059,8 +1058,14 @@ calcTS(V1,V2,V3,{_S1,T1},{_S2,T2},{_S3,T3},N) ->
 	    {Stan,Ttan,N}
     end.
 
-bumpCoord({Vx,Vy,Vn}, InvLight0) ->
-    InvLight = e3d_vec:norm(InvLight0),
+bumpCoord({Vx,Vy,Vn}, Vpos, {Type,InvLight0}) ->
+    LDir = case Type of
+	       dir ->
+		   InvLight0;
+	       pos -> 
+		   e3d_vec:sub(InvLight0,Vpos)
+	   end,
+    InvLight = e3d_vec:norm(LDir),
     %% Calc orthonormal space per vertex.
     %% Vy = e3d_vec:norm(e3d_vec:cross(Vx,Vn)),
     %% {Vx,Vy,Vn}
