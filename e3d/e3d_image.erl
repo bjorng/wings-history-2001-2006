@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_image.erl,v 1.11 2002/11/26 09:46:26 dgud Exp $
+%%     $Id: e3d_image.erl,v 1.12 2003/04/23 12:38:26 bjorng Exp $
 %%
 
 -module(e3d_image).
@@ -78,8 +78,10 @@ save(Image = #e3d_image{}, Filename, Opts) ->
 	    return_error({not_supported, Extension})
     end.
 
-format_error({not_supported, Extension}) ->
-    io_lib:format("Files of type ~s are not supported", [Extension]).
+format_error({not_supported,Extension}) ->
+    io_lib:format("Files of type ~s are not supported", [Extension]);
+format_error(Other) ->
+    file:format_error(Other).
 
 %% Func: convert(#e3d_image, NewType [,NewAlignment [,NewOrder ]])
 %% Rets: #e3d_image | {error, Reason}
