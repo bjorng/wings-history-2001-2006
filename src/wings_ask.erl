@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.109 2003/11/10 19:41:03 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.110 2003/11/10 19:53:21 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -409,7 +409,7 @@ field_event(Ev, I, #s{fi=TopFi=#fi{w=W0,h=H0},store=Store0}=S) ->
 		    case {W,H} of
 			{W0,H0} -> ok;
 			_ -> 
-			    Size = {W+2*?VMARGIN,H+2*?HMARGIN},
+			    Size = {W+2*?HMARGIN,H+2*?VMARGIN},
 			    wings_wm:resize(wings_wm:this(), Size)
 		    end,
 		    ?DEBUG_DISPLAY({W,H}),
