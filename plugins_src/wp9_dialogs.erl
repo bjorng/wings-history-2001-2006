@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp9_dialogs.erl,v 1.26 2003/12/27 08:39:35 bjorng Exp $
+%%     $Id: wp9_dialogs.erl,v 1.27 2003/12/27 15:30:40 bjorng Exp $
 %%
 
 -module(wp9_dialogs).
@@ -195,29 +195,26 @@ file_filter({"."++Ext0,Desc0}) ->
 file_list(Dir, Wc) ->
     {ok,Files0} = file:list_dir(Dir),
     {Folders,Files} = file_list_filter(Files0, Dir, Wc),
-    case sort(Folders) ++ sort(Files) of
-	[] ->
-	    {menu,[{"<No Files>",""}],"",[{hook,fun choose_file/2}]};
-	All ->
-	    {menu,[{"<Choose File>",""}|All],"",[{hook,fun choose_file/2}]}
-    end.
+    All0 = sort(Folders) ++ sort(Files),
+    All = [{F} || F <- All0],
+    {table,[{"Filename"}|All],[{hook,fun choose_file/2}]}.
 
 file_list_filter(Files0, Dir, Wc) ->
     {Folders,Files} = file_list_folders(Files0, Dir, [], []),
     {Folders,file_list_filter_1(Files, Wc)}.
 
 file_list_filter_1(Files, []) ->
-    [{[space2|F],F} || F <- Files];
+    [{F,[space2|F]} || F <- Files];
 file_list_filter_1(Files, Wc) ->
     Ext = [$.|Wc],
-    [{[space2|F],F} || F <- Files, lists:suffix(Ext, F)].
+    [{F,[space2|F]} || F <- Files, lists:suffix(Ext, F)].
 
 file_list_folders(["."++_|Fs], Dir, DirAcc, FileAcc) ->
     file_list_folders(Fs, Dir, DirAcc, FileAcc);
 file_list_folders([F|Fs], Dir, DirAcc, FileAcc) ->
     case filelib:is_dir(filename:join(Dir, F)) of
 	true ->
-	    file_list_folders(Fs, Dir, [{[folder|F],F}|DirAcc], FileAcc);
+	    file_list_folders(Fs, Dir, [{{dir,F},[folder|F]}|DirAcc], FileAcc);
 	false ->
 	    file_list_folders(Fs, Dir, DirAcc, [F|FileAcc])
     end;

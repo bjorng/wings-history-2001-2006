@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.151 2003/12/27 14:50:26 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.152 2003/12/27 15:30:40 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -2421,8 +2421,8 @@ mktree_table([Head|Elements], Sto, I, Flags) ->
 
 table_event({redraw,Active,DisEnabled}, [#fi{index=I}=Fi|_], Store) ->
     table_redraw(Fi, gb_trees:get(-I, Store), DisEnabled, Active);
-table_event(value, _, _) ->
-    {value,nope};
+table_event(value, [#fi{index=I}|_], Sto) ->
+    {value,[]};
 table_event(Ev, _Path, _Store) ->
     io:format("~p\n", [Ev]),
     keep;
@@ -2431,7 +2431,7 @@ table_event(_Ev, _Path, _Store) -> keep.
 table_redraw(#fi{x=X,y=Y0,w=W,h=H}, #table{head=Head,el=Els,elh=Elh,rows=Rows},
 	     _DisEnabled, Active) ->
     Ch = wings_text:height(),
-    wings_io:sunken_rect(X, Y0+Ch+2, W, H-Ch-2, {0.9,0.9,0.9}, color4(), Active),
+    wings_io:sunken_rect(X, Y0+Ch+2, W, H-Ch-4, {0.9,0.9,0.9}, color4(), Active),
     wings_io:sunken_gradient(X, Y0+2, W, Ch+1,
 			     color3_high(), color4(), Active),
     gl:color3fv(color3_text()),
