@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.28 2003/04/21 10:16:58 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.29 2003/04/21 18:22:05 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -33,14 +33,15 @@ smooth(#we{mirror=Face,vp=Vtab,es=Etab,fs=Ftab,he=Htab}=We) ->
     smooth(Faces, Vs, Es, He, We).
 
 smooth(Fs, Vs, Es, Htab, #we{next_id=Id}=We0) ->
-    FacePos0 = face_centers(Fs, We0),
-    FacePos = gb_trees:from_orddict(reverse(FacePos0)),
-    We1 = cut_edges(Es, FacePos, Htab, We0#we{vc=undefined}),
-    {We2,NewVs} = smooth_faces(Fs, Id, FacePos, We1),
+    FacePos0 = ?TC(reverse(face_centers(Fs, We0))),
+    FacePos = gb_trees:from_orddict(FacePos0),
+    We1 = ?TC(cut_edges(Es, FacePos, Htab, We0#we{vc=undefined})),
+    {We2,NewVs} = ?TC(smooth_faces(FacePos0, Id, We1)),
     We = fix_materials(We2),
     #we{vp=Vtab2} = We,
-    Vtab3 = smooth_move_orig(Vs, FacePos, Htab, We0, Vtab2),
-    Vtab = gb_trees:from_orddict(gb_trees:to_list(Vtab3) ++ reverse(NewVs)),
+    Vtab3 = ?TC(smooth_move_orig(Vs, FacePos, Htab, We0, Vtab2)),
+    Vtab = gb_trees:from_orddict(gb_trees:to_list(Vtab3) ++ NewVs),
+    io:format("\n"),
     wings_util:validate_mirror(wings_we:rebuild(We#we{vp=Vtab})).
 
 fix_materials(#we{mat=Atom}=We) when is_atom(Atom) -> We;
@@ -61,8 +62,8 @@ face_centers([Face|Fs], We, Acc) ->
 		  end, {[],[]}, Face, We),
     case Vs of
 	[_,_] ->
-	    throw({command_error,"Face " ++ integer_to_list(Face) ++
-		   " has only two edges."});
+	    wings_util:error("Face " ++ integer_to_list(Face) ++
+			     " has only two edges.");
 	_ ->
 	    Center0 = wings_vertex:center(Vs, We),
 	    Center = wings_util:share(Center0),
@@ -110,24 +111,28 @@ smooth_move_orig_1(V, FacePosTab, Htab, #we{vp=OVtab}=We, Vtab) ->
 	_ThreeOrMore -> Vtab
     end.
 
-smooth_faces(Faces, Id, FacePos, We) ->
-    smooth_faces(Faces, Id, FacePos, [], [], We).
-    
-smooth_faces([Face|Faces], Id, FacePos, EsAcc0, Vtab0, #we{es=Etab0}=We0) ->
-    {NewV,We1} = wings_we:new_id(We0),
-    {Center,Color,NumIds} = gb_trees:get(Face, FacePos),
-    {Ids,We} = wings_we:new_wrap_range(NumIds, 1, We1),
-    Vtab = [{NewV,Center}|Vtab0],
+smooth_faces(FacePos, Id, #we{next_id=NextId}=We0) ->
+    NewVs = smooth_new_vs(FacePos, NextId, []),
+    We = smooth_faces_1(FacePos, Id, [], We0),
+    {We,NewVs}.
+
+smooth_new_vs([{_,{Center,_,NumIds}}|Fs], V, Acc) ->
+    smooth_new_vs(Fs, V+NumIds, [{V,Center}|Acc]);
+smooth_new_vs([], _, Acc) -> reverse(Acc).
+
+smooth_faces_1([{Face,{_,Color,NumIds}}|Fs], Id, EsAcc0, #we{es=Etab0}=We0) ->
+    {Ids,We} = wings_we:new_wrap_range(NumIds, 1, We0),
+    NewV = wings_we:id(0, Ids),
     {Etab,EsAcc,_} =
 	wings_face:fold(
 	  fun(_, E, Rec, A) ->
 		  smooth_edge(Face, E, Rec, NewV, Color, Id, A)
 	  end, {Etab0,EsAcc0,Ids}, Face, We),
-    smooth_faces(Faces, Id, FacePos, EsAcc, Vtab, We#we{es=Etab});
-smooth_faces([], _, _, Es, NewVs, #we{es=Etab0}=We) ->
+    smooth_faces_1(Fs, Id, EsAcc, We#we{es=Etab});
+smooth_faces_1([], _, Es, #we{es=Etab0}=We) ->
     Etab1 = gb_trees:to_list(Etab0) ++ reverse(Es),
     Etab = gb_trees:from_orddict(Etab1),
-    {We#we{es=Etab,fs=undefined},NewVs}.
+    We#we{es=Etab,fs=undefined}.
 
 smooth_edge(Face, Edge, Rec0, NewV, Color, Id, {Etab0,Es0,Ids0}) ->
     LeftEdge = RFace = wings_we:id(0, Ids0),
