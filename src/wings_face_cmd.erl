@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.87 2003/08/03 19:31:11 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.88 2003/08/11 05:35:38 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -199,8 +199,7 @@ extrude_region_vmirror(OldWe, #we{mirror=Face0}=We0) ->
 extract_region(Type, St0) ->
     St1 = wings_sel:fold(
 	    fun(Faces, We0, #st{sel=Sel0,onext=Oid}=S0) ->
-		    We1 = wings_we:uv_to_color(We0, St0),
-		    We = We1#we{mirror=none},
+		    We = We0#we{mirror=none},
 		    S = wings_shape:insert(We, "extract", S0),
 		    Sel = [{Oid,Faces}|Sel0],
 		    S#st{sel=Sel}
