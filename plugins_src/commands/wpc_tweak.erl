@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.52 2004/04/20 19:43:26 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.53 2004/04/22 04:39:01 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -435,9 +435,11 @@ near(Center, Vs, MagVs, Mirror, #tweak{mag_r=R,mag_type=Type}, We) ->
 		  [{V,Pos,Matrix,0.0,1.0}|A]
 	  end, M, Vs).
     
-mf(dome, D, R) -> math:sin((R-D)/R*math:pi()/2);
-mf(straight, D, R) -> (R-D)/R;
-mf(spike, D0, R) when is_float(D0), is_float(R) ->
+mf(dome, D, R) when is_float(R) ->
+    math:sin((R-D)/R*math:pi()/2);
+mf(straight, D, R) when is_float(R) ->
+    (R-D)/R;
+mf(spike, D0, R) when is_float(R) ->
     D = (R-D0)/R,
     D*D.
 
