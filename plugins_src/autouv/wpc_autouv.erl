@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.90 2003/02/07 14:59:07 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.91 2003/02/11 15:27:58 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -867,7 +867,9 @@ command_menu(faceg, X,Y, _Uvs) ->
 	    separator,
 	    {"ReMap UV", {remap, [{"Project Normal", project, 
 				   "Project uv's from chart normal"},
-				  {"Unfold", lsqcm, " "}
+				  {"Unfold", lsqcm, " "},
+				  {"Stretch optimization", stretch_opt, 
+				   "Optimize the chart stretch"}
 				 ]}, 
 	     "Re-calculate new uv's with choosen algorithmen"}
 	   ] ++ option_menu(),
@@ -1250,8 +1252,20 @@ handle_mousemotion(#mousemotion{xrel = DX0, yrel = DY0, x=MX0,y=MY0}, Uvs0) ->
 	    keep
     end.
 
+remap({Id, Ch0=#ch{we=We0,vmap=Vmap,size={W,H}}}, stretch_opt, #we{vp=Orig}) ->
+    Vs3d = map(fun({V0,_Pos}) ->
+		       case gb_trees:lookup(V0, Vmap) of
+			   none -> 
+			       {V0, gb_trees:get(V0, Orig)};
+			   {value,V} ->
+			       {V0, gb_trees:get(V, Orig)}
+		       end 
+	       end, gb_trees:to_list(We0#we.vp)),
+    Chart = auv_mapping:stretch_opt(Ch0, gb_trees:from_orddict(Vs3d)),
+    {Id,Chart};
+
 remap({Id, Chart0 = #ch{fs=Fs,we=We0,vmap=Vmap,size={W,H}}}, Type, #we{vp=Vs3d0}) ->
-    %% Get 3d positions (even for mapped vs
+    %% Get 3d positions (even for mapped vs)
     Vs3d = map(fun({V0,_Pos}) ->
 		       case gb_trees:lookup(V0, Vmap) of
 			   none -> 

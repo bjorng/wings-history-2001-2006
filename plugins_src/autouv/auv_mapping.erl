@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.31 2003/01/03 07:04:47 bjorng Exp $
+%%     $Id: auv_mapping.erl,v 1.32 2003/02/11 15:27:57 dgud Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -39,6 +39,7 @@
 -module(auv_mapping).
 
 -export([lsq/2, lsq/3, find_pinned/2]). % Debug entry points
+-export([stretch_opt/2, area2d/3,area3d/3]).
 
 -ifdef(lsq_standalone).
 -define(DBG(Fmt,Args), io:format(?MODULE_STRING++":~p: "++(Fmt), 
@@ -121,15 +122,20 @@ project_and_triangulate([Face|Fs], We, I, Tris,Area) ->
     Vs0 = wpa:face_vertices(Face, We),
     Vs2 = project2d(Vs0, Normal, We),
     NewArea = calc_area(Vs0, Normal, We) + Area,
-    if length(Vs2) > 3 ->
+    case length(Vs2) of 
+	N when N > 3 ->
 	    {Ids,Cds,All} = setup_tri_vs(Vs2,0,[],[],[]),
 	    NewFs = e3d_mesh:triangulate_face(#e3d_face{vs=Ids}, Cds),
 	    VT = gb_trees:from_orddict(All),
 	    {Add, I1} = get_verts(NewFs, I, VT, []),
 	    project_and_triangulate(Fs,We,I1,Add ++ Tris,NewArea);
-       true ->
+	3 ->
 	    Vs3 = [{Vid, {Vx, Vy}} || {Vid,{Vx,Vy,_}} <- Vs2],
-	    project_and_triangulate(Fs,We,I,[{Face, Vs3}|Tris],NewArea)
+	    project_and_triangulate(Fs,We,I,[{Face, Vs3}|Tris],NewArea);
+	Else ->
+	    io:format("Error: Can't triangulate face ~p with ~p vertices~n",
+		      [Face, Else]),
+	    project_and_triangulate(Fs,We,I,Tris,Area)
     end;
 project_and_triangulate([],_,_,Tris,Area) -> 
     {Tris,Area}.
@@ -302,22 +308,22 @@ calc_2dface_area([Face|Rest],We,Area) ->
 calc_2dface_area([],_,Area) ->
     Area.
 
--ifdef(DEBUG).
-create_border_fs([F,S|R], Orig, C, N, Acc) ->
-    New = {N,create_border_2d_face(S,F,C)},
-    create_border_fs([S|R], Orig, C, N+1, [New|Acc]);
-create_border_fs([F], [S|_], C, N, Acc) ->
-    New = {N,create_border_2d_face(S,F,C)},
-    [New|Acc].
+% -ifdef(DEBUG).
+% create_border_fs([F,S|R], Orig, C, N, Acc) ->
+%     New = {N,create_border_2d_face(S,F,C)},
+%     create_border_fs([S|R], Orig, C, N+1, [New|Acc]);
+% create_border_fs([F], [S|_], C, N, Acc) ->
+%     New = {N,create_border_2d_face(S,F,C)},
+%     [New|Acc].
 
-create_border_2d_face({I0, P0}, {I1,P1}, {I2,P2}) ->
-    Normal = e3d_vec:normal(P0,P1,P2),
-    Rot = e3d_mat:rotate_s_to_t(Normal,{0.0,0.0,1.0}),
-    {P0X,P0Y,_} = e3d_mat:mul_point(Rot,P0),
-    {P1X,P1Y,_} = e3d_mat:mul_point(Rot,P1),
-    {P2X,P2Y,_} = e3d_mat:mul_point(Rot,P2),
-    [{I0,{P0X,P0Y}},{I1,{P1X,P1Y}},{I2,{P2X,P2Y}}].
--endif.
+% create_border_2d_face({I0, P0}, {I1,P1}, {I2,P2}) ->
+%     Normal = e3d_vec:normal(P0,P1,P2),
+%     Rot = e3d_mat:rotate_s_to_t(Normal,{0.0,0.0,1.0}),
+%     {P0X,P0Y,_} = e3d_mat:mul_point(Rot,P0),
+%     {P1X,P1Y,_} = e3d_mat:mul_point(Rot,P1),
+%     {P2X,P2Y,_} = e3d_mat:mul_point(Rot,P2),
+%     [{I0,{P0X,P0Y}},{I1,{P1X,P1Y}},{I2,{P2X,P2Y}}].
+% -endif.
 
 find_border_edges(Faces, We) ->
     case auv_placement:group_edge_loops(Faces, We) of
@@ -826,19 +832,74 @@ split(L, 0, R) ->
 split([E | L], N, R) ->
     split(L, N-1, [E | R]).
 
--ifdef(DEBUG).
+area2d({S1,T1},{S2,T2},{S3,T3})
+  when is_float(S1),is_float(S2),is_float(S3),
+       is_float(T1),is_float(T2),is_float(T3) ->
+    ((S2-S1)*(T3-T1)-(S3-S1)*(T2-T1))/2.
+
+area3d(V1,V2,V3) ->
+    e3d_vec:len(e3d_vec:cross(e3d_vec:sub(V2,V1),e3d_vec:sub(V3,V1)))/2.   
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Texture metric stretch 
 %% From 'Texture Mapping Progressive Meshes' by
 %% Pedro V. Sander, John Snyder Steven J. Gortler, Hugues Hoppe
 
-s(P,P1,P2,P3,Q1,Q2,Q3) ->
-    M1 = e3d_vec:mul(Q1, area2d(P,P2,P3)),
-    M2 = e3d_vec:mul(Q2, area2d(P,P3,P1)),
-    M3 = e3d_vec:mul(Q3, area2d(P,P1,P2)),
-    A = area2d(P1,P2,P3),
-    e3d_vec:divide(e3d_vec:add([M1,M2,M3]),A).
+stretch_opt(Ch=#ch{fs=Fs,we=We0}, OVs) ->
+    io:format("Stretch ~n", []),
+    Tris = triangulate(Fs,-1,We0,[]),
+    Worst = sum_l8(Tris, OVs, 0.0),
+    Mean = sum_l2(Tris, OVs, 0.0, 0.0),
+    io:format("Stretch sum (worst) ~p ~n", [Worst]),
+    io:format("Stretch sum (mean) ~p ~n",  [Mean]),
+    Ch.
+
+sum_l8([{Face,[{Id1,P1},{Id2,P2},{Id3,P3}]}|R], Ovs, Worst) ->
+    FVal = l8(P1,P2,P3,
+	      gb_trees:get(Id1,Ovs),
+	      gb_trees:get(Id2,Ovs),
+	      gb_trees:get(Id3,Ovs)),
+    New = if FVal > Worst -> 
+		  ?DBG("Face ~p ~p has worst ~p~n", [Face,[Id1,Id2,Id3],Worst]),
+		  FVal;
+	     true -> 
+		  Worst
+	  end,
+    sum_l8(R,Ovs,New);
+sum_l8([], _, Worst) -> Worst.
+
+sum_l2([{_Face,[{Id1,P1},{Id2,P2},{Id3,P3}]}|R], Ovs, Mean, Area)  ->
+    Q1 = gb_trees:get(Id1,Ovs),
+    Q2 = gb_trees:get(Id2,Ovs),
+    Q3 = gb_trees:get(Id3,Ovs),
+    TriM = l2(P1,P2,P3,Q1,Q2,Q3),
+    A = area3d(Q1,Q2,Q3),
+    sum_l2(R,Ovs,TriM*TriM*A+Mean, Area+A);
+sum_l2([],_,Mean,Area) ->
+    math:sqrt(Mean/Area).
+
+% s(P,P1,P2,P3,Q1,Q2,Q3) ->
+%     M1 = e3d_vec:mul(Q1, area2d(P,P2,P3)),
+%     M2 = e3d_vec:mul(Q2, area2d(P,P3,P1)),
+%     M3 = e3d_vec:mul(Q3, area2d(P,P1,P2)),
+%     A = area2d(P1,P2,P3),
+%     e3d_vec:divide(e3d_vec:add([M1,M2,M3]),A).
+
+l2(P1,P2,P3,Q1,Q2,Q3) ->  %% Mean stretch value
+    SS = ss(P1,P2,P3,Q1,Q2,Q3),
+    ST = st(P1,P2,P3,Q1,Q2,Q3),
+    A = e3d_vec:dot(SS,SS),
+    B = e3d_vec:dot(SS,ST),
+    math:sqrt((A+B)/2).
+
+l8(P1,P2,P3,Q1,Q2,Q3) ->  %% Worst stretch value
+    SS = ss(P1,P2,P3,Q1,Q2,Q3),
+    ST = st(P1,P2,P3,Q1,Q2,Q3),
+    A = e3d_vec:dot(SS,SS),
+    B = e3d_vec:dot(SS,ST),
+    C = e3d_vec:dot(ST,ST),
+    math:sqrt(0.5*((A+C)+math:sqrt((A-C)*(A-C)+4*B*B))).
  
 ss(P1={_,T1},P2={_,T2},P3={_,T3},Q1,Q2,Q3) 
   when is_float(T1),is_float(T2),is_float(T3) ->
@@ -856,18 +917,19 @@ st(P1={S1,_},P2={S2,_},P3={S3,_},Q1,Q2,Q3)
     A = area2d(P1,P2,P3),
     e3d_vec:divide(e3d_vec:add([M1,M2,M3]),2*A).
 
+triangulate([Face|Fs], I, We,Tris) ->
+    Vs0 = wpa:face_vertices(Face, We),
+    Vs1 = [{V,wings_vertex:pos(V,We)} || V <- Vs0],
+    if length(Vs0) > 3 ->
+	    {Ids,Cds,All} = setup_tri_vs(Vs1,0,[],[],[]),
+	    NewFs = e3d_mesh:triangulate_face(#e3d_face{vs=Ids}, Cds),
+	    VT = gb_trees:from_orddict(All),
+	    {Add, I1} = get_verts(NewFs, I, VT, []),
+	    triangulate(Fs,I1,We,Add ++ Tris);
+       true ->
+	    Vs2 = [{Vid, {Vx, Vy}} || {Vid,{Vx,Vy,_}} <- Vs1],
+	    triangulate(Fs,I,We,[{Face, Vs2}|Tris])
+    end;
+triangulate([], _, _, Tris) ->
+    Tris.
 
-tau(P1,P2,P3,Q1,Q2,Q3) ->  %% Max singular value
-    SS = ss(P1,P2,P3,Q1,Q2,Q3),
-    ST = st(P1,P2,P3,Q1,Q2,Q3),
-    A = e3d_vec:dot(SS,SS),
-    B = e3d_vec:dot(SS,ST),
-    C = e3d_vec:dot(ST,ST),
-    math:sqrt(0.5*((A+C)+math:sqrt((A-C)*(A-C)+4*B*B))).
-
-area2d({S1,T1},{S2,T2},{S3,T3})
-  when is_float(S1),is_float(S2),is_float(S3),
-       is_float(T1),is_float(T2),is_float(T3) ->
-    ((S2-S1)*(T3-T1)-(S3-S1)*(T2-T1))/2.
-
--endif.
