@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.23 2001/12/11 10:29:39 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.24 2001/12/11 10:54:16 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -237,10 +237,10 @@ connect(St0) ->
     St#st{sel=Sel}.
 
 connect(Id, Es, We0, Acc) ->
-    Iter = gb_sets:iterator(Es),
     {We1,Vs} = cut_edges(Es, We0),
-    We = wings_vertex_cmd:connect(Vs, We1),
-    Sel = wings_we:new_items(edge, We1, We),
+    We2 = wings_vertex_cmd:connect(Vs, We1),
+    Sel = wings_we:new_items(edge, We1, We2),
+    We = remove_winged_vs(Vs, We2),
     {We,[{Id,Sel}|Acc]}.
 
 cut_edges(Es, We) ->
@@ -248,6 +248,14 @@ cut_edges(Es, We) ->
 			 {W,V} = cut(Edge, 2, W0),
 			 {W,[V|Vs0]}
 		 end, {We,[]}, Es).
+
+remove_winged_vs(Vs, We) ->
+    foldl(fun(V, W0) ->
+		  case wings_vertex:dissolve(V, W0) of
+		      error -> W0;
+		      W -> W
+		  end
+	  end, We, Vs).
 
 %%%
 %%% The Dissolve command.
