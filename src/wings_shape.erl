@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.35 2003/01/03 07:00:37 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.36 2003/01/03 19:50:44 bjorng Exp $
 %%
 
 -module(wings_shape).
@@ -111,13 +111,13 @@ event(#mousemotion{x=X,y=Y,state=State}, #ost{active=Act0}=Ost0) ->
     help(Act, active_field(X)),
     case Act of
 	Act0 -> keep;
-	Act ->
+	_ ->
 	    wings_wm:dirty(),
 	    Ost = Ost0#ost{active=Act},
-	    case State of
-		?SDL_PRESSED ->
+	    case State band ?SDL_BUTTON_LMASK of
+		?SDL_BUTTON_LMASK ->
 		    repeat_latest(Field, Ost);
-		?SDL_RELEASED -> ok
+		0 -> ok
 	    end,
 	    get_event(Ost)
     end;
