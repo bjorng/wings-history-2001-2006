@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: wings2.nsi,v 1.9 2003/08/12 09:16:17 bjorng Exp $
+#     $Id: wings2.nsi,v 1.10 2003/08/12 09:51:01 bjorng Exp $
 #
 
 Name "Wings 3D"
@@ -44,33 +44,13 @@ Section "ThisNameIsIgnoredSoWhyBother?"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Wings 3D" "DisplayName" "Wings 3D (remove only)"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Wings 3D" "UninstallString" '"$INSTDIR\uninst.exe"'
 
-  WriteRegStr HKLM "SOFTWARE\Ericsson\Erlang\Wings3D" "BinDir" "$INSTDIR\erlang\bin"
-  WriteRegStr HKLM "SOFTWARE\Ericsson\Erlang\Wings3D" "Rootdir" "$INSTDIR\erlang"
-  WriteRegStr HKLM "SOFTWARE\Ericsson\Erlang\Wings3D" "Progname" "erl"
-
-  WriteRegStr HKLM "SOFTWARE\Wings 3D" "WerlPath" "$INSTDIR\erlang\bin\werl.exe"
-
   ; Write out uninstaller.
   WriteUninstaller "$INSTDIR\uninst.exe"
 
-  ; Delete old garbage.
-  Delete "$INSTDIR\Wings 3D.lnk"
-  Delete "$INSTDIR\wings_start.bat"
-  Delete "$INSTDIR\unwise.exe"
-  Delete "$INSTDIR\install.log"
-  RMDir "$INSTDIR\icons"
-  Delete "$INSTDIR\Makefile"
-  Delete "$INSTDIR\Makefile.win32"
-  Delete "$INSTDIR\README"
-  Delete "$INSTDIR\plugins\primitives\wpc_plane.beam"
-  DeleteRegKey HKLM "SOFTWARE\Wings3D"
-  Delete "$INSTDIR\ebin\wings_win_scroller.beam"
-
-  ; Some releases have all command plug-ins in the import_export directory.
-  Delete "$INSTDIR\plugins\import_export\wpc_region.beam"
-  Delete "$INSTDIR\plugins\import_export\wpc_triquad_cmd.beam"
-  Delete "$INSTDIR\plugins\import_export\wpc_turnedge.beam"
-  Delete "$INSTDIR\plugins\import_export\wpc_tweak.beam"
+  ; Delete obsolete registry keys and values.
+  DeleteRegKey HKLM "SOFTWARE\Ericsson\Erlang\Wings3D"
+  DeleteRegValue HKLM "SOFTWARE\Wings 3D" "WerlPath"
+  ClearErrors
 
   ; Install Erlang/OTP.
   ExecWait "Wings3D.exe --install"
