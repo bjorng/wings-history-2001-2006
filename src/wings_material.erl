@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.52 2002/10/28 18:24:04 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.53 2002/10/30 19:21:44 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -80,11 +80,7 @@ material_list(#st{mat=Mat0}) ->
 
 set_material(Mat, St) ->
     wings_sel:map(
-      fun(_, #we{name=Name,mode=uv}) ->
-	      wings_util:error("Materials cannot be assigned to objects "
-			       "with UV coordinates/textures (" ++ Name ++
-			       ").");
-	 (Faces, #we{fs=Ftab0}=We) ->
+      fun(Faces, #we{fs=Ftab0}=We) ->
 	      Ftab = foldl(
 		       fun(Face, Ft) ->
 			       Rec = gb_trees:get(Face, Ft),
