@@ -9,14 +9,15 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv.hrl,v 1.2 2002/10/08 11:32:24 dgud Exp $
+%%     $Id: auv.hrl,v 1.3 2002/10/13 21:25:42 dgud Exp $
 
 -record(a, {center = {0,0}, scale = 1.0, rotate = 0.0, size, 
 	    fs, vpos,
 	    %% temporary stuff
 	    twe,tbe}).
 
--record(areas, {as, matname, we}).  
+-record(areas, {as, matname, we, chbycut}).
+
 -define(add_as(AsAA,TreeAA), 
 	lists:foldl(fun({K,Area}, TreeBB) -> 
 			    gb_trees:insert(hd(K),Area,TreeBB) 
