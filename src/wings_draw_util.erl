@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.107 2003/08/29 10:40:28 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.108 2003/08/30 18:18:50 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -518,9 +518,9 @@ draw_normals(#dlo{normals=Ns}) ->
 prepare(Ftab, #dlo{src_we=We}, St) ->
     prepare(Ftab, We, St);
 prepare(Ftab, #we{mode=vertex}=We, St) ->
-    MatFaces = [{default,Ftab}],
     case wings_pref:get_value(show_colors) of
 	false ->
+	    MatFaces = [{default,Ftab}],
 	    {material,MatFaces,St};
 	true ->
 	    {color,vtx_color_split(Ftab, We),St}
@@ -624,71 +624,103 @@ plain_face_1([], _, VsPos) ->
 %% Tesselate and draw face. Include UV coordinates.
 %%
 
-uv_face(Face, #dlo{src_we=We}) ->
-    uv_face(Face, We);
+uv_face(Face, #dlo{src_we=We,ns=Ns}) ->
+    UVs = wings_face:vertex_info(Face, We),
+    case gb_trees:get(Face, Ns) of
+	[N|VsPos] ->
+	    gl:normal3fv(N),
+	    wings__du:uv_face(VsPos, UVs);
+	{N,VsPos} ->
+	    gl:normal3fv(N),
+	    wings__du:uv_face(N, VsPos, UVs)
+    end;
 uv_face(Face, #we{fs=Ftab}=We) ->
     Edge = gb_trees:get(Face, Ftab),
     uv_face(Face, Edge, We).
 
-uv_face(Face, Edge, #dlo{src_we=We}) ->
-    uv_face(Face, Edge, We);
+uv_face(Face, Edge, #dlo{src_we=We,ns=Ns}) ->
+    UVs = wings_face:vertex_info(Face, Edge, We),
+    case gb_trees:get(Face, Ns) of
+	[N|VsPos] ->
+	    gl:normal3fv(N),
+	    wings__du:uv_face(VsPos, UVs);
+	{N,VsPos} ->
+	    gl:normal3fv(N),
+	    wings__du:uv_face(N, VsPos, UVs)
+    end;
 uv_face(Face, Edge, #we{vp=Vtab}=We) ->
     Vs0 = wings_face:vinfo_cw(Face, Edge, We),
     uv_face_1(Vs0, Vtab, [], []).
 
 uv_face_1([[V|Col]|Vs], Vtab, Nacc, VsAcc) ->
     Pos = gb_trees:get(V, Vtab),
-    uv_face_1(Vs, Vtab, [Pos|Nacc], [[Pos|Col]|VsAcc]);
-uv_face_1([], _, Nacc, [_,_,_]=Vs) ->
-    N = e3d_vec:normal(Nacc),
+    uv_face_1(Vs, Vtab, [Pos|Nacc], [Col|VsAcc]);
+uv_face_1([], _, [_,_,_]=VsPos, UVs) ->
+    N = e3d_vec:normal(VsPos),
     gl:normal3fv(N),
-    wings__du:uv_face(Vs);
-uv_face_1([], _, Nacc, [A,B,C,D]=Vs) ->
-    N = e3d_vec:normal(Nacc),
+    wings__du:uv_face(VsPos, UVs);
+uv_face_1([], _, [A,B,C,D]=VsPos, UVs) ->
+    N = e3d_vec:normal(VsPos),
     gl:normal3fv(N),
-    case good_triangulation(N, hd(A), hd(B), hd(C), hd(D)) of
-	false -> wings__du:uv_face(N, Vs);
-	true -> wings__du:uv_face(Vs)
+    case good_triangulation(N, A, B, C, D) of
+	false -> wings__du:uv_face(N, VsPos, UVs);
+	true -> wings__du:uv_face(VsPos, UVs)
     end;
-uv_face_1([], _, Nacc, Vs) ->
-    N = e3d_vec:normal(Nacc),
+uv_face_1([], _, VsPos, UVs) ->
+    N = e3d_vec:normal(VsPos),
     gl:normal3fv(N),
-    wings__du:uv_face(N, Vs).
+    wings__du:uv_face(N, VsPos, UVs).
 
 %%
 %% Tesselate and draw face. Include vertex colors.
 %%
 
-vcol_face(Face, #dlo{src_we=We}) ->
-    vcol_face(Face, We);
+vcol_face(Face, #dlo{src_we=We,ns=Ns}) ->
+    Cols = wings_face:vertex_info(Face, We),
+    case gb_trees:get(Face, Ns) of
+	[N|VsPos] ->
+	    gl:normal3fv(N),
+	    wings__du:vcol_face(VsPos, Cols);
+	{N,VsPos} ->
+	    gl:normal3fv(N),
+	    wings__du:vcol_face(N, VsPos, Cols)
+    end;
 vcol_face(Face, #we{fs=Ftab}=We) ->
     Edge = gb_trees:get(Face, Ftab),
     vcol_face(Face, Edge, We).
 
-vcol_face(Face, Edge, #dlo{src_we=We}) ->
-    vcol_face(Face, Edge, We);
+vcol_face(Face, Edge, #dlo{src_we=We,ns=Ns}) ->
+    Cols = wings_face:vertex_info(Face, Edge, We),
+    case gb_trees:get(Face, Ns) of
+	[N|VsPos] ->
+	    gl:normal3fv(N),
+	    wings__du:vcol_face(VsPos, Cols);
+	{N,VsPos} ->
+	    gl:normal3fv(N),
+	    wings__du:vcol_face(N, VsPos, Cols)
+    end;
 vcol_face(Face, Edge, #we{vp=Vtab}=We) ->
     Vs0 = wings_face:vinfo_cw(Face, Edge, We),
     vcol_face_1(Vs0, Vtab, [], []).
 
 vcol_face_1([[V|Col]|Vs], Vtab, Nacc, VsAcc) ->
     Pos = gb_trees:get(V, Vtab),
-    vcol_face_1(Vs, Vtab, [Pos|Nacc], [[Pos|Col]|VsAcc]);
-vcol_face_1([], _, Nacc, [_,_,_]=Vs) ->
-    N = e3d_vec:normal(Nacc),
+    vcol_face_1(Vs, Vtab, [Pos|Nacc], [Col|VsAcc]);
+vcol_face_1([], _, [_,_,_]=VsPos, Cols) ->
+    N = e3d_vec:normal(VsPos),
     gl:normal3fv(N),
-    wings__du:vcol_face(Vs);
-vcol_face_1([], _, Nacc, [A,B,C,D]=Vs) ->
-    N = e3d_vec:normal(Nacc),
+    wings__du:vcol_face(VsPos, Cols);
+vcol_face_1([], _, [A,B,C,D]=VsPos, Cols) ->
+    N = e3d_vec:normal(VsPos),
     gl:normal3fv(N),
-    case good_triangulation(N, hd(A), hd(B), hd(C), hd(D)) of
-	false -> wings__du:vcol_face(N, Vs);
-	true -> wings__du:vcol_face(Vs)
+    case good_triangulation(N, A, B, C, D) of
+	false -> wings__du:vcol_face(N, VsPos, Cols);
+	true -> wings__du:vcol_face(VsPos, Cols)
     end;
-vcol_face_1([], _, Nacc, Vs) ->
-    N = e3d_vec:normal(Nacc),
+vcol_face_1([], _, VsPos, Cols) ->
+    N = e3d_vec:normal(VsPos),
     gl:normal3fv(N),
-    wings__du:vcol_face(N, Vs).
+    wings__du:vcol_face(N, VsPos, Cols).
 
 %% good_triangulation(Normal, Point1, Point2, Point3, Point4) -> true|false
 %%  Return true if triangulation by connecting Point1 to Point3 is OK.
