@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.81 2003/06/08 08:57:15 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.82 2003/07/10 11:35:58 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -936,7 +936,7 @@ lift_from_edge(Dir, EdgeSel, St0) ->
 	{St,{[],Tvs}} when Dir == rotate ->
 	    wings_drag:setup(Tvs, [angle], St);
 	{St,{[],Tvs}} when Dir == free ->
-	    wings_drag:setup(Tvs, [dx,dy], [screen_relative], St);
+	    wings_drag:setup(Tvs, [dx,dy,falloff], [screen_relative], St);
 	{St,{[],Tvs}} ->
 	    wings_drag:setup(Tvs, [distance], St);
 	{_,_} -> lift_sel_mismatch()
@@ -1033,7 +1033,7 @@ lift_from_vertex(Dir, VsSel, St0) ->
 	{St,{[],Tvs}} when Dir == rotate ->
 	    wings_drag:setup(Tvs, [angle], St);
 	{St,{[],Tvs}} when Dir == free ->
-	    wings_drag:setup(Tvs, [dx,dy], [screen_relative], St);
+	    wings_drag:setup(Tvs, [dx,dy,falloff], [screen_relative], St);
 	{St,{[],Tvs}} ->
 	    wings_drag:setup(Tvs, [distance], St);
 	{_,_} -> lift_vtx_sel_mismatch()
