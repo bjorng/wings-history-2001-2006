@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.99 2004/12/31 15:39:34 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.100 2005/01/09 09:30:38 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -29,7 +29,7 @@
 	 is_consistent/1,is_face_consistent/2,
 	 hide_faces/2,show_faces/1,num_hidden/1,
 	 any_hidden/1,all_hidden/1,
-	 visible/1,visible/2,visible_vs/1,visible_edges/1,
+	 visible/1,visible/2,visible_vs/1,visible_edges/1,visible_edges/2,
 	 validate_mirror/1,mirror_flatten/2]).
 
 -include("wings.hrl").
@@ -189,6 +189,20 @@ visible_es_1([{E,_}|Es], Acc) ->
     visible_es_1(Es, [E|Acc]);
 visible_es_1([], Acc) ->
     ordsets:from_list(Acc).
+
+visible_edges(Es, We) ->
+    case any_hidden(We) of
+	false -> Es;
+	true ->
+	    Vis0 = visible_edges(We),
+	    if
+		is_list(Es) ->
+		    ordsets:intersection(Vis0, Es);
+		true ->
+		    Vis = gb_sets:from_ordset(Vis0),
+		    gb_sets:intersection(Vis, Es)
+	    end
+    end.
 
 show_faces(We) ->
     case any_hidden(We) of

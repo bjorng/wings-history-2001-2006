@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_seg_ui.erl,v 1.31 2004/12/30 06:28:06 bjorng Exp $
+%%     $Id: auv_seg_ui.erl,v 1.32 2005/01/09 09:30:36 bjorng Exp $
 %%
 
 -module(auv_seg_ui).
@@ -209,10 +209,10 @@ filter_sel_command(#seg{selmodes=Modes}=Ss, #st{selmode=Mode}=St) ->
 seg_command({continue,Method}, Ss) ->
     seg_map_charts(Method, Ss);
 seg_command(cut_edges, #seg{st=St0}=Ss) ->
-    St = wings_edge:hardness(hard, St0),
+    St = wings_edge_cmd:hardness(hard, St0),
     get_seg_event(Ss#seg{st=St});
 seg_command(no_cut_edges, #seg{st=St0}=Ss) ->
-    St = wings_edge:hardness(soft, St0),
+    St = wings_edge_cmd:hardness(soft, St0),
     get_seg_event(Ss#seg{st=St});
 seg_command(select_hard_edges, #seg{st=St0}=Ss) ->
     case wings_sel_cmd:command({by,hard_edges}, St0) of

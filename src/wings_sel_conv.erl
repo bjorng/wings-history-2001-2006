@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_conv.erl,v 1.4 2004/12/31 11:37:58 bjorng Exp $
+%%     $Id: wings_sel_conv.erl,v 1.5 2005/01/09 09:30:38 bjorng Exp $
 %%
 
 -module(wings_sel_conv).
@@ -134,7 +134,7 @@ edge_more(St) ->
 edge_more(Edges, We) ->
     Vs = wings_edge:to_vertices(Edges, We),
     Es = adjacent_edges(Vs, We, Edges),
-    remove_invisible_edges(Es, We).
+    wings_we:visible_edges(Es, We).
 
 edge_less(St) ->
     conv_sel(fun(Edges, #we{es=Etab}=We) ->
@@ -179,15 +179,7 @@ edge_extend_sel(Es0, #we{es=Etab}=We) ->
 			   gb_trees:get(Edge, Etab),
 		       gb_sets:union(S, gb_sets:from_list([LP,LS,RP,RS]))
 	       end, Es0, gb_sets:to_list(Es0)),
-    remove_invisible_edges(Es, We).
-
-remove_invisible_edges(Es, We) ->
-    case wings_we:any_hidden(We) of
-	false -> Es;
-	true ->
-	    Vis = gb_sets:from_ordset(wings_we:visible_edges(We)),
-	    gb_sets:intersection(Vis, Es)
-    end.
+    wings_we:visible_edges(Es, We).
 
 %%
 %% Convert the current selection to a face selection.

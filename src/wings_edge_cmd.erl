@@ -8,15 +8,15 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge_cmd.erl,v 1.2 2004/12/31 07:56:29 bjorng Exp $
+%%     $Id: wings_edge_cmd.erl,v 1.3 2005/01/09 09:30:38 bjorng Exp $
 %%
 
 -module(wings_edge_cmd).
 
 %% Commands.
 -export([menu/3,command/2]).
+-export([hardness/2,set_color/2]).
 
-%%-define(NEED_ESDL, 1).
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
 
@@ -48,8 +48,9 @@ menu(X, Y, St) ->
 	    {?__(12,"Collapse"),collapse,
 	     ?__(13,"Delete edges, replacing them with vertices")},
 	    separator,
-	    {?__(14,"Hardness"),{hardness,[{?__(15,"Soft"),soft},
-					   {?__(16,"Hard"),hard}]}},
+	    {?__(14,"Hardness"),
+	     {hardness,[{?__(15,"Soft"),soft},
+			{?__(16,"Hard"),hard}]}},
 	    separator,
 	    {?__(17,"Loop Cut"),loop_cut,
 	     ?__(18,"Cut into two objects along edge loop")},
@@ -109,7 +110,7 @@ command(dissolve, St) ->
 command(collapse, St) ->
     {save_state,wings_collapse:collapse(St)};
 command({hardness,Type}, St) ->
-    {save_state,wings_edge:hardness(Type, St)};
+    {save_state,hardness(Type, St)};
 command(loop_cut, St) ->
     ?SLOW({save_state,loop_cut(St)});
 command(auto_smooth, St) ->
@@ -122,7 +123,7 @@ command({scale,Type}, St) ->
     wings_scale:setup(Type, St);
 command(vertex_color, St) ->
     wings_color:choose(fun(Color) ->
-			       wings_edge:set_color(Color, St)
+			       set_color(Color, St)
 		       end).
 
 %%%
@@ -145,6 +146,32 @@ cut_edges(Es, We) ->
 			 {W,V} = wings_edge:cut(Edge, 2, W0),
 			 {W,[V|Vs0]}
 		 end, {We,[]}, Es).
+
+%%%
+%%% The Vertex Color command.
+%%%
+
+set_color(Color, St) ->
+    wings_sel:map(fun(Es, We) ->
+			  set_color_1(gb_sets:to_list(Es), Color,
+				      We#we{mode=vertex})
+		  end, St).
+
+set_color_1([E|Es], Color, #we{es=Etab0}=We) ->
+    Rec0 = #edge{vs=Va,ve=Vb,rtpr=Rp,ltpr=Lp} = gb_trees:get(E, Etab0),
+    Rec = Rec0#edge{a=Color,b=Color},
+    Etab1 = gb_trees:update(E, Rec, Etab0),
+    Etab2 = set_color_2(Rp, Va, Color, Etab1),
+    Etab = set_color_2(Lp, Vb, Color, Etab2),
+    set_color_1(Es, Color, We#we{es=Etab});
+set_color_1([], _, We) -> We.
+
+set_color_2(E, V, Color, Etab) ->
+    Rec = case gb_trees:get(E, Etab) of
+	      #edge{vs=V}=Rec0 -> Rec0#edge{a=Color};
+	      #edge{ve=V}=Rec0 -> Rec0#edge{b=Color}
+	  end,
+    gb_trees:update(E, Rec, Etab).
 
 %%%
 %%% The Cut command.
@@ -245,6 +272,21 @@ dissolve(St0) ->
 			       wings_edge:dissolve_edges(Es, We)
 		       end, St0),
     wings_sel:clear(St).
+
+%%%
+%%% The Hardness command.
+%%%
+
+hardness(soft, St) ->
+    wings_sel:map(fun(Edges, #we{he=Htab0}=We) ->
+			  Htab = gb_sets:difference(Htab0, Edges),
+			  We#we{he=Htab}
+		  end, St);
+hardness(hard, St) ->
+    wings_sel:map(fun(Edges, #we{he=Htab0}=We) ->
+			  Htab = gb_sets:union(Htab0, Edges),
+			  We#we{he=Htab}
+		  end, St).
 
 %%%
 %%% The Slide command.

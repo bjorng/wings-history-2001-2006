@@ -3,12 +3,12 @@
 %%
 %%     This module handles edge-loop commands.
 %%
-%%  Copyright (c) 2001-2004 Bjorn Gustavsson
+%%  Copyright (c) 2001-2005 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge_loop.erl,v 1.17 2004/12/30 10:18:03 bjorng Exp $
+%%     $Id: wings_edge_loop.erl,v 1.18 2005/01/09 09:30:38 bjorng Exp $
 %%
 
 -module(wings_edge_loop).
@@ -127,7 +127,8 @@ select_loop(St) -> St.
 
 select_loop(Edges0, #we{id=Id,es=Etab}=We, Acc) ->
     Edges1 = select_loop_1(Edges0, Etab, gb_sets:empty()),
-    Edges = add_mirror_edges(Edges1, We),
+    Edges2 = add_mirror_edges(Edges1, We),
+    Edges = wings_we:visible_edges(Edges2, We),
     [{Id,Edges}|Acc].
 
 select_loop_1(Edges0, Etab, Sel0) ->
@@ -210,8 +211,8 @@ select_link_incr(St) -> St.
 select_link_incr(Edges0, #we{id=Id,es=Etab}=We, Acc) ->
     EndPoints = init_expand(Edges0, Etab),
     MirrorEdges = gb_sets:from_list(mirror_edges(We)),
-    Edges = expand_edge_link(EndPoints, We, MirrorEdges, Edges0),
-    %%Edges = expand_mirror_link(Edges1, We),
+    Edges1 = expand_edge_link(EndPoints, We, MirrorEdges, Edges0),
+    Edges = wings_we:visible_edges(Edges1, We),
     [{Id,Edges}|Acc].
 
 expand_edge_link([{V,OrigEdge}|R], We, MirrorEdges, Sel0) ->

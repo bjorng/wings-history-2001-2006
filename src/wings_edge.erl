@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.115 2004/12/31 11:37:57 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.116 2005/01/09 09:30:37 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -19,8 +19,7 @@
 	 select_edge_ring/1,select_edge_ring_incr/1,select_edge_ring_decr/1,
 	 cut/3,fast_cut/3,screaming_cut/3,
 	 dissolve_edges/2,dissolve_edge/2,
-	 hardness/2,hardness/3,
-	 set_color/2,
+	 hardness/3,
 	 patch_edge/4,patch_edge/5]).
 
 -export([dissolve_isolated_vs/2]).
@@ -411,19 +410,8 @@ stabile_neighbor(#edge{ltpr=Ea,ltsu=Eb,rtpr=Ec,rtsu=Ed}, Del) ->
     Edge.
 
 %%%
-%%% The Hardness command.
+%%% Setting hard/soft edges.
 %%%
-
-hardness(soft, St) ->
-    wings_sel:map(fun(Edges, #we{he=Htab0}=We) ->
-			  Htab = gb_sets:difference(Htab0, Edges),
-			  We#we{he=Htab}
-		  end, St);
-hardness(hard, St) ->
-    wings_sel:map(fun(Edges, #we{he=Htab0}=We) ->
-			  Htab = gb_sets:union(Htab0, Edges),
-			  We#we{he=Htab}
-		  end, St).
 
 hardness(Edge, soft, Htab) -> gb_sets:delete_any(Edge, Htab);
 hardness(Edge, hard, Htab) -> gb_sets:add(Edge, Htab).
@@ -567,9 +555,10 @@ select_edge_ring_decr(#st{selmode=edge}=St) ->
     wings_sel:set(Sel, St);
 select_edge_ring_decr(St) -> St.
 
-build_selection(Edges, #we{id=Id} = We, ObjAcc) ->
+build_selection(Edges, #we{id=Id}=We, ObjAcc) ->
     [{Id,foldl(fun(Edge, EdgeAcc) ->
-		       grow_from_edge(Edge, We, EdgeAcc)
+		       Es = grow_from_edge(Edge, We, EdgeAcc),
+		       wings_we:visible_edges(Es, We)
 	       end, gb_sets:empty(), gb_sets:to_list(Edges))}|ObjAcc].
 
 grow_from_edge(unknown, _We, Selected) -> Selected;
@@ -601,9 +590,10 @@ next_edge(Edge, Face, #we{es=Etab})->
         #edge{rf=Face,rtsu=NextEdge} -> NextEdge
     end.
 
-incr_ring_selection(Edges, #we{id=Id} = We, ObjAcc) ->
+incr_ring_selection(Edges, #we{id=Id}=We, ObjAcc) ->
     [{Id,foldl(fun(Edge, EdgeAcc) ->
-		       incr_from_edge(Edge, We, EdgeAcc)
+		       Es = incr_from_edge(Edge, We, EdgeAcc),
+		       wings_we:visible_edges(Es, We)
 	       end, gb_sets:empty(), gb_sets:to_list(Edges))}|ObjAcc].
 
 incr_from_edge(Edge, We, Acc) ->
@@ -635,35 +625,9 @@ decr_from_edge(Edge, We, Orig, Acc) ->
 		true ->
 		    Acc;
 		false ->
-		    gb_sets:delete(Edge,Acc)
+		    gb_sets:delete(Edge, Acc)
 	    end
     end.
-
-%%%
-%%% Set vertex color for selected edges.
-%%%
-
-set_color(Color, St) ->
-    wings_sel:map(fun(Es, We) ->
-			  set_color_1(gb_sets:to_list(Es), Color,
-				      We#we{mode=vertex})
-		  end, St).
-
-set_color_1([E|Es], Color, #we{es=Etab0}=We) ->
-    Rec0 = #edge{vs=Va,ve=Vb,rtpr=Rp,ltpr=Lp} = gb_trees:get(E, Etab0),
-    Rec = Rec0#edge{a=Color,b=Color},
-    Etab1 = gb_trees:update(E, Rec, Etab0),
-    Etab2 = set_color_2(Rp, Va, Color, Etab1),
-    Etab = set_color_2(Lp, Vb, Color, Etab2),
-    set_color_1(Es, Color, We#we{es=Etab});
-set_color_1([], _, We) -> We.
-
-set_color_2(E, V, Color, Etab) ->
-    Rec = case gb_trees:get(E, Etab) of
-	      #edge{vs=V}=Rec0 -> Rec0#edge{a=Color};
-	      #edge{ve=V}=Rec0 -> Rec0#edge{b=Color}
-	  end,
-    gb_trees:update(E, Rec, Etab).
 
 %%%
 %%% Utilities.
