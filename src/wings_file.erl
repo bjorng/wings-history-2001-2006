@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.28 2001/11/07 15:40:53 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.29 2001/11/14 10:07:32 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -296,7 +296,7 @@ export(obj, St) -> export(e3d_obj, ".obj", St);
 export(ndo, St) -> export_ndo(St).
 
 export(Mod, Ext, St) ->
-    case output_file(export, file_prop(Ext)) of
+    case output_file(export, export_file_prop(Ext, St)) of
 	aborted -> St;
 	Name ->
 	    wings_getline:set_cwd(dirname(Name)),
@@ -305,7 +305,7 @@ export(Mod, Ext, St) ->
 
 export_ndo(St) ->
     Ext = ".ndo",
-    case output_file(export, file_prop(Ext)) of
+    case output_file(export, export_file_prop(Ext, St)) of
 	aborted -> St;
 	Name ->
 	    wings_getline:set_cwd(dirname(Name)),
@@ -313,6 +313,12 @@ export_ndo(St) ->
     end.
 
 %%% Utilities.
+
+export_file_prop(Ext, #st{file=undefined}) -> file_prop(Ext);
+export_file_prop(Ext, #st{file=File}) ->
+    Prop = file_prop(Ext),
+    Def = filename:rootname(filename:basename(File), ".wings"),
+    [{default_filename,Def}|Prop].
 
 file_prop(".ndo"=Ext) -> file_prop(Ext, "Nendo File");
 file_prop(".3ds"=Ext) -> file_prop(Ext, "3D Studio File");
@@ -323,10 +329,26 @@ file_prop(Ext, Desc) ->
     [{ext,Ext},{ext_desc,Desc}].
 
 ensure_extension(Name, Ext) ->
-    case filename:extension(Name) of
-	Ext -> Name;
-	Other -> Name ++ Ext
+    case eq_extensions(Ext, filename:extension(Name)) of
+	true -> Name;
+	false -> Name ++ Ext
     end.
+
+eq_extensions(Ext, Actual) when length(Ext) =/= length(Actual) ->
+    false;
+eq_extensions(Ext, Actual) ->
+    IgnoreCase = case os:type() of
+		     {win32,_} -> true;
+		     _ -> false
+		 end,
+    eq_extensions(Ext, Actual, IgnoreCase).
+
+eq_extensions([C|T1], [C|T2], IgnoreCase) ->
+    eq_extensions(T1, T2);
+eq_extensions([L|T1], [C|T2], true) when $A =< C, C =< $Z, L-C =:= 32 ->
+    eq_extensions(T1, T2);
+eq_extensions([_|_], [_|_], IgnoreCase) -> false;
+eq_extensions([], [], IgnoreCase) -> true.
 
 output_file(Tag, Prop) ->
     case wings_plugin:call_ui({file,Tag,Prop}) of
