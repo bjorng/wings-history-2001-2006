@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.81 2003/11/17 04:40:46 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.82 2003/11/22 07:53:35 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -508,18 +508,14 @@ dissolve_edge_2(Edge, FaceRemove, FaceKeep,
     Ftab = gb_trees:update(FaceKeep, LP, Ftab1),
 
     %% Return result.
-    We2 = We1#we{es=Etab,fs=Ftab,vc=undefined,he=Htab},
+    We = We1#we{es=Etab,fs=Ftab,vc=undefined,he=Htab},
     AnEdge = gb_trees:get(FaceKeep, Ftab),
-    We = case gb_trees:get(AnEdge, Etab) of
-	     #edge{lf=FaceKeep,ltpr=Same,ltsu=Same} ->
-		 dissolve_edge(AnEdge, We2);
-	     #edge{rf=FaceKeep,rtpr=Same,rtsu=Same} ->
-		 dissolve_edge(AnEdge, We2);
-	     _Other -> We2
-	 end,
-    case wings_we:is_face_consistent(FaceKeep, We) of
-	true -> We;
-	false -> wings_util:error("Dissolving would create a badly formed face.")
+    case gb_trees:get(AnEdge, Etab) of
+	#edge{lf=FaceKeep,ltpr=Same,ltsu=Same} ->
+	    internal_dissolve_edge(AnEdge, We);
+	#edge{rf=FaceKeep,rtpr=Same,rtsu=Same} ->
+	    internal_dissolve_edge(AnEdge, We);
+	_Other -> We
     end.
 
 %% dissolve_isolated_vs([Vertex], We) -> We'
@@ -618,14 +614,16 @@ merge_1(Dir, Edge, Rec, To, #we{es=Etab0,fs=Ftab0,he=Htab0}=We) ->
     #edge{lf=Lf,rf=Rf} = Rec,
     Ftab1 = update_face(Lf, To, Edge, Ftab0),
     Ftab = update_face(Rf, To, Edge, Ftab1),
-    check_edge(To, We#we{es=Etab,fs=Ftab,he=Htab,vc=undefined}).
+    merge_2(To, We#we{es=Etab,fs=Ftab,he=Htab,vc=undefined}).
 
-check_edge(Edge, #we{es=Etab}=We) ->
+merge_2(Edge, #we{es=Etab}=We) ->
+    %% If the merged edge is part of a two-edge face, we must
+    %% remove that edge too.
     case gb_trees:get(Edge, Etab) of
 	#edge{ltpr=Same,ltsu=Same} ->
-	    dissolve_edge(Edge, We);
+	    internal_dissolve_edge(Edge, We);
 	#edge{rtpr=Same,rtsu=Same} ->
-	    dissolve_edge(Edge, We);
+	    internal_dissolve_edge(Edge, We);
 	_Other -> We
     end.
 
