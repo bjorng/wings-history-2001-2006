@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.108 2003/06/05 07:24:39 dgud Exp $
+%%     $Id: wings_wm.erl,v 1.109 2003/06/05 09:51:42 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -76,12 +76,6 @@
 	 menubar=[]				%Menubar for this window.
 	}).
 
--define(ACCUM_R, ?SDL_GL_ACCUM_RED_SIZE).
--define(ACCUM_G, ?SDL_GL_ACCUM_GREEN_SIZE).
--define(ACCUM_B, ?SDL_GL_ACCUM_BLUE_SIZE).
--define(ACCUM_A, ?SDL_GL_ACCUM_ALPHA_SIZE).
-
-
 %%%
 %%% Process dictionary usage:
 %%%
@@ -104,27 +98,8 @@ init() ->
     put(wm_top_size, TopSize),
 
     %% Make sure that some vide mode works. Otherwise crash early.
-    %% From best to worst 
-    OpenGLModes = [[{?SDL_GL_BUFFER_SIZE,32},{?SDL_GL_DEPTH_SIZE,32},{?SDL_GL_STENCIL_SIZE,8},
-		    {?ACCUM_R,16},{?ACCUM_G,16},{?ACCUM_B,16},{?ACCUM_A, 16}],
-		   [{?SDL_GL_BUFFER_SIZE,24},{?SDL_GL_DEPTH_SIZE,32},{?SDL_GL_STENCIL_SIZE,8},
-		    {?ACCUM_R,16},{?ACCUM_G,16},{?ACCUM_B,16},{?ACCUM_A, 16}],
-		   [{?SDL_GL_BUFFER_SIZE,24},{?SDL_GL_DEPTH_SIZE,24},{?SDL_GL_STENCIL_SIZE,8},
-		    {?ACCUM_R,16},{?ACCUM_G,16},{?ACCUM_B,16},{?ACCUM_A, 16}],
-		   [{?SDL_GL_BUFFER_SIZE,24},{?SDL_GL_DEPTH_SIZE,24},{?SDL_GL_STENCIL_SIZE,0},
-		    {?ACCUM_R,0},{?ACCUM_G,0},{?ACCUM_B,0},{?ACCUM_A, 0}],
-		   [{?SDL_GL_BUFFER_SIZE,24},{?SDL_GL_DEPTH_SIZE,16},{?SDL_GL_STENCIL_SIZE,0},
-		    {?ACCUM_R,16},{?ACCUM_G,16},{?ACCUM_B,16},{?ACCUM_A, 16}],
-		   [{?SDL_GL_BUFFER_SIZE,24},{?SDL_GL_DEPTH_SIZE,16},{?SDL_GL_STENCIL_SIZE,0},
-		    {?ACCUM_R,0},{?ACCUM_G,0},{?ACCUM_B,0},{?ACCUM_A, 0}],
-		   [{?SDL_GL_BUFFER_SIZE,16},{?SDL_GL_DEPTH_SIZE,16},{?SDL_GL_STENCIL_SIZE,0},
-		    {?ACCUM_R,16},{?ACCUM_G,16},{?ACCUM_B,16},{?ACCUM_A, 16}],
-		   [{?SDL_GL_BUFFER_SIZE,16},{?SDL_GL_DEPTH_SIZE,16},{?SDL_GL_STENCIL_SIZE,0},
-		    {?ACCUM_R,0},{?ACCUM_G,0},{?ACCUM_B,0},{?ACCUM_A, 0}],
-		   [{?SDL_GL_BUFFER_SIZE,15},{?SDL_GL_DEPTH_SIZE,16},{?SDL_GL_STENCIL_SIZE,0},
-		    {?ACCUM_R,0},{?ACCUM_G,0},{?ACCUM_B,0},{?ACCUM_A, 0}]
-		  ],
-    try_video_mode(OpenGLModes),
+    %% From best to worst.
+    try_video_modes(opengl_modes()),
     wings_util:init_gl_extensions(),
 
     translation_change(),
@@ -134,6 +109,19 @@ init() ->
 	{push,fun message_event/1}),
     init_opengl(),
     resize_windows(W, H).
+
+opengl_modes() ->
+    [[{buffer_size,32},{depth_size,32},{stencil_size,8},{accum_size,16}],
+     [{buffer_size,24},{depth_size,32},{stencil_size,8},{accum_size,16}],
+     [{buffer_size,24},{depth_size,24},{stencil_size,8},{accum_size,16}],
+     [{buffer_size,24},{depth_size,24},{stencil_size,0},{accum_size,16}],
+     [{buffer_size,16},{depth_size,16},{stencil_size,8},{accum_size,16}],
+     [{buffer_size,16},{depth_size,16},{stencil_size,0},{accum_size,16}],
+     [{buffer_size,15},{depth_size,16},{stencil_size,0},{accum_size,16}],
+     [{buffer_size,15},{depth_size,16},{stencil_size,0},{accum_size,16}],
+
+     %% Fallback - use default for all.
+     [{buffer_size,0},{depth_size,0},{stencil_size,0},{accum_size,0}]].
 
 desktop_event(got_focus) ->
     dirty(),
@@ -668,21 +656,60 @@ possible_intersection(#win{x=X,y=Y,w=W,h=H}, {Left,Top,Right,Bot}) ->
 reinit_opengl() ->
     wings_io:putback_event({wm,init_opengl}).
 
-try_video_mode([[{Prop, Value}|Values]| All]) ->
-    sdl_video:gl_setAttribute(Prop, Value),
-    try_video_mode([Values|All]);
-try_video_mode([[]|Rest]) ->
+try_video_modes([Mode|Modes]) ->
+    io:format("Trying: ~p\n", [Mode]),
+    case try_video_mode(Mode) of
+	ok -> ok;
+	error -> try_video_modes(Modes)
+    end;
+try_video_modes([]) ->
+    io:format("\n###########################################\n\n"),
+    io:format("Failed to find any suitable OpenGL mode.\n\n"),
+    io:format("Make sure that OpenGL drivers are installed.\n\n"),
+    io:format("###########################################\n\n"),
+    erlang:fault("No suitable OpenGL mode found (are OpenGL drivers installed?)").
+
+try_video_mode(Ps) ->
+    set_video_props(Ps),
     {W,H} = get(wm_top_size),
     case catch set_video_mode(W, H) of
-	ok ->
-	    io:format("\n",[]),
-	    ok;
-	_ ->
-	    io:format(".",[]),
-	    try_video_mode(Rest)
-    end;
-try_video_mode([]) ->
-    erlang:fault("No opengl video mode found\n").
+	ok -> display_actual_mode();
+	_ -> error
+    end.
+
+set_video_props([{Prop,Val}|Ps]) ->
+    set_video_prop(Prop, Val),
+    set_video_props(Ps);
+set_video_props([]) -> ok.
+
+set_video_prop(buffer_size, Bits) ->
+    sdl_video:gl_setAttribute(?SDL_GL_BUFFER_SIZE, Bits);
+set_video_prop(depth_size, Depth) ->
+    sdl_video:gl_setAttribute(?SDL_GL_DEPTH_SIZE, Depth);
+set_video_prop(stencil_size, Bits) ->
+    sdl_video:gl_setAttribute(?SDL_GL_STENCIL_SIZE, Bits);
+set_video_prop(accum_size, Bits) ->
+    sdl_video:gl_setAttribute(?SDL_GL_ACCUM_RED_SIZE, Bits),
+    sdl_video:gl_setAttribute(?SDL_GL_ACCUM_GREEN_SIZE, Bits),
+    sdl_video:gl_setAttribute(?SDL_GL_ACCUM_BLUE_SIZE, Bits),
+    sdl_video:gl_setAttribute(?SDL_GL_ACCUM_ALPHA_SIZE, Bits).
+
+display_actual_mode() ->
+    io:format("\nActual settings:\n"),
+    Info = [{"Red bits",?GL_RED_BITS},
+	    {"Green bits",?GL_GREEN_BITS},
+	    {"Blue bits",?GL_BLUE_BITS},
+	    {"Alpha bits",?GL_ALPHA_BITS},
+	    {"Depth bits",?GL_DEPTH_BITS},
+	    {"Stencil bits",?GL_STENCIL_BITS},
+	    {"Accum. red bits",?GL_ACCUM_RED_BITS},
+	    {"Accum. green bits",?GL_ACCUM_GREEN_BITS},
+	    {"Accum. blue bits",?GL_ACCUM_BLUE_BITS},
+	    {"Accum. alpha bits",?GL_ACCUM_ALPHA_BITS}],
+    foreach(fun({Label,Attr}) ->
+		    [Val|_] = gl:getIntegerv(Attr),
+		    io:format("~s: ~p\n", [Label,Val])
+	    end, Info).
 
 init_opengl() ->
     {W,H} = get(wm_top_size),
