@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.21 2002/05/03 10:19:57 bjorng Exp $
+%%     $Id: wings_ff_wings.erl,v 1.22 2002/05/20 10:19:30 bjorng Exp $
 %%
 
 -module(wings_ff_wings).
@@ -162,7 +162,12 @@ vertex_add_incident(Vtab0, Es) ->
     gb_trees:from_orddict(reverse(Vtab)).
 
 import_object_mode(Ps) ->
-    property_lists:get_value(mode, Ps, material).
+    case property_lists:get_value(mode, Ps, material) of
+	undefined ->
+	    io:format("Changed undefined mode to material\n"),
+	    material;
+	Other -> Other
+    end.
 
 import_props([{selection,{Mode,Sel0}}|Ps], St) ->
     Sel = import_sel(Sel0, St),
@@ -224,8 +229,9 @@ import_old_objects(Shapes, #st{selmode=Mode,shapes=Shs0,onext=Oid0}=St) ->
     St#st{shapes=Shs,sel=Sel,onext=Oid}.
 
 import_old_objects([Sh0|Shs], Mode, Oid, {ShAcc,SelAcc0}) ->
-    {object,Name,{winged,Fs,Vs0,He},Props} = Sh0,
+    {object,Name,{winged,Fs0,Vs0,He},Props} = Sh0,
     Vs = decode_vs(Vs0),
+    Fs = import_old_clean_fs(Fs0),
     Es = wings_we:build_edges_only(Fs),
     We0 = wings_we:build_rest(material, Es, Fs, Vs, He),
     We = We0#we{id=Oid,name=Name},
@@ -238,6 +244,14 @@ import_old_sel(Mode, Id, Prop, Es, Acc) ->
 	undefined -> Acc;
 	Items -> [{Id,import_old_sel_1(Mode, Items, Es)}|Acc]
     end.
+
+import_old_clean_fs([{_Material,Vs,_Tx}|Fs]) ->
+    [Vs|import_old_clean_fs(Fs)];
+import_old_clean_fs([{_Material,Vs}|Fs]) ->
+    [Vs|import_old_clean_fs(Fs)];
+import_old_clean_fs([Vs|Fs]) ->
+    [Vs|import_old_clean_fs(Fs)];
+import_old_clean_fs([]) -> [].
 
 import_selmode(Prop, #st{selmode=Mode}) ->
     property_lists:get_value(selmode, Prop, Mode).
