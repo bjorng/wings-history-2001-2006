@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.62 2002/05/17 13:18:37 dgud Exp $
+%%     $Id: wings_file.erl,v 1.63 2002/05/19 07:58:14 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -19,7 +19,7 @@
 -include("wings.hrl").
 -include_lib("kernel/include/file.hrl").
 
--import(lists, [sort/1,reverse/1,flatten/1,foldl/3]).
+-import(lists, [sort/1,reverse/1,flatten/1,foldl/3,keymember/3]).
 -import(filename, [dirname/1]).
 
 -define(WINGS,    ".wings").
@@ -47,6 +47,7 @@ menu(X, Y, St) ->
 	    separator,
 	    {"Save",save},
 	    {"Save As",save_as},
+	    {"Save Selected",save_selected},
 	    separator,
 	    {"Revert",revert},
 	    separator,
@@ -81,6 +82,9 @@ command(save_as, St0) ->
 	aborted -> St0;
 	#st{}=St -> {saved,St}
     end;
+command(save_selected, St) ->
+    save_selected(St),
+    St;
 command(autosave, St) ->
     autosave(St);
 command(revert, St0) ->
@@ -230,6 +234,22 @@ save_as(St) ->
 		{error,Reason} ->
 		    wings_util:error("Save failed: " ++ Reason),
 		    aborted
+	    end
+    end.
+
+save_selected(#st{sel=[]}) ->
+    wings_util:error("This command requires a selection.");
+save_selected(#st{shapes=Shs0,sel=Sel}=St0) ->
+    case output_file(save, wings_prop()) of
+	aborted -> ok;
+	Name when is_list(Name) ->
+	    Shs = [Sh || {Id,_}=Sh <- gb_trees:to_list(Shs0),
+			 keymember(Id, 1, Sel)],
+	    St = St0#st{shapes=gb_trees:from_orddict(Shs)},
+	    case ?SLOW(wings_ff_wings:export(Name, St)) of
+		ok -> ok;
+		{error,Reason} ->
+		    wings_util:error("Save failed: " ++ Reason)
 	    end
     end.
 
