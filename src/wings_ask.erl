@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.101 2003/10/24 15:56:29 raimo_niskanen Exp $
+%%     $Id: wings_ask.erl,v 1.102 2003/11/08 20:59:16 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -1221,26 +1221,24 @@ button_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #but{label=Label}, DisEnable) ->
     Y = Y0+?CHAR_HEIGHT+2,
     FgColor = case DisEnable of 
 		  disable -> color3_disabled(); 
-		  _-> color3_text()
+		  _ -> color3_text()
 	      end,
+    BorderCol = case Active of 
+		    false -> FgColor;
+		    true -> {0.0,0.0,0.75}
+		end,
     blend(fun(Col) ->
 		  case DisEnable of
 		      disable ->
 			  wings_io:border(X, Y0+2, W, H-4, Col, FgColor);
 		      _ ->
-			  wings_io:raised_rect(X, Y0+2, W, H-4, Col, Col)
+			  wings_io:gradient_border(X, Y0+2, W, H-4,
+						   Col, BorderCol)
 		  end
 	  end),
     TextX = X + 2 + (W-wings_text:width(Label)) div 2,
     gl:color3fv(FgColor),
     wings_io:text_at(TextX, Y, Label),
-    if
-	Active == true ->
-	    L = length(Label),
-	    wings_io:text_at(TextX, Y, duplicate(L, $_)),
-	    keep;
-	true -> keep
-    end,
     gl:color3b(0, 0, 0),
     DisEnable.
 
@@ -1589,9 +1587,9 @@ draw_text_inactive(#fi{x=X0,y=Y0}, #text{max=Max,password=Password},
 		      end),
 		color3_disabled();
 	    _ ->
-		wings_io:sunken_rect(X0, Y0+2,
-				     (Max+1)*?CHAR_WIDTH, ?CHAR_HEIGHT+1,
-				     {1,1,1}, color4()),
+		wings_io:sunken_gradient(X0, Y0+2,
+					 (Max+1)*?CHAR_WIDTH, ?CHAR_HEIGHT+1,
+					 {0.82,0.82,0.82}, color4()),
 		color3_text()
 	end,
     Y = Y0 + ?CHAR_HEIGHT,
@@ -1603,8 +1601,8 @@ draw_text_inactive(#fi{x=X0,y=Y0}, #text{max=Max,password=Password},
 draw_text_active(#fi{x=X0,y=Y0}, 
 		 #text{sel=Sel,bef=Bef,aft=Aft,max=Max,password=Password},
 		 DisEnable) ->
-    wings_io:sunken_rect(X0, Y0+2, (Max+1)*?CHAR_WIDTH, ?CHAR_HEIGHT+1,
-			 {1,1,1}, color4()),
+    wings_io:sunken_gradient(X0, Y0+2, (Max+1)*?CHAR_WIDTH, ?CHAR_HEIGHT+1,
+			     {0.82,0.82,0.82}, color4()),
     Y = Y0 + ?CHAR_HEIGHT,
     X = X0 + (?CHAR_WIDTH div 2),
     Len = length(Bef),

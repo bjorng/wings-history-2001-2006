@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.117 2003/10/24 12:36:10 raimo_niskanen Exp $
+%%     $Id: wings_io.erl,v 1.118 2003/11/08 20:59:17 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -17,7 +17,9 @@
 	 info/1,
 	 blend/2,
 	 border/5,border/6,
+	 gradient_border/6,
 	 sunken_rect/4,sunken_rect/5,sunken_rect/6,
+	 sunken_gradient/6,
 	 raised_rect/4,raised_rect/5,raised_rect/6,
 	 text_at/2,text_at/3,text/1,menu_text/3,space_at/2,
 	 draw_icons/1,draw_icon/3,draw_char/1,
@@ -146,6 +148,33 @@ border(X0, Y0, Mw, Mh, FillColor, BorderColor)
     gl:'end'(),
     gl:color3b(0, 0, 0).
 
+gradient_border(X0, Y0, Mw, Mh, FillColor, BorderColor)
+  when is_integer(X0), is_integer(Y0), is_integer(Mw), is_integer(Mh) ->
+    X = X0 + 0.5,
+    Y = Y0 + 0.5,
+    set_color(FillColor),
+    gl:shadeModel(?GL_SMOOTH),
+    gl:'begin'(?GL_QUADS),
+    set_color(FillColor),
+    gl:vertex2f(X0+Mw, Y0+Mh),
+    gl:vertex2f(X0, Y0+Mh),
+    set_color(add_color(FillColor, 0.08)),
+    gl:vertex2f(X0, Y0),
+    gl:vertex2f(X0+Mw, Y0),
+    gl:'end'(),
+    gl:shadeModel(?GL_FLAT),
+    set_color(BorderColor),
+    gl:'begin'(?GL_LINE_LOOP),
+    gl:vertex2f(X, Y+Mh),
+    gl:vertex2f(X, Y),
+    gl:vertex2f(X+Mw, Y),
+    gl:vertex2f(X+Mw, Y+Mh),
+    gl:'end'(),
+    gl:color3b(0, 0, 0).
+
+add_color({R,G,B}, N) -> {R+N,G+N,B+N};
+add_color({R,G,B,A}, N) -> {R+N,G+N,B+N,A}.
+    
 set_color({_,_,_}=RGB) -> gl:color3fv(RGB);
 set_color({_,_,_,_}=RGBA) -> gl:color4fv(RGBA).
 
@@ -171,6 +200,36 @@ sunken_rect(X0, Y0, Mw0, Mh0, FillColor, PaneColor) ->
     Mh = Mh0 + 0.5,
     set_color(FillColor),
     gl:rectf(X0, Y0, X0+Mw0, Y0+Mh0),
+    gl:'begin'(?GL_LINES),
+    set_color(wings_color:mix(?BEVEL_LOWLIGHT_MIX, {0,0,0}, PaneColor)),
+    gl:vertex2f(X, Y+Mh),
+    gl:vertex2f(X, Y),
+    gl:vertex2f(X, Y),
+    gl:vertex2f(X+Mw, Y),
+    set_color(wings_color:mix(?BEVEL_HIGHLIGHT_MIX, {1,1,1}, PaneColor)),
+    gl:vertex2f(X+Mw, Y),
+    gl:vertex2f(X+Mw, Y+Mh),
+    gl:vertex2f(X+Mw, Y+Mh),
+    gl:vertex2f(X, Y+Mh),
+    gl:'end'(),
+    gl:color3b(0, 0, 0).
+
+sunken_gradient(X0, Y0, Mw0, Mh0, FillColor, PaneColor) ->
+    X = X0 + 0.5,
+    Y = Y0 + 0.5,
+    Mw = Mw0 + 0.5,
+    Mh = Mh0 + 0.5,
+    set_color(FillColor),
+    gl:shadeModel(?GL_SMOOTH),
+    gl:'begin'(?GL_QUADS),
+    set_color(FillColor),
+    gl:vertex2f(X0+Mw, Y0+Mh),
+    gl:vertex2f(X0, Y0+Mh),
+    set_color(add_color(FillColor, 0.08)),
+    gl:vertex2f(X0, Y0),
+    gl:vertex2f(X0+Mw, Y0),
+    gl:'end'(),
+%%    gl:rectf(X0, Y0, X0+Mw0, Y0+Mh0),
     gl:'begin'(?GL_LINES),
     set_color(wings_color:mix(?BEVEL_LOWLIGHT_MIX, {0,0,0}, PaneColor)),
     gl:vertex2f(X, Y+Mh),
