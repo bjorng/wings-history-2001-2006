@@ -8,63 +8,36 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile.win32,v 1.3 2002/01/28 17:33:40 bjorng Exp $
+#     $Id: Makefile.win32,v 1.1 2002/01/28 17:33:40 bjorng Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
 	.fig .dvi .tex .class .java .pdf .psframe .pscrop .removed
 
 ESRC=.
-EBIN=..\plugins
+EBIN=..\..\plugins\primitives
 ERLC=erlc
-
+WINGS_SRC=../../src
 
 TARGET_FILES= \
-	$(EBIN)\wp9_dialogs.beam
+	$(EBIN)\wpc_knot.beam \
+	$(EBIN)\wpc_spiral.beam
 
 REMOVE_FILES=$(TARGET_FILES:.beam=.removed)
 
 # ----------------------------------------------------
 # FLAGS
 # ----------------------------------------------------
-ERL_FLAGS = 
+ERL_FLAGS = -I $(WINGS_SRC)
 ERL_COMPILE_FLAGS = -W $(TYPE_FLAGS)
 
 # ----------------------------------------------------
 # Targets
 # ----------------------------------------------------
 
-common: $(TARGET_FILES) subdirs
+common: $(TARGET_FILES)
 
-subdirs:
-	cd win32_file
-	$(MAKE)
-	cd ..
-	cd import_export
-	$(MAKE)
-	cd ..
-	cd primitives
-	$(MAKE)
-	cd ..
-	cd commands
-	$(MAKE)
-	cd ..
-
-clean: $(REMOVE_FILES) subdirs_clean
-
-subdirs_clean:
-	cd win32_file
-	$(MAKE) clean
-	cd .. 
-	cd import_export
-	$(MAKE) clean
-	cd .. 
-	cd primitives
-	$(MAKE) clean
-	cd .. 
-	cd commands
-	$(MAKE) clean
-	cd .. 
+clean: $(REMOVE_FILES)
 
 {$(EBIN)}.beam{$(EBIN)}.removed:
 	-del $(*R).beam

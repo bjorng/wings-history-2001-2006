@@ -9,7 +9,8 @@ Jakob Cederlund:
 	Brain-storming and discussion partner.
 	Implemented the Collapse commands. Original idea and
         implementation of the Intrude and Select Similar.
-	Plugins.
+	Implemented the original plug-in architecture.
+	Wrote the Spiral plug-in.
 
 Dan Gudmundsson:
 	Wrote the ESDL package that made it possible.
@@ -22,14 +23,21 @@ Vlad Dumitrescu: Bugfix for middle-mouse button emulation.
 Patrik Nyblom: User interface plugins for file dialogs. Makefiles for Windows.
 
 Anthony D'Agostino: Provided me with info on the NDO format.
+	Wrote the Torus Knot plug-in which is now distributed with Wings.
 
 Gregg Griffin: Designed icons and the new look of Wings.
 
 Chris Osgood (WingsOne):
 	Wrote the qt_file plugin.
+
 	Contributed working code for several new features, such as
 	axis letters and showing the grid whenever the view is
 	axis-aligned.
+
+	Implemented advanced menus, named vectors, secondary
+	selections, and other new features in a set of patches.
+	These ideas, and some of the code, is now included in
+	the core of Wings.
 
 Howard Trickey:
 	Wrote the new, much better triangulator (and a quadrilator)

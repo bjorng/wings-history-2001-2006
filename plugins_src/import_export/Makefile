@@ -8,14 +8,14 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.2 2002/01/28 17:33:40 bjorng Exp $
+#     $Id: Makefile,v 1.1 2002/01/28 17:33:40 bjorng Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
 	.fig .dvi .tex .class .java .pdf .psframe .pscrop
 
 ESRC=.
-EBIN=../plugins/default
+EBIN=../../plugins/import_export
 ERLC=erlc
 
 ifeq ($(TYPE),debug)
@@ -25,7 +25,9 @@ TYPE_FLAGS=
 endif
 
 MODULES= \
-	wp9_dialogs
+	wpc_3ds \
+	wpc_obj \
+	wpc_rib
 
 TARGET_FILES= $(MODULES:%=$(EBIN)/%.beam)
 
@@ -42,21 +44,11 @@ ERL_COMPILE_FLAGS += -W $(TYPE_FLAGS)
 opt debug:
 	$(MAKE) TYPE=$@ common
 
-common: $(TARGET_FILES) subdirs
+common: $(TARGET_FILES)
 
-subdirs:
-	(cd import_export; $(MAKE))
-	(cd primitives; $(MAKE))
-	(cd commands; $(MAKE))
-
-clean: subdirs_clean
+clean:
 	rm -f $(TARGET_FILES)
 	rm -f core
-
-subdirs_clean:
-	(cd import_export; $(MAKE) clean)
-	(cd primitives; $(MAKE) clean)
-	(cd commands; $(MAKE) clean)
 
 $(EBIN)/%.beam: $(ESRC)/%.erl
 	$(ERLC) -bbeam $(ERL_FLAGS) $(ERL_COMPILE_FLAGS) -o$(EBIN) $<
