@@ -8,13 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_hotkey.erl,v 1.9 2002/01/18 16:40:59 dgud Exp $
+%%     $Id: wings_hotkey.erl,v 1.10 2002/01/21 11:11:35 dgud Exp $
 %%
 
 -module(wings_hotkey).
 -export([event/1]).
--compile(export_all).
-
 
 -define(NEED_ESDL, 1).
 -include("wings.hrl").
@@ -23,38 +21,38 @@
 
 event(Key = #keyboard{keysym=#keysym{sym=Sym,mod=Mod,unicode=C}}) ->
     Mods = modifiers(Mod, []),
-%%    io:format("Pressed Key ~p with ~p~n", [{Sym, C, Mod}, Mods]),
     Res = translate_key(Sym, Mods, C),
-%%    io:format("Action ~p ~n", [Res]),
     Res;
 
 event(_) -> next.
 
-translate_key(Sym, [], C) ->
-    case ets:lookup(?KL, {bindkey, Sym}) of
-	[{_, Action}] ->
-	    Action;  	
-	[] ->
+translate_key(Sym, Mods, C) ->
+    DontUseMods = (Mods == [shift]) or (Mods == []),
+
+    if 
+	DontUseMods == true ->
 	    case ets:lookup(?KL, {bindkey, C}) of
 		[{_, Action}] ->
-		    Action;
+		    Action;  	
+		[] ->
+		    case ets:lookup(?KL, {bindkey, Sym}) of
+			[{_, Action}] ->
+			    Action;
+			[] ->
+			    next;
+			Else -> 
+			    erlang:fault({?MODULE, ?LINE, Else})
+		    end
+	    end;
+	true ->
+	    case ets:lookup(?KL, {bindkey, Sym, Mods}) of
 		[] ->
 		    next;
+		[{_, Action}] ->
+		    Action;
 		Else -> 
 		    erlang:fault({?MODULE, ?LINE, Else})
-	    end;
-	Else -> 
-	    erlang:fault({?MODULE, ?LINE, Else})
-    end;
-
-translate_key(Sym, Mods, C) ->
-    case ets:lookup(?KL, {bindkey, Sym, Mods}) of
-	[] ->
-	    next;
-	[{_, Action}] ->
-	    Action;
-	Else -> 
-	    erlang:fault({?MODULE, ?LINE, Else})
+	    end
     end.
     
 modifiers(Mod, Acc) when Mod band ?CTRL_BITS =/= 0 ->

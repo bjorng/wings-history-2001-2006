@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.19 2002/01/18 16:40:59 dgud Exp $
+%%     $Id: wings_pref.erl,v 1.20 2002/01/21 11:11:35 dgud Exp $
 %%
 
 -module(wings_pref).
@@ -48,7 +48,16 @@ finish() ->
     PrefFile = new_pref_file(),
     List0 = ets:tab2list(wings_state),
     List = prune_defaults(List0),
-    Str = [io_lib:format("~p. \n", [P]) || P <- List],
+    Write = fun({{bindkey, Key, List}, Action}) ->
+		    io_lib:format("{{bindkey, $~c, ~p}, ~p}.~n",
+				  [Key, List, Action]);
+	       ({{bindkey, Key}, Action}) ->
+		    io_lib:format("{{bindkey, $~c}, ~p}.~n",
+				  [Key, Action]);
+	       (Else) ->
+		    io_lib:format("~p. \n", [Else])
+	    end,
+    Str = lists:map(Write, List),
     catch file:write_file(PrefFile, Str),
     ok.
 
@@ -200,7 +209,9 @@ presets() ->
      {"Show Memory Used",show_memory_used,false},
      separator,
      {"Auto-rotate angle",auto_rotate_angle,1.0},
-     {"Auto-rotate delay (ms)",auto_rotate_delay,60}
+     {"Auto-rotate delay (ms)",auto_rotate_delay,60},
+     separator,
+     {"Auto-save time (in min) 0 is off", autosave_time, 5}
     ].
 
 default_keybindings() ->

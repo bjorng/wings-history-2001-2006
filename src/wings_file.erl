@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.44 2002/01/06 14:47:09 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.45 2002/01/21 11:11:35 dgud Exp $
 %%
 
 -module(wings_file).
@@ -16,16 +16,22 @@
 
 -include("e3d.hrl").
 -include("wings.hrl").
+-include_lib("kernel/include/file.hrl").
 
 -import(lists, [sort/1,reverse/1,flatten/1,foldl/3]).
 -import(filename, [dirname/1]).
 -import(wings_draw, [model_changed/1]).
 
+-define(WINGS,    ".wings").
+-define(AUTOSAVE, "_as").
+-define(BACKUP,   "_bup").
+
 init() ->
     case wings_pref:get_value(current_directory) of
 	undefined -> ok;
 	Cwd -> file:set_cwd(Cwd)
-    end.
+    end,
+    set_autosave_timer().
 
 finish() ->
     case file:get_cwd() of
@@ -79,6 +85,8 @@ command(save_as, St0) ->
 	aborted -> St0;
 	#st{}=St -> {saved,St}
     end;
+command(autosave, St) ->
+    autosave(St);
 command(revert, St0) ->
     case revert(St0) of
 	{error,Reason} ->
@@ -145,9 +153,10 @@ read(St0) ->
 	    case wings_plugin:call_ui({file,open,wings_prop()}) of
 		aborted -> St0;
 		Name0 ->
-		    Name = ensure_extension(Name0, ".wings"),
+		    Name = ensure_extension(Name0, ?WINGS, wings_extensions()),
 		    add_recent(Name),
-		    case ?SLOW(wings_ff_wings:import(Name, St1)) of
+		    File = use_autosave(Name),
+		    case ?SLOW(wings_ff_wings:import(File, St1)) of
 			#st{}=St ->
 			    wings_getline:set_cwd(dirname(Name)),
 			    wings:caption(St#st{saved=true,file=Name});
@@ -163,7 +172,8 @@ named_open(Name, St0) ->
 	aborted -> St0;
 	St1 ->
 	    add_recent(Name),
-	    case ?SLOW(wings_ff_wings:import(Name, St1)) of
+	    File = use_autosave(Name),
+	    case ?SLOW(wings_ff_wings:import(File, St1)) of
 		#st{}=St ->
 		    wings_getline:set_cwd(dirname(Name)),
 		    wings:caption(St#st{saved=true,file=Name});
@@ -177,8 +187,9 @@ merge(St0) ->
     case wings_plugin:call_ui({file,merge,wings_prop()}) of
 	aborted -> St0;
 	Name0 ->
-	    Name = ensure_extension(Name0, ".wings"),
-	    case ?SLOW(wings_ff_wings:import(Name, St0)) of
+	    Name = ensure_extension(Name0, ?WINGS, wings_extensions()),
+	    File = use_autosave(Name),
+	    case ?SLOW(wings_ff_wings:import(File, St0)) of
 		{error,Reason} ->
 		    wings_io:message("Read failed: " ++ Reason),
 		    St0;
@@ -197,6 +208,9 @@ save_1(#st{saved=true}=St) -> St;
 save_1(#st{file=undefined}=St) ->
     save_as(St);
 save_1(#st{shapes=Shapes,file=Name}=St) ->
+    Backup = backup_filename(Name),
+    file:rename(Name, Backup),
+    file:delete(autosave_filename(Name)),
     case ?SLOW(wings_ff_wings:export(Name, St)) of
 	ok ->
 	    wings_getline:set_cwd(dirname(Name)),
@@ -222,7 +236,76 @@ save_as(#st{shapes=Shapes}=St) ->
     end.
 
 wings_prop() ->
-    [{ext,".wings"},{ext_desc,"Wings File"}].
+    %% Should we add autosaved wings files ??
+    %% It's pretty nice to NOT see them in the file chooser /Dan
+    [{ext,?WINGS},{ext_desc,"Wings File"}].    
+
+use_autosave(File) ->
+    {ok, SaveInfo} = file:read_file_info(File),
+    Auto = autosave_filename(File),
+    case file:read_file_info(Auto) of
+	{ok, AutoInfo} ->
+	    SaveTime = calendar:datetime_to_gregorian_seconds(SaveInfo#file_info.mtime),
+	    AutoTime = calendar:datetime_to_gregorian_seconds(AutoInfo#file_info.mtime),
+	    if
+		AutoTime > SaveTime ->
+		    Msg = "An autosaved file with later time stamp exists, "
+			"do you want to load the autosaved file instead?",
+		    case wings_util:yes_no(Msg) of
+			yes -> 
+			    Auto;
+			no -> 
+			    File;
+			abort ->  %% ???
+			    File
+		    end;
+		SaveTime >= AutoTime ->
+		    File
+	    end;
+	{error, _} ->  %% No autosave file
+	    File
+    end.
+
+set_autosave_timer() ->
+    case wings_pref:get_value(autosave_time) of
+	0 ->
+	    ok;
+	N when number (N) ->
+	    wings_io:set_timer(N * 60000, {action, {file, autosave}})
+    end.
+    
+autosave(#st{file = undefined} = St) -> 
+    set_autosave_timer(),
+    St;
+autosave(#st{saved = true} = St) ->
+    set_autosave_timer(),
+    St;
+autosave(#st{saved = auto} = St) ->
+    set_autosave_timer(),
+    St;
+autosave(#st{shapes=Shapes,file=Name}=St) ->
+    Auto = autosave_filename(Name),
+    %% Maybe this should be spawned to another process
+    %% to let the autosaving be done in the background.
+    %% But I don't want to copy a really big model either.
+    case ?SLOW(wings_ff_wings:export(Auto, St)) of
+	ok ->
+	    set_autosave_timer(),
+	    St#st{saved = auto};
+	{error,Reason} ->
+	    set_autosave_timer(),
+	    wings_io:message("AutoSave failed: " ++ Reason),
+            St
+    end.
+
+autosave_filename(File) ->
+    File ++ ?AUTOSAVE.
+
+backup_filename(File) ->
+    File ++ ?BACKUP.
+
+wings_extensions() ->
+    [?WINGS, ?WINGS ++ ?BACKUP, ?WINGS ++ ?AUTOSAVE].    
 
 add_recent(Name) ->
     Base = filename:basename(Name),
@@ -332,7 +415,7 @@ export_ndo(St) ->
 export_file_prop(Ext, #st{file=undefined}) -> file_prop(Ext);
 export_file_prop(Ext, #st{file=File}) ->
     Prop = file_prop(Ext),
-    Def = filename:rootname(filename:basename(File), ".wings") ++ Ext,
+    Def = filename:rootname(filename:basename(File), ?WINGS) ++ Ext,
     [{default_filename,Def}|Prop].
 
 file_prop(".ndo"=Ext) -> file_prop(Ext, "Nendo File");
@@ -343,11 +426,19 @@ file_prop(".rib"=Ext) -> file_prop(Ext, "Renderman").
 file_prop(Ext, Desc) ->
     [{ext,Ext},{ext_desc,Desc}].
 
+
 ensure_extension(Name, Ext) ->
     case eq_extensions(Ext, filename:extension(Name)) of
 	true -> Name;
 	false -> Name ++ Ext
     end.
+
+ensure_extension(Name, Default, [Ext|Rest]) when list(Ext) ->
+    case eq_extensions(filename:extension(Name), Ext) of
+	true -> Name;
+	false -> ensure_extension(Name, Default, Rest)
+    end;
+ensure_extension(Name, Default, []) -> Name ++ Default.
 
 eq_extensions(Ext, Actual) when length(Ext) =/= length(Actual) ->
     false;
