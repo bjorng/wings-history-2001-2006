@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.86 2003/02/27 21:07:15 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.87 2003/03/06 05:52:07 bjorng Exp $
 %%
 
 -module(wings_material).
 -export([material_menu/1,command/2,new/1,color/4,default/0,
-	 add_materials/2,update_image/4,
+	 add_materials/2,update_image/4,used_images/1,
 	 used_materials/1,apply_material/2,is_transparent/2]).
 
 -define(NEED_OPENGL, 1).
@@ -348,7 +348,7 @@ apply_texture(Image) ->
 	    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_T, ?GL_REPEAT)
     end.
 
-%%% Returns the materials used.
+%% Return the materials used by the objects in the scene.
 
 used_materials(#st{shapes=Shs,mat=Mat0}) ->
     Used0 = foldl(fun(#we{fs=Ftab}, A) ->
@@ -366,9 +366,20 @@ used_materials_1(Ftab, Acc) ->
 		  gb_sets:add(Mat, A)
 	  end, Acc, gb_trees:values(Ftab)).
 
+%% Return all image ids used by materials.
+
+used_images(#st{mat=Mat}) ->
+    used_images_1(gb_trees:values(Mat), []).
+
+used_images_1([M|Ms], Acc0) ->
+    Maps = prop_get(maps, M, []),
+    Acc = [Id || {_,Id} <- Maps, is_integer(Id)] ++ Acc0,
+    used_images_1(Ms, Acc);
+used_images_1([], Acc) -> gb_sets:from_list(Acc).
+
 is_transparent(Name, Mtab) ->
     Mat = gb_trees:get(Name, Mtab),
-    is_mat_transparent(Mat) orelse is_tx_transparent(Mat).
+    is_mat_transparent(Mat).
 
 is_mat_transparent(Mat) ->
     OpenGL = prop_get(opengl, Mat),
@@ -378,17 +389,6 @@ is_mat_transparent(Mat) ->
 	     ({_,{_,_,_,_}}, _) -> true;
 	     (_, _) -> false
 	  end, false, OpenGL).
-
-is_tx_transparent(Mat) ->
-    Maps = prop_get(maps, Mat),
-    case prop_get(diffuse, Maps) of
-	undefined -> false;
-	ImId ->
-	    case wings_image:info(ImId) of
-		#e3d_image{bytes_pp=4} -> true;
-		_ -> false
-	    end
-    end.
 
 %%% The material editor.
 
@@ -427,7 +427,7 @@ edit(Name, Assign, #st{mat=Mtab0}=St) ->
 				 {slider,{text,Opacity0,
 					  [{range,{0.0,1.0}},
 					   {key,opacity}]}}]}]
-	     }]
+	     }|Maps0]
 	   }],
     Qs = wings_plugin:dialog({material_editor_setup,Name,Mat0}, Qs1),
     Ask = fun([{diffuse,Diff},{ambient,Amb},{specular,Spec},
@@ -455,14 +455,20 @@ plugin_results(Name, Res0, Mat0) ->
 show_maps(Mat) ->
     case prop_get(maps, Mat) of
 	[] -> [];
-	Maps -> [separator|[show_map(M) || M <- sort(Maps)]]
+	Maps ->
+	    MapDisp = [show_map(M) || M <- sort(Maps)],
+	    [{vframe,MapDisp,[{title,"Textures"}]}]
     end.
 
 show_map({Type,Image}) ->
-    #e3d_image{width=W,height=H} = wings_image:info(Image),
-    Label = flatten(io_lib:format("~p ~px~p", [Type,W,H])),
-    {hframe,
-     [{label,Label}]}.
+    Label = case wings_image:info(Image) of
+		none ->
+		    flatten(io_lib:format("~p: <image deleted>", [Type]));
+		#e3d_image{name=Name,width=W,height=H,bytes_pp=PP} ->
+		    flatten(io_lib:format("~p: ~p [~px~px~p]",
+					  [Type,Name,W,H,PP*8]))
+	    end,
+    {hframe,[{label,Label}]}.
 
 ask_prop_get(Key, Props) ->
     {R,G,B,Alpha} = prop_get(Key, Props),
@@ -538,6 +544,7 @@ color(Face, {U,V}, #we{fs=Ftab}, #st{mat=Mtab}) ->
     end;
 color(_Face, {_,_,_}=RGB, _We, _St) -> RGB.
 
+color_1(_, _, none) -> wings_color:white();
 color_1(U0, V0, #e3d_image{width=W,height=H,image=Bits}) ->
     U = (((round(U0*W) rem W) + W) rem W),
     V = ((round(V0*H) rem H) + H) rem H,
