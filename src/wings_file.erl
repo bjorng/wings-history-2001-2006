@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.112 2003/04/22 03:43:50 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.113 2003/04/23 11:05:51 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -332,7 +332,7 @@ use_autosave(File) ->
 			AutoTime > SaveTime ->
 			    Msg = "An autosaved file with later time stamp exists, "
 				"do you want to load the autosaved file instead?",
-			    case wings_util:yes_no(Msg) of
+			    case wpa:yes_no(Msg) of
 				yes -> 
 				    Auto;
 				no -> 
@@ -531,14 +531,10 @@ export_ndo(St) ->
 %%% Utilities.
 
 export_file_prop(none, _) -> none;
-export_file_prop(Prop, #st{file=undefined}) ->
-    case proplists:get_value(ext, Prop) of
-	undefined -> none;
-	_ -> Prop
-    end;
+export_file_prop(Prop, #st{file=undefined}) -> Prop;
 export_file_prop(Prop, #st{file=File}) ->
     case proplists:get_value(ext, Prop) of
-	undefined -> none;
+	undefined -> Prop;
 	Ext ->
 	    Def = filename:rootname(filename:basename(File), ?WINGS) ++ Ext,
 	    [{default_filename,Def}|Prop]
