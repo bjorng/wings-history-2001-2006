@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.105 2003/09/18 19:38:36 dgud Exp $
+%%     $Id: wings_material.erl,v 1.106 2003/10/01 08:56:26 dgud Exp $
 %%
 
 -module(wings_material).
@@ -362,7 +362,12 @@ apply_texture_1(Image, TxId) ->
     gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_MAG_FILTER, ?GL_LINEAR),
     gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_MIN_FILTER, ?GL_LINEAR),
     gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_S, ?GL_REPEAT),
-    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_T, ?GL_REPEAT),
+    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_T, ?GL_REPEAT),    
+    case wings_util:is_gl_ext({1.2}, []) of
+	true -> %% Calculate specular color correct on textured models.
+	    gl:lightModel(?GL_LIGHT_MODEL_COLOR_CONTROL,?GL_SEPARATE_SPECULAR_COLOR);
+	false -> skip
+    end,
     case wings_image:info(Image) of
 	#e3d_image{bytes_pp=4} ->
 	    gl:enable(?GL_ALPHA_TEST),
@@ -376,6 +381,12 @@ apply_texture_1(Image, TxId) ->
     true.
 
 no_texture() ->
+    case wings_util:is_gl_ext({1.2}, []) of
+	true ->
+	    gl:lightModel(?GL_LIGHT_MODEL_COLOR_CONTROL,?GL_SINGLE_COLOR);
+	false -> 
+	    skip
+    end,
     gl:disable(?GL_TEXTURE_2D),
     gl:disable(?GL_ALPHA_TEST),
     false.
