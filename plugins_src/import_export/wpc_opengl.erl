@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.20 2002/12/31 09:52:47 bjorng Exp $
+%%     $Id: wpc_opengl.erl,v 1.21 2003/01/11 17:06:57 bjorng Exp $
 
 -module(wpc_opengl).
 
@@ -140,8 +140,7 @@ render_event(quit, _) ->
     wings_io:putback_event(quit),
     render_exit();
 render_event(time_to_quit, _) ->
-    wings_wm:dirty(),
-    pop;
+    render_exit();
 render_event(_, _) ->
     keep.
 
