@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.143 2003/12/24 13:21:18 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.144 2003/12/24 17:04:14 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -2358,11 +2358,12 @@ label_draw([], _, _) -> keep.
 %%%
 
 -record(text,
-	{bef,					%Reversed list of characters before cursor
+	{bef,					%Reversed list of characters before cursor.
 	 aft,					%List of characters after cursor.
+	 w_bef,					%Width of characters before cursor.
 	 first=0,			        %First character shown.
 	 sel=0,
-	 max,
+	 max,					%Max numbers of characters.
 	 integer=false,
 	 charset,				%Character set validator.
 	 last_val,
@@ -2379,13 +2380,14 @@ mktree_text(Val, Sto, I, Flags) ->
 	      M when is_integer(M), M >= 1 -> M
 	  end,
     Password = proplists:get_bool(password, Flags),
+    W = (1+Max)*wings_text:width(),
     Ts = #text{last_val=Val,bef=[],aft=ValStr,max=Max,
 	       integer=IsInteger,charset=Charset,
                validator=Validator,password=Password},
     Fun = fun gen_text_handler/3,
     Fi = #fi{key=Key} = 
 	mktree_leaf(Fun, enabled, undefined,
-		    (1+Max)*?CHAR_WIDTH, ?LINE_HEIGHT+2, I, Flags),
+		    W, ?LINE_HEIGHT+2, I, Flags),
     mktree_priv(Fi, gb_trees:enter(var(Key, I), Val, Sto), I, Ts).
 
 text_val_to_str(Val) when is_float(Val) ->
@@ -2495,12 +2497,10 @@ string_to_float(Str0) ->
 	    end
     end.
 
-gen_text_handler({redraw,true,DisEnabled}, [Fi=#fi{index=I}|_], Store) ->
-    draw_text_active(Fi, gb_trees:get(-I, Store), DisEnabled);
-gen_text_handler({redraw,false,DisEnabled}, 
+gen_text_handler({redraw,Active,DisEnabled}, 
 		 [Fi=#fi{key=Key,index=I}|_], Store) ->
     Val = gb_trees:get(var(Key, I), Store),
-    draw_text_inactive(Fi, gb_trees:get(-I, Store), Val, DisEnabled);
+    draw_text(Fi, gb_trees:get(-I, Store), Val, DisEnabled, Active);
 gen_text_handler(value, [#fi{key=Key,index=I}|_], Store) ->
     {value,gb_trees:get(var(Key, I), Store)};
 gen_text_handler(Ev, [Fi=#fi{key=Key,index=I,hook=Hook,flags=Flags}|_], Sto0) ->
@@ -2521,7 +2521,12 @@ gen_text_handler(Ev, [Fi=#fi{key=Key,index=I,hook=Hook,flags=Flags}|_], Sto0) ->
 	    hook(Hook, update, [K,I,Val,Sto,Flags])
     end.
 
-draw_text_inactive(#fi{x=X0,y=Y0}, #text{max=Max,password=Password},
+draw_text(Fi, Text, Val, DisEnabled, false) ->
+    draw_text_inactive(Fi, Text, Val, DisEnabled);
+draw_text(Fi, Text, _Val, DisEnabled, true) ->
+    draw_text_active(Fi, Text, DisEnabled).
+
+draw_text_inactive(#fi{x=X0,y=Y0,w=Width}, #text{max=Max,password=Password},
 		   Val, DisEnabled) ->
     Str0 = string:substr(text_val_to_str(Val), 1, Max),
     Str = case Password of
@@ -2532,13 +2537,13 @@ draw_text_inactive(#fi{x=X0,y=Y0}, #text{max=Max,password=Password},
 	case DisEnabled of
 	    enabled ->
 		wings_io:sunken_gradient(X0, Y0+2,
-					 (Max+1)*?CHAR_WIDTH, ?CHAR_HEIGHT+1,
+					 Width, ?CHAR_HEIGHT+1,
 					 color3_high(), color4(), false),
 		color3_text();
 	    _ ->
 		blend(fun(Col) ->
 			      wings_io:sunken_rect(X0, Y0+2,
-						   (Max+1)*?CHAR_WIDTH,
+						   Width,
 						   ?CHAR_HEIGHT+1,
 						   Col, Col)
 		      end),
@@ -2550,43 +2555,79 @@ draw_text_inactive(#fi{x=X0,y=Y0}, #text{max=Max,password=Password},
     wings_io:text_at(X, Y, Str),
     keep.
 
-draw_text_active(#fi{x=X0,y=Y0,w=W,h=H},
-		 #text{sel=Sel,bef=Bef,aft=Aft,max=Max,password=Password}=Text,
+draw_text_active(#fi{x=X0,y=Y0,w=Width},
+		 #text{sel=Sel,first=First0,bef=Bef0,aft=Aft0,
+		       password=Password}=Text,
 		 DisEnabled) ->
     Ch = wings_text:height(),
     Cw = wings_text:width(),
 
-    wings_io:sunken_gradient(X0, Y0+2, (Max+1)*Ch, Ch+1,
+    wings_io:sunken_gradient(X0, Y0+2, Width, Ch+1,
 			     color3_high(), color4(), true),
     Y = Y0 + Ch,
     X = X0 + (Cw div 2),
-    Len = length(Bef),
-    Str0 = case Password of
-	       true -> stars(Len+length(Aft));
-	       false -> get_text(Text)
-	   end,
-    Str = string:substr(Str0, 1, Max),
-    gl:color3fv(color3_text()),
-    wings_io:text_at(X, Y, Str),
+    {Bef1,Aft} = stars(Password, Bef0, Aft0),
+    {First,Left} = text_adjust_first(First0, Bef1, Width),
+    CaretPos = X+Width-Left,
 
-    case {DisEnabled,abs(Sel)} of
+    %% Draw caret or selection background.
+    case {DisEnabled,Sel} of
 	{enabled,0} ->
 	    gl:color3f(1, 0, 0),
-	    X1 = X+wings_text:width(Bef),
-	    wings_io:text_at(X1, Y, [caret]);
+	    wings_io:text_at(CaretPos, Y, [caret]);
 	{enabled,N} ->
-	    Skip = min(Len, Len+Sel),
-	    SelStr = string:substr(Str, Skip+1, N),
-	    gl:color3f(0, 0, 0.5),
-	    X1 = X+Skip*Cw,
- 	    gl:recti(X1, Y-Ch+3, X1+N*Cw, Y+2),
- 	    gl:color3f(1, 1, 1),
-	    wings_io:text_at(X1, Y, SelStr);
+	    gl:color3f(0.71, 0.84, 1),
+	    if
+		N > 0 ->
+		    SelStr = lists:sublist(Aft, N),
+		    SelW = wings_text:width(SelStr),
+		    gl:recti(CaretPos, Y-Ch+3, min(CaretPos+SelW, X0+Width), Y+2);
+		true ->
+		    SelStr = lists:sublist(Bef0, -N),
+		    SelW = wings_text:width(SelStr),
+		    gl:recti(CaretPos, Y-Ch+3, max(CaretPos-SelW, X0), Y+2)
+	    end;
 	_ ->
 	    ok
     end,
+
+    %% Draw the text itself.
+    gl:color3fv(color3_text()),
+    Bef = lists:nthtail(First, reverse(Bef0)),
+    wings_io:text_at(X, Y, Bef),
+    text_draw_fitting(Aft, CaretPos, Y, Left),
     gl:color3b(0, 0, 0),
-    keep.
+    Text#text{first=First}.
+
+text_adjust_first(First, Bef, Width) ->
+    case length(Bef) of
+	Len when Len < First -> {Len,0};
+	_ -> text_adjust_first_1(Bef, First, Width)
+    end.
+
+text_adjust_first_1([C|Cs], First, Width0) ->
+    case Width0 - wings_text:width([C]) of
+	Width when Width =< 0 -> {1+length(Cs),Width0};
+	Width -> text_adjust_first_1(Cs, First, Width)
+    end;
+text_adjust_first_1([], First, Width) ->
+    {First,Width}.
+
+text_draw_fitting([C|Cs], X, Y, W0) ->
+    CL = [C],
+    Cw = wings_text:width(CL),
+    case W0 - Cw of
+	W when W =< 0 -> ok;
+	W ->
+	    wings_io:text_at(X, Y, CL),
+	    text_draw_fitting(Cs, X+Cw, Y, W)
+    end;
+text_draw_fitting([], _, _, _) -> ok.
+    
+stars(false, Bef, Aft) ->
+    {Bef,Aft};
+stars(true, Bef, Aft) ->
+    {stars(Bef),stars(Aft)}.
 
 stars(N) when is_integer(N) ->
     duplicate(N, $*);
@@ -2702,12 +2743,12 @@ key(4, _, #text{sel=0,aft=[_|Aft]}=Ts) ->	%Ctrl-D
     Ts#text{aft=Aft};
 key(4, _, Ts) ->				%Ctrl-D
     del_sel(Ts);
-key(C, _, #text{max=Max,charset=Charset}=Ts0)
+key(C, _, #text{charset=Charset}=Ts0)
   when $\s =< C, C < 256 ->
     case Charset(C) of
 	true ->
 	    case del_sel(Ts0) of
-		#text{bef=Bef,aft=Aft}=Ts when length(Bef)+length(Aft) < Max ->
+		#text{bef=Bef}=Ts ->
 		    Ts#text{bef=[C|Bef]};
 		_Other -> Ts0
 	    end;
