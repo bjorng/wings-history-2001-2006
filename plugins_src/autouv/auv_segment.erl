@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.32 2002/10/30 09:12:11 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.33 2002/10/30 11:55:30 bjorng Exp $
 
 -module(auv_segment).
 
@@ -404,7 +404,11 @@ expand_charts(Heap0, Charts0, ChartBds0, Max, Dt, VEG,EWs, We) ->
 						  ChartBds, Heap1, EWs, We),
 		    expand_charts(Heap, Charts, ChartBds, Max, Dt, VEG,EWs, We);
 		{value,ChartNum} ->  %% Fopp and Face are in same chart
- 		    expand_charts(Heap1, Charts0, ChartBds0, Max, Dt, VEG,EWs, We);
+		    ChartBds = case is_extremity(Edge, ChartBds0, VEG, We) of
+				   false -> ChartBds0;
+				   true -> gb_sets:delete_any(Edge, ChartBds0)
+			       end,
+ 		    expand_charts(Heap1, Charts0, ChartBds, Max, Dt, VEG,EWs, We);
 		{value,OtherChartNum} ->
 		    MaxDistChartFace = gb_trees:get(ChartNum, Dt),
 		    MaxDistChartFopp = gb_trees:get(OtherChartNum, Dt),
@@ -413,10 +417,10 @@ expand_charts(Heap0, Charts0, ChartBds0, Max, Dt, VEG,EWs, We) ->
 		    Const = Max/4,
 		    if ((MaxDistChartFace - DistFace) < Const) and
 		       ((MaxDistChartFopp - DistFopp) < Const) ->
-			    {Charts1,ChartBds1} = 
-				merge_charts(ChartNum,OtherChartNum,
-					     Charts0,Dt,ChartBds0,We),
-			    expand_charts(Heap1, Charts1, ChartBds1, Max,
+			    {Charts,ChartBds} = 
+				merge_charts(ChartNum, OtherChartNum,
+					     Charts0, Dt, VEG, ChartBds0, We),
+			    expand_charts(Heap1, Charts, ChartBds, Max,
 					  Dt, VEG,EWs, We);
 		       true ->
 			    expand_charts(Heap1, Charts0, ChartBds0, Max, Dt, VEG,EWs, We)
@@ -433,7 +437,7 @@ is_connected([E|Es], ChartBds) ->
     gb_sets:is_member(E, ChartBds) orelse is_connected(Es, ChartBds);
 is_connected([], _) -> false.
 
-merge_charts(Ch1,Ch2, Charts0, Dt, ChartBds0,We) ->    
+merge_charts(Ch1,Ch2, Charts0, Dt, VEG,ChartBds0,We) ->    
     {C1,C2} =  
 	case gb_trees:get(Ch1, Dt) > gb_trees:get(Ch2, Dt) of
 	    true ->
@@ -451,7 +455,12 @@ merge_charts(Ch1,Ch2, Charts0, Dt, ChartBds0,We) ->
 				     Test = if LF==Face -> RF; true -> LF end,
 				     case gb_trees:lookup(Test, Charts0) of
 					 {value, C1} ->
-					     gb_sets:delete(Edge,Acc);
+					     case is_extremity(Edge, Acc, VEG, We) of
+						 true ->
+						     gb_sets:delete_any(Edge,Acc);
+						 false ->
+						     Acc
+					     end;
 					 _ ->
 					     Acc
 				     end
