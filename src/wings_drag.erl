@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.121 2003/01/02 18:07:41 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.122 2003/01/06 20:32:54 bjorng Exp $
 %%
 
 -module(wings_drag).
--export([setup/3,setup/4,do_drag/1,translate/4]).
+-export([setup/3,setup/4,do_drag/2,translate/4]).
 
 -define(NEED_ESDL, 1).
 -define(NEED_OPENGL, 1).
@@ -221,7 +221,11 @@ break_apart_general(D, Tvs) -> {D,Tvs}.
 %%% Handling of drag events.
 %%%
 
-do_drag(Drag) ->
+do_drag(Drag, Args) ->
+    if
+	Args == none -> ok;
+	true -> wings_wm:send(geom, {drag_arguments,Args})
+    end,
     {_,X,Y} = wings_wm:local_mouse_state(),
     Ev = #mousemotion{x=X,y=Y,state=0},
     {GX,GY} = wings_wm:local2global(X, Y),
@@ -579,7 +583,7 @@ parameter_update(Key, Val, Drag0) ->
     wings_draw_util:map(fun(D, _) ->
 				parameter_update_fun(D, Key, Val)
 			end, []),
-    {_,X,Y} = sdl_mouse:getMouseState(),
+    {_,X,Y} = wings_wm:local_mouse_state(),
     Ev = #mousemotion{x=X,y=Y,state=0},
     {_,Drag} = motion(Ev, Drag0),
     Drag.
