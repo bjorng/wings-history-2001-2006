@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.16 2002/01/14 08:21:51 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.17 2002/01/19 07:53:49 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -178,16 +178,22 @@ bevel_min_limit([], Min) -> Min.
 %%
 
 extrude(Type, St0) ->
+    Vec = wings_util:make_vector(Type),
     {St,Tvs} = wings_sel:mapfold(
-	   fun(Edges, We, A) ->
-		   extrude_1(Edges, We, A)
-	   end, [], St0),
-    wings_drag:init_drag(Tvs, {radius,none}, distance, St#st{inf_r=1.0}).
+		 fun(Edges, We, A) ->
+			 extrude_1(Edges, Vec, We, A)
+		 end, [], St0),
+    Constraint = case Type of
+		     free -> view_dependent;
+		     Other -> none
+		 end,
+    wings_drag:init_drag(Tvs, {radius,Constraint},
+			 distance, St#st{inf_r=1.0}).
 
-extrude_1(Edges, We0, Acc) ->
+extrude_1(Edges, Vec, We0, Acc) ->
     {We,_} = extrude_edges(Edges, We0),
     NewVs = gb_sets:to_list(wings_we:new_items(vertex, We0, We)),
-    Tv = wings_move:setup_we(edge, normal, Edges, We),
+    Tv = wings_move:setup_we(edge, Vec, Edges, We),
     plus_minus_move(Tv, NewVs, We, Acc).
 
 extrude_edges(Edges, We) ->
@@ -367,10 +373,17 @@ remove_winged_vs(Cs0) ->
 %% Move handling for Extrude/Bump.
 %%
 
-plus_minus_move(Tv0, NewVs, #we{id=Id}=We, Acc) ->
+plus_minus_move([_|_]=Tv0, NewVs, #we{id=Id}=We, Acc) ->
     Tv = [{Vec,wings_util:add_vpos(Vs0, We)} || {Vec,Vs0} <- Tv0],
     Affected0 = lists:append([Vs0 || {Vec,Vs0} <- Tv0]),
     MoveSel = {Affected0,move_fun(Tv)},
+    Vecs = move_vectors(NewVs, gb_sets:from_list(Affected0), We, []),
+    Affected = [V || {V,Vec,Pos} <- Vecs],
+    MoveAway = {Affected,move_away_fun(Vecs)},
+    {We,[{Id,MoveSel},{Id,MoveAway}|Acc]};
+plus_minus_move({Affected0,MoveFun0}, NewVs, #we{id=Id}=We, Acc) ->
+    MoveFun = free_move_fun(MoveFun0),
+    MoveSel = {Affected0,MoveFun},
     Vecs = move_vectors(NewVs, gb_sets:from_list(Affected0), We, []),
     Affected = [V || {V,Vec,Pos} <- Vecs],
     MoveAway = {Affected,move_away_fun(Vecs)},
@@ -384,15 +397,23 @@ move_fun(Tv) ->
 		  end, Acc, Tv)
     end.
 
-move_away_fun(Tv) ->
-    fun({Dx,R0}, Acc) ->
-	    R = R0-1.0,
-	    foldl(fun({V,Vec,#vtx{pos={X,Y,Z}}=Rec}, A) -> 
-			  {Xt,Yt,Zt} = e3d_vec:mul(Vec, R),
-			  Pos = wings_util:share(X+Xt, Y+Yt, Z+Zt),
-			  [{V,Rec#vtx{pos=Pos}}|A]
-		  end, Acc, Tv)
+free_move_fun(MoveSel) ->
+    fun({Dx,Dy,R}, Acc) ->
+	    MoveSel({Dx,Dy}, Acc)
     end.
+
+move_away_fun(Tv) ->
+    fun({Dx,R}, Acc) -> move_away(R, Tv, Acc);
+       ({Dx,Dy,R}, Acc) -> move_away(R, Tv, Acc)
+    end.
+
+move_away(R0, Tv, Acc) ->
+    R = R0-1.0,
+    foldl(fun({V,Vec,#vtx{pos={X,Y,Z}}=Rec}, A) -> 
+		  {Xt,Yt,Zt} = e3d_vec:mul(Vec, R),
+		  Pos = wings_util:share(X+Xt, Y+Yt, Z+Zt),
+		  [{V,Rec#vtx{pos=Pos}}|A]
+	  end, Acc, Tv).
     
 move_vectors([V|Vs], VsSet, #we{vs=Vtab}=We, Acc0) ->
     Acc = wings_vertex:fold(
