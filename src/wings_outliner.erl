@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.12 2003/01/25 07:12:54 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.13 2003/01/25 17:31:26 bjorng Exp $
 %%
 
 -module(wings_outliner).
@@ -65,13 +65,13 @@ event(resized, Ost) ->
     update_scroller(Ost),
     keep;
 event(got_focus, _) ->
-    wings_util:button_message([], [], "Show menu"),
+    wings_util:button_message("Select", [], "Show menu"),
     wings_wm:dirty();
 event({current_state,St}, Ost0) ->
     Ost = update_state(St, Ost0),
     update_scroller(Ost),
     get_event(Ost);
-event(#mousemotion{y=Y}, #ost{active=Act0}=Ost) ->
+event(#mousebutton{button=1,y=Y,state=?SDL_PRESSED}, #ost{active=Act0}=Ost) ->
     case active_object(Y, Ost) of
 	Act0 -> keep;
 	Act ->
@@ -82,16 +82,10 @@ event(#mousebutton{button=4,state=?SDL_RELEASED}, Ost) ->
     zoom_step(-1*lines(Ost) div 4, Ost);
 event(#mousebutton{button=5,state=?SDL_RELEASED}, Ost) ->
     zoom_step(lines(Ost) div 4, Ost);
-event(#mousebutton{y=Y0}=Ev, Ost) ->
+event(#mousebutton{}=Ev, #ost{active=Act}=Ost) ->
     case wings_menu:is_popup_event(Ev) of
 	no -> keep;
-	{yes,X,Y,_} ->
-	    case active_object(Y0, Ost) of
-		-1 ->
-		    keep;
-		Act ->
-		    do_menu(Act, X, Y, Ost)
-	    end
+	{yes,X,Y,_} -> do_menu(Act, X, Y, Ost)
     end;
 event(scroll_page_up, Ost) ->
     zoom_step(-lines(Ost), Ost);
@@ -109,21 +103,31 @@ event({set_knob_pos,Pos}, #ost{first=First0,n=N}=Ost0) ->
     end;
 event({action,{outliner,Cmd}}, Ost) ->
     command(Cmd, Ost);
-event(_, _) -> keep.
+event(Ev, Ost) ->
+    case wings_hotkey:event(Ev) of
+	{select,deselect} ->
+	    get_event(Ost#ost{active=-1});
+	_ -> keep
+    end.
 
-do_menu(Act, X, Y, #ost{first=First,os=Objs}) ->
-    Menu = case lists:nth(First+Act+1, Objs) of
+do_menu(Act, X, Y, #ost{os=Objs}) ->
+    Menu = case lists:nth(Act+1, Objs) of
 	       {material,Name,_,_} ->
-		   [{"Edit Material...",menu_cmd(edit_material, Name)},
-		    {"Assign to Selection",menu_cmd(assign_material, Name)}];
+		   [{"Edit Material...",menu_cmd(edit_material, Name),
+		    "Edit material properties"},
+		    {"Assign to Selection",menu_cmd(assign_material, Name),
+		     "Assign the material to the selected faces or bodies"}];
 	       {object,Id,_} ->
-		   [{"Duplicate",menu_cmd(duplicate_object, Id)},
-		    {"Delete",menu_cmd(delete_object, Id)}];
+		   [{"Duplicate",menu_cmd(duplicate_object, Id),
+		     "Duplicate this object"},
+		    {"Delete",menu_cmd(delete_object, Id),
+		     "Delete this object"}];
 	       {light,Id,_} ->
-		   [{"Edit Light...",menu_cmd(edit_light, Id)},
+		   [{"Edit Light...",menu_cmd(edit_light, Id),
+		    "Edit light properties"},
 		    separator,
-		    {"Duplicate",menu_cmd(duplicate_object, Id)},
-		    {"Delete",menu_cmd(delete_object, Id)}];
+		    {"Duplicate",menu_cmd(duplicate_object, Id),"Duplicate this light"},
+		    {"Delete",menu_cmd(delete_object, Id),"Delete this light"}];
 	       {image,Id,Im} ->
 		   image_menu(Id, Im)
 	   end,
@@ -283,16 +287,12 @@ active_object(Y0, #ost{lh=Lh,first=First,n=N}) ->
 	Y when Y < 0 -> -1;
 	Y1 ->
 	    case Y1 div Lh of
-		Y when First+Y < N -> Y;
+		Y when First+Y < N -> First+Y;
 		_ -> -1
 	    end
     end.
 
 draw_objects(#ost{os=Objs0,first=First,lh=Lh,active=Active,n=N0}=Ost) ->
-    if
-	First < 0 -> erlang:fault({neg_first,First});
-	true -> ok
-    end,
     Objs = lists:nthtail(First, Objs0),
     R = right_pos(),
     Lines = lines(Ost),
@@ -301,7 +301,7 @@ draw_objects(#ost{os=Objs0,first=First,lh=Lh,active=Active,n=N0}=Ost) ->
 	    _ -> Lines
 	end,
     draw_icons(N, Objs, Ost, Lh-2),
-    draw_objects_1(N, Objs, Ost, R, Active, Lh-2).
+    draw_objects_1(N, Objs, Ost, R, Active-First, Lh-2).
 
 draw_objects_1(0, _, _, _, _, _) -> ok;
 draw_objects_1(N, [O|Objs], #ost{lh=Lh}=Ost, R, Active, Y) ->

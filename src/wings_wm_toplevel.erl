@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.10 2003/01/25 14:05:56 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.11 2003/01/25 17:31:26 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -399,7 +399,7 @@ resize_event(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED}, Rst) ->
 resize_event(#mousebutton{button=2,x=X,y=Y,state=?SDL_PRESSED}, Rst) ->
     {_,Client} = wings_wm:active_window(),
     {W,H} = wings_wm:win_size(Client),
-    Focus = wings_wm:focus_window(),
+    Focus = wings_wm:grabbed_focus_window(),
     wings_wm:grab_focus(get(wm_active)),
     get_resize_event(Rst#rsz{local={X,Y},state=moving,aspect=W/H,prev_focus=Focus});
 resize_event(#mousebutton{button=1,state=?SDL_RELEASED}, #rsz{prev_focus=Focus}=Rst) ->
