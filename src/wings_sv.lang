@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sv.lang,v 1.19 2004/10/20 12:37:26 dgud Exp $
+%%     $Id: wings_sv.lang,v 1.20 2004/10/24 05:41:15 bjorng Exp $
 %%
 
 {wings,
@@ -338,7 +338,7 @@
     {6,"A"}]},
   {standard_mode_fun,
    [{1,"[Tab] Numerisk inmatning [Shift] och/eller [Ctrl] begränsningar"},
-    {2,"[+] or [-] Justera radie "}]},
+    {2,"[+] eller [-] Justera radie "}]},
   {zmove_help_1,
    [{1,"Dra för att flytta längs Z"},
     {2,"Dra för att justera den tredje parametern"}]}]}.
@@ -1448,19 +1448,19 @@
   {torus,
    [{1,"Sektioner"},
     {2,"Klyftor"},
-    {3,"Yttre Radie"},
-    {4,"Inre Radie"},
+    {3,"Yttre radie"},
+    {4,"Inre radie"},
     {5,"Torus"}]}]}.
 {wings_subdiv,
  [
   {face_centers,
    [{1,"Ytan "},
-    {2," har endast to kanter."}]},
+    {2," har endast två kanter."}]},
   {smooth,
    [{1,"utjämnar"},
     {2,"beräknar ytcentrum"},
     {3,"klipper kanter"},
-    {4,"uppdaterar matrial"},
+    {4,"uppdaterar material"},
     {5,"skapar nya ytor"},
     {6,"flyttar punkter"},
     {7,"avslutar"}]}]}.
