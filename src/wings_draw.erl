@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.122 2003/06/06 20:14:20 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.123 2003/06/07 08:36:33 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -45,9 +45,7 @@ update_dlists(#st{selmode=Mode,sel=Sel}=St) ->
     wings_draw_util:map(fun(D, Data) ->
 				sel_fun(D, Data, Mode)
 			end, Sel),
-    wings_draw_util:map(fun(D, _) ->
-				update_fun(D, St)
-			   end, []),
+    do_update_dlists(St),
     update_sel_dlist(),
     update_mirror().
 
@@ -108,76 +106,126 @@ sel_fun(#dlo{src_we=#we{id=Id},src_sel=SrcSel}=D, [{Id,Items}|Sel], Mode) ->
 sel_fun(D, Sel, _) ->
     {D#dlo{sel=none,src_sel=none},Sel}.
 
-update_fun(#dlo{src_we=We}=D, _) when ?IS_LIGHT(We) ->
+%%%
+%%% Create all display lists that are currently needed.
+%%% The work is done in two passes:
+%%%
+%%% 1. Find out which display lists are needed based on display modes.
+%%%    (Does not check whether they exist or not.)
+%%%
+%%% 2. Create missing display lists.
+%%%
+
+%%
+%% Pass 1 starts here.
+%%
+
+do_update_dlists(#st{selmode=vertex}=St) ->
+    case wings_pref:get_value(vertex_size) of
+	0.0 ->
+	    do_update_dlists_1([], St);
+	PointSize->
+	    do_update_dlists_1([{vertex,PointSize}], St)
+    end;
+do_update_dlists(St) ->
+    do_update_dlists_1([], St).
+
+do_update_dlists_1(Need, St) ->
+    case wings_pref:get_value(show_normals) of
+	false -> do_update_dlists_2(Need, St);
+	true -> do_update_dlists_2([normals|Need], St)
+    end.
+
+do_update_dlists_2(Need0, St) ->
+    Need1 = foldl(fun(W, A) ->
+			  case wings_wm:get_prop(W, workmode) of
+			      false -> [smooth|A];
+			      true -> [work|A]
+			  end
+		  end, Need0, wings_util:geom_windows()),
+    Need = ordsets:from_list(Need1),
+    do_update_dlists_3(Need, St).
+
+do_update_dlists_3(CommonNeed, St) ->
+    Need0 = wings_draw_util:fold(fun(D, A) ->
+					 need_fun(D, CommonNeed, St, A)
+				 end, []),
+    Need = reverse(Need0),
+    wings_draw_util:map(fun(D, N) ->
+				update_fun(D, N, St)
+			end, Need).
+
+need_fun(#dlo{src_we=We}, _, _, Acc) when ?IS_LIGHT(We) ->
+    [[light]|Acc];
+need_fun(#dlo{src_we=#we{he=Htab},proxy_data=Pd}, Need0, _St, Acc) ->
+    Need1 = case gb_sets:is_empty(Htab) orelse not wings_pref:get_value(show_edges) of
+		false -> [hard_edges|Need0];
+		true -> Need0
+	    end,
+    Need = if
+	       Pd =:= none -> Need1;
+	       true -> [proxy|Need1]
+	   end,
+    [Need|Acc].
+
+%%
+%% Pass 2 starts here.
+%%
+
+update_fun(D0, [P|Ps], St) ->
+    D = update_fun_1(D0, P, St),
+    {D,Ps};
+update_fun(D, [], _) -> D.
+
+update_fun_1(D0, [H|T], St) ->
+    D = update_fun_2(H, D0, St),
+    update_fun_1(D, T, St);
+update_fun_1(D, [], _) -> D.
+
+update_fun_2(light, D, _) ->
     wings_light:update(D);
-update_fun(#dlo{work=none,src_we=#we{fs=Ftab}=We}=D, St) ->
+update_fun_2(work, #dlo{work=none,src_we=#we{fs=Ftab}=We}=D, St) ->
     List = gl:genLists(1),
     gl:newList(List, ?GL_COMPILE),
     draw_faces(gb_trees:to_list(Ftab), We, St),
     gl:endList(),
-    update_fun(D#dlo{work=List}, St);
-update_fun(#dlo{vs=none,src_we=#we{vp=Vtab}}=D, #st{selmode=vertex}=St) ->
+    D#dlo{work=List};
+update_fun_2(smooth, #dlo{smooth=none}=D, St) ->
+    We = wings_subdiv:smooth_we(D),
+    {List,Tr} = smooth_dlist(We, St),
+    D#dlo{smooth=List,transparent=Tr};
+update_fun_2({vertex,PtSize}, #dlo{vs=none,src_we=#we{vp=Vtab}}=D, _) ->
     UnselDlist = gl:genLists(1),
     gl:newList(UnselDlist, ?GL_COMPILE),
-    case wings_pref:get_value(vertex_size) of
-	0.0 -> ok;
-	PtSize -> 
-	    gl:pointSize(PtSize),
-	    gl:color3f(0, 0, 0),
-	    gl:'begin'(?GL_POINTS),
-	    foreach(fun(Pos) -> gl:vertex3fv(Pos) end, gb_trees:values(Vtab)),
-	    gl:'end'()
-    end,
+    gl:pointSize(PtSize),
+    gl:color3f(0, 0, 0),
+    gl:'begin'(?GL_POINTS),
+    foreach(fun(Pos) -> gl:vertex3fv(Pos) end, gb_trees:values(Vtab)),
+    gl:'end'(),
     gl:endList(),
-    update_fun(D#dlo{vs=UnselDlist}, St);
-update_fun(D0, St) ->
-    D = wings_subdiv:update(D0, St),
-    update_fun_2(D, St).
+    D#dlo{vs=UnselDlist};
+update_fun_2(hard_edges, #dlo{hard=none,src_we=#we{he=Htab}=We}=D, _) ->
+    List = gl:genLists(1),
+    gl:newList(List, ?GL_COMPILE),
+    gl:'begin'(?GL_LINES),
+    #we{es=Etab,vp=Vtab} = We,
+    foreach(fun(Edge) ->
+		    #edge{vs=Va,ve=Vb} = gb_trees:get(Edge, Etab),
+		    gl:vertex3fv(gb_trees:get(Va, Vtab)),
+		    gl:vertex3fv(gb_trees:get(Vb, Vtab))
+	    end, gb_sets:to_list(Htab)),
+    gl:'end'(),
+    gl:endList(),
+    D#dlo{hard=List};
+update_fun_2(normals, D, _) ->
+    make_normals_dlist(D);
+update_fun_2(proxy, D, St) ->
+    wings_subdiv:update(D, St);
+update_fun_2(_, D, _) -> D.
 
-update_fun_2(#dlo{smooth=none}=D, St) ->
-    case any_smooth_window() of
-	false -> update_fun_3(D);
-	true ->
-	    We = wings_subdiv:smooth_we(D),
-	    {List,Tr} = smooth_dlist(We, St),
-	    update_fun_3(D#dlo{smooth=List,transparent=Tr})
-    end;
-update_fun_2(D, _) -> update_fun_3(D).
-
-update_fun_3(#dlo{hard=none,src_we=#we{he=Htab}=We}=D) ->
-    case gb_sets:is_empty(Htab) orelse not wings_pref:get_value(show_edges) of
-	true -> update_fun_4(D);
-	false ->
-	    List = gl:genLists(1),
-	    gl:newList(List, ?GL_COMPILE),
-	    gl:'begin'(?GL_LINES),
-	    #we{es=Etab,vp=Vtab} = We,
-	    foreach(fun(Edge) ->
-			    #edge{vs=Va,ve=Vb} = gb_trees:get(Edge, Etab),
-			    gl:vertex3fv(gb_trees:get(Va, Vtab)),
-			    gl:vertex3fv(gb_trees:get(Vb, Vtab))
-		    end, gb_sets:to_list(Htab)),
-	    gl:'end'(),
-	    gl:endList(),
-	    update_fun_4(D#dlo{hard=List})
-    end;
-update_fun_3(D) -> update_fun_4(D).
-
-update_fun_4(D) ->
-    case wings_pref:get_value(show_normals) of
-	false -> D;
-	true -> make_normals_dlist(D)
-    end.
-
-any_smooth_window() ->
-    any_smooth_window_1(wings_util:geom_windows()).
-
-any_smooth_window_1([Name|T]) ->
-    case wings_wm:get_prop(Name, workmode) of
-	true -> any_smooth_window_1(T);
-	false -> true
-    end;
-any_smooth_window_1([]) -> false.
+%%%
+%%% Update the selection display list.
+%%%
 
 update_sel_dlist() ->
     wings_draw_util:map(fun(D, _) ->
