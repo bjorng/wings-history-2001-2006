@@ -1,0 +1,97 @@
+#!/bin/bash
+#
+# Script for creating a self-contained Wings package for Windows.
+#
+
+# Configurable stuff.
+WINGS_PATH=c:/mydocu~1/wings_releases
+INSTALL=/usr/bin/install
+ERLANG_PATH=/cygdrive/c/progra~1/erl5.1.2
+DEST_ROOT=$WINGS_PATH/wings3d
+ESDL_PATH=/cygdrive/c/mydocu~1/esdl
+NSIS=c:/progra~1/nsis/makensis-bz2
+WINGS_VSN=0.97
+# End of configureable stuff.
+
+temp=`pwd`
+
+# Copy the Wings application.
+
+for file in $WINGS_PATH/wings-*; do
+    if [ -d $file ]; then
+        latest_wings=$file
+    fi
+done
+
+(cd $latest_wings; nmake -f Makefile.win32)
+
+dest=$DEST_ROOT
+
+$INSTALL -d $dest $dest/ebin $dest/patches
+
+cd $latest_wings
+
+$INSTALL -c -m 644 README AUTHORS license.terms $dest
+$INSTALL -c -m 644 wings2.nsi $dest
+$INSTALL -c -m 644 ebin/* $dest/ebin
+
+$INSTALL -d $dest/plugins/import_export $dest/plugins/commands $dest/plugins/primitives $dest/plugins/win32_file
+$INSTALL -c -m 644 plugins/import_export/* $dest/plugins/import_export
+$INSTALL -c -m 644 plugins/commands/* $dest/plugins/import_export
+$INSTALL -c -m 644 plugins/primitives/* $dest/plugins/primitives
+$INSTALL -c -m 644 plugins/win32_file/* $dest/plugins/win32_file
+
+# Copy the relevant parts of ESDL into the application.
+
+$INSTALL -d $dest/ebin $dest/priv
+$INSTALL -c -m 644  $ESDL_PATH/ebin/* $dest/ebin
+$INSTALL -c -m 644  $ESDL_PATH/priv/sdl_driver.dll $dest/priv
+$INSTALL -c -m 644  $ESDL_PATH/priv/SDL.dll $dest/priv
+
+# Copy the relevant parts of Erlang into the application.
+
+src=$ERLANG_PATH
+dest=$DEST_ROOT/erlang
+erts_src=$src/erts-*
+erts=`basename $erts_src`
+stdlib=`basename $src/lib/stdlib-*`
+kernel=`basename $src/lib/kernel-*`
+
+$INSTALL -d $dest/bin $dest/$erts/bin $dest/lib/$stdlib/ebin $dest/lib/$kernel/ebin
+$INSTALL -c -m 644 $src/lib/kernel-*/ebin/* $dest/lib/$kernel/ebin
+$INSTALL -c -m 644 $src/lib/stdlib-*/ebin/* $dest/lib/$stdlib/ebin
+
+$INSTALL -c $erts_src/bin/werl.exe $dest/bin
+$INSTALL -c $erts_src/bin/beam.dll $dest/bin
+$INSTALL -c -m 644 $src/bin/start.boot $dest/bin
+
+# Strip debug information from all beam files.
+cd $temp
+dest=$DEST_ROOT/erlang/lib
+
+cat >strip.erl <<'EOF'
+-module(strip).
+-export([strip/1]).
+
+strip([LibRoot]) ->
+    io:format("Stripping: ~p\n", [LibRoot]),
+    case catch strip_1(filelib:wildcard(filename:join(LibRoot, "*/ebin/*.beam"))) of
+        {'EXIT',Reason} ->
+            io:format("~P\n", [Reason,40]),
+            halt(1);
+        _ ->
+            halt(0)
+    end.
+    
+strip_1([B|Bs]) ->
+    {ok,{_,B}} = beam_lib:strip(B),
+    strip_1(Bs);
+strip_1([]) -> ok.
+EOF
+
+erlc strip.erl
+erl -noshell -pa . -run strip strip $dest
+
+# Run NSIS
+cd $DEST_ROOT
+$NSIS /DWINGS_VERSION=$WINGS_VSN wings2.nsi
