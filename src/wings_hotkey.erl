@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_hotkey.erl,v 1.40 2003/06/28 14:41:37 bjorng Exp $
+%%     $Id: wings_hotkey.erl,v 1.41 2003/07/05 20:35:52 bjorng Exp $
 %%
 
 -module(wings_hotkey).
@@ -135,7 +135,8 @@ matching_mode(Names) ->
     end.
 
 mkeyname({user,K}) -> {1,keyname(K)};
-mkeyname({default,K}) -> {2,keyname(K)}.
+mkeyname({default,K}) -> {2,keyname(K)};
+mkeyname({plugin,K}) -> {3,keyname(K)}.
 
 suitable_mode(shapes) -> true;
 suitable_mode(vertex) -> true;
