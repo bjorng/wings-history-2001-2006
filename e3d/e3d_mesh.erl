@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mesh.erl,v 1.29 2003/06/15 11:30:57 bjorng Exp $
+%%     $Id: e3d_mesh.erl,v 1.30 2003/07/24 04:49:24 bjorng Exp $
 %%
 
 -module(e3d_mesh).
@@ -522,6 +522,8 @@ used_materials_1([#e3d_face{mat=[Mat]}|Fs], [Mat|_]=Acc) ->
     used_materials_1(Fs, Acc);
 used_materials_1([#e3d_face{mat=[Mat]}|Fs], Acc) ->
     used_materials_1(Fs, [Mat|Acc]);
+used_materials_1([#e3d_face{mat=[]}|Fs], Acc) ->
+    used_materials_1(Fs, Acc);
 used_materials_1([], Acc) -> ordsets:from_list(Acc).
 
 %%%
