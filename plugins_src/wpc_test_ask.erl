@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_test_ask.erl,v 1.11 2003/11/19 18:10:47 raimo_niskanen Exp $
+%%     $Id: wpc_test_ask.erl,v 1.12 2003/11/20 00:13:11 raimo_niskanen Exp $
 %%
 
 -module(wpc_test_ask).
@@ -16,6 +16,8 @@
 -export([enable/0,disable/0]).
 -export([load/1]).
 -export([init/0,menu/2,dialog/2,command/2]).
+
+-import(lists, [reverse/1,reverse/2]).
 
 enable() -> wpa:pref_set(?MODULE, enabled, true).
 
@@ -47,7 +49,8 @@ menu({tools}, Menu) ->
 	    Menu++
 		[separator,
 		 {"Test Ask",{?MODULE,[{"Minimal Dialog",minimal},
-				       {"Large Dialog",large}]}}];
+				       {"Large Dialog",large},
+				       {"Dynamic Dialog",dynamic}]}}];
 	_ -> Menu
     end;
 menu(_, Menu) -> Menu.
@@ -56,6 +59,8 @@ command({tools,{?MODULE,minimal}}, St) ->
     maybe_dialog(fun minimal_dialog/1, St);
 command({tools,{?MODULE,large}}, St) ->
     maybe_dialog(fun large_dialog/1, St);
+command({tools,{?MODULE,dynamic}}, St) ->
+    maybe_dialog(fun dynamic_dialog/1, St);
 command(_, _St) ->
     next.
 
@@ -250,3 +255,40 @@ disable_hook(V) ->
 	(_, _) ->
 	    void
     end.
+
+
+
+dynamic_dialog(St) -> dynamic_dialog_1(St, [init]).
+
+dynamic_dialog_1(St, Res) -> dynamic_dialog_2(St, Res, []).
+
+dynamic_dialog_2(_St, [false], R0) -> 
+    %% Dialog closed ok
+    R = reverse(R0, [false]),
+    erlang:display({?MODULE,?LINE,R}),
+    R;
+dynamic_dialog_2(St, [init], R) -> dynamic_dialog_3(St, [false|R]);
+dynamic_dialog_2(St, [true], R) -> %% New frame
+    Z = true, E = false, F = 0.5,
+    dynamic_dialog_3(St, [false,false,F,E,Z|R]);
+dynamic_dialog_2(St, [_Z,_E,_F,true|T], R) ->  %% Delete frame
+    dynamic_dialog_3(St, reverse(T, R));
+dynamic_dialog_2(St, [Z,E,F,false|T], R) -> 
+    dynamic_dialog_2(St, T, [false,F,E,Z|R]).
+
+dynamic_dialog_3(St, [_|R]) ->
+    dynamic_dialog_4(St, R, [{hframe,[{button,"New",done},panel]}]).
+
+dynamic_dialog_4(St, [], Dialog) ->
+    wings_ask:dialog("Test Ask Dynamic", Dialog, 
+		     fun (R) -> dynamic_dialog_1(St, R), ignore end);
+dynamic_dialog_4(St, [_Del,F,E,Z|T], Dialog) ->
+    D = {hframe,[{vframe,[{"Enable",E},
+			  {text,F,[{range,{0.0,1.0}},
+				   {hook,disable_hook(-1)}]}]},
+		 {vframe,[{hframe,[{button,"Delete",done},panel]},
+			  {slider,[{range,{0.0,1.0}},
+				   {key,-5},
+				   {hook,disable_hook(-6)}]}]}],
+	 [{title,"Foo"},{minimized,Z}]},
+    dynamic_dialog_4(St, T, [D|Dialog]).
