@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.36 2003/01/05 09:44:18 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.37 2003/01/09 08:44:40 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -56,11 +56,11 @@ command(about, _St) ->
 getting_started() ->
     Help = ["Getting Started",
 	    "When learning Wings, keep an eye at the status line at "
-	    "at the bottom of the screen. Generally it shows what the "
+	    "bottom of the screen. Generally it shows what the "
 	    "mouse buttons will do at any given moment.",
 
 	    "Note that [L] means the left mouse button, not the key L "
-	    "on the keyboard. Similarily, [M] means the middle mouse "
+	    "on the keyboard. Similarly, [M] means the middle mouse "
 	    "button (or the scroll wheel), and [R] means the right mouse "
 	    "button.",
 
@@ -89,7 +89,7 @@ advanced_menus() ->
 	    "With Advanced Menus turned on, many menu commands do "
 	    "different things depending on which mouse-button you invoke "
 	    "them with. For instance, [R] clicking on the Move command "
-	    "allow you to specify a direction vector to move along."],
+	    "allows you to specify a direction vector to move along."],
     help_window(Help).
 
 international() ->
@@ -98,10 +98,10 @@ international() ->
 	    "others), the Undo/Redo commands will not be bound to the [Z] "
 	    "key. (That might be changed in a future release of Wings.)",
 
-	    "On French keyboards, the Undo/Redo commands are found on the"
+	    "On French keyboards, the Undo/Redo commands are found on the "
 	    "[W] key ([Ctrl]+[W], [Ctrl]+[Alt]+[W] and so on).",
 
-	    "On German keyboards, the Undo/Redo commands are found on the"
+	    "On German keyboards, the Undo/Redo commands are found on the "
 	    "[Y] key ([Ctrl]+[Y], [Ctrl]+[Alt]+[Y] and so on)."],
     help_window(Help).
 
@@ -130,8 +130,8 @@ def_hotkeys() ->
 	    "the command. "
 	    "With the command high-lighted, press the [Insert] or [/] key, "
 	    "and then press the key you want to assign the command to.",
-	    "To delete a hotkey, similarily high-light the command in a "
-	    " menu, and press the [Del] or [\\] key."],
+	    "To delete a hotkey, similarly high-light the command in a "
+	    "menu, and press the [Del] or [\\] key."],
     help_window(Help).
 
 lights() ->
