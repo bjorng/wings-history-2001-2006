@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.130 2005/01/22 08:16:27 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.131 2005/01/29 18:25:14 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -201,7 +201,7 @@ extrude_region_vmirror(OldWe, #we{mirror=Face0}=We0) ->
 	true -> We0;
 	false ->
 	    Dissolve = gb_sets:insert(Face0, Dissolve0),
-	    We1 = wings_dissolve:dissolve(Dissolve, We0),
+	    We1 = wings_dissolve:faces(Dissolve, We0),
 	    [Face] = NewFace = wings_we:new_items_as_ordset(face, We0, We1),
 	    We = wings_facemat:assign('_hole_', NewFace, We1),
 	    wings_we:mirror_flatten(OldWe, We#we{mirror=Face})
@@ -247,7 +247,7 @@ dissolve(St0) ->
     wings_sel:set(Sel, St).
 
 dissolve_sel(Faces, #we{id=Id}=We0, Acc) ->
-    We = wings_dissolve:dissolve(Faces, We0),
+    We = wings_dissolve:faces(Faces, We0),
     Sel = wings_we:new_items(face, We0, We),
     {We,[{Id,Sel}|Acc]}.
 

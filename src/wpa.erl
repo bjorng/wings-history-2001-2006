@@ -3,12 +3,12 @@
 %%
 %%     Wings Plugin API.
 %%
-%%  Copyright (c) 2001-2004 Bjorn Gustavsson
+%%  Copyright (c) 2001-2005 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.61 2004/12/29 09:58:22 bjorng Exp $
+%%     $Id: wpa.erl,v 1.62 2005/01/29 18:25:14 bjorng Exp $
 %%
 %% Note: To keep the call graph clean, wpa MUST NOT be called
 %%       from the wings core modules.
@@ -33,7 +33,7 @@
 	 pick/3,
 	 vertices/1,vertex_pos/2,vertex_flatten/3,vertex_center/2,
 	 faces/1,face_vertices/2,face_outer_vertices/2,face_outer_edges/2,
-	 face_dissolve/2,
+	 face_dissolve/2,face_dissolve_complement/2,
 	 edge_loop_vertices/2,
 	 obj_name/1,obj_id/1,
 	 camera_info/1,lights/1,import_lights/2,
@@ -432,7 +432,10 @@ face_outer_edges(Faces, We) ->
     wings_dissolve:outer_edge_partition(Faces, We).
 
 face_dissolve(Faces, We) ->
-    wings_dissolve:dissolve(Faces, We).
+    wings_dissolve:faces(Faces, We).
+
+face_dissolve_complement(Faces, We) ->
+    wings_dissolve:complement(Faces, We).
 
 %%% Objects.
 

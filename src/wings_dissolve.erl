@@ -8,21 +8,38 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_dissolve.erl,v 1.8 2005/01/20 07:52:23 bjorng Exp $
+%%     $Id: wings_dissolve.erl,v 1.9 2005/01/29 18:25:14 bjorng Exp $
 %%
 
 -module(wings_dissolve).
--export([dissolve/2,outer_edge_partition/2]).
+-export([complement/2,faces/2,outer_edge_partition/2]).
 
 -include("wings.hrl").
 -import(lists, [foldl/3,last/1,reverse/2,sort/1]).
 
-dissolve([], We) -> We;
-dissolve(Faces, We) ->
+%% faces([Face], We) -> We'
+%%  Dissolve the given faces.
+faces([], We) -> We;
+faces(Faces, We) ->
     case gb_sets:is_empty(Faces) of
 	true -> We;
 	false -> dissolve_1(Faces, We)
     end.
+
+%% complement([Face], We) -> We'
+%%  Dissolve all faces BUT the given faces. Also invalidate the
+%%  mirror face if it existed and was dissolved.
+complement(Fs0, #we{fs=Ftab0}=We0) when is_list(Fs0) ->
+    Fs = ordsets:subtract(gb_trees:keys(Ftab0), ordsets:from_list(Fs0)),
+    case faces(Fs, We0) of
+	#we{mirror=none}=We -> We;
+	#we{mirror=Face,fs=Ftab}=We ->
+	    case gb_trees:is_defined(Face, Ftab) of
+		false -> We;
+		true -> We#we{mirror=none}
+	    end
+    end;
+complement(Fs, We) -> complement(gb_sets:to_list(Fs), We).
 
 dissolve_1(Faces, We0) ->
     We1 = optimistic_dissolve(Faces, We0#we{vc=undefined}),

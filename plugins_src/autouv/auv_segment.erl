@@ -5,11 +5,11 @@
 %%%               Segments Model into set of charts containg faces.
 %%% Created :  3 Oct 2002 by Dan Gudmundsson <dgud@erix.ericsson.se>
 %%%-------------------------------------------------------------------
-%%  Copyright (c) 2001-2004 Dan Gudmundsson, Bjorn Gustavsson
+%%  Copyright (c) 2001-2005 Dan Gudmundsson, Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.75 2004/12/27 21:26:51 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.76 2005/01/29 18:25:13 bjorng Exp $
 
 -module(auv_segment).
 
@@ -720,9 +720,7 @@ cut_one_chart(Keep0, Cuts, We0) ->
     We3 = We2#we{name=#ch{vmap=Vmap,me=Me,emap=Emap}},
 
     %% Dissolve unneeded faces and also hide them.
-    #we{fs=Ftab0} = We3,
-    NotNeeded = ordsets:subtract(gb_trees:keys(Ftab0), Keep0),
-    #we{fs=Ftab} = We = wpa:face_dissolve(NotNeeded, We3),
+    #we{fs=Ftab} = We = wpa:face_dissolve_complement(Keep0, We3),
     Hidden = ordsets:subtract(gb_trees:keys(Ftab), Keep0),
     wings_we:hide_faces(Hidden, We).
 
