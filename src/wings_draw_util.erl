@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.110 2003/08/31 11:00:26 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.111 2003/09/04 05:20:45 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -795,6 +795,11 @@ unlit_face_1([], _, VsPos) ->
 
 call(none) -> none;
 call({call,Dl,_}) -> call(Dl);
+call({call_in_this_win,Win,Dl}) ->
+    case wings_wm:this() of
+	Win -> call(Dl);
+	_ -> ok
+    end;
 call([H|T]) -> call(H), call(T);
 call([]) -> ok;
 call(Dl) when is_integer(Dl) -> gl:callList(Dl).

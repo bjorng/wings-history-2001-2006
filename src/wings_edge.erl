@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.69 2003/08/16 17:50:35 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.70 2003/09/04 05:20:45 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -395,7 +395,7 @@ cut_pick_marker([I], D, Edge, We0, Start, Dir, Char) ->
     gl:popAttrib(),
     gl:endList(),
     {We,_} = fast_cut(Edge, Pos, We0),
-    D#dlo{hilite=Dl,src_we=We}.
+    D#dlo{hilite={call_in_this_win,wings_wm:this(),Dl},src_we=We}.
 
 %%%
 %%% The Connect command.
