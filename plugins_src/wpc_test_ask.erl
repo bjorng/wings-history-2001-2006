@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_test_ask.erl,v 1.3 2003/10/20 15:24:00 raimo_niskanen Exp $
+%%     $Id: wpc_test_ask.erl,v 1.4 2003/10/21 21:22:09 raimo_niskanen Exp $
 %%
 
 -module(wpc_test_ask).
@@ -91,69 +91,78 @@ command_dialog(_St) ->
 	  end,
     Dialog =
 	[{hframe,
-	  [{vframe,
-	    [{label,"Label"},
-	     {key_alt,{d,1},"Alt 3",3,[{hook,disable_hook(c)}]},
-	     separator,
-	     {"Checkbox",false},
-	     {"Checkbox key",false,[{key,c},{hook,disable_hook(-1)}]},
-	     separator,
-	     {key_alt,{d,1},"Alt 1",1,[{hook,disable_hook(c)}]},
-	     {custom,40,10,fun (X, Y, W, H, Store) ->
-				   Color = case gb_trees:get(c, Store) of
-					       true -> {1,1,0};
-					       false -> {0,1,1} end,
-				   wings_io:sunken_rect(X, Y, W, H, Color)
-			   end},
-	     {slider,[{range,{1,3}},{key,d},{hook,disable_hook(c)}]},
-	     {key_alt,{d,1},"Alt 2",2,[{hook,disable_hook(c)}]},
-	     separator,
-	     {custom,40,10,fun (X, Y, W, H, Store) ->
-				   R = gb_trees:get(red, Store),
-				   G = gb_trees:get(green, Store),
-				   B = gb_trees:get(blue, Store),
-				   wings_io:sunken_rect(X, Y, W, H, {R,G,B})
-			   end},
-	     {hframe,
-	      [{vframe,[{label,"R"},{label,"G"},{label,"B"},
-			{label,"H"},{label,"S"},{label,"V"}]},
-	       {vframe,
-		[{slider,[{color,{r,green,blue}},{key,red},
-			  {value,0.5},{range,{0.0,1.0}},
-			  {hook,
-			   color_update(r, {green,blue}, {hue,sat,val})}]},
-		 {slider,[{color,{g,red,blue}},{key,green},
-			  {value,0.5},{range,{0.0,1.0}},
-			  {hook,
-			   color_update(g, {red,blue}, {hue,sat,val})}]},
-		 {slider,[{color,{b,red,green}},{key,blue},
-			  {value,0.5},{range,{0.0,1.0}},
-			  {hook,
-			   color_update(b, {red,green}, {hue,sat,val})}]},
-		 {slider,[{color,{h,sat,val}},{key,hue},
-			  {value,300},{range,{0,360}},
-			  {hook,
-			   color_update(h, {sat,val}, {red,green,blue})}]},
-		 {slider,[{color,{s,hue,val}},{key,sat},
-			  {value,0.0},{range,{0.0,1.0}},
-			  {hook,
-			   color_update(s, {hue,val}, {red,green,blue})}]},
-		 {slider,[{color,{v,hue,sat}},{key,val},
-			  {value,0.5},{range,{0.0,1.0}},
-			  {hook,
-			   color_update(v, {hue,sat}, {red,green,blue})}]}
-		]}]}]},
-	   {vframe,
-	    [{text,123,[{hook,disable_hook(c)}]},
-	     {slider,{text,0.5,[{range,{0.0,1.0}}]}},
-	     {color,{1.0,0.0,0.0}},
-	     {color,{0.0,1.0,0.0,1.0}},
-	     {menu,[{"Alt 1",1},{"Alt 2",2},{"Alt 3",3}],{d,3},[{key,menu}]},
-	     {color,{0.0,0.0,1.0}},
-	     {text,1.23},
-	     {menu,[{"A",a},{"B",b},{"C",c}],{m,a}}
-	     ]}]}],
+	  [command_dialog_l(),command_dialog_r()]}],
     wings_ask:dialog("Test Ask", Dialog, Fun).
+
+command_dialog_l() ->
+    {vframe,
+     [{label,"Label"},
+      {key_alt,{d,1},"Alt 3",3,[{hook,disable_hook(c)}]},
+      separator,
+      {"Checkbox",false},
+      {"Checkbox key",false,[{key,c},{hook,disable_hook(-1)}]},
+      separator,
+      {key_alt,{d,1},"Alt 1",1,[{hook,disable_hook(c)}]},
+      {custom,40,10,fun (X, Y, W, H, Store) ->
+			    Color = case gb_trees:get(c, Store) of
+					true -> {1,1,0};
+					false -> {0,1,1} end,
+			    wings_io:sunken_rect(X, Y, W, H, Color)
+		    end},
+      {slider,[{range,{1,3}},{key,d},{hook,disable_hook(c)}]},
+      {key_alt,{d,1},"Alt 2",2,[{hook,disable_hook(c)}]},
+      separator,
+      {custom,40,10,fun (X, Y, W, H, Store) ->
+			    R = gb_trees:get(red, Store),
+			    G = gb_trees:get(green, Store),
+			    B = gb_trees:get(blue, Store),
+			    wings_io:sunken_rect(X, Y, W, H, {R,G,B})
+		    end},
+      {hframe,
+       [{vframe,[{label,"R"},{label,"G"},{label,"B"},
+		 {label,"H"},{label,"S"},{label,"V"}]},
+	{vframe,
+	 [{slider,[{color,{r,green,blue}},{key,red},
+		   {value,0.5},{range,{0.0,1.0}},
+		   {hook,
+		    color_update(r, {green,blue}, {hue,sat,val})}]},
+	  {slider,[{color,{g,red,blue}},{key,green},
+		   {value,0.5},{range,{0.0,1.0}},
+		   {hook,
+		    color_update(g, {red,blue}, {hue,sat,val})}]},
+	  {slider,[{color,{b,red,green}},{key,blue},
+		   {value,0.5},{range,{0.0,1.0}},
+		   {hook,
+		    color_update(b, {red,green}, {hue,sat,val})}]},
+	  {slider,[{color,{h,sat,val}},{key,hue},
+		   {value,300},{range,{0,360}},
+		   {hook,
+		    color_update(h, {sat,val}, {red,green,blue})}]},
+	  {slider,[{color,{s,hue,val}},{key,sat},
+		   {value,0.0},{range,{0.0,1.0}},
+		   {hook,
+		    color_update(s, {hue,val}, {red,green,blue})}]},
+	  {slider,[{color,{v,hue,sat}},{key,val},
+		   {value,0.5},{range,{0.0,1.0}},
+		   {hook,
+		    color_update(v, {hue,sat}, {red,green,blue})}]}
+	 ]}]}]}.
+
+command_dialog_r() ->
+    {vframe,
+     [{text,123,[{hook,disable_hook(c)}]},
+      {slider,{text,0.5,[{range,{0.0,1.0}}]}},
+      {color,{1.0,0.0,0.0},[{hook,disable_hook(c)}]},
+      {color,{0.0,1.0,0.0,1.0}},
+      {menu,[{"Alt 1",1},{"Alt 2",2},{"Alt 3",3}],{d,3},
+       [{key,menu},{hook,disable_hook(c)}]},
+      {color,{0.0,0.0,1.0}},
+      {hframe,[{text,1.23},
+	       {button,"Ok",ok,[{hook,disable_hook(c)}]}]},
+      {menu,[{"A",a},{"B",b},{"C",c}],{m,a}}
+     ]}.
+
+	   
 %%%    keep
 
 color_update(T, {K1,K2}, {Ka,Kb,Kc}) ->

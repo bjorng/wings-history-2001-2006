@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.96 2003/10/21 19:24:59 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.97 2003/10/21 21:22:10 raimo_niskanen Exp $
 %%
 
 -module(wings_ask).
@@ -935,10 +935,11 @@ menu(Var, Def, Menu) ->
     Fun = fun menu_event/4,
     {Fun,false,M,W,?LINE_HEIGHT+4}.
 
-menu_event({redraw,Active}, Fi, I, Store) ->
+menu_event({redraw,Active}, #fi{hook=Hook}=Fi, I, Store) ->
     #menu{var=Var} = M = gb_trees:get(-I, Store),
-    menu_draw(Active, Fi, M, gb_trees:get(ck(Var, I), Store)),
-    keep;
+    Ck = ck(Var, I),
+    DisEnable = hook_is_disabled(Hook, Ck, I, Store),
+    menu_draw(Active, Fi, M, gb_trees:get(Ck, Store), DisEnable);
 menu_event(init, _Fi, I, Store) ->
     #menu{var=Var,def=Def} = gb_trees:get(-I, Store),
     {store,gb_trees:enter(ck(Var, I), Def, Store)};
@@ -965,9 +966,15 @@ menu_width([{S,_}|T], W0) ->
     end;
 menu_width([], W) -> W.
 
-menu_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #menu{menu=Menu}, Val) ->
+menu_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #menu{menu=Menu}, Val, DisEnable) ->
     blend(fun(Col) ->
-		  wings_io:raised_rect(X, Y0+1, W-?CHAR_WIDTH+10, H-3, Col)
+		  case DisEnable of
+		      disable ->
+			  wings_io:border(X, Y0+1, W-?CHAR_WIDTH+10, H-3, Col);
+		      _ ->
+			  wings_io:raised_rect(X, Y0+1, W-?CHAR_WIDTH+10, 
+					       H-3, Col)
+		  end
 	  end),
     Y = Y0+?CHAR_HEIGHT,
     ValStr = [Desc || {Desc,V} <- Menu, V =:= Val],
@@ -987,7 +994,8 @@ menu_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #menu{menu=Menu}, Val) ->
 	      2#00111000,
 	      2#00010000>>,
     gl:rasterPos2f(Xr+0.5, Y+0.5),
-    gl:bitmap(7, 7, 0, -1, 7, 0, Arrows).
+    gl:bitmap(7, 7, 0, -1, 7, 0, Arrows),
+    DisEnable.
 
 %% Menu popup
 
@@ -1119,8 +1127,9 @@ button_label(ok) -> "OK";
 button_label(S) when is_list(S) -> S;
 button_label(Act) -> wings_util:cap(atom_to_list(Act)).
 
-button_event({redraw,Active}, Fi, I, Store) ->
-    button_draw(Active, Fi, gb_trees:get(-I, Store));
+button_event({redraw,Active}, #fi{key=Key,hook=Hook}=Fi, I, Store) ->
+    DisEnable = hook_is_disabled(Hook, ck(Key, I), I, Store),
+    button_draw(Active, Fi, gb_trees:get(-I, Store), DisEnable);
 button_event(value, _, _, _) ->
     none;
 button_event(#mousebutton{x=X,y=Y,state=?SDL_RELEASED}, 
@@ -1133,10 +1142,15 @@ button_event({key,_,_,K}, _, I, Store) when K =:= $\r; K =:= $\s ->
     Action;
 button_event(_Ev, _Fi, _I, _Store) -> keep.
 
-button_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #but{label=Label}) ->
+button_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #but{label=Label}, DisEnable) ->
     Y = Y0+?CHAR_HEIGHT+2,
     blend(fun(Col) ->
-		  wings_io:raised_rect(X, Y0+2, W, H-4, Col)
+		  case DisEnable of
+		      disable ->
+			  wings_io:border(X, Y0+2, W, H-4, Col);
+		      _ ->
+			  wings_io:raised_rect(X, Y0+2, W, H-4, Col)
+		  end
 	  end),
     TextX = X + 2 + (W-wings_text:width(Label)) div 2,
     wings_io:text_at(TextX, Y, Label),
@@ -1146,7 +1160,8 @@ button_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #but{label=Label}) ->
 	    wings_io:text_at(TextX, Y, duplicate(L, $_)),
 	    keep;
 	true -> keep
-    end.
+    end,
+    DisEnable.
 
 
 
@@ -1164,8 +1179,10 @@ color(RGB) ->
     Fun = fun col_event/4,
     {Fun,false,Col,3*?CHAR_WIDTH,?LINE_HEIGHT+2}.
 
-col_event({redraw,Active}, #fi{key=Key}=Fi, I, Store) ->
-    col_draw(Active, Fi, gb_trees:get(ck(Key, I), Store));
+col_event({redraw,Active}, #fi{key=Key,hook=Hook}=Fi, I, Store) ->
+    Var = ck(Key, I),
+    DisEnable = hook_is_disabled(Hook, Var, I, Store),
+    col_draw(Active, Fi, gb_trees:get(Var, Store), DisEnable);
 col_event(init, #fi{key=Key}, I, Store) ->
     #col{val=RGB} = gb_trees:get(-I, Store),
     {store,gb_trees:enter(ck(Key, I), RGB, Store)};
@@ -1199,15 +1216,21 @@ replace_rgb({_,_,_}, {R,G,B,_}) -> {R,G,B};
 replace_rgb({_,_,_,_}, {_,_,_,_}=RGB) -> RGB;
 replace_rgb({_,_,_,A}, {R,G,B}) -> {R,G,B,A}.
 
-col_draw(Active, #fi{x=X,y=Y0}, RGB) ->
-    wings_io:border(X, Y0+3, 3*?CHAR_WIDTH, ?CHAR_HEIGHT, RGB),
+col_draw(Active, #fi{x=X,y=Y0}, RGB, DisEnable) ->
+    case DisEnable of
+	disable ->
+	    wings_io:border(X, Y0+3, 3*?CHAR_WIDTH, ?CHAR_HEIGHT, RGB);
+	_ ->
+	    wings_io:sunken_rect(X, Y0+3, 3*?CHAR_WIDTH, ?CHAR_HEIGHT, RGB)
+    end,
     Y = Y0+?CHAR_HEIGHT,
     if
 	Active == true ->
 	    wings_io:text_at(X, Y, "___"),
 	    keep;
 	true -> keep
-    end.
+    end,
+    DisEnable.
 
 col_inside(Xm, Ym, #fi{x=X,y=Y}) ->
     X =< Xm andalso Xm < X+3*?CHAR_WIDTH andalso
