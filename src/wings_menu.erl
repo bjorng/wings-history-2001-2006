@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.25 2002/01/28 17:31:43 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.26 2002/02/03 22:37:45 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -62,11 +62,14 @@ is_popup_event(#mousebutton{button=3,x=X,y=Y,state=State}) ->
 is_popup_event(Event) -> no.
 
 menu(X, Y, Name, Menu, Redraw) ->
-    Mi = menu_setup(plain, X, Y, Name, Menu, store_redraw(#mi{}, Redraw)),
+    Mi = menu_setup(plain, X, Y, Name, Menu,
+		    store_redraw(#mi{adv=false}, Redraw)),
     top_level(Mi).
 
 popup_menu(X, Y, Name, Menu, Redraw) ->
-    Mi = menu_setup(popup, X, Y, Name, Menu, store_redraw(#mi{}, Redraw)),
+    Adv = wings_pref:get_value(advanced_menus),
+    Mi = menu_setup(popup, X, Y, Name, Menu,
+		    store_redraw(#mi{adv=Adv}, Redraw)),
     top_level(Mi).
 
 store_redraw(Mi, #st{}=St0) ->
@@ -82,8 +85,7 @@ store_redraw(Mi, Redraw) when is_function(Redraw) ->
 top_level(Mi) ->
     {seq,{push,dummy},get_menu_event(Mi)}.
 
-menu_setup(Type, X0, Y0, Name, Menu0, #mi{ns=Names0}=Mi) when is_list(Menu0) ->
-    Adv = wings_pref:get_value(advanced_menus),
+menu_setup(Type, X0, Y0, Name, Menu0, #mi{ns=Names0,adv=Adv}=Mi) ->
     Names = [Name|Names0],
     Menu1 = wings_plugin:menu(list_to_tuple(reverse(Names)), Menu0),
     Hotkeys = hotkeys(Names),
@@ -410,7 +412,6 @@ redraw(#mi{redraw=Redraw,st=St,num_redraws=NumRedraws}=Mi) ->
 	#mi{return_timer=none} -> ok;
 	#mi{} -> menu_show(PrevMenu)
     end,
-    wings_io:draw_ui(St),
     wings_io:ortho_setup(),
     menu_show(Mi),
     help_text(Mi),
@@ -477,14 +478,14 @@ build_command(Name, Names) ->
     foldl(fun(N, A) -> {N,A} end, Name, Names).
 	    
 menu_draw(X, Y, Shortcut, Mw, I, [], Mi) -> ok;
-menu_draw(X, Y, Shortcut, Mw, I, [H|Hs], #mi{menu=Menu}=Mi) ->
+menu_draw(X, Y, Shortcut, Mw, I, [H|Hs], #mi{menu=Menu,adv=Adv}=Mi) ->
     ?CHECK_ERROR(),
     case element(I, Menu) of
 	separator -> draw_separator(X, Y, Mw);
 	{Text,{_,_}=Item,Hotkey,Help,Ps} ->
 	    item_colors(Y, Ps, I, Mi),
 	    wings_io:menu_text(X, Y, Text),
-	    draw_submenu(Item, X+Mw-5*?CHAR_WIDTH, Y-?CHAR_HEIGHT div 3);
+	    draw_submenu(Adv, Item, X+Mw-5*?CHAR_WIDTH, Y-?CHAR_HEIGHT div 3);
 	{Text,Item,Hotkey,Help,Ps} ->
 	    Str = Text ++ duplicate(Shortcut-length(Text), $\s) ++ Hotkey,
 	    item_colors(Y, Ps, I, Mi),
@@ -516,22 +517,22 @@ item_colors(Y, Ps, I, Mi) -> gl:color3f(0, 0, 0). %Black text
 
 help_text(#mi{sel=none}) ->
     %% We don't want info display as wings_io:clear_message() would give.
-    wings_io:message("");
+    help_message("");
 help_text(#mi{menu=Menu,sel=Sel,ns=Names,adv=Adv}=Mi) ->
     case element(Sel, Menu) of
 	{Text,{_,_},_,_,_} when Adv == false ->
 	    %% No specific help text for submenus in basic mode.
-	    Help = "The " ++ Text ++ " submenu.",
-	    wings_io:message(Help);
+	    Help = Text ++ " submenu",
+	    help_message(Help);
         {_,{Name,Fun},_,_,_} when is_function(Fun) ->
 	    %% "Submenu" in advanced mode.
 	    Help0 = Fun(help, [Name|Names]),
 	    Help = help_text_1(Help0, Adv),
-	    wings_io:message(Help);
+	    help_message(Help);
 	{_,_,_,Help0,_} ->
 	    %% Plain entry - not submenu.
 	    Help = help_text_1(Help0, Adv),
-	    wings_io:message(Help);
+	    help_message(Help);
 	separator -> ok
     end.
 
@@ -548,6 +549,14 @@ help_text_1({S1,S2,S3}, true) ->
     [lmb|" " ++ S1 ++ [$\s,mmb,$\s] ++ S2 ++ [$\s,rmb,$\s] ++ S3];
 help_text_1([]=S, _) -> S.
 
+help_message(Msg) ->
+    %% Replacement for wings_io:message/1 as it overwrites the icon area.
+    [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
+    wings_io:sunken_rect(6, H-2*?LINE_HEIGHT+5, W-10,
+			 2*?LINE_HEIGHT-8, ?PANE_COLOR),
+    wings_io:menu_text(8, H-?LINE_HEIGHT+5, Msg).
+
+
 draw_hotbox(Item, X, Y, Ps) ->
     case property_lists:is_defined(hotbox, Ps) of
 	false ->
@@ -558,20 +567,20 @@ draw_hotbox(Item, X, Y, Ps) ->
 				 ?MENU_COLOR)
     end.
 
-draw_submenu(Item, X, Y) when atom(Item); integer(Item); list(Item) -> ok;
-draw_submenu(Item, X, Y) ->
-    case wings_pref:get_value(advanced_menus) of
-	true ->
-	    wings_io:menu_text(X, Y, [submenu]);
-	false ->
-	    ?CHECK_ERROR(),
-	    gl:'begin'(?GL_TRIANGLES),
-	    gl:vertex2i(X-?CHAR_WIDTH div 2, Y),
-	    gl:vertex2i(X-?CHAR_WIDTH, Y-?CHAR_HEIGHT div 3),
-	    gl:vertex2i(X-?CHAR_WIDTH, Y+?CHAR_HEIGHT div 3),
-	    gl:'end'(),
-	    ?CHECK_ERROR()
-    end.
+draw_submenu(Adv, Item, X, Y) when is_atom(Item);
+				   is_integer(Item);
+				   is_list(Item) ->
+    ok;
+draw_submenu(true, Item, X, Y) ->
+    wings_io:menu_text(X, Y, [submenu]);
+draw_submenu(false, Item, X, Y) ->
+    ?CHECK_ERROR(),
+    gl:'begin'(?GL_TRIANGLES),
+    gl:vertex2i(X-?CHAR_WIDTH div 2, Y),
+    gl:vertex2i(X-?CHAR_WIDTH, Y-?CHAR_HEIGHT div 3),
+    gl:vertex2i(X-?CHAR_WIDTH, Y+?CHAR_HEIGHT div 3),
+    gl:'end'(),
+    ?CHECK_ERROR().
 
 draw_separator(X, Y, Mw) ->
     ?CHECK_ERROR(),
@@ -618,8 +627,7 @@ left_of_parent(Mw, _, #mi{prev=#mi{xleft=X}}) -> X-Mw+10.
 %%%
 
 get_hotkey(Cmd, #mi{st=St}=Mi) ->
-    wings_io:message("Press key to bind command to."),
-    wings_io:draw_ui(St),
+    help_message("Press key to bind command to."),
     gl:swapBuffers(),
     {seq,{push,dummy},
      {replace,fun(Ev) ->
