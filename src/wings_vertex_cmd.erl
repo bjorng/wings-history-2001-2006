@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.38 2003/04/21 10:16:59 bjorng Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.39 2003/05/10 06:34:14 bjorng Exp $
 %%
 
 -module(wings_vertex_cmd).
@@ -36,8 +36,10 @@ menu(X, Y, St) ->
 	     "Move selected vertices towards average "
 	     "midpoint",[magnet]},
 	    {"Bevel",bevel,"Create faces of selected vertices"},
-	    {"Collapse",collapse,"Delete selected vertices"},
-	    {"Dissolve",dissolve,"Delete selected vertices"},
+	    {"Dissolve",dissolve,
+	     "Delete selected vertices (clearing selection)"},
+	    {"Collapse",collapse,
+	     "Delete selected vertices (creating a face selection)"},
 	    separator,
 	    {"Deform",wings_deform:sub_menu(St)}],
     wings_menu:popup_menu(X, Y, vertex, Menu).
