@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_it.lang,v 1.26 2004/11/15 04:10:32 bjorng Exp $
+%%     $Id: wings_it.lang,v 1.27 2004/11/18 19:08:17 bjorng Exp $
 %%
 
 {wings,
@@ -319,8 +319,8 @@
    [{1,"Dx"},
     {2,"Dx"},
     {3,"Dy"},
-    {4,"R"},
-    {5,"A"},
+    {4,"Dz"},
+    {5,"R"},
     {6,"A"}]},
   {standard_mode_fun,
    [{1,"[Tab] Per inserire numero  [Shift] e/o [Ctrl] Vincola"},

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.185 2004/10/15 15:40:30 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.186 2004/11/18 19:08:17 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -484,8 +484,8 @@ make_query_1([], []) -> [].
 qstr(distance) -> ?STR(qstr,1,"Dx");
 qstr(dx) -> ?STR(qstr,2,"Dx");
 qstr(dy) -> ?STR(qstr,3,"Dy");
-qstr(dz) ->  ?STR(qstr,4,"R");
-qstr(falloff) ->  ?STR(qstr,5,"A");
+qstr(dz) ->  ?STR(qstr,4,"Dz");
+qstr(falloff) ->  ?STR(qstr,5,"R");
 qstr(angle) ->  ?STR(qstr,6,"A");
 qstr(Atom) -> atom_to_list(Atom).
 
