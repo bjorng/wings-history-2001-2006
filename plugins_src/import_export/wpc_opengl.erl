@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.2 2002/07/14 14:56:28 bjorng Exp $
+%%     $Id: wpc_opengl.erl,v 1.3 2002/07/14 20:14:51 bjorng Exp $
 
 -module(wpc_opengl).
 
@@ -35,12 +35,18 @@ command({file,{render,{opengl,Ask}}}, St) ->
 command(_, _) -> next.
 
 dialog_qs(render) ->
+    DefVar = {output_type,get_pref(output_type, preview)},
     Back = get_pref(background_color, {0.4,0.4,0.4}),
-    %%Mask = get_pref(render_alpha, false),
+    Alpha = get_pref(render_alpha, false),
     [{hframe,
+      [{vframe,
+	[{key_alt,DefVar,"Preview Window",preview},
+	 {key_alt,DefVar,"File",file}],
+	[{title,"Output"}]}]},
+     aa_frame(),
+     {hframe,
       [{label,"Background Color"},{color,Back,[{key,background_color}]}]},
-     %%{"Render Alpha Channel",Mask,[{key,render_alpha}]},
-     aa_frame()].
+     {"Render Alpha Channel",Alpha,[{key,render_alpha}]}].
 
 aa_frame() ->
     HaveAccum = have_accum(),
@@ -82,19 +88,34 @@ do_render(Ask, St) when is_atom(Ask) ->
 	       fun(Res) ->
 		       {file,{render,{opengl,Res}}}
 	       end);
-do_render(Attr, St) ->
-    set_pref(Attr),
-    render_dlist(St),
-    wings_wm:dirty(),
-    Aa = property_lists:get_value(aa, Attr),
-    AccSize = translate_aa(Aa),
-    Rr = #r{acc_size=AccSize,attr=Attr},
-    {seq,{push,dummy},get_render_event(Rr)}.
+do_render(Attr0, St) ->
+    set_pref(Attr0),
+    case get_filename(Attr0, St) of
+	aborted -> keep;
+	Attr ->
+	    render_dlist(St),
+	    wings_wm:dirty(),
+	    Aa = property_lists:get_value(aa, Attr),
+	    AccSize = translate_aa(Aa),
+	    Rr = #r{acc_size=AccSize,attr=Attr},
+	    {seq,{push,dummy},get_render_event(Rr)}
+    end.
 
 translate_aa(draft) -> 1;
 translate_aa(regular) -> 4;
 translate_aa(super) -> 8;
 translate_aa(premium) -> 16.
+
+get_filename(Attr, St) ->
+    case property_lists:get_value(output_type, Attr) of
+	preview -> Attr;
+	file ->
+	    Props = [{ext,".tga"},{ext_desc,"Targa File"}],
+	    case wpa:export_filename(Props, St) of
+		aborted -> aborted;
+		File -> [{output_file,File}|Attr]
+	    end
+    end.
 
 get_render_event(Rr) ->
     {replace,fun(Ev) -> render_event(Ev, Rr) end}.
@@ -116,25 +137,70 @@ render_event(_, _) ->
     render_exit().
 
 render_exit() ->
+    wings_draw_util:map(fun(D, []) -> D#dlo{smoothed=none} end, []),
     wings_wm:dirty(),
     pop.
 
 render_dlist(St) ->
-    wings_draw_util:update(fun(D, []) ->
-				   render_dlist(D, St)
-			   end, []).
+    wings_draw_util:map(fun(D, []) ->
+				render_dlist(D, St)
+			end, []).
 
-render_dlist(eol, _) -> eol;
 render_dlist(#dlo{smooth=none,src_we=We}=D, St) ->
     wings_io:disable_progress(),
     {List,Tr} = wings_draw:smooth_dlist(We, St),
-    {D#dlo{smooth=List,transparent=Tr},[]};
-render_dlist(D, _) -> {D,[]}.
+    Mask = dlist_mask(We),
+    {D#dlo{smooth=List,transparent=Tr,smoothed=Mask},[]};
+render_dlist(#dlo{src_we=We}=D, _) ->
+    Mask = dlist_mask(We),
+    {D#dlo{smoothed=Mask},[]}.
+
+dlist_mask(#we{fs=Ftab}=We) ->
+    List = gl:genLists(1),
+    gl:newList(List, ?GL_COMPILE),
+    wings_draw_util:begin_end(
+      fun() ->
+	      dlist_mask(gb_trees:to_list(Ftab), We)
+      end),
+    gl:endList(),
+    List.
+
+dlist_mask([{Face,#face{edge=Edge}}|Fs], We) ->
+    wings_draw_util:flat_face(Face, Edge, We),
+    dlist_mask(Fs, We);
+dlist_mask([], _We) -> ok.
+
+%%%
+%%% Rendering.
+%%%
 
 render_redraw(#r{attr=Attr}=Rr) ->
+    case property_lists:get_value(output_type, Attr) of
+	preview -> render_image(Rr);
+	file ->
+	    render_to_file(Rr),
+	    wings_io:putback_event(time_to_quit)
+    end.
+
+render_to_file(#r{attr=Attr}=Rr) ->
+    render_image(Rr#r{attr=[{render_alpha,true}|Attr]}),
+    MaskImage = capture(1, ?GL_RED),
+    render_image(Rr#r{attr=[{render_alpha,false}|Attr]}),
+    ObjectImage = capture(3, ?GL_RGB),
+    Image = combine_images(ObjectImage, MaskImage),
+    RendFile = property_lists:get_value(output_file, Attr),
+    ok = e3d_image:save(Image, RendFile).
+
+render_image(#r{attr=Attr}=Rr) ->
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
-    {R,G,B} = property_lists:get_value(background_color, Attr),
-    gl:clearColor(R, G, B, 1.0),
+    case property_lists:get_bool(render_alpha, Attr) of
+	false ->
+	    {R,G,B} = property_lists:get_value(background_color, Attr),
+	    gl:clearColor(R, G, B, 1);
+	true ->
+	    gl:clearColor(0, 0, 0, 1),
+	    gl:color3f(1, 1, 1)
+    end,
     gl:enable(?GL_DEPTH_TEST),
     gl:cullFace(?GL_BACK),
     gl:readBuffer(?GL_BACK),
@@ -195,7 +261,13 @@ render_redraw(#dlo{mirror=Matrix}=D, Rr, Flag) ->
     gl:cullFace(?GL_BACK);
 render_redraw(_, _, _) -> ok.
 
-render_redraw_1(#dlo{smooth=Dlist,transparent=Trans}, _Rr, RenderTrans) ->
+render_redraw_1(Dl, #r{attr=Attr}, RenderTrans) ->
+    case property_lists:get_bool(render_alpha, Attr) of
+	false -> render_redraw_2(Dl, RenderTrans);
+	true -> render_mask(Dl)
+    end.
+	    
+render_redraw_2(#dlo{smooth=Dlist,transparent=Trans}, RenderTrans) ->
     ?CHECK_ERROR(),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
     gl:shadeModel(?GL_SMOOTH),
@@ -213,6 +285,16 @@ render_redraw_1(#dlo{smooth=Dlist,transparent=Trans}, _Rr, RenderTrans) ->
 	{Smooth,true} when is_integer(Smooth) -> gl:callList(Smooth);
 	{_,_} -> ok
     end,
+    ?CHECK_ERROR().
+
+render_mask(#dlo{smoothed=Dlist,transparent=Trans}) ->
+    ?CHECK_ERROR(),
+    gl:enable(?GL_POLYGON_OFFSET_FILL),
+    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
+    gl:shadeModel(?GL_FLAT),
+    gl:disable(?GL_LIGHTING),
+    gl:enable(?GL_CULL_FACE),
+    gl:callList(Dlist),
     ?CHECK_ERROR().
 
 accFrustum(Left, Right, Bottom, Top, ZNear, ZFar,
@@ -275,3 +357,35 @@ jitter(16) ->
      {0.375,0.6875},{0.875,0.4375},{0.625,0.5625},{0.375,0.9375},
      {0.625,0.3125},{0.125,0.5625},{0.125,0.8125},{0.375,0.1875},
      {0.875,0.9375},{0.875,0.6875},{0.125,0.3125},{0.625,0.8125}].
+
+%%%
+%%% Capture generated image.
+%%%
+
+capture(N, Type) ->
+    gl:pixelStorei(?GL_PACK_ALIGNMENT, 1),
+    gl:readBuffer(?GL_BACK),
+    [X,Y,W,H] = gl:getIntegerv(?GL_VIEWPORT),
+    NumBytes = N*W*H,
+    Mem = sdl_util:malloc(NumBytes, ?GL_UNSIGNED_BYTE),
+    gl:readPixels(X, Y, W, H, Type, ?GL_UNSIGNED_BYTE, Mem),
+    Pixels = sdl_util:readBin(Mem, NumBytes),
+    sdl_util:free(Mem),
+    #e3d_image{bytes_pp=N,order=lower_left,width=W,height=H,image=Pixels}.
+
+combine_images(#e3d_image{image=Pixels0}=Image, #e3d_image{image=Mask}) ->
+    Pixels = combine_img_1(Pixels0, Mask, []),
+    Image#e3d_image{type=b8g8r8a8,bytes_pp=4,image=Pixels}.
+
+combine_img_1(<<RGB:768/binary,P/binary>>, <<A:256/binary,M/binary>>, Acc) ->
+    Chunk = combine_img_2(binary_to_list(RGB), binary_to_list(A), []),
+    combine_img_1(P, M, [Chunk|Acc]);
+combine_img_1(<<R:8,G:8,B:8,P/binary>>, <<A:8,M/binary>>, Acc) ->
+    combine_img_1(P, M, [<<B:8,G:8,R:8,A:8>>|Acc]);
+combine_img_1(<<>>, <<>>, Acc) ->
+    list_to_binary(reverse(Acc)).
+
+combine_img_2([R,G,B|P], [A|M], Acc) ->
+    combine_img_2(P, M, [[B,G,R,A]|Acc]);
+combine_img_2([], [], Acc) -> list_to_binary(reverse(Acc)).
+
