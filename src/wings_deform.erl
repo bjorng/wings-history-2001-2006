@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_deform.erl,v 1.36 2003/10/29 15:03:20 bjorng Exp $
+%%     $Id: wings_deform.erl,v 1.37 2003/10/30 07:57:15 bjorng Exp $
 %%
 
 -module(wings_deform).
@@ -23,10 +23,10 @@ sub_menu(_St) ->
     {deform,[{"Crumple",{crumple,crumple_dirs()},
 	      "Randomly move vertices"},
 	     {"Inflate",inflate_fun(),InflateHelp,[]},
-% 	     {"Taper",{taper,
-% 		       [taper_item(x),
-% 			taper_item(y),
-% 			taper_item(z)]}},
+	     {"Taper",{taper,
+		       [taper_item(x),
+			taper_item(y),
+			taper_item(z)]}},
 	     {"Twist",{twist,dirs(twist)}},
 	     {"Torque",{torque,dirs(torque)}}]}.
 
@@ -78,7 +78,7 @@ taper_item(Axis) ->
 			expand_effects(Effects, []);
 		   (3, Ns) ->
 			[Effect|_] = Effects,
-			Ask = {'ASK',[{point,"Pick taper origin"}],[Effect]},
+			Ask = {'ASK',{[{point,"Pick taper origin"}],[Effect]}},
 			wings_menu:build_command(Ask, Ns)
 		end,
 	    {AxisStr,{Axis,F},[]}
@@ -99,7 +99,7 @@ effect_fun(Effect) ->
     fun(1, Ns) -> wings_menu:build_command(Effect, Ns);
        (2, _Ns) -> ignore;
        (3, Ns) ->
-	    Ask = {'ASK',[{point,"Pick taper origin"}],[Effect]},
+	    Ask = {'ASK',{[{point,"Pick taper origin"}],[Effect]}},
 	    wings_menu:build_command(Ask, Ns)
     end.
     
@@ -117,10 +117,7 @@ inflate_fun() ->
 command({crumple,Dir}, St) -> crumple(Dir, St);
 command(inflate, St) -> inflate(St);
 command({inflate,What}, St) -> inflate(What, St);
-command({taper,{Primary,{Effect,Center}}}, St) ->
-    taper(Primary, Effect, Center, St);
-command({taper,{Primary,Effect}}, St) ->
-    taper(Primary, Effect, center, St);
+command({taper,Taper}, St) -> taper(Taper, St);
 command({twist,Axis}, St) -> twist(Axis, St);
 command({torque,Axis}, St) -> torque(Axis, St).
 
@@ -231,7 +228,27 @@ inflate(Center, Radius, Vs, #we{id=Id,vp=Vtab}, Acc) ->
 %% The Taper deformer.
 %%
 
-taper(Primary, Effect, Center, St) ->
+taper({Primary,{{'ASK',Ask},Center}}, St0) ->
+    wings:ask(Ask, St0,
+	      fun(Effect, St) ->
+		      taper({Primary,{Effect,Center}}, St)
+	      end);
+taper({Primary,{Effect,{'ASK',Ask}}}, St0) ->
+    wings:ask(Ask, St0,
+	      fun(Center, St) ->
+		      taper({Primary,{Effect,Center}}, St)
+	      end);
+taper({Primary,{'ASK',Ask}}, St0) ->
+    wings:ask(Ask, St0,
+	      fun(Center, St) ->
+		      taper({Primary,Center}, St)
+	      end);
+taper({Primary,{Effect,Center}}, St) ->
+    taper_1(Primary, Effect, Center, St);
+taper({Primary,Effect}, St) ->
+    taper_1(Primary, Effect, center, St).
+
+taper_1(Primary, Effect, Center, St) ->
     Tvs = wings_sel:fold(fun(Vs, We, Acc) ->
 				 taper_2(Vs, We, Primary, Effect, Center, Acc)
 			 end, [], St),
