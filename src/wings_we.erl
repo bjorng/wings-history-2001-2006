@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.37 2002/09/10 09:13:23 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.38 2002/10/08 09:20:45 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -93,9 +93,7 @@ build_edges([{_Material,Vs}|Fs], Type, Face, Eacc0) ->
 build_edges([Vs|Fs], Type, Face, Eacc0) ->
     build_edges_1(Vs, tx_filler(Type, Vs), Fs, Type, Face, Eacc0);
 build_edges([], _Type, _Face, Eacc) ->
-    R = sofs:relation(Eacc, [{name,{side,data}}]),
-    F = sofs:relation_to_family(R),
-    combine_half_edges(sofs:to_external(F)).
+    combine_half_edges(wings_util:rel2fam(Eacc)).
 
 build_edges_1(Vs, UVs, Fs, Type, Face, Acc0) ->
     Vuvs = zip(Vs, UVs),
