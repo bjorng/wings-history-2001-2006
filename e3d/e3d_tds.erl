@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_tds.erl,v 1.16 2002/09/18 13:16:06 bjorng Exp $
+%%     $Id: e3d_tds.erl,v 1.17 2002/11/03 15:48:48 bjorng Exp $
 %%
 
 -module(e3d_tds).
@@ -142,12 +142,12 @@ trimesh(<<16#4140:16/little,Sz0:32/little,T0/binary>>, Acc) ->
     Tx = get_uv(Tx0),
     trimesh(T, Acc#e3d_mesh{tx=Tx});
 trimesh(<<16#4160:16/little,_Sz:32/little,T0/binary>>, Acc) ->
-    <<V1X:32/float-little,V1Y:32/float-little,V1Z:32/float-little,
-     V2X:32/float-little,V2Y:32/float-little,V2Z:32/float-little,
-     V3X:32/float-little, V3Y:32/float-little,V3Z:32/float-little,
+    <<_V1X:32/float-little,_V1Y:32/float-little,_V1Z:32/float-little,
+     _V2X:32/float-little,_V2Y:32/float-little,_V2Z:32/float-little,
+     _V3X:32/float-little,_V3Y:32/float-little,_V3Z:32/float-little,
      OX:32/float-little,OY:32/float-little,OZ:32/float-little,
      T/binary>> = T0,
-    CS = {1.0,0.0,0.0,0.0,
+    _CS = {1.0,0.0,0.0,0.0,
 	  0.0,1.0,0.0,0.0,
 	  0.0,0.0,1.0,0.0,
 	  OX,OY,OZ,1.0},
@@ -233,7 +233,7 @@ read_map(<<Sz0:32/little,T0/binary>>, Type, [{Name,Props}|Acc]) ->
     Map = read_map_chunks(Chunk, none),
     material(T, [{Name,[{map,Type,Map}|Props]}|Acc]).
 
-read_map_chunks(<<16#A300:16/little,Sz0:32/little,T0/binary>>, Acc) ->
+read_map_chunks(<<16#A300:16/little,Sz0:32/little,T0/binary>>, _Acc) ->
     Sz = Sz0 - 6 - 1,
     <<Filename:Sz/binary,_:8,T/binary>> = T0,
     read_map_chunks(T, binary_to_list(Filename));
@@ -364,8 +364,8 @@ hard_edges([], _, Acc) ->
     R = sofs:relation(Acc),
     F0 = sofs:relation_to_family(R),
     F = sofs:to_external(F0),
-    foldl(fun({Edge,[SG|SGs]}, He) ->
-		  case foldl(fun(SG, A) -> A band SG end, SG, SGs) of
+    foldl(fun({Edge,[SG0|SGs]}, He) ->
+		  case foldl(fun(SG, A) -> A band SG end, SG0, SGs) of
 		      0 -> [Edge|He];
 		      _Other -> He
 		  end
@@ -390,7 +390,7 @@ add_uv_to_faces(#e3d_mesh{fs=Fs0}=Mesh) ->
 	       end, [], Fs0),
     Mesh#e3d_mesh{fs=reverse(Fs)}.
 
-clean_mesh(#e3d_mesh{fs=Fs0,vs=Vs0,tx=Tx}=Mesh0) ->
+clean_mesh(#e3d_mesh{fs=Fs0,vs=Vs0}=Mesh0) ->
     %% Here we combines vertices that have exactly the same position
     %% and renumber vertices to leave no gaps.
     R = sofs:relation(append_index(Vs0), [{pos,old_vertex}]),
@@ -441,7 +441,7 @@ make_objects([#e3d_object{name=Name0,obj=Mesh0}|Objs]) ->
     [Chunk|make_objects(Objs)];
 make_objects([]) -> [].
 
-make_mesh(#e3d_mesh{vs=Vs,fs=Fs,he=He,matrix=Matrix0}) ->
+make_mesh(#e3d_mesh{vs=Vs,fs=Fs,he=He,matrix=_Matrix0}) ->
     %% XXX Matrix0 should be used here.
     VsChunk = make_vertices(Vs),
     FsChunk = make_faces(Fs, He),
@@ -489,13 +489,12 @@ make_face_mat_1([#e3d_face{mat=Mat}|Fs], Face, Acc) ->
     make_face_mat_1(Fs, Face+1, [{M,Face} || M <- Mat] ++ Acc);
 make_face_mat_1([], _Face, Acc) -> Acc.
 
-make_smooth_groups(Fs, He) ->
+make_smooth_groups(Fs, _He) ->
     %% XXX We should use He to make smooth groups.
     Contents = lists:duplicate(length(Fs), <<1:32/little>>),
     make_chunk(16#4150, Contents).
 
 make_material(Mat) ->
-    io:format("~p\n", [Mat]),
     [make_material_1(M) || M <- Mat].
 
 make_material_1({Name,Mat}) ->
