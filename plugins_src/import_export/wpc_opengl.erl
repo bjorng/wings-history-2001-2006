@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.67 2004/04/12 07:21:04 bjorng Exp $
+%%     $Id: wpc_opengl.erl,v 1.68 2004/05/17 17:51:10 bjorng Exp $
 
 -module(wpc_opengl).
 
@@ -728,8 +728,8 @@ render_redraw_1(#d{l=DL}, RenderTrans) ->
 	    end,
 
 	    case RenderTrans of
-		false -> wings_draw_util:call(get_opaque(DL));
-		true ->	 wings_draw_util:call(get_transp(DL))
+		false -> wings_dl:call(get_opaque(DL));
+		true ->	 wings_dl:call(get_transp(DL))
 	    end,
 	    gl:depthMask(?GL_TRUE),
 	    ?CHECK_ERROR()

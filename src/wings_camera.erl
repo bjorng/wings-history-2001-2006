@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.103 2004/04/08 09:01:18 dgud Exp $
+%%     $Id: wings_camera.erl,v 1.104 2004/05/17 17:51:10 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -760,5 +760,5 @@ allow_rotation() ->
 update_sel(Fun) ->
     case wings_pref:get_value(hide_sel_in_camera_moves) of
 	false -> ok;
-	true -> wings_draw_util:map(Fun, [])
+	true -> wings_dl:map(Fun, [])
     end.

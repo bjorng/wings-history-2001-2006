@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.138 2004/05/15 07:25:58 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.139 2004/05/17 17:51:10 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -18,9 +18,6 @@
 	 unlit_face/2,unlit_face/3,
 	 force_flat_color/2,force_flat_color/3,good_triangulation/5,
 	 subtract_mirror_face/2]).
-
-%% Legacy exports.
--export([delete_dlists/0,update/2,map/2,fold/2,call/1]).
 
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
@@ -44,25 +41,6 @@ init() ->
 	 16#AA,16#AA,16#AA,16#AA,16#55,16#55,16#55,16#55,
 	 16#AA,16#AA,16#AA,16#AA,16#55,16#55,16#55,16#55>>,
     gl:polygonStipple(P).
-
-%%%
-%%% The display list API has moved to wings_dl.
-%%% 
-
-call(Dl) ->
-    wings_dl:call(Dl).
-
-delete_dlists() ->
-    wings_dl:delete_dlists().
-
-update(Fun, Data) ->
-    wings_dl:update(Fun, Data).
-
-map(Fun, Data) ->
-    wings_dl:map(Fun, Data).
-
-fold(Fun, Acc) ->
-    wings_dl:fold(Fun, Acc).
 
 %%%
 %%% Set material and draw faces.
@@ -272,7 +250,7 @@ force_flat_color(OriginalDlist, {R,G,B}, DrawExtra) ->
     gl:disable(?GL_LIGHT7),
     gl:lightModelfv(?GL_LIGHT_MODEL_AMBIENT, {0,0,0,0}),
     gl:materialfv(?GL_FRONT_AND_BACK, ?GL_EMISSION, {R,G,B,1}),
-    call(OriginalDlist),
+    wings_dl:call(OriginalDlist),
     gl:popAttrib(),
     gl:endList(),
     {call,Dl,OriginalDlist}.

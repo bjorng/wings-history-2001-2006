@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.55 2004/04/30 04:50:15 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.56 2004/05/17 17:51:03 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -241,10 +241,10 @@ mode_change(Mode, #tweak{st=St0}=T) ->
     update_tweak_handler(T#tweak{st=St}).
 
 topological_change(#st{shapes=Shs}) ->
-    R = wings_draw_util:fold(fun(#dlo{src_we=We}, [We|Wes]) -> Wes;
-				(#dlo{drag=none}, [_|Wes]) -> Wes;
-				(_, _) -> changed
-			     end, gb_trees:values(Shs)),
+    R = wings_dl:fold(fun(#dlo{src_we=We}, [We|Wes]) -> Wes;
+			 (#dlo{drag=none}, [_|Wes]) -> Wes;
+			 (_, _) -> changed
+		      end, gb_trees:values(Shs)),
     R =:= changed.
 
 redraw(St) ->
@@ -253,9 +253,9 @@ redraw(St) ->
 
 begin_drag(MM, St, T) ->
     wings_draw:refresh_dlists(St),
-    wings_draw_util:map(fun(D, _) ->
-				begin_drag_fun(D, MM, St, T)
-			end, []).
+    wings_dl:map(fun(D, _) ->
+			 begin_drag_fun(D, MM, St, T)
+		 end, []).
 
 begin_drag_fun(#dlo{src_we=We}=D, _, _, _) when ?IS_LIGHT(We) -> D;
 begin_drag_fun(#dlo{src_sel={body,_},src_we=#we{vp=Vtab}=We}=D, _MM, _St, _T) ->
@@ -272,7 +272,7 @@ begin_drag_fun(#dlo{src_sel={Mode,Els},src_we=We}=D0, MM, St, T) ->
 begin_drag_fun(D, _, _, _) -> D.
 
 end_drag(#tweak{st=St0}=T) ->
-    St1 = wings_draw_util:map(fun end_drag/2, St0),
+    St1 = wings_dl:map(fun end_drag/2, St0),
     St = wings_undo:save(St0, St1),
     wings_draw:refresh_dlists(St),
     help(T),
@@ -298,9 +298,9 @@ sel_to_vs(edge, Es, We) -> wings_vertex:from_edges(Es, We);
 sel_to_vs(face, Fs, We) -> wings_vertex:from_faces(Fs, We).
 
 do_tweak(DX, DY) ->
-    wings_draw_util:map(fun(D, _) ->
-				do_tweak(D, DX, DY)
-			end, []).
+    wings_dl:map(fun(D, _) ->
+			 do_tweak(D, DX, DY)
+		 end, []).
     				
 do_tweak(#dlo{drag={matrix,Pos0,Matrix0,_},
 	      src_we=#we{id=Id}}=D, DX, DY) ->
@@ -351,13 +351,12 @@ help_1(Type, [{Digit,ThisType}|T]) ->
 help_1(_, []) -> [].
 
 fake_selection(St) ->
-    wings_draw_util:fold(
-      fun(#dlo{src_sel=none}, S) ->
-	      %% No selection, try highlighting.
-	      fake_sel_1(S);
-	 (#dlo{src_we=#we{id=Id},src_sel={Mode,Els}}, S) ->
-	      S#st{selmode=Mode,sel=[{Id,Els}]}
-      end, St).
+    wings_dl:fold(fun(#dlo{src_sel=none}, S) ->
+			  %% No selection, try highlighting.
+			  fake_sel_1(S);
+		     (#dlo{src_we=#we{id=Id},src_sel={Mode,Els}}, S) ->
+			  S#st{selmode=Mode,sel=[{Id,Els}]}
+		  end, St).
 
 fake_sel_1(St0) ->
     case wings_pref:get_value(use_temp_sel) of
@@ -393,9 +392,9 @@ hotkey($4) -> spike;
 hotkey(_) -> none.
 
 setup_magnet(#tweak{tmode=drag}=T) ->
-    wings_draw_util:map(fun(D, _) ->
-				setup_magnet_fun(D, T)
-			end, []),
+    wings_dl:map(fun(D, _) ->
+			 setup_magnet_fun(D, T)
+		 end, []),
     do_tweak(0.0, 0.0),
     wings_wm:dirty(),
     T;
@@ -478,9 +477,9 @@ draw_magnet(#tweak{mag_r=R}) ->
     gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
     wings_view:load_matrices(false),
     gl:color4f(0, 0, 1, 0.1),
-    wings_draw_util:fold(fun(D, _) ->
-				 draw_magnet_1(D, R)
-			 end, []),
+    wings_dl:fold(fun(D, _) ->
+			  draw_magnet_1(D, R)
+		  end, []),
     gl:popAttrib().
 
 draw_magnet_1(#dlo{mirror=Mtx,drag=#drag{mm=Side,pos={X,Y,Z}}}, R) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.52 2004/05/14 08:23:47 raimo_niskanen Exp $
+%%     $Id: wings_light.erl,v 1.53 2004/05/17 17:51:11 bjorng Exp $
 %%
 
 -module(wings_light).
@@ -509,7 +509,7 @@ update_2(spot, Selected, #we{light=#light{aim=Aim,spot_angle=Angle}}=We) ->
     glu:sphere(Obj, 0.08, 25, 25),
     set_sel_color(Selected),
     SpotDir = e3d_vec:norm_sub(Aim, Top),
-    Rad = 3.1416*Angle/180,
+    Rad = Angle*math:pi()/180,
     R = math:sin(Rad),
     H = math:cos(Rad),
     {Dx,Dy,Dz} = e3d_vec:mul(SpotDir, H),
@@ -535,7 +535,7 @@ set_sel_color(false) -> gl:color3f(0, 0, 1);
 set_sel_color(true) -> gl:color3fv(wings_pref:get_value(selected_color)).
     
 render(#dlo{work=Light}) ->
-    wings_draw_util:call(Light).
+    wings_dl:call(Light).
 
 %%%
 %%% Exporting lights.
@@ -752,7 +752,7 @@ modeling_lights(camera, Type) ->
 scene_lights(camera) -> ok;
 scene_lights(global) ->
     gl:lightModelfv(?GL_LIGHT_MODEL_AMBIENT, {0.0,0.0,0.0,1.0}),
-    Lnum = wings_draw_util:fold(fun scene_lights_fun/2, ?GL_LIGHT0),
+    Lnum = wings_dl:fold(fun scene_lights_fun/2, ?GL_LIGHT0),
     disable_from(Lnum).
 
 disable_from(Lnum) when Lnum > ?GL_LIGHT7 -> ok;

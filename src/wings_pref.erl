@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.120 2004/04/17 19:02:07 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.121 2004/05/17 17:51:11 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -371,12 +371,12 @@ delayed_set_value(Key, OldVal, NewVal) ->
     ets:insert(wings_delayed_update, {Key,NewVal}).
 
 clear_vertex_dlist() ->
-    wings_draw_util:map(fun clear_vertex_dlist/2, []).
+    wings_dl:map(fun clear_vertex_dlist/2, []).
 
 clear_vertex_dlist(D, _) -> D#dlo{vs=none}.
 
 clear_proxy_edges(St) ->
-    wings_draw_util:map(fun(D, _) -> clear_proxy_edges(D, St) end, []).
+    wings_dl:map(fun(D, _) -> clear_proxy_edges(D, St) end, []).
 
 clear_proxy_edges(D, St) ->
     wings_subdiv:update(D#dlo{proxy_edges=none}, St).

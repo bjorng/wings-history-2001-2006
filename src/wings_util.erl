@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.91 2004/03/19 07:54:19 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.92 2004/05/17 17:51:11 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -149,7 +149,7 @@ get_matrices(Id, MM) ->
     {ModelMatrix,ProjMatrix,{0,0,W,H}}.
 
 mirror_matrix(Id) ->
-    wings_draw_util:fold(fun mirror_matrix/2, Id).
+    wings_dl:fold(fun mirror_matrix/2, Id).
 
 mirror_matrix(#dlo{mirror=Matrix,src_we=#we{id=Id}}, Id) -> Matrix;
 mirror_matrix(_, Acc) -> Acc.

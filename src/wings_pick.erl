@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.135 2004/05/02 09:49:38 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.136 2004/05/17 17:51:11 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -127,8 +127,8 @@ handle_hilite_event(_, _) ->
     next.
 
 insert_hilite_dl(Hit, St) ->
-    wings_draw_util:map(fun(D, _) ->
-				insert_hilite_dl_1(D, Hit, St)
+    wings_dl:map(fun(D, _) ->
+			 insert_hilite_dl_1(D, Hit, St)
 			end, []).
 
 insert_hilite_dl_1(#dlo{src_we=We}=D, _, _) when ?IS_LIGHT(We) -> D;
@@ -514,9 +514,9 @@ best_face_hit_1(Hits0) ->
     Dir0 = glu:unProject(0, 0, 0.5, Model, Proj, ViewPort),
     Dir = e3d_vec:norm_sub(Dir0, Orig),
     ViewRay = {Orig,Dir},
-    {_,Best,_} = wings_draw_util:fold(fun(D, A) ->
-					      best_face_hit_1(D, ViewRay, A) end,
-				      {Hits,none,infinite}),
+    {_,Best,_} = wings_dl:fold(fun(D, A) ->
+				       best_face_hit_1(D, ViewRay, A) end,
+			       {Hits,none,infinite}),
     Best.
 
 best_face_hit_1(#dlo{src_we=#we{id=Id}=We,ns=Ns}, EyePoint,
@@ -744,7 +744,7 @@ marquee_draw_edges([{Edge,#edge{vs=Va,ve=Vb,lf=Lf,rf=Rf}}|Es], Vtab, Vis) ->
 marquee_draw_edges([], _, _) -> ok.
 
 marquee_draw_1(Draw) ->
-    wings_draw_util:fold(fun(D, _) -> marquee_draw_fun(D, Draw) end, []).
+    wings_dl:fold(fun(D, _) -> marquee_draw_fun(D, Draw) end, []).
 
 marquee_draw_fun(#dlo{src_we=#we{perm=Perm}}, _) when not ?IS_SELECTABLE(Perm) -> ok;
 marquee_draw_fun(#dlo{mirror=Mirror,src_we=#we{id=Id}=We}, Draw) ->
@@ -757,12 +757,12 @@ marquee_draw_fun(#dlo{mirror=Mirror,src_we=#we{id=Id}=We}, Draw) ->
     gl:pushName(Id),
     case Mirror of
 	none ->
-	    wings_draw_util:call(List);
+	    wings_dl:call(List);
 	Matrix ->
-	    wings_draw_util:call(List),
+	    wings_dl:call(List),
 	    gl:pushMatrix(),
 	    gl:multMatrixf(Matrix),
-	    wings_draw_util:call(List),
+	    wings_dl:call(List),
 	    gl:popMatrix()
     end,
     gl:popName(),
@@ -773,13 +773,13 @@ marquee_draw_fun(#dlo{mirror=Mirror,src_we=#we{id=Id}=We}, Draw) ->
 %%
 
 draw() ->
-    wings_draw_util:map(fun draw_fun/2, []).
+    wings_dl:map(fun draw_fun/2, []).
 
 draw_fun(#dlo{work=Work,src_we=#we{id=Id,perm=Perm}=We}=D, _)
   when ?IS_LIGHT(We), ?IS_SELECTABLE(Perm) ->
     gl:pushName(Id),
     gl:pushName(1),
-    wings_draw_util:call(Work),
+    wings_dl:call(Work),
     gl:popName(),
     gl:popName(),
     D;
@@ -793,17 +793,17 @@ draw_fun(D, _) -> draw_dlist(D).
 
 draw_dlist(#dlo{mirror=none,pick=Pick,src_we=#we{id=Id}}=D) ->
     gl:pushName(Id),
-    wings_draw_util:call(Pick),
+    wings_dl:call(Pick),
     gl:popName(),
     D;
 draw_dlist(#dlo{mirror=Matrix,pick=Pick,src_we=#we{id=Id}}=D) ->
     gl:pushName(Id),
-    wings_draw_util:call(Pick),
+    wings_dl:call(Pick),
     gl:loadName(-Id),
     gl:frontFace(?GL_CW),
     gl:pushMatrix(),
     gl:multMatrixf(Matrix),
-    wings_draw_util:call(Pick),
+    wings_dl:call(Pick),
     gl:popMatrix(),
     gl:popName(),
     gl:frontFace(?GL_CCW),

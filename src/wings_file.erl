@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.146 2004/01/16 09:25:42 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.147 2004/05/17 17:51:11 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -545,7 +545,7 @@ clean_st(St) ->
     St#st{onext=1,shapes=Empty,mat=DefMat,sel=[],ssels=Empty,saved=Limit}.
 
 clean_images(#st{saved=Limit}=St) when is_integer(Limit) ->
-    wings_draw_util:map(fun(D, _) -> D#dlo{proxy_data=none} end, []),
+    wings_dl:map(fun(D, _) -> D#dlo{proxy_data=none} end, []),
     wings_image:delete_older(Limit),
     St#st{saved=false}.
 
