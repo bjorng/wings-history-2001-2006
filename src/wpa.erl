@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.21 2002/10/17 18:57:32 bjorng Exp $
+%%     $Id: wpa.erl,v 1.22 2002/10/20 09:46:00 bjorng Exp $
 %%
 -module(wpa).
 -export([ask/2,ask/3,ask/4,dialog/2,dialog/3,dialog/4,error/1,yes_no/1,
@@ -17,7 +17,7 @@
 	 export/3,export_selected/3,export_filename/2,
 	 pref_get/2,pref_get/3,pref_set/2,pref_set/3,pref_delete/2,
 	 sel_get/1,sel_set/2,sel_set/3,sel_map/2,sel_fold/3,sel_convert/3,
-	 sel_edge_regions/2,sel_face_regions/2,
+	 sel_edge_regions/2,sel_face_regions/2,sel_strict_face_regions/2,
 	 drag/3,drag/4,
 	 pick/3,
 	 vertices/1,vertex_pos/2,vertex_flatten/3,vertex_center/2,
@@ -171,8 +171,15 @@ sel_convert(F, Mode, St) ->
 sel_edge_regions(Edges, We) ->
     wings_sel:edge_regions(Edges, We).
 
+%% Faces must share at least one edge to belong to the same region
+%% (sharing a vertex is not sufficient).
 sel_face_regions(Faces, We) ->
     wings_sel:face_regions(Faces, We).
+
+%% Faces that share at least one vertex (or edge) to belong to
+%% the same region.
+sel_strict_face_regions(Faces, We) ->
+    wings_sel:strict_face_regions(Faces, We).
 
 %%%
 %%% Picking.
