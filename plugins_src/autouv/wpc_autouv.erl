@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.163 2003/10/27 06:33:20 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.164 2003/11/09 16:06:29 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -376,10 +376,10 @@ add_material(Im = #e3d_image{}, _, MatName,St) ->
 %%% Opengl drawing routines
 
 init_drawarea() ->
-    {X,Y,_,H} = wings_wm:viewport(geom),
+    {{X,TopY},{_,_}} = wings_wm:win_rect(desktop),
     {W0,TopH} = wings_wm:top_size(),
     W = W0 div 2,
-    {{X+W,TopH-Y-H,W,H}, wingeom(W,H)}.
+    {{X+W,TopY+75,W,TopH-100}, wingeom(W, TopH)}.
     
 wingeom(W,H) ->
     Border = 15,
