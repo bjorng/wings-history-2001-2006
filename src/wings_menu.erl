@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.121 2003/11/01 08:37:13 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.122 2003/11/01 09:37:18 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -17,7 +17,7 @@
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
 -include("wings.hrl").
--import(lists, [foldl/3,reverse/1,keysearch/3,foreach/2]).
+-import(lists, [map/2,foldl/3,reverse/1,keysearch/3,foreach/2]).
 
 -define(SUB_MENU_TIME, 150).
 -define(SEPARATOR_HEIGHT, (wings_text:height()-4)).
@@ -487,7 +487,17 @@ simplify_command(Term) -> Term.
 set_hotkey(Val, #mi{sel=Sel,menu=Menu0}=Mi) ->
     case element(Sel, Menu0) of
 	{A,B,_,D,E} ->
-	    Menu = setelement(Sel, Menu0, {A,B,Val,D,E}),
+	    %% First nuke any other menu entry that happens to be
+	    %% bound to this hotkey.
+	    Menu1 = map(fun({_,_,Key,_,_}=T) when Key =:= Val ->
+				setelement(3, T, []);
+			   (El) ->
+				El
+			end,
+			tuple_to_list(Menu0)),
+	    Menu2 = list_to_tuple(Menu1),
+	    %% Insert the hotkey.
+	    Menu = setelement(Sel, Menu2, {A,B,Val,D,E}),
 	    Mi#mi{menu=Menu};
 	_Other -> Mi
     end.
@@ -929,22 +939,20 @@ handle_key_event(redraw, _Cmd, Mi) ->
 handle_key_event(#keyboard{sym=Sym}, _, _) when Sym >= ?SDLK_NUMLOCK ->
     keep;
 handle_key_event(#keyboard{}=Ev, Cmd, Mi) ->
+    Win = wings_wm:this(),
     case wings_hotkey:event(Ev, Cmd) of
-	next ->
-	    case wings_hotkey:event(Ev, Cmd) of
-		next -> do_bind(Ev, Cmd, Mi);
-		OtherCmd ->
-		    io:format("~p\n", [OtherCmd])
-	    end;
+	next -> do_bind(Win, Ev, Cmd, Mi);
 	OtherCmd ->
-	    io:format("~p\n", [OtherCmd])
+	    C = wings_util:stringify(OtherCmd),
+	    Q = "This key is already bound to the " ++ C ++
+		" command. Do you want to re-define it?",
+	    wings_util:yes_no(Q, fun() -> do_bind(Win, Ev, Cmd, Mi) end)
     end,
     pop;
-handle_key_event(Ev, _, _) ->
-    io:format("~p\n", [Ev]),
-    keep.
+handle_key_event(_, _, _) -> keep.
 
-do_bind(Ev, Cmd, Mi0) ->
+do_bind(Win, Ev, Cmd, Mi0) ->
     Keyname = wings_hotkey:bind_from_event(Ev, Cmd),
     Mi = set_hotkey(Keyname, Mi0),
-    wings_wm:later(Mi).
+    wings_wm:send(Win, Mi),
+    ignore.
