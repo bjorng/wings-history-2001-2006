@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex.erl,v 1.42 2003/04/23 17:49:10 bjorng Exp $
+%%     $Id: wings_vertex.erl,v 1.43 2003/05/08 06:42:13 bjorng Exp $
 %%
 
 -module(wings_vertex).
@@ -193,8 +193,8 @@ center(Vlist, Vtab) ->
 bounding_box(We) ->
     bounding_box(We, none).
 
-bounding_box(#we{vp=Vtab}, BB) ->
-    do_bounding_box(gb_trees:values(Vtab), BB);
+bounding_box(#we{vp=Vtab}=We, BB) ->
+    do_bounding_box(gb_trees:values(Vtab), We, BB);
 bounding_box(Vs, We) ->
     bounding_box(Vs, We, none).
     
@@ -203,34 +203,27 @@ bounding_box(Vs, We, BB) when list(Vs) ->
 bounding_box(Vs, We, BB) ->
     bounding_box(gb_sets:to_list(Vs), We, BB).
 
-bounding_box_1(Vs0, #we{vp=Vtab}, BB) ->
+bounding_box_1(Vs0, #we{vp=Vtab}=We, BB) ->
     Vs1 = sofs:from_external(Vs0, [vertex]),
     R = sofs:from_external(gb_trees:to_list(Vtab), [{vertex,data}]),
     I = sofs:image(R, Vs1),
     Vs = sofs:to_external(I),
-    do_bounding_box(Vs, BB).
+    do_bounding_box(Vs, We, BB).
 
-do_bounding_box([{X,Y,Z}|Vs], none) ->
-    do_bounding_box(Vs, X, X, Y, Y, Z, Z);
-do_bounding_box(Vs, [{X0,Y0,Z0},{X1,Y1,Z1}]) ->
-    do_bounding_box(Vs, X0, X1, Y0, Y1, Z0, Z1).
+do_bounding_box(Vs, #we{mirror=none}, BB) ->
+    do_bounding_box_1(Vs, BB);
+do_bounding_box(Vs0, #we{id=Id}, BB) ->
+    Mtx = wings_util:mirror_matrix(Id),
+    Vs = foldl(fun(P0, A) -> 
+		       P = e3d_mat:mul_point(Mtx, P0),
+		       [P,P0|A]
+	       end, [], Vs0),
+    do_bounding_box_1(Vs, BB).
 
-do_bounding_box([{X,_,_}|_]=Vs, X0, X1, Y0, Y1, Z0, Z1) when X < X0 ->
-    do_bounding_box(Vs, X, X1, Y0, Y1, Z0, Z1);
-do_bounding_box([{X,_,_}|_]=Vs, X0, X1, Y0, Y1, Z0, Z1) when X > X1 ->
-    do_bounding_box(Vs, X0, X, Y0, Y1, Z0, Z1);
-do_bounding_box([{_,Y,_}|_]=Vs, X0, X1, Y0, Y1, Z0, Z1) when Y < Y0 ->
-    do_bounding_box(Vs, X0, X1, Y, Y1, Z0, Z1);
-do_bounding_box([{_,Y,_}|_]=Vs, X0, X1, Y0, Y1, Z0, Z1) when Y > Y1 ->
-    do_bounding_box(Vs, X0, X1, Y0, Y, Z0, Z1);
-do_bounding_box([{_,_,Z}|_]=Vs, X0, X1, Y0, Y1, Z0, Z1) when Z < Z0 ->
-    do_bounding_box(Vs, X0, X1, Y0, Y1, Z, Z1);
-do_bounding_box([{_,_,Z}|_]=Vs, X0, X1, Y0, Y1, Z0, Z1) when Z > Z1 ->
-    do_bounding_box(Vs, X0, X1, Y0, Y1, Z0, Z);
-do_bounding_box([_|Vs], X0, X1, Y0, Y1, Z0, Z1) ->
-    do_bounding_box(Vs, X0, X1, Y0, Y1, Z0, Z1);
-do_bounding_box([], X0, X1, Y0, Y1, Z0, Z1) ->
-    [{X0,Y0,Z0},{X1,Y1,Z1}].
+do_bounding_box_1(Vs, none) ->
+    e3d_vec:bounding_box(Vs);
+do_bounding_box_1(Vs, [Min,Max]) ->
+    e3d_vec:bounding_box([Min,Max|Vs]).
 
 %% normal(Vertex, We) -> Normal
 %%  Calculate the normal for a vertex (based on the normals for all
