@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.91 2004/04/19 14:05:02 dgud Exp $
+%%     $Id: wings_edge.erl,v 1.92 2004/04/19 19:05:14 dgud Exp $
 %%
 
 -module(wings_edge).
@@ -429,27 +429,74 @@ slide(St) ->
 		  {[{Id, make_slide_tv(Slides)}| Acc], Up,Dw,N}
 	  end, {[], SUp, SDown, SN}, St),
     Units = [distance],
-    Flags = [{initial,[0]}],
+    Flags = [{mode, {slide_mode(),default}}, {initial,[0]}],
     wings_drag:setup(Tvs, Units, Flags, St).
+
+slide_mode() ->
+    fun(help, _Type) ->
+	    "[1] Toggle Absolute/Relative mode "
+		"[2] Toggle freeze direction";
+       (key, $1) ->
+	    io:format("Toggle mode \n",[]),
+	    toggle_mode;
+       (key, $2) ->
+	    io:format("Toggle freeze \n",[]),
+	    toggle_freeze;
+       (done, _Type) ->
+	    ok;
+       (_, _) -> none
+    end.
 
 make_slide_tv(Slides) ->
     Vs = gb_trees:keys(Slides),
-    {Vs, make_slide_fun(Vs, Slides)}.
+    {Vs, make_slide_fun(Vs, Slides, relative, false)}.
 
-make_slide_fun(Vs, Slides) ->
+make_slide_fun(Vs, Slides, Mode, Freeze) ->
     fun([Dx|_],Acc) ->
+	    put(wings_slide, Dx),
 	    foldl(fun(V,A) ->
-			  {Pos,{Ndir,NL},{Pdir,PL}} = gb_trees:get(V, Slides),   
+			  {Pos,{Ndir,NL,NC},{Pdir,PL,PC}} = 
+			      gb_trees:get(V, Slides),
 			  ScaleDir = 
-			      if Dx > 0 ->
-				      e3d_vec:mul(e3d_vec:norm(Pdir), Dx*PL);
-				 true ->
-				      e3d_vec:mul(e3d_vec:norm(Ndir),-Dx*NL)
+			      case Freeze of
+				  false ->
+				      if Dx > 0, Mode == relative ->
+					      e3d_vec:mul(e3d_vec:norm(Pdir), Dx*(PL/PC));
+					 Mode == relative ->
+					      e3d_vec:mul(e3d_vec:norm(Ndir),-Dx*(NL/NC));
+					 Dx > 0 ->
+					      e3d_vec:mul(e3d_vec:norm(Pdir), Dx);
+					 true ->
+					      e3d_vec:mul(e3d_vec:norm(Ndir),-Dx)
+				      end;
+				  positive when Mode == relative ->
+				      e3d_vec:mul(e3d_vec:norm(Pdir), Dx*(PL/PC));
+				  positive ->
+				      e3d_vec:mul(e3d_vec:norm(Pdir), Dx);
+				  negative when Mode == relative ->
+				      e3d_vec:mul(e3d_vec:norm(Ndir),-Dx*(NL/NC));
+				  _ ->
+				      e3d_vec:mul(e3d_vec:norm(Ndir),-Dx)
 			      end,
 			  [{V,e3d_vec:add(Pos, ScaleDir)}|A]
 		  end, Acc, Vs);
+       (new_mode_data, {toggle_mode,_}) when Mode == relative ->
+	    make_slide_fun(Vs,Slides, absolute, Freeze);
+       (new_mode_data, {toggle_mode,_}) when Mode == absolute ->
+	    make_slide_fun(Vs,Slides, relative, Freeze);
+       (new_mode_data, {toggle_freeze,_}) when Freeze == false ->	    
+	    case get(wings_slide) of
+		undefined -> 
+		    make_slide_fun(Vs,Slides,Mode,Freeze);
+		Dx when Dx >= 0 -> 
+		    make_slide_fun(Vs,Slides,Mode,positive);
+		_ -> 
+		    make_slide_fun(Vs,Slides,Mode,negative)
+	    end;
+       (new_mode_data, {toggle_freeze,_}) ->
+	    make_slide_fun(Vs,Slides,Mode,false);
        (_,_) ->
-	    make_slide_fun(Vs,Slides)
+	    make_slide_fun(Vs,Slides,Mode,Freeze)
     end.
 
 slide_setup_edges([{_Sz,Es0}|LofEs],GUp0,GDw0,GN0,We,Acc0) ->
@@ -554,12 +601,13 @@ other(Vertex, #edge{vs=Other,ve=Vertex}) -> Other.
 swap({Vpos,Ndir,Pdir}) -> 
     {Vpos,Pdir,Ndir}.
 
-add_slide_vertex(V,{Vpos, Ndir,Pdir},Acc) ->
+add_slide_vertex(V,{Vpos,{Ndir,NL},{Pdir,PL}},Acc) ->
     case gb_trees:lookup(V,Acc) of
 	none ->
-	    gb_trees:insert(V, {Vpos, Ndir,Pdir},Acc);
-	{value, {_, Ndir0,Pdir0}} ->
-	    New = {Vpos, add(Ndir,Ndir0),add(Pdir,Pdir0)},
+	    gb_trees:insert(V, {Vpos,{Ndir,NL,1},{Pdir,PL,1}},Acc);
+	{value, {_, {Ndir0,NL0,NC0},{Pdir0,PL0,PC0}}} ->
+	    New = {Vpos, {add(Ndir,Ndir0),NL+NL0,NC0+1},
+		   {add(Pdir,Pdir0),PL+PL0,PC0+1}},
 	    gb_trees:update(V, New, Acc)
     end.
 
