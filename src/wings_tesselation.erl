@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_tesselation.erl,v 1.12 2005/02/09 21:34:05 dgud Exp $
+%%     $Id: wings_tesselation.erl,v 1.13 2005/03/14 12:34:44 dgud Exp $
 %%
 
 -module(wings_tesselation).
@@ -132,15 +132,11 @@ triangulate_quad_1(VsPos=[A,B,C,D], Vi=[Ai,Bi,Ci,Di], F, TriV, We) ->
 	gb_sets:is_member(Di,TriV),
     [V1,V2] = 
 	if ACgood, (not BDgood) ->
-		case wings_draw_util:good_triangulation(N,A,B,C,D) of
-		    false -> throw(F);
-		    true -> [Ai,Ci]
-		end;
+		assert_quad2tris(N,A,B,C,D,F),
+		[Ai,Ci];
 	   BDgood, (not ACgood) ->
-		case wings_draw_util:good_triangulation(N,B,C,D,A) of
-		    false -> throw(F);
-		    true -> [Bi,Di]
-		end;
+		assert_quad2tris(N,B,C,D,A,F),
+		[Bi,Di];
 	   true ->
 		select_newedge(VsPos,Vi,N,F)
 	end,
@@ -153,15 +149,32 @@ select_newedge(_L = [A,B,C,D],[Ai,Bi,Ci,Di],N,F) ->
     Epsilon = 0.15,  %% 1/6 diffs Is rougly equal 
     case AC < BD of
 	true when ((BD-AC) / BD)  > Epsilon ->
-	    case wings_draw_util:good_triangulation(N,A,B,C,D) of
-		false -> throw(F);
-		true -> [Ai,Ci]
-	    end;
+	    assert_quad2tris(N,A,B,C,D,F),
+	    [Ai,Ci];
 	_ ->
-	    case wings_draw_util:good_triangulation(N,B,C,D,A) of
-		false -> throw(F);
-		true -> [Bi,Di]
-	    end
+	    assert_quad2tris(N,B,C,D,A,F),
+	    [Bi,Di]
+    end.
+
+%% Good enough triangles
+-define(TRI_AREA, 0.70).  
+%% This allows pretty big area diff, but avoid areas close to 0.
+assert_quad2tris(N,A,B,C,D,F) ->
+    try 
+	case wings_draw_util:good_triangulation(N,A,B,C,D) of
+	    true ->
+		T1 = e3d_vec:area(A,B,C),
+		T2 = e3d_vec:area(C,D,A),
+		case (abs(T1-T2) / (T1+T2)) < 0.80 of
+		    true -> ok;
+		    _ -> 
+			throw(F)
+		end;
+	    false ->
+		throw(F)
+	end
+    catch error:_ ->
+	    throw(F)
     end.
 
 doface_1(Face,Len,Vs,#we{vp=Vtab}=We, Q) ->
