@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_text.erl,v 1.28 2004/04/23 12:44:54 bjorng Exp $
+%%     $Id: wings_text.erl,v 1.29 2005/03/26 07:53:55 bjorng Exp $
 %%
 
 -module(wings_text).
@@ -65,10 +65,11 @@ draw(S) ->
     Font = current_font(),
     case wings_pref:get_value(text_display_lists, false) of
 	true ->
-	    gl:listBase(case get(Font) of
+	    ListBase = case get(Font) of
 			    undefined -> make_font_dlists(Font);
 			    Base -> Base
-			end),
+			end,
+	    gl:listBase(ListBase),
 	    gl:callLists(length(S), ?GL_UNSIGNED_BYTE, S);
 	false ->
 	    Font:draw(S)
@@ -79,17 +80,22 @@ make_font_dlists(Font) ->
     put(Font, Base),
     make_font_dlists_1(0, Base).
 
-make_font_dlists_1(256, _) -> ok;
+make_font_dlists_1(256, Base) -> Base;
 make_font_dlists_1(C, Base) ->
     gl:newList(Base+C, ?GL_COMPILE),
-    catch char(C),
+    char(C),
     gl:endList(),
     make_font_dlists_1(C+1, Base).
 
 char(C) when is_atom(C) ->
     special(C);
 char(C) ->
-    (current_font()):char(C).
+    try
+	(current_font()):char(C)
+    catch
+	error:function_clause ->
+	    bad_char(C)
+    end.
 
 bold(S) ->
     (current_font()):bold(S).
@@ -377,3 +383,9 @@ caret() ->
 			lists:duplicate(H-2, 2#00100000),
 			2#11011000]),
     gl:bitmap(5, H, 2, 2, 2, 0, B).
+
+bad_char(C) ->
+    W = width([C]),
+    H = height(),
+    B = list_to_binary(lists:duplicate(((W+7) div 8)*H, 16#FF)),
+    gl:bitmap(W, H, 0, 0, W+1, 0, B).
