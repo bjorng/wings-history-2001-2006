@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.22 2002/10/25 13:57:35 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.23 2002/10/25 19:24:41 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -23,8 +23,10 @@
 -export([init/0,menu/2,command/2,outer_edges/2,outer_edges/3]).
 -export([maxmin/1]).
 -export([moveAndScale/5]).
+
 -import(lists, [sort/1, map/2, foldl/3, reverse/1, 
-		append/1,delete/2, usort/1, max/1, min/1]).
+		append/1,delete/2, usort/1, max/1, min/1,
+		member/2]).
 
 init() ->
     true.
@@ -38,112 +40,51 @@ add_areas(New, #areas{as=As}=Areas) ->
     NewAs = add_as(New, As),
     Areas#areas{as=NewAs}.
 
-menu({body}, Menu0) ->
-    case get(auv_state) of
-	undefined ->
-	    Menu0 ++ [separator,
-		      {"UV Mapping", ?MODULE,
-		       "Generate or edit UV mapping or texture"}];
-	_UvState ->
-	    parameterization_menu(Menu0)
-    end;
-menu({What}, Menu0) 
-  when What == edge; What == face; 
-       What == vertex; What == shape -> 
-%%    ?DBG("menu ~p ~p ~n", [What, Menu0]),
-    case get(auv_state) of
-	undefined ->
-	    Menu0;
-	_UvState ->
-	    Menu1 = 
-		case What of
-		    edge ->
-			[separator,
-			 {"Chart Clipping",
-			  {hardness,[{"Do not cut edges",soft},
-				     {"Cut edges",hard}]}}];
-		    face ->
-			{value, Mat0} = %% HACK :-) 
-			    lists:keysearch("Set Material",1,Menu0), 
-			Mat1 = setelement(1, Mat0, "Add to Chart"),
-			Mat2 = {"Get Charts", chart_names, ""},
-			[Mat1, Mat2, separator];
-		    _ ->
-			[]
-		end,
-	    Menu1 ++ parameterization_menu(Menu0)
-    end;
-menu(_, Menu0) ->
-    Menu0.
-
-parameterization_menu(_Menu) ->
-    [{"UV-Mapping Continue", continue_param, 
-      "Continue with uv-mapping parameterization"},
-     {"UV-Mapping Cancel", uvmap_cancel, "Cancel all changes"}].
+menu({body}, Menu) ->
+    Menu ++ [separator,
+	     {"UV Mapping", ?MODULE,
+	      "Generate or edit UV mapping or texture"}];
+menu(_, Menu) -> Menu.
 
 command({body,?MODULE}, St) ->
     start_uvmap(St);
 command({body,{?MODULE,do_edit,We}}, St) ->
     do_edit(We, St);
-command({_, uvmap_cancel}, _St0) ->
-    [{oldst,S1}] = get(auv_state),
-    erase(auv_state),
-    S1;
-command({_State, continue_param}, _St) ->
-    DefVar = {seg_type,lsqcm},
-    Qs = [{vframe,[{alt,DefVar,"Unfolding", lsqcm},
-		   {alt,DefVar,"Projection",project}
-		  ],
-	   [{title,"Method"}]}],
-    wings_ask:dialog(Qs,
-		     fun([Mode]) ->
-			     {uvmap, {parametrization, Mode}}
-		     end);
-
-command({uvmap, {parametrization, Mode}}, St0) ->
-    %% Now copy the old selections so we map the correct bodies.
-    [{oldst,Old}] = get(auv_state),
-    init_uvmap(St0#st{selmode=Old#st.selmode, 
-		      sel=Old#st.sel}, 
-	       Old, Mode);
-    
-command({body,{uvmap_done,QuitOp,
-	       Uvs = #uvstate{st=St0,areas=Current,sel=Sel}}}, _) ->
+command({body,{?MODULE,do_uvmap,We}}, St) ->
+    init_uvmap(We, St);
+command({body,{?MODULE,uvmap_done,QuitOp,Uvs}}, _) ->
+    #uvstate{st=St0,areas=Current,sel=Sel} = Uvs,
     Areas1 = add_areas(Sel, Current),
     St2 = case QuitOp of
 	      quit_uv_tex ->
 		  Tx = ?SLOW(get_texture(Uvs)),
-		  {St1, Areas1} = add_material(edit, Tx, St0, Areas1),
+		  {St1,Areas1} = add_material(edit, Tx, St0, Areas1),
 		  St1;
 	      quit_uv ->
 		  St0
 	  end,
     We = ?SLOW(insert_uvcoords(Areas1)),
-    Shapes1 = gb_trees:update(We#we.id, We, St2#st.shapes),
-    St = St2#st{shapes = Shapes1},
+    Shapes = gb_trees:update(We#we.id, We, St2#st.shapes),
+    St = St2#st{shapes=Shapes},
     reset_view(),
-    erase(auv_state),
     St;
+command(_, _) -> next.
 
-command({face,chart_names}, St) ->
-    Mats = wings_sel:fold(
-	     fun(F0, We, A) ->
-		     Faces = gb_sets:to_list(F0),
-		     GetMat = 
-			 fun(Face) ->
-				 #face{mat=Mat} = 
-				     gb_trees:get(Face, We#we.fs),
-				 {Mat, Face} 
-			 end,
-		     Mats0 = lists:map(GetMat, Faces),
-		     Mats0 ++ A
-	     end, [], St),
-    Msg = lists:flatten(io_lib:format("Charts: ~p", [Mats])),
-    wings_util:message(Msg, St);
-
-command(_Cmd, _St) -> 
-%%    ?DBG("Unsupport command ~p~n",[_Cmd]),
-    next.
+% command({face,chart_names}, St) ->
+%     Mats = wings_sel:fold(
+% 	     fun(F0, We, A) ->
+% 		     Faces = gb_sets:to_list(F0),
+% 		     GetMat = 
+% 			 fun(Face) ->
+% 				 #face{mat=Mat} = 
+% 				     gb_trees:get(Face, We#we.fs),
+% 				 {Mat, Face} 
+% 			 end,
+% 		     Mats0 = lists:map(GetMat, Faces),
+% 		     Mats0 ++ A
+% 	     end, [], St),
+%     Msg = lists:flatten(io_lib:format("Charts: ~p", [Mats])),
+%     wings_util:message(Msg, St);
 
 start_uvmap(#st{sel=[{Id,_}],shapes=Shs}=St) ->
     case gb_trees:get(Id, Shs) of
@@ -153,22 +94,143 @@ start_uvmap(#st{sel=[{Id,_}],shapes=Shs}=St) ->
 start_uvmap(_) ->
     wpa:error("Select only one object.").
 
-start_uvmap_1(St0) ->
-    DefVar = {seg_type,autouvmap},
-    Qs = [{vframe,[{alt,DefVar,"Advanced Cubic",autouvmap},
-		   {alt,DefVar,"By Feature Detection",feature},
-		   {alt,DefVar,"By Material",mat_uvmap},
-		   {alt,DefVar,"I'll segment the model myself", one}
-		  ],
-	   [{title,"Segmentation type"}]}],
-    Text = "Make charts, put faces into charts",
-    wings_ask:dialog(Qs,
-		     fun([Mode]) ->
-			     St1 = segment(Mode, St0),
-			     put(auv_state, [{oldst, St0}]),
-			     wings_io:message(Text),
-			     St1
-		     end).
+-record(seg, {st,				%Current St.
+	      selmodes				%Legal selection modes.
+	     }).
+
+start_uvmap_1(#st{sel=[{Id,_}],shapes=Shs}=St0) ->
+    Modes = [vertex,edge,face],
+    wings_io:icon_restriction(Modes),
+    We = gb_trees:get(Id, Shs),
+    St = St0#st{sel=[],selmode=face,shapes=gb_trees:from_orddict([{Id,We}])},
+    {seq,{push,dummy},get_seg_event(#seg{selmodes=Modes,st=St})}.
+
+get_seg_event(Ss) ->
+    wings_io:message("Segment the model"),
+    wings_wm:dirty(),
+    {replace,fun(Ev) -> seg_event(Ev, Ss) end}.
+
+seg_event(redraw, #seg{st=St}) ->
+    wings:redraw(St),
+    keep;
+seg_event(Ev, Ss) ->
+    case wings_io:event(Ev) of
+	next -> seg_event_1(Ev, Ss);
+	Other -> Other
+    end.
+
+seg_event_1(Ev, #seg{st=St}=Ss) ->
+    case wings_camera:event(Ev, St) of
+	next -> seg_event_2(Ev, Ss);
+	Other -> Other
+    end.
+
+seg_event_2(Ev, #seg{st=St}=Ss) ->
+    case wings_pick:event(Ev, St, fun() -> wings:redraw(St) end) of
+	next -> seg_event_3(Ev, Ss);
+	Other -> Other
+    end.
+
+seg_event_3(Ev, #seg{st=#st{selmode=Mode}}=Ss) ->
+    case wings_menu:is_popup_event(Ev) of
+	no -> seg_event_4(Ev, Ss);
+	{yes,X,Y,_} -> 
+	    Menu = [{"Continue",continue},
+		    separator,
+		    {"Segment by",{segment,
+				   [{"Projection",autouvmap},
+				    {"Feature Detection",feature}]}}|
+		    mode_menu(Mode, Ss,
+			      [separator,
+			       {"Cancel",cancel}])],
+	    wings_menu:popup_menu(X, Y, auv_segmentation, Menu)
+    end.
+
+mode_menu(vertex, _, Tail) -> Tail;
+mode_menu(edge, _, Tail) ->
+    [separator,
+     {"Mark Edges for Cut",cut_edges},
+     {"Unmark Edges",no_cut_edges}|Tail];
+mode_menu(face, _, Tail) -> Tail.
+
+seg_event_4(Ev, Ss) ->
+    case translate_key(Ev) of
+	next -> seg_event_5(Ev, Ss);
+	Other -> Other
+    end.
+
+seg_event_5(Ev, #seg{st=St0}=Ss) ->
+    case wings_hotkey:event(Ev, St0) of
+	next -> seg_event_6(Ev, Ss);
+	Action ->
+	    wings_io:putback_event({action,Action}),
+	    keep
+    end.
+
+seg_event_6({new_state,St}, Ss) ->
+    get_seg_event(Ss#seg{st=St});
+seg_event_6({action,{view,Cmd}}, #seg{st=St0}=Ss) ->
+    St = wings_view:command(Cmd, St0),
+    get_seg_event(Ss#seg{st=St});
+seg_event_6({action,{select,Cmd}}, #seg{st=St0}=Ss) ->
+    case wings_sel_cmd:command(Cmd, St0) of
+	St0 -> keep;
+	{save_state,St} -> filter_sel_command(Ss, St);
+	St -> filter_sel_command(Ss, St)
+    end;
+seg_event_6({action,{auv_segmentation,Cmd}}, Ss) ->
+    seg_command(Cmd, Ss);
+seg_event_6({callback, Fun}, _) when function(Fun) ->
+    Fun();
+seg_event_6(#mousemotion{}, _) ->
+    keep;
+seg_event_6(#mousebutton{}, _) ->
+    keep;
+seg_event_6(Ev, _) ->
+    io:format("~w\n", [Ev]),
+    keep.
+
+translate_key(#keyboard{keysym=KeySym}) ->
+    translate_key_1(KeySym);
+translate_key(_Event) -> next.
+
+translate_key_1(#keysym{sym=27}) ->		%Escape
+    seg_cancel();
+translate_key_1(_) -> next.
+
+filter_sel_command(#seg{selmodes=Modes}=Ss, #st{selmode=Mode}=St) ->
+    case member(Mode, Modes) of
+	false -> keep;
+	true -> seg_event({new_state,St}, Ss)
+    end.
+
+seg_command(continue, #seg{st=#st{shapes=Shs}}) ->
+    [{_,We}] = gb_trees:to_list(Shs),
+    wings_io:clear_icon_restriction(),
+    wings_io:clear_message(),
+    wings_io:putback_event({action,{body,{?MODULE,do_uvmap,We}}}),
+    pop;
+seg_command(cancel, _) ->
+    seg_cancel();
+seg_command(cut_edges, #seg{st=St0}=Ss) ->
+    St = wings_edge:hardness(hard, St0),
+    get_seg_event(Ss#seg{st=St});
+seg_command(no_cut_edges, #seg{st=St0}=Ss) ->
+    St = wings_edge:hardness(soft, St0),
+    get_seg_event(Ss#seg{st=St});
+seg_command({segment,Type}, #seg{st=St0}=Ss) ->
+    St = segment(Type, St0),
+    get_seg_event(Ss#seg{st=St});
+seg_command(Cmd, _) ->
+    io:format("Cmd: ~w\n", [Cmd]),
+    keep.
+
+seg_cancel() ->
+    wings_io:clear_icon_restriction(),
+    wings_io:clear_message(),
+    wings_io:message("Command aborted"),
+    wings_wm:dirty(),
+    pop.
 
 start_edit(Id, We0, #st{shapes=Shs0}=St) ->
     DefVar = {answer,edit},
@@ -203,15 +265,13 @@ do_edit(We, St0) ->
 		   option=#setng{color=false,texbg=true,texsz=TexSz}},
     {seq,{push,dummy}, get_event(Uvs)}.
 
-segment(Mode, St0) ->
-    ?SLOW(wings_sel:fold(
-	fun(_Sel, We, A) ->
-	{Charts, Bounds} = auv_segment:create(Mode, We),	
-	mark_segments(Charts, Bounds, We, A)
-	end, St0, St0)).
+segment(Mode, #st{shapes=Shs}=St) ->
+    [{_,We}] = gb_trees:to_list(Shs),
+    {Charts,Bounds} = auv_segment:create(Mode, We),
+    mark_segments(Charts, Bounds, We, St).
 
 mark_segments(Charts, Bounds, We0, St) ->
-    %% Use HardEdges to mark Boundries
+    %% Use HardEdges to mark boundaries
     We1 = We0#we{he = Bounds},
     %% Use materials to mark different charts
     Max = length(Charts),
@@ -282,37 +342,28 @@ create_diffuse({Index0, Fs}, Max) ->
 
 %%%%%%
 
-init_uvmap(St0, Old, Type) ->    
-    {AllAreas, St1} = ?SLOW(wings_sel:fold(fun(_Sel, We, A) ->
-	init_uvmap2(We, A, Type)
-	end, {[], Old}, St0)),
-    Geom = init_drawarea(),
-    [Areas] = AllAreas,
-    Uvs = #uvstate{st=wings_select_faces([], Areas#areas.we, St1),
-		   origst=Old,
-		   areas=Areas, 
-		   geom=Geom},
-    {seq,{push,dummy}, get_event(Uvs)}.
-
-init_uvmap2(We0 = #we{id=Id,name = Name}, {A, St0}, Type) ->
-    Clusters = auv_segment:segment_by_material(We0),
-    ?DBG("Found ~p Charts~n", [length(Clusters)]),
-    Cuts = auv_segment:cleanup_bounds(We0#we.he, Clusters, We0),
+init_uvmap(#we{id=Id,name=Name}=We0, St0) ->
+    Charts = auv_segment:segment_by_material(We0),
+    ?DBG("Found ~p charts~n", [length(Charts)]),
+    Cuts = auv_segment:cleanup_bounds(We0#we.he, Charts, We0),
     We1 = gb_trees:get(Id, St0#st.shapes),
-    ClustersWithoutIds = [L || {_,L} <- Clusters],
-    {We2,ChangedByCut} = auv_segment:cut_model(Cuts, ClustersWithoutIds, We1),
+    ChartsWithoutIds = [L || {_,L} <- Charts],
+    {We,ChangedByCut} = auv_segment:cut_model(Cuts, ChartsWithoutIds, We1),
     ?DBG("Vertex map: ~p\n", [gb_trees:to_list(ChangedByCut)]),
-    Areas = init_areas(Clusters, [], Type, We2),
+    Areas0 = init_areas(Charts, [], lsqcm, We),
 
     %% Place the cluster on the texturemap
-    Map = auv_placement:place_areas(Areas, We2),
-
-    %%    ?DBG("AUV Maps ~p\n", [Map]),
-    As0 = #areas{we = We2, orig_we = We1, as = Map,
-		 vmap = ChangedByCut,
-		 matname = list_to_atom(Name ++ "_auv")},
-    {St1, As1} = add_material(create_mat, none, St0, As0),
-    {[As1|A], St1}.
+    Map = auv_placement:place_areas(Areas0, We),
+    As0 = #areas{we=We,orig_we=We1,as=Map,
+		 vmap=ChangedByCut,
+		 matname=list_to_atom(Name ++ "_auv")},
+    {St1,Areas} = add_material(create_mat, none, St0, As0),
+    Geom = init_drawarea(),
+    Uvs = #uvstate{st=wings_select_faces([], Areas#areas.we, St1),
+		   origst=St0,
+		   areas=Areas, 
+		   geom=Geom},
+    {seq,{push,dummy},get_event(Uvs)}.
 
 init_areas([Chart={_,Fs}|R], A, Type, We) ->
     MappedVs = 
@@ -1083,8 +1134,8 @@ handle_event({action, {auv, quit}},Uvs0) ->
 handle_event({action, {auv, quit, cancel}},_Uvs0) ->
     wings_io:putback_event({action,{body, uvmap_cancel}}),
     pop;
-handle_event({action, {auv, quit, QuitOp}},Uvs0) ->
-    wings_io:putback_event({action,{body, {uvmap_done, QuitOp, Uvs0}}}),
+handle_event({action, {auv, quit, QuitOp}}, Uvs) ->
+    wings_io:putback_event({action,{body,{?MODULE,uvmap_done,QuitOp,Uvs}}}),
     pop;
 
 handle_event({action, {auv, set_options, {EMode,BEC,BEW,Color,TexBG,TexSz}}},
