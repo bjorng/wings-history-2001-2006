@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_fbx.erl,v 1.7 2005/03/14 18:21:09 bjorng Exp $
+%%     $Id: wpc_fbx.erl,v 1.8 2005/03/16 05:42:58 bjorng Exp $
 %%
 
 -module(wpc_fbx).
@@ -25,29 +25,20 @@
 -define(DEF_EXPORT_SCALE, 10.0).
 
 init() ->
-    case catch e3d_mesh:used_materials(#e3d_mesh{}) of
-        {'EXIT',_} ->
-            io:format("FBX plug-in: Not compatible with "
-                      "this release of Wings\n"),
-            false;
-        [] -> init_1()
-    end.
-
-init_1() ->
     Dir = filename:dirname(code:which(?MODULE)),
     case os:type() of
-	{win32,_} -> init_2(Dir, "wings_fbx_win32", ".dll");
-	{unix,darwin} -> init_2(Dir, "wings_fbx_mac", ".so");
-	{unix,linux} -> init_2(Dir, "wings_fbx_linux", ".so");
+	{win32,_} -> init_1(Dir, "wings_fbx_win32", ".dll");
+	{unix,darwin} -> init_1(Dir, "wings_fbx_mac", ".so");
+	{unix,linux} -> init_1(Dir, "wings_fbx_linux", ".so");
 	_ -> false
     end.
 
-init_2(Dir, Name, Ext) ->
+init_1(Dir, Name, Ext) ->
     case filelib:is_file(filename:join(Dir, Name++Ext)) of
 	false -> false;
 	true ->
 	    case erl_ddll:load_driver(Dir, Name) of
-		ok -> init_3(Name);
+		ok -> init_2(Name);
 		{error,Reason} ->
 		    io:format("Failed to load ~s in ~s\n~s\n",
 			      [Name,Dir,erl_ddll:format_error(Reason)]),
@@ -55,7 +46,7 @@ init_2(Dir, Name, Ext) ->
 	    end
     end.
 
-init_3(Name) ->
+init_2(Name) ->
     case open_port({spawn,Name},[]) of
 	Port when is_port(Port) ->
 	    register(wings_fbx_port, Port),
@@ -420,6 +411,7 @@ create_node(Name) ->
 %%%
 %%% Import
 %%%
+
 do_import(Ask, _St) when is_atom(Ask) ->
     wpa:dialog(Ask, "FBX Import Options", dialog(import),
 	       fun(Res) ->
