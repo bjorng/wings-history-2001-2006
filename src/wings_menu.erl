@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.95 2003/03/07 04:56:11 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.96 2003/03/12 08:30:54 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -88,11 +88,10 @@ menu(X, Y, Owner, Name, Menu) ->
 	       #mi{adv=false,owner=Owner,ignore_rel=false}).
 
 popup_menu(X, Y, Name, Menu) ->
-    Active = wings_wm:active_window(),
     Adv = wings_pref:get_value(advanced_menus),
     IgnoreRel = (Adv == false),
     menu_setup(popup, X, Y, Name, Menu,
-	       #mi{adv=Adv,ignore_rel=IgnoreRel,owner=Active}).
+	       #mi{adv=Adv,ignore_rel=IgnoreRel,owner=wings_wm:this()}).
 
 menu_setup(Type, X0, Y0, Name, Menu0, #mi{ns=Names0,adv=Adv}=Mi0) ->
     Names = [Name|Names0],
