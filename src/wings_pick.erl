@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.49 2002/05/29 10:12:18 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.50 2002/06/04 19:48:46 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -185,7 +185,7 @@ clear_hilite_marquee_mode(#marquee{st=St}=Pick) ->
 	     init_marquee_mode(),
 	     get_marquee_event(Pick);
 	(Ev) ->
-	     wings_io:putback_event(),
+	     wings_io:putback_event(Ev),
 	     keep
      end}.
 
