@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.43 2003/01/12 19:55:46 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.44 2003/01/17 21:10:47 bjorng Exp $
 %%
 
 -module(wings_shape).
@@ -410,7 +410,7 @@ draw_objects_1(N, [#we{id=Id,name=Name,perm=Perm}|Wes],
     if
 	?IS_VISIBLE(Perm) ->
 	    gl:rasterPos2f(4.5, Y),
-	    draw_char(Eye);
+	    wings_io:draw_char(Eye);
 	true -> ok
     end,
     if
@@ -418,7 +418,7 @@ draw_objects_1(N, [#we{id=Id,name=Name,perm=Perm}|Wes],
 	    ok;
 	true ->
     	    gl:rasterPos2f(LockPos, Y),
-	    draw_char(Lock)
+	    wings_io:draw_char(Lock)
     end,
     case keymember(Id, 1, Sel) of
 	false -> ok;
@@ -434,9 +434,6 @@ draw_objects_1(N, [#we{id=Id,name=Name,perm=Perm}|Wes],
     wings_io:text_at(name_pos(), Y, Name),
     gl:color3f(0, 0, 0),
     draw_objects_1(N-1, Wes, Ost, R, Active-1, Y+Lh).
-
-draw_char({A,B,C,D,E,F,Bitmap}) ->
-    gl:bitmap(A, B, C, D, E, F, Bitmap).
 
 eye_bitmap() ->
     {11,10,0.0,1.0,13.0,0.0,

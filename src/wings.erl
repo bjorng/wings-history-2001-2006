@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.198 2003/01/14 19:13:47 bjorng Exp $
+%%     $Id: wings.erl,v 1.199 2003/01/17 21:10:41 bjorng Exp $
 %%
 
 -module(wings).
@@ -370,8 +370,6 @@ command({edit,undo}, St) ->
     clean_state(wings_undo:undo(St));
 command({edit,redo}, St) ->
     clean_state(wings_undo:redo(St));
-command({edit,{material,_}}=Cmd, St) ->
-    wings_material:command(Cmd, St);
 command({edit,repeat}, #st{sel=[]}=St) -> St;
 command({edit,repeat}, #st{selmode=Mode,repeatable=Cmd0}=St) ->
     case repeatable(Mode, Cmd0) of
@@ -416,6 +414,8 @@ command({view,Command}, St) ->
     wings_view:command(Command, St);
 
 %% Window menu.
+command({window,outliner}, St) ->
+    wings_outliner:window(St);
 command({window,object}, St) ->
     wings_shape:window(St);
 
@@ -438,6 +438,10 @@ command({vertex,Cmd}, St) ->
 %% Light menu.
 command({light,Cmd}, St) ->
     wings_light:command(Cmd, St);
+
+%% Material commands.
+command({material,_}=Cmd, St) ->
+    wings_material:command(Cmd, St);
 
 %% Tools menu.
 
@@ -493,8 +497,6 @@ edit_menu(St) ->
      separator,
      {command_name("Repeat", St),repeat},
      {command_name("Repeat Drag", St),repeat_drag},
-     separator,
-     wings_material:sub_menu(edit, St),
      separator|wings_camera:sub_menu(St)++wings_text:sub_menu(St)++
      [separator|wings_pref:menu(St)++
       [separator,{"Purge Undo History",purge_undo}|patches()]]].
@@ -527,7 +529,8 @@ tools_menu(_) ->
 	 "Create real geometry from the virtual mirrors"}]}}].
 
 window_menu(_) ->
-    [{"Objects",object,[],win_crossmark(object)}].
+    [{"Outliner",outliner,[],win_crossmark(outliner)},
+     {"Objects",object,[],win_crossmark(object)}].
 
 win_crossmark(Name) ->
     case wings_wm:is_window(Name) of

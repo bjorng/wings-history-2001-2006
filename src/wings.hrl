@@ -3,12 +3,12 @@
 %%
 %%     Global record definition and defines.
 %%
-%%  Copyright (c) 2001-2002 Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.74 2003/01/11 20:02:12 bjorng Exp $
+%%     $Id: wings.hrl,v 1.75 2003/01/17 21:10:42 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -199,7 +199,8 @@
 -define(Z_MESSAGE, 1).
 -define(Z_BUTTONS, 1).
 -define(Z_GEOM, 100).
--define(Z_OBJECTS, 101).
+-define(Z_OUTLINER, 101).
+-define(Z_OBJECTS, 102).
 -define(Z_MENUBAR, 200).
 -define(Z_MENU, 300).
 -define(Z_DIALOG, 1000).

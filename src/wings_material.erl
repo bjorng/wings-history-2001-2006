@@ -3,16 +3,16 @@
 %%
 %%     This module manages the face materials (i.e. colors and textures).
 %%
-%%  Copyright (c) 2001-2002 Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.68 2003/01/13 15:48:27 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.69 2003/01/17 21:10:44 bjorng Exp $
 %%
 
 -module(wings_material).
--export([init/1,sub_menu/2,command/2,
+-export([init/1,new/1,sub_menu/2,command/2,
 	 color/4,default/0,add_materials/2,
 	 replace_map/4,
 	 used_materials/1,apply_material/2,
@@ -38,9 +38,17 @@ init(#st{mat=MatTab}) ->
 		    init_texture(Name, Mat)
 	    end, gb_trees:to_list(MatTab)).
 
+new(_) ->
+    wings_ask:ask("New Material",
+		  [{"Material Name","New Material"}],
+		  fun([Name]) ->
+			  Action = {action,{material,{new,Name}}},
+			  wings_wm:send_after_redraw(geom, Action),
+			  ignore
+		  end).
+
 sub_menu(face, St) ->
-    Mlist = material_list(St),
-    Materials = [{"New...",new},separator|Mlist],
+    Materials = material_list(St),
     {"Set Material",{material,Materials}};
 sub_menu(edit, St) ->
     MatList0 = material_list(St),
@@ -52,11 +60,7 @@ sub_menu(edit, St) ->
 sub_menu(select, St) ->
     {"Material",{material,material_list(St)}}.
 
-command({face,{material,new}}, _St) ->
-    wings_ask:ask("New Material",
-		  [{"Material Name",""}],
-		  fun([Name]) -> {face,{material,{new,Name}}} end);
-command({face,{material,{new,Name0}}}, #st{mat=Mtab}=St0) ->
+command({material,{new,Name0}}, #st{mat=Mtab}=St0) ->
     Name = list_to_atom(Name0),
     case gb_trees:is_defined(Name, Mtab) of
 	true ->
@@ -68,15 +72,15 @@ command({face,{material,{new,Name0}}}, #st{mat=Mtab}=St0) ->
 	    St = set_material(Name, St1),
 	    edit(Name, St)
     end;
+command({material,{edit,Mat}}, St) ->
+    edit(Mat, St);
 command({face,{material,Mat}}, St) ->
     set_material(Mat, St);
 command({select,{material,Mat}}, St) ->
     wings_sel:make(fun(Face, #we{fs=Ftab}) ->
 			   #face{mat=M} = gb_trees:get(Face, Ftab),
 			   M =:= Mat
-		   end, face, St);
-command({edit,{material,Mat}}, St) ->
-    edit(Mat, St).
+		   end, face, St).
 
 material_list(#st{mat=Mat0}) ->
     map(fun({Id,Mp}) ->

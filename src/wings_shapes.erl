@@ -5,12 +5,12 @@
 %%     shapes that can be created, such as Cube, Sphere,
 %%     and Grid.
 %%
-%%  Copyright (c) 2001-2002 Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shapes.erl,v 1.28 2002/12/28 22:10:28 bjorng Exp $
+%%     $Id: wings_shapes.erl,v 1.29 2003/01/17 21:10:47 bjorng Exp $
 %%
 
 -module(wings_shapes).
@@ -37,6 +37,7 @@ menu(X, Y, _) ->
 	     {"Grid",grid,[],[option]},
 	     separator,
 	     {"Light",{light,wings_light:light_types()}},
+	     {"Material...",material},
 	     {"More",{more,[]},"More primitives"}],
     Menu = [prim_help(Item) || Item <- Menu0],
     wings_menu:popup_menu(X, Y, shape, Menu).
@@ -63,7 +64,8 @@ command({cone,Ask}, St) -> cone(Ask, St);
 command({sphere,Ask}, St) -> sphere(Ask, St);
 command({torus,Ask}, St) -> torus(Ask, St);
 command({grid,Ask}, St) -> grid(Ask, St);
-command({light,Type}, St) -> wings_light:create(Type, St).
+command({light,Type}, St) -> wings_light:create(Type, St);
+command(material, St) -> wings_material:new(St).
 
 build_shape(Prefix, Fs, Vs, #st{onext=Oid}=St) ->
     We = wings_we:build(Fs, Vs),
