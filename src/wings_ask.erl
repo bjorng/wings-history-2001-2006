@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.29 2002/08/18 08:43:06 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.30 2002/08/30 16:03:13 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -1026,7 +1026,7 @@ float_validator(Flags) ->
     case property_lists:get_value(range, Flags) of
 	undefined -> {12,fun accept_all/1};
 	{Min,Max} when is_float(Min), is_float(Max), Min =< Max ->
-	    Digits = trunc(math:log(Max-Min+1)/math:log(10))+8,
+	    Digits = min(trunc(math:log(Max-Min+1)/math:log(10))+8, 20),
 	    {Digits,float_range(Min, Max)}
     end.
 
