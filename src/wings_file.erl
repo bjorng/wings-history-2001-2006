@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.118 2003/05/18 14:08:45 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.119 2003/05/29 08:29:51 bjorng Exp $
 %%
 
 -module(wings_file).
--export([init/0,finish/0,menu/1,command/2,
+-export([init/0,init_autosave/0,menu/1,command/2,
 	 export/3,export_filename/2,
 	 import/3,import_filename/1]).
 
@@ -25,8 +25,6 @@
 -import(filename, [dirname/1]).
 
 -define(WINGS,    ".wings").
--define(AUTOSAVE, "_as").
--define(BACKUP,   "_bup").
 
 init() ->
     case wings_pref:get_value(current_directory) of
@@ -42,11 +40,7 @@ init() ->
 		    init();
 		true -> ok
 	    end
-    end,
-    set_autosave_timer().
-
-finish() ->
-    ok.
+    end.
 
 menu(_) ->
     ImpFormats = [{"Nendo (.ndo)...",ndo}],
@@ -100,8 +94,6 @@ command(save_incr, St0) ->
 	aborted -> St0;
 	#st{}=St -> {saved,St}
     end;
-command(autosave, St) ->
-    autosave(St);
 command(revert, St0) ->
     case revert(St0) of
 	{error,Reason} ->
@@ -352,21 +344,37 @@ use_autosave(File) ->
 set_cwd(Cwd) ->
     wings_pref:set_value(current_directory, Cwd).
 
-set_autosave_timer() ->
-    case wings_pref:get_value(autosave_time) of
-	0 -> ok;
-	N when is_number(N) ->
-	    Event = {timeout, make_ref(), {event,{action,{file,autosave}}}},
-	    timer:send_interval(trunc(N*60000), self(), Event)
-%	    wings_io:set_timer(trunc(N*60000), {action,{file,autosave}})
-    end.
+init_autosave() ->
+    case wings_wm:is_window(autosaver) of
+	true -> ok;
+	false ->
+	    Op = {seq,push,get_autosave_event(make_ref(), #st{saved=auto})},
+	    wings_wm:new(autosaver, {0,0,1}, {1,1}, Op),
+	    wings_wm:hide(autosaver)
+    end,
+    wings_wm:send(autosaver, start_timer).
+
+get_autosave_event(Ref, St) ->
+    {replace,fun(Ev) -> autosave_event(Ev, Ref, St) end}.
     
-autosave(#st{file=undefined} = St) -> 
-    St;
-autosave(#st{saved=true} = St) ->
-    St;
-autosave(#st{saved=auto} = St) ->
-    St;
+autosave_event(start_timer, OldTimer, St) ->
+    wings_wm:cancel_timer(OldTimer),
+    case wings_pref:get_value(autosave_time) of
+	0 -> delete;
+	N ->
+	    Timer = wings_wm:set_timer(N*60000, autosave),
+	    get_autosave_event(Timer, St)
+    end;
+autosave_event(autosave, _, St) ->
+    autosave(St),
+    wings_wm:later(start_timer);
+autosave_event({current_state,St}, Timer, _) ->
+    get_autosave_event(Timer, St);
+autosave_event(_, _, _) -> keep.
+
+autosave(#st{file=undefined} = St) -> St;
+autosave(#st{saved=true} = St) -> St;
+autosave(#st{saved=auto} = St) -> St;
 autosave(#st{file=Name}=St) ->
     Auto = autosave_filename(Name),
     %% Maybe this should be spawned to another process
@@ -376,15 +384,16 @@ autosave(#st{file=Name}=St) ->
 	ok ->
 	    wings:caption(St#st{saved=auto});
 	{error,Reason} ->
-	    wings_util:error("AutoSave failed: " ++ Reason),
-            St
+	    wings_util:error("Autosaving \"~s\" failed: ", [Auto,Reason])
     end.
 
 autosave_filename(File) ->
-    File ++ ?AUTOSAVE.
+    Base = filename:basename(File),
+    Dir = filename:dirname(File),
+    filename:join(Dir, "#" ++ Base ++ "#").
 
 backup_filename(File) ->
-    File ++ ?BACKUP.
+    File ++ "~".
 
 add_recent(Name) ->
     Base = filename:basename(Name),

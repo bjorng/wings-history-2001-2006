@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.79 2003/05/04 07:51:24 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.80 2003/05/29 08:29:51 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -208,6 +208,8 @@ smart_set_value(Key, Val) ->
 		    gl:clearColor(R, G, B, 1.0);
 		display_list_opt ->
 		    wings_draw_util:init();
+		autosave_time ->
+		    wings_file:init_autosave();
 		_Other -> ok
 	    end
     end.
@@ -343,7 +345,7 @@ defaults() ->
      {body_hilite,true},
      {auto_rotate_angle,1.0},
      {auto_rotate_delay,60},
-     {autosave_time,2},
+     {autosave_time,10},
      {active_vector_size,1.0},
      {active_vector_width,2.0},
      {active_vector_color,{0.0,0.0,0.65}},

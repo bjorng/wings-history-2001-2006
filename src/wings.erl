@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.245 2003/05/27 08:34:21 bjorng Exp $
+%%     $Id: wings.erl,v 1.246 2003/05/29 08:29:51 bjorng Exp $
 %%
 
 -module(wings).
@@ -141,9 +141,10 @@ init(File, Root) ->
     St = wings_undo:init(St1),
     wings_view:init(),
     wings_file:init(),
-    put(wings_hitbuf, sdl_util:alloc(?HIT_BUF_SIZE, ?GL_INT)),
     caption(St),
+    put(wings_hitbuf, sdl_util:alloc(?HIT_BUF_SIZE, ?GL_INT)),
     wings_wm:init(),
+    wings_file:init_autosave(),
     init_menubar(),
 
     Op = main_loop_noredraw(St),		%Replace crash handler
@@ -163,7 +164,6 @@ init(File, Root) ->
     wings_wm:current_state(St),
     case catch wings_wm:enter_event_loop() of
 	{'EXIT',normal} ->
-	    wings_file:finish(),
 	    wings_pref:finish(),
 	    erase(wings_hitbuf),
 	    sdl:quit();
