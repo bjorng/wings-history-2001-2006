@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.68 2003/06/25 16:50:56 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.69 2003/07/12 21:03:24 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -114,11 +114,12 @@ command_message({Prefix,Ns}) ->
 command_message(Msg) ->
     wings_wm:message_right(Msg).
 
-mode_restriction(Modes, #st{selmode=Mode}=St) ->
+mode_restriction(Modes, #st{selmode=Mode}=St0) ->
+    St = wings:clear_temp_sel(St0),
     wings:mode_restriction(Modes),
     case member(Mode, Modes) of
-	true -> St#st{temp_sel=false};
-	false -> St#st{sel=[],temp_sel=false,selmode=last(Modes)}
+	true -> St;
+	false -> St#st{selmode=last(Modes)}
     end.
 
 pick_init(#st{selmode=Mode}) ->
@@ -169,7 +170,7 @@ handle_event_2(#mousebutton{x=X,y=Y}=Ev0, Ss, #st{sel=Sel}=St0) ->
 			{add,_,St} ->
 			    Ev = wings_wm:local2global(Ev0),
 			    wings_io:putback_event(Ev),
-			    wings_wm:later({new_state,St#st{temp_sel=true}});
+			    wings_wm:later({new_state,wings:set_temp_sel(St0, St)});
 			_ ->
 			    exit_menu(Xglobal, Yglobal, Mod, Ss, St0)
 		    end
@@ -224,8 +225,8 @@ handle_event_4(quit, _Ss, _St) ->
     pop;
 handle_event_4(init_opengl, _, St) ->
     wings:init_opengl(St);
-handle_event_4({note,menu_aborted}, Ss, #st{temp_sel=true}=St) ->
-    get_event(Ss, St#st{sel=[],temp_sel=false,vec=none});
+handle_event_4({note,menu_aborted}, Ss, #st{temp_sel={_,_}}=St) ->
+    get_event(Ss, wings:clear_temp_sel(St#st{sel=[],vec=none}));
 handle_event_4(_Event, Ss, St) ->
     get_event(Ss, St).
 
