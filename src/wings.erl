@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.50 2001/11/20 13:52:35 bjorng Exp $
+%%     $Id: wings.erl,v 1.51 2001/11/21 06:58:04 bjorng Exp $
 %%
 
 -module(wings).
@@ -37,7 +37,9 @@ start_halt() ->
 
 init() ->
     register(wings, self()),
-    case catch init_1() of
+    case
+%%	catch
+	init_1() of
 	{'EXIT',Reason} -> io:format("Crasched: ~P\n", [Reason,30]);
 	ok -> ok
     end.
@@ -111,11 +113,6 @@ locate(Name) ->
 resize(W, H, St) ->
     sdl_video:setVideoMode(W, H, 16, ?SDL_OPENGL bor ?SDL_RESIZABLE),
     gl:enable(?GL_LIGHT0),
-    gl:enable(?GL_LIGHT1),
-    gl:lightfv(?GL_LIGHT0, ?GL_DIFFUSE, {1,1,1}),
-    gl:lightfv(?GL_LIGHT0, ?GL_AMBIENT, {0.2,0.2,0.2}),
-    gl:lightfv(?GL_LIGHT1, ?GL_DIFFUSE, {0.5,0.5,0.5}),
-    gl:lightfv(?GL_LIGHT1, ?GL_AMBIENT, {0.2,0.2,0.2}),
     gl:enable(?GL_DEPTH_TEST),
     {R,G,B} = wings_pref:get_value(background_color),
     gl:clearColor(R, G, B, 1.0),
@@ -546,7 +543,7 @@ menu(X, Y, edit, St) ->
 	    separator,
 	    {command_name(St),"d",repeat},
 	    separator,
-	    {"View Material [ALPHA]",{material,materials(St)}},
+	    {"Material [ALPHA]",{material,materials(St)}},
 	    separator,
 	    wings_camera:sub_menu(St),
 	    {"Preferences",{preferences,wings_pref:sub_menu(St)}}},
@@ -560,8 +557,8 @@ menu(X, Y, select, St) ->
 	    {"Less","-",less},
 	    {"Region","L",select_region},
 	    {"Edge Loop","l",edge_loop},
-	    {"Previous Edge Loop [ALPHA]","F3",prev_edge_loop},
-	    {"Next Edge Loop [ALPHA]","F4",next_edge_loop},
+	    {"Previous Edge Loop [BETA]","F3",prev_edge_loop},
+	    {"Next Edge Loop [BETA]","F4",next_edge_loop},
 	    {"Similar","i",similar},
 	    separator,
 	    {"Adjacent vertices","v",vertex},
@@ -597,8 +594,8 @@ menu(X, Y, select, St) ->
 	    separator,
 	    {"Inverse","Ctrl-Shift-I",inverse},
 	    separator,
-	    {"Save selection",save},
-	    {"Load selection",load},
+	    {"Store selection",save},
+	    {"Recall selection",load},
 	    {"Exchange selection",exchange},
 	    separator,
 	    {"Union with saved",union},
