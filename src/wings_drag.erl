@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.122 2003/01/06 20:32:54 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.123 2003/01/11 10:41:40 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -50,14 +50,15 @@
 setup(Tvs, Unit, St) ->
     setup(Tvs, Unit, [], St).
 
-setup(Tvs, Unit, Flags, St) ->
+setup(Tvs, Units, Flags, St) ->
     wings_io:grab(),
     wings_wm:grab_focus(geom),
     Magnet = proplists:get_value(magnet, Flags, none),
     Offset0 = proplists:get_value(initial, Flags, []),
-    Offset = pad_initials(Offset0),
-    Drag = #drag{unit=Unit,flags=Flags,offset=Offset,
-		 falloff=falloff(Unit),magnet=Magnet,st=St},
+    Offset1 = pad_offsets(Offset0),
+    Offset = setup_offsets(Offset1, Units),
+    Drag = #drag{unit=Units,flags=Flags,offset=Offset,
+		 falloff=falloff(Units),magnet=Magnet,st=St},
     wings_draw:update_dlists(St),
     case Tvs of
 	{matrix,TvMatrix} -> insert_matrix(TvMatrix);
@@ -69,6 +70,23 @@ setup(Tvs, Unit, Flags, St) ->
 falloff([falloff|_]) -> 1.0;
 falloff([_|T]) -> falloff(T);
 falloff([]) -> none.
+
+pad_offsets(Ds) ->
+    case length(Ds) of
+	L when L >= 3 -> Ds;
+	L -> Ds ++ lists:duplicate(3-L, 0.0)
+    end.
+
+setup_offsets([O|Os], [U|Us]) ->
+    case clean_unit(U) of
+	angle ->
+	    [O/15.0E5/1.0E-5|setup_offsets(Os, Us)];
+	_Unit ->
+	    [O|setup_offsets(Os, Us)]
+    end;
+setup_offsets([O|Os], []) ->
+    [O|setup_offsets(Os, [])];
+setup_offsets([], []) -> [].
 
 %%
 %% Here we break apart the objects into two parts - static part
@@ -259,12 +277,6 @@ zmove_help() ->
 	blender -> "[Ctrl]+[R]"
     end.
 
-pad_initials(Ds) ->
-    case length(Ds) of
-	L when L >= 3 -> Ds;
-	L -> Ds ++ lists:duplicate(3-L, 0.0)
-    end.
-
 get_drag_event(Drag) ->
     wings_wm:dirty(),
     get_drag_event_1(Drag).
@@ -389,7 +401,6 @@ qstr(dy) -> "Dy";
 qstr(dz) -> "Dz";
 qstr(falloff) -> "R";
 qstr(angle) -> "A";
-qstr(number) -> "N";
 qstr(Atom) -> atom_to_list(Atom).
 
 qrange({_,{_,_}=Range}) -> [{range,Range}];
@@ -537,14 +548,6 @@ constraint_factor(angle, Mod) ->
 	Mod band ?CTRL_BITS =/= 0 -> {15,1.0};
 	Mod band ?SHIFT_BITS =/= 0 -> {1,15.0};
 	true -> {15.0E5,1.0E-5}
-    end;
-constraint_factor(number, Mod) ->
-    if
-	Mod band ?SHIFT_BITS =/= 0,
-	Mod band ?CTRL_BITS =/= 0 -> {200,2/10};
-	Mod band ?CTRL_BITS =/= 0 -> {20,2.0};
-	Mod band ?SHIFT_BITS =/= 0 -> {2,20.0};
-	true -> {2.0E6,2.0E-6}
     end;
 constraint_factor(_, Mod) ->
     if
