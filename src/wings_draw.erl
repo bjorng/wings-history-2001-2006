@@ -8,11 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.77 2002/05/12 05:00:53 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.78 2002/05/12 17:36:01 bjorng Exp $
 %%
 
 -module(wings_draw).
 -export([update_dlists/1,update_sel_dlist/0,
+	 split/2,update_dynamic/3,
 	 draw_faces/2,
 	 smooth_faces/2,
 	 render/1]).
@@ -21,7 +22,7 @@
 -define(NEED_ESDL, 1).
 -include("wings.hrl").
 
--import(lists, [foreach/2,last/1,reverse/1]).
+-import(lists, [foreach/2,last/1,reverse/1,foldl/3,merge/1,sort/1]).
 
 %%
 %% Renders all shapes, including selections.
@@ -248,6 +249,98 @@ update_mirror(#dlo{mirror=Face,src_we=We}=D, _) when is_integer(Face) ->
     Mat = e3d_mat:mul(Mat2, e3d_mat:translate(e3d_vec:neg(Center))),
     D#dlo{mirror=e3d_mat:expand(Mat)};
 update_mirror(D, _) -> D.
+
+%%%
+%%% Splitting of objects into two display lists.
+%%%
+
+split(#dlo{wire=W,mirror=M,src_sel=Sel,src_we=We0}, Vs0) ->
+    Vs = sofs:set(Vs0, [vertex]),
+    Etab0 = foldl(fun(#edge{vs=Va,ve=Vb,lf=Lf,rf=Rf}, A) ->
+			  [{Va,Lf},{Va,Rf},{Vb,Lf},{Vb,Rf}|A]
+		  end, [], gb_trees:values(We0#we.es)),
+    Etab = sofs:relation(Etab0, [{vertex,face}]),
+    Faces = sofs:image(Etab, Vs),
+    AllVs = sofs:inverse_image(Etab, Faces),
+    
+    List = gl:genLists(1),
+    gl:newList(List, ?GL_COMPILE),
+    Ftab = gb_trees:to_list(We0#we.fs),
+    draw_static(Ftab, sofs:to_external(Faces), We0),
+    gl:endList(),
+
+    FtabDyn0 = sofs:from_external(Ftab, [{face,data}]),
+    FtabDyn1 = sofs:restriction(FtabDyn0, Faces),
+    FtabDyn2 = sofs:to_external(FtabDyn1),
+    FtabDyn = dyn_faces(FtabDyn2, We0),
+    WeDyn = We0#we{fs=gb_trees:from_orddict(FtabDyn2),vs=We0#we.vs},
+
+    StaticVs0 = sofs:to_external(sofs:difference(AllVs, Vs)),
+    StaticVs = sort(insert_vtx_data(StaticVs0, We0#we.vs, [])),
+    SplitData = {StaticVs,FtabDyn},
+    {#dlo{work=[List],wire=W,mirror=M,
+	  src_sel=Sel,src_we=WeDyn},SplitData}.
+
+update_dynamic(#dlo{work=[Work|_],src_we=We}=D, {StaticVs,Flist}, Vtab0) ->
+    Vtab = gb_trees:from_orddict(merge([sort(Vtab0),StaticVs])),
+    List = gl:genLists(1),
+    gl:newList(List, ?GL_COMPILE),
+    draw_flat_faces(Flist, Vtab),
+    gl:endList(),
+    D#dlo{work=[Work,List],src_we=We#we{vs=Vtab}}.
+
+dyn_faces(Flist, We) ->
+    foldl(fun({Face,#face{edge=Edge}}, A) ->
+		  Vs = wings_face:surrounding_vertices(Face, Edge, We),
+		  [Vs|A]
+	  end, [], Flist).
+
+draw_static(Ftab, Faces, We) ->
+    gl:materialfv(?GL_FRONT, ?GL_AMBIENT_AND_DIFFUSE, {1.0,1.0,1.0}),
+    wings_draw_util:begin_end(
+		 fun() ->
+			 draw_static_1(Ftab, Faces, We)
+		 end).
+
+draw_static_1([{Face,_}|T], [Face|Fs], We) ->
+    draw_static_1(T, Fs, We);
+draw_static_1([{Face,#face{edge=Edge}}|T], Fs, We) ->
+    wings_draw_util:face(Face, Edge, We),
+    draw_static_1(T, Fs, We);
+draw_static_1([], [], _) -> ok.
+
+insert_vtx_data([V|Vs], Vtab, Acc) ->
+    insert_vtx_data(Vs, Vtab, [{V,gb_trees:get(V, Vtab)}|Acc]);
+insert_vtx_data([], _, Acc) -> Acc.
+
+draw_flat_faces(Flist, Vtab) ->
+    wings_draw_util:begin_end(
+      fun() ->
+	      Tess = wings_draw_util:tess(),
+	      draw_flat_faces_1(Tess, Flist, Vtab)
+      end).
+
+draw_flat_faces_1(Tess, [Vs|T], Vtab) ->
+    VsPos = [pos(V, Vtab) || V <- Vs],
+    {X,Y,Z} = N = e3d_vec:normal(VsPos),
+    gl:normal3fv(N),
+    glu:tessNormal(Tess, X, Y, Z),
+    glu:tessBeginPolygon(Tess),
+    glu:tessBeginContour(Tess),
+    tess_flat_face(Tess, VsPos),
+    draw_flat_faces_1(Tess, T, Vtab);
+draw_flat_faces_1(_, [], _) -> ok.
+
+tess_flat_face(Tess, [P|T]) ->
+    glu:tessVertex(Tess, P),
+    tess_flat_face(Tess, T);
+tess_flat_face(Tess, []) ->
+    glu:tessEndContour(Tess),
+    glu:tessEndPolygon(Tess).
+
+%%%
+%%% Drawing routines.
+%%%
     
 draw_faces(#we{mode=uv}=We, #st{mat=Mtab}=St) ->
     case wings_pref:get_value(show_textures) of

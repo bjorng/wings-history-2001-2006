@@ -8,12 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.36 2002/05/05 07:47:34 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.37 2002/05/12 17:36:01 bjorng Exp $
 %%
 
 -module(wings_util).
 -export([error/1,share/1,share/3,make_vector/1,
 	 message/2,yes_no/1,serious_yes_no/1,
+	 get_matrices/2,mirror_matrix/1,
 	 cap/1,upper/1,stringify/1,add_vpos/2,update_vpos/2,
 	 delete_any/2,nice_float/1,
 	 tc/1,export_we/2,crash_log/1,validate/1]).
@@ -59,6 +60,26 @@ message(Message, St) ->
 	    keep;
 	Other -> Other
     end.
+
+get_matrices(Id, MM) ->
+    wings_view:projection(),
+    wings_view:model_transformations(),
+    case MM of
+	mirror ->
+	    Matrix = mirror_matrix(Id),
+	    gl:multMatrixf(Matrix);
+	original -> ok
+    end,
+    ViewPort = gl:getIntegerv(?GL_VIEWPORT),
+    ModelMatrix = gl:getDoublev(?GL_MODELVIEW_MATRIX),
+    ProjMatrix = gl:getDoublev(?GL_PROJECTION_MATRIX),
+    {ModelMatrix,ProjMatrix,ViewPort}.
+
+mirror_matrix(Id) ->
+    wings_draw_util:fold(fun mirror_matrix/2, Id).
+
+mirror_matrix(#dlo{mirror=Matrix,src_we=#we{id=Id}}, Id) -> Matrix;
+mirror_matrix(_, Acc) -> Acc.
 
 yes_no(Question) ->
     wings_plugin:call_ui({question,Question}).

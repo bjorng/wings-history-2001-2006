@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.21 2002/05/12 05:00:53 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.22 2002/05/12 17:36:01 bjorng Exp $
 %%
 
 -module(wings_draw_util).
 -export([init/0,tess/0,begin_end/1,update/2,map/2,fold/2,render/1,
-	 face/2,face/3,flat_face/2,flat_face/3]).
+	 call/1,face/2,face/3,flat_face/2,flat_face/3]).
 
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
@@ -74,13 +74,14 @@ tess() ->
 begin_end(Body) ->
     case wings_pref:get_value(display_list_opt) of
 	false ->
-	    Body();
+	    Res = Body();
 	true ->
 	    gl:'begin'(?GL_TRIANGLES),
-	    Body(),
+	    Res = Body(),
 	    gl:'end'()
     end,
-    gl:edgeFlag(?GL_TRUE).
+    gl:edgeFlag(?GL_TRUE),
+    Res.
 
 %%
 %% Update allows addition of new objects at the end.

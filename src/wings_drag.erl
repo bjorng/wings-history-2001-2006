@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.78 2002/05/12 05:00:53 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.79 2002/05/12 17:36:01 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -77,45 +77,11 @@ init_1(Tvs0, Drag0, St) ->
 %%
 break_apart(Tvs) ->
     wings_draw_util:map(fun break_apart/2, Tvs).
-
-break_apart(#dlo{wire=W,mirror=M,src_sel=Sel,src_we=#we{id=Id}=We0},
-	    [{Id,TvList}|Tvs]) ->
-    {Vs0,FunList} = combine_tvs(TvList, We0),
-    Vs = sofs:set(Vs0, [vertex]),
-    #we{es=Etab0,fs=Ftab0,vs=Vtab0} = We0,
-    Etab1 = foldl(fun(#edge{vs=Va,ve=Vb,lf=Lf,rf=Rf}, A) ->
-			 [{Va,Lf},{Va,Rf},{Vb,Lf},{Vb,Rf}|A]
-		 end, [], gb_trees:values(Etab0)),
-    Etab2 = sofs:relation(Etab1, [{vertex,face}]),
-    Faces = sofs:image(Etab2, Vs),
-    Ftab1 = sofs:relation(gb_trees:to_list(Ftab0), [{face,data}]),
-
-    List = gl:genLists(1),
-    gl:newList(List, ?GL_COMPILE),
-    FtabStatic0 = sofs:drestriction(Ftab1, Faces),
-    FtabStatic = sofs:to_external(FtabStatic0),
-    WeStatic = We0#we{fs=gb_trees:from_orddict(FtabStatic)},
-    draw_faces(WeStatic),
-    gl:endList(),
-
-    FtabDyn0 = sofs:restriction(Ftab1, Faces),
-    FtabDyn1 = sofs:to_external(FtabDyn0),
-    FtabDyn = dyn_faces(FtabDyn1, We0),
-    AllVs = sofs:image(sofs:converse(Etab2), Faces),
-    WeDyn = We0#we{fs=gb_trees:from_orddict(FtabDyn1),first_id=FtabDyn,
-		   vs=undefined},
-    StaticVs0 = sofs:to_external(sofs:difference(AllVs, Vs)),
-    StaticVs = reverse(insert_vtx_data_1(StaticVs0, Vtab0, [])),
-    Dyn = {FunList,StaticVs},
-    {#dlo{work=[List],wire=W,mirror=M,
-	  src_sel=Sel,src_we=WeDyn,drag=Dyn},Tvs};
+break_apart(#dlo{src_we=#we{id=Id}=We}=D0, [{Id,TvList}|Tvs]) ->
+    {Vs,FunList} = combine_tvs(TvList, We),
+    {D,SplitData} = wings_draw:split(D0, Vs),
+    {D#dlo{drag={FunList,SplitData}},Tvs};
 break_apart(D, Tvs) -> {D,Tvs}.
-
-dyn_faces(Flist, We) ->
-    foldl(fun({Face,#face{edge=Edge}}, A) ->
-		  Vs = wings_face:surrounding_vertices(Face, Edge, We),
-		  [Vs|A]
-	  end, [], Flist).
 
 combine_tvs(TvList, #we{vs=Vtab}) ->
     {FunList,VecVs0} = split_tv(TvList, [], []),
@@ -329,9 +295,9 @@ view_changed(#drag{flags=Flags}=Drag0) ->
 
 view_changed_fun(#dlo{work={matrix,Mtx,_},drag={matrix,Tr,_}}=D, _) ->
     {D#dlo{drag={matrix,Tr,e3d_mat:compress(Mtx)}},[]};
-view_changed_fun(#dlo{drag={Tv0,StaticVs},src_we=We}=D, _) ->
+view_changed_fun(#dlo{drag={Tv0,SplitData},src_we=We}=D, _) ->
     Tv = update_tvs(Tv0, We, []),
-    {D#dlo{drag={Tv,StaticVs}},[]};
+    {D#dlo{drag={Tv,SplitData}},[]};
 view_changed_fun(D, _) -> {D,[]}.
 
 update_tvs([F0|Fs], NewWe, Acc) ->
@@ -419,16 +385,9 @@ motion_update_fun(#dlo{work={matrix,_,Work},sel={matrix,_,Sel},
 		       drag={matrix,Trans,Matrix0}}=D, Move) ->
     Matrix = e3d_mat:expand(Trans(Matrix0, Move)),
     D#dlo{work={matrix,Matrix,Work},sel={matrix,Matrix,Sel}};
-motion_update_fun(#dlo{work=[Work|_],src_we=We0,
-		       drag={Tv,StaticVs}}=D, Move) ->
-    Vtab0 = foldl(fun(F, A) -> F(Move, A) end, StaticVs, Tv),
-    Vtab = gb_trees:from_orddict(sort(Vtab0)),
-    We = We0#we{vs=Vtab},
-    List = gl:genLists(1),
-    gl:newList(List, ?GL_COMPILE),
-    draw_flat_faces(We),
-    gl:endList(),
-    D#dlo{work=[Work,List],src_we=We};
+motion_update_fun(#dlo{drag={Tv,SplitData}}=D, Move) ->
+    Vtab = foldl(fun(F, A) -> F(Move, A) end, [], Tv),
+    wings_draw:update_dynamic(D, SplitData, Vtab);
 motion_update_fun(D, _) -> D.
 
 parameter_update(Key, Val, Drag0) ->
@@ -439,9 +398,9 @@ parameter_update(Key, Val, Drag0) ->
     {Drag,_} = motion(X, Y, Drag0),
     Drag.
 
-parameter_update_fun(#dlo{drag={Tv0,StaticVs}}=D, Key, Val) ->
+parameter_update_fun(#dlo{drag={Tv0,SplitData}}=D, Key, Val) ->
     Tv = foldl(fun(F, A) -> [F(Key, Val)|A] end, [], Tv0),
-    D#dlo{drag={Tv,StaticVs}};
+    D#dlo{drag={Tv,SplitData}};
 parameter_update_fun(D, _, _) -> D.
 
 translate({Xt0,Yt0,Zt0}, Dx, VsPos, Acc) ->
@@ -534,41 +493,3 @@ redraw(#drag{st=St}) ->
 clear_sel_dlists(#dlo{drag=none}=D, _) -> D;
 clear_sel_dlists(#dlo{drag={matrix,_,_}}=D, _) -> D;
 clear_sel_dlists(D, _) -> D#dlo{sel=none}.
-
-draw_faces(#we{fs=Ftab}=We) ->
-    gl:materialfv(?GL_FRONT, ?GL_AMBIENT_AND_DIFFUSE, {1.0,1.0,1.0}),
-    wings_draw_util:begin_end(
-      fun() ->
-	      foreach(fun({Face,#face{edge=Edge}}) ->
-			      wings_draw_util:face(Face, Edge, We)
-		      end, gb_trees:to_list(Ftab))
-      end).
-
-draw_flat_faces(#we{first_id=Flist,vs=Vtab}) ->
-    wings_draw_util:begin_end(
-      fun() ->
-	      Tess = wings_draw_util:tess(),
-	      draw_flat_faces_1(Tess, Flist, Vtab)
-      end).
-
-draw_flat_faces_1(Tess, [Vs|T], Vtab) ->
-    VsPos = [pos(V, Vtab) || V <- Vs],
-    {X,Y,Z} = N = e3d_vec:normal(VsPos),
-    gl:normal3fv(N),
-    glu:tessNormal(Tess, X, Y, Z),
-    glu:tessBeginPolygon(Tess),
-    glu:tessBeginContour(Tess),
-    tess_flat_face(Tess, VsPos),
-    draw_flat_faces_1(Tess, T, Vtab);
-draw_flat_faces_1(_, [], _) -> ok.
-
-tess_flat_face(Tess, [P|T]) ->
-    glu:tessVertex(Tess, P),
-    tess_flat_face(Tess, T);
-tess_flat_face(Tess, []) ->
-    glu:tessEndContour(Tess),
-    glu:tessEndPolygon(Tess).
-
-pos(Key, Tab) ->
-    #vtx{pos=Pos} = gb_trees:get(Key, Tab),
-    Pos.

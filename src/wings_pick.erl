@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.46 2002/05/12 05:00:53 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.47 2002/05/12 17:36:01 bjorng Exp $
 %%
 
 -module(wings_pick).
--export([event/2]).
+-export([event/2,hilite_event/3]).
 -export([do_pick/3]).
 
 -define(NEED_OPENGL, 1).
@@ -38,17 +38,29 @@
 %% For highlighting.
 -record(hl,
 	{st,					%Saved state.
+	 redraw,				%Redraw function.
 	 prev=none				%Previous hit ({Id,Item}).
 	}).
 
 event(#mousemotion{}=Mm, #st{selmode=Mode}=St) ->
     case hilite_enabled(Mode) of
 	false -> next;
-	true -> {seq,{push,dummy},handle_hilite_event(Mm, #hl{st=St})}
+	true ->
+	    {seq,{push,dummy},
+	     handle_hilite_event(Mm, #hl{st=St,redraw=St})}
     end;
 event(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED}, St) ->
     pick(X, Y, St);
 event(_, _) -> next.
+
+hilite_event(#mousemotion{}=Mm, #st{selmode=Mode}=St, Redraw) ->
+    case hilite_enabled(Mode) of
+	false -> next;
+	true ->
+	    {seq,{push,dummy},
+	     handle_hilite_event(Mm, #hl{st=St,redraw=Redraw})}
+    end;
+hilite_event(_, _, _) -> next.
 
 hilite_enabled(vertex) -> wings_pref:get_value(vertex_hilite);
 hilite_enabled(edge) -> wings_pref:get_value(edge_hilite);
@@ -66,7 +78,7 @@ pick(X, Y, St0) ->
 		none ->
 		    Pick = #marquee{ox=X,oy=Y,st=St0},
 		    marquee_mode(Pick);
-		{PickOp,St} ->
+		{PickOp,_,St} ->
 		    wings_wm:dirty(),
 		    Pick = #pick{st=St,op=PickOp},
 		    {seq,{push,dummy},get_pick_event(Pick)}
@@ -80,11 +92,14 @@ pick(X, Y, St0) ->
 get_hilite_event(HL) ->
     fun(Ev) -> handle_hilite_event(Ev, HL) end.
 
-handle_hilite_event(redraw, #hl{st=St}) ->
+handle_hilite_event(redraw, #hl{redraw=#st{}=St}) ->
     wings:redraw(St),
     keep;
+handle_hilite_event(redraw, #hl{redraw=Redraw}) ->
+    Redraw(),
+    keep;
 handle_hilite_event(#mousemotion{x=X,y=Y}, #hl{prev=PrevHit,st=St}=HL) ->
-    case do_pick_1(X, Y, St) of
+    case raw_pick(X, Y, St) of
 	PrevHit ->
 	    get_hilite_event(HL);
 	none ->
@@ -102,16 +117,15 @@ handle_hilite_event(_, _) ->
     next.
 
 insert_hilite_fun(Hit, DrawFun) ->
-    wings_draw_util:update(fun(D, _) ->
-				   insert_hilite(D, Hit, DrawFun)
-			   end, []).
+    wings_draw_util:map(fun(D, _) ->
+				insert_hilite(D, Hit, DrawFun)
+			end, []).
 
-insert_hilite(eol, _, _) -> eol;
-insert_hilite(#dlo{src_we=#we{id=Id}}=D, {_,{Id,_}}, DrawFun) ->
+insert_hilite(#dlo{src_we=#we{id=Id}}=D, {_,_,{Id,_}}, DrawFun) ->
     {D#dlo{hilite=DrawFun},[]};
 insert_hilite(D, _, _) -> {D#dlo{hilite=none},[]}.
 
-hilite_draw_sel_fun({Mode,{Id,Item}=Hit}, St) ->
+hilite_draw_sel_fun({Mode,_,{Id,Item}=Hit}, St) ->
     fun() ->
 	    hilite_color(Hit, St),
 	    #st{shapes=Shs} = St,
@@ -205,21 +219,24 @@ marquee_event(#mousebutton{x=X0,y=Y0,button=1,state=?SDL_RELEASED}, M) ->
     pop;
 marquee_event(_, _) -> keep.
 
-marquee_pick(false, X, Y, W, H, St) ->
-    pick_all(false, X, Y, W, H, St);
+marquee_pick(false, X, Y, W, H, St0) ->
+    case pick_all(false, X, Y, W, H, St0) of
+	{none,_}=None -> None;
+	{Hits,St} -> {[{abs(Id),Face} || {Id,Face} <- Hits],St}
+    end;
 marquee_pick(true, X, Y0, W, H, St0) ->
     case pick_all(true, X, Y0, W, H, St0) of
 	{none,_}=R -> R;
 	{Hits0,St} ->
-	    Hits1 = marquee_filter(Hits0, St),
+	    %% XXX For the moment, ignore any hits in the mirror part
+	    %% of the object.
+	    Hits0A = [Hit || {Id,Face}=Hit <- Hits0, Id > 0],
+	    Hits1 = marquee_filter(Hits0A, St),
 	    Hits2 = sofs:relation(Hits1),
 	    Hits3 = sofs:relation_to_family(Hits2),
 	    Hits4 = sofs:to_external(Hits3),
-	    wings_view:projection(),
-	    wings_view:model_transformations(),
-	    MM = gl:getDoublev(?GL_MODELVIEW_MATRIX),
-	    PM = gl:getDoublev(?GL_PROJECTION_MATRIX),
-	    [_,_,_,Wh] = ViewPort = gl:getIntegerv(?GL_VIEWPORT),
+	    {MM,PM,ViewPort} = wings_util:get_matrices(0, original),
+	    [_,_,_,Wh] = ViewPort,
 	    Y = Wh - Y0,
 	    RectData = {MM,PM,ViewPort,X-W/2,Y-H/2,
 			X+W/2,Y+H/2},
@@ -353,10 +370,10 @@ pick_event(redraw, #pick{st=St}) ->
 pick_event(#mousemotion{x=X,y=Y}, #pick{op=Op,st=St0}=Pick) ->
     case do_pick(X, Y, St0) of
 	none -> keep;
-	{Op,St} ->
+	{Op,_,St} ->
 	    wings_wm:dirty(),
 	    get_pick_event(Pick#pick{st=St});
-	{_,_} -> keep
+	{_,_,_} -> keep
     end;
 pick_event(#mousebutton{button=1,state=?SDL_RELEASED}, #pick{st=St}) ->
     wings_io:putback_event({new_state,St}),
@@ -364,12 +381,12 @@ pick_event(#mousebutton{button=1,state=?SDL_RELEASED}, #pick{st=St}) ->
 pick_event(_, _) -> keep.
 
 do_pick(X, Y, St) ->
-    case do_pick_1(X, Y, St) of
+    case raw_pick(X, Y, St) of
 	none -> none;
 	Hit -> update_selection(Hit, St)
     end.
 
-do_pick_1(X0, Y0, St) ->
+raw_pick(X0, Y0, St) ->
     HitBuf = get(wings_hitbuf),
     gl:selectBuffer(?HIT_BUF_SIZE, HitBuf),
     gl:renderMode(?GL_SELECT),
@@ -391,15 +408,12 @@ do_pick_1(X0, Y0, St) ->
 	NumHits ->
 	    HitData = sdl_util:readBin(HitBuf, 5*NumHits),
 	    Hits = get_hits(NumHits, HitData, []),
-	    case filter_hits(Hits, X, Y, St) of
-		none -> none;
-		Hit -> Hit
-	    end
+	    filter_hits(Hits, X, Y, St)
     end.
 
-update_selection({Mode,{Id,Item}}, #st{sel=Sel0}=St) ->
+update_selection({Mode,MM,{Id,Item}}, #st{sel=Sel0}=St) ->
     {Type,Sel} = update_selection(Id, Item, Sel0, []),
-    {Type,St#st{selmode=Mode,sel=Sel}}.
+    {Type,MM,St#st{selmode=Mode,sel=Sel}}.
 
 update_selection(Id, Item, [{I,_}=H|T], Acc) when Id > I ->
     update_selection(Id, Item, T, [H|Acc]);
@@ -454,7 +468,7 @@ filter_hits(Hits, X, Y, #st{selmode=Mode0,shapes=Shs,sel=Sel}) ->
 filter_hits_1([{Id,Face}|Hits], Shs, Mode, X, Y, EyePoint, Hit0) ->
     Mtx = if 
 	      Id < 0 ->
-		  e3d_mat:compress(mirror_matrix(Id));
+		  e3d_mat:compress(wings_util:mirror_matrix(-Id));
 	      true -> identity
 	  end,
     We = gb_trees:get(abs(Id), Shs),
@@ -475,7 +489,10 @@ filter_hits_1([{Id,Face}|Hits], Shs, Mode, X, Y, EyePoint, Hit0) ->
     end;
 filter_hits_1([], _Shs, _Mode, _X, _Y, _EyePoint, none) -> none;
 filter_hits_1([], _Shs, Mode, X, Y, _EyePoint, {_,{Id,Face,We}}) ->
-    convert_hit(Mode, X, Y, Id, Face, We).
+    if
+	Id < 0 -> convert_hit(Mode, X, Y, -Id, Face, mirror, We);
+	true -> convert_hit(Mode, X, Y, Id, Face, original, We)
+    end.
 
 mul_point(identity, P) -> P;
 mul_point(Mtx, P) -> e3d_mat:mul_point(Mtx, P).
@@ -499,11 +516,12 @@ best_hit(Id, Face, Vs, We, EyePoint, Matrix, Hit0) ->
 %% Given a selection hit, return the correct vertex/edge/face/body.
 %%
 
-convert_hit(body, _X, _Y, Id, _Face, _We) -> {body,{abs(Id),0}};
-convert_hit(face, _X, _Y, Id, Face, _We) -> {face,{abs(Id),Face}};
-convert_hit(auto, X, Y, Id0, Face, We) ->
-    Id = abs(Id0),
-    Trans = get_matrices(Id0),
+convert_hit(body, _X, _Y, Id, _Face, MM, _We) ->
+    {body,MM,{Id,0}};
+convert_hit(face, _X, _Y, Id, Face, MM, _We) ->
+    {face,MM,{Id,Face}};
+convert_hit(auto, X, Y, Id, Face, MM, We) ->
+    Trans = wings_util:get_matrices(Id, MM),
     Vs = sort(find_vertex(Face, We, X, Y, Trans)),
     [{Vdist0,{Xva,Yva},V},{_,{Xvb,Yvb},_}|_] = Vs,
     Vdist = math:sqrt(Vdist0),
@@ -516,43 +534,22 @@ convert_hit(auto, X, Y, Id0, Face, We) ->
     Lim1 = min([math:sqrt(L) || {_,L,_} <- Es]) / 4,
     Lim = min([20.0,Lim0,Lim1]),
     Hilite = if
-		 Vdist < Lim -> {vertex,{Id,V}};
-		 Edist < Lim -> {edge,{Id,Edge}};
-		 true -> {face,{Id,Face}}
+		 Vdist < Lim -> {vertex,MM,{Id,V}};
+		 Edist < Lim -> {edge,MM,{Id,Edge}};
+		 true -> {face,MM,{Id,Face}}
 	     end,
     check_restriction(Hilite, Id, V, Edge, Face);
-convert_hit(Mode, X, Y, Id0, Face, We) ->
-    Id = abs(Id0),
-    Trans = get_matrices(Id0),
+convert_hit(Mode, X, Y, Id, Face, MM, We) ->
+    Trans = wings_util:get_matrices(Id, MM),
     case Mode of
 	vertex ->
 	    {_,_,V} = min(find_vertex(Face, We, X, Y, Trans)),
-	    {vertex,{Id,V}};
+	    {vertex,MM,{Id,V}};
 	edge ->
 	    {_,_,E} = min(find_edge(Face, We, X, Y, Trans)),
-	    {edge,{Id,E}}
+	    {edge,MM,{Id,E}}
     end.
 
-get_matrices(Id) ->
-    wings_view:projection(),
-    wings_view:model_transformations(),
-    if
-	Id < 0 ->
-	    Matrix = mirror_matrix(Id),
-	    gl:multMatrixf(Matrix);
-	true -> ok
-    end,
-    ViewPort = gl:getIntegerv(?GL_VIEWPORT),
-    ModelMatrix = gl:getDoublev(?GL_MODELVIEW_MATRIX),
-    ProjMatrix = gl:getDoublev(?GL_PROJECTION_MATRIX),
-    {ModelMatrix,ProjMatrix,ViewPort}.
-
-mirror_matrix(Id) ->
-    wings_draw_util:fold(fun mirror_matrix/2, abs(Id)).
-
-mirror_matrix(#dlo{mirror=Matrix,src_we=#we{id=Id}}, Id) -> Matrix;
-mirror_matrix(_, Acc) -> Acc.
-    
 find_vertex(Face, We, X, Y, Trans) ->
     Vs0 = wings_face:surrounding_vertices(Face, We),
     map(fun(V) ->
@@ -593,36 +590,36 @@ project_vertex(V, We, {ModelMatrix,ProjMatrix,ViewPort}) ->
 				 ProjMatrix, ViewPort),
     {Xs,Ys}.
 
-check_restriction({Mode,_}=Hilite, Id, V, Edge, Face) ->
+check_restriction({Mode,MM,_}=Hilite, Id, V, Edge, Face) ->
     case wings_io:get_icon_restriction() of
 	all -> Hilite;
 	Modes ->
 	    case member(Mode, Modes) of
 		true -> Hilite;
-		false -> restrict_hilite(Mode, Modes, Id, V, Edge, Face)
+		false -> restrict_hilite(Mode, Modes, Id, V, Edge, Face, MM)
 	    end
     end.
 
-restrict_hilite(vertex, Modes, Id, _V, Edge, Face) ->
+restrict_hilite(vertex, Modes, Id, _V, Edge, Face, MM) ->
     case member(edge, Modes) of
-	true -> {edge,{Id,Edge}};
+	true -> {edge,MM,{Id,Edge}};
 	false ->
 	    true = member(face, Modes),
-	    {face,{Id,Face}}
+	    {face,MM,{Id,Face}}
     end;
-restrict_hilite(edge, Modes, Id, V, _Edge, Face) ->
+restrict_hilite(edge, Modes, Id, V, _Edge, Face, MM) ->
     case member(vertex, Modes) of
-	true -> {vertex,{Id,V}};
+	true -> {vertex,MM,{Id,V}};
 	false ->
 	    true = member(face, Modes),
-	    {face,{Id,Face}}
+	    {face,MM,{Id,Face}}
     end;
-restrict_hilite(face, Modes, Id, V, Edge, _Face) ->
+restrict_hilite(face, Modes, Id, V, Edge, _Face, MM) ->
     case member(edge, Modes) of
-	true -> {edge,{Id,Edge}};
+	true -> {edge,MM,{Id,Edge}};
 	false ->
 	    true = member(vertex, Modes),
-	    {vertex,{Id,V}}
+	    {vertex,MM,{Id,V}}
     end.
 	    
 %%
