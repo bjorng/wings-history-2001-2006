@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_fbx.erl,v 1.2 2005/03/11 18:00:55 bjorng Exp $
+%%     $Id: wpc_fbx.erl,v 1.3 2005/03/13 11:29:42 bjorng Exp $
 %%
 
 -module(wpc_fbx).
@@ -19,7 +19,7 @@
 -include("e3d_image.hrl").
 -include("fbx_ops.hrl").
 
--import(lists, [reverse/1,reverse/2,foldl/3,sort/1,keydelete/3]).
+-import(lists, [reverse/1,reverse/2,foldl/3,sort/1,keydelete/3,foreach/2]).
 
 -define(DEF_IMPORT_SCALE, 0.1).
 -define(DEF_EXPORT_SCALE, 10.0).
@@ -153,7 +153,7 @@ export_shading(#e3d_mesh{tx=[]}) ->
 export_shading(_) ->
     cast(?ExpSetShadingMode, <<?EnumLightTextureShading:32/native>>).
 
-export_mesh(#e3d_mesh{fs=Fs,vs=Vs0,ns=Ns,tx=Tx}=Mesh, Mat0) ->
+export_mesh(#e3d_mesh{fs=Fs,vs=Vs0,ns=Ns,tx=Tx,vc=VtxCol}=Mesh, Mat0) ->
     Vs = fake_matrix(Vs0),
     Mat = used_materials(Mesh, Mat0),
     Textures = texture_materials(Mat),
@@ -166,7 +166,8 @@ export_mesh(#e3d_mesh{fs=Fs,vs=Vs0,ns=Ns,tx=Tx}=Mesh, Mat0) ->
     export_uvs(Tx),
     export_faces(Fs, MatMap),
     export_mat(Mat),
-    export_tx(Textures).
+    export_tx(Textures),
+    export_vc(Fs, VtxCol).
 
 export_table([{X,Y,Z}|T]) ->
     cast(?ExpPoint, X, Y, Z),
@@ -200,6 +201,25 @@ export_face([V|Vs], [T|Ts]) ->
     export_face(Vs, Ts);
 export_face([], []) -> ok.
 
+export_vc(Fs, []) -> ok;
+export_vc(Fs, Vc) ->
+    cast(?ExpInitVertexColorTable),
+    export_color_table(Vc),
+    export_color_index(Fs),
+    ok.
+
+export_color_table([RGB|Vc]) ->
+    cast(?ExpVertexColor, RGB),
+    export_color_table(Vc);
+export_color_table([]) -> ok.
+
+export_color_index([#e3d_face{vc=Vc}|Fs]) ->
+    foreach(fun(I) ->
+		    cast(?ExpVertexColorIndex, <<I:32/native-unsigned-integer>>)
+	    end, Vc),
+    export_color_index(Fs);
+export_color_index([]) -> ok.
+    
 add_normals(Mesh0) ->
     Mesh = e3d_mesh:vertex_normals(Mesh0),
     case vs_ns_same(Mesh) of

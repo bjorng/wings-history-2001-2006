@@ -8,7 +8,7 @@
  *  See the file "license.terms" for information on usage and redistribution
  *  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
  *
- *     $Id: wings_fbx.cxx,v 1.2 2005/03/11 18:00:55 bjorng Exp $
+ *     $Id: wings_fbx.cxx,v 1.3 2005/03/13 11:29:42 bjorng Exp $
  */
 
 
@@ -58,6 +58,7 @@ static KFbxNode** objects = NULL;
 static KFbxMesh* Mesh;          // Mesh itself.
 static KFbxLayer* Layer;	// Layer 0.
 static KFbxLayerElementMaterial* matLayer; // In layer 0 for current mesh.
+static KFbxLayerElementVertexColor* colorLayer; // In layer 0 for current mesh.
 static KFbxVector4* Points;     // Control points or normals.
 static KFbxVector2* UVs;        // UV coordinates.
 
@@ -266,6 +267,27 @@ fbx_control(unsigned int command,
     break;
   case ExpTextureFilename:
     Texture->SetFileName(buff);
+    break;
+
+  case ExpInitVertexColorTable:
+    colorLayer = new KFbxLayerElementVertexColor;
+    colorLayer->SetMappingMode(KFbxLayerElement::eBY_POLYGON_VERTEX);
+    colorLayer->SetReferenceMode(KFbxLayerElement::eINDEX_TO_DIRECT);
+    Layer->SetVertexColors(colorLayer);
+    break;
+
+  case ExpVertexColor:
+    {
+      KFbxColor col = get_color(buff);
+      colorLayer->GetDirectArray().Add(col);
+    }
+    break;
+
+  case ExpVertexColorIndex:
+    {
+      unsigned index = *(unsigned *) buff;
+      colorLayer->GetIndexArray().Add(index);
+    }
     break;
 
     //
