@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.61 2003/01/22 13:24:03 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.62 2003/01/22 19:03:54 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -427,10 +427,14 @@ normalize({alt,VarDef,Prompt,Val}, Fi) ->
     normalize_field(radiobutton(VarDef, Prompt, Val), [], Fi);
 normalize({key_alt,{Key,_}=VarDef,Prompt,Val}, Fi) ->
     normalize_field(radiobutton(VarDef, Prompt, Val), [{key,Key}], Fi);
+normalize({menu,Alt,{Val,VarDef}}, Fi) ->
+    normalize_field(menu(Val, VarDef, Alt), [], Fi);
 normalize({menu,Alt,VarDef}, Fi) ->
-    normalize_field(menu(VarDef, Alt), [], Fi);
+    normalize_field(menu(none, VarDef, Alt), [], Fi);
+normalize({menu,Alt,{Val,VarDef},Flags}, Fi) ->
+    normalize_field(menu(Val, VarDef, Alt), Flags, Fi);
 normalize({menu,Alt,VarDef,Flags}, Fi) ->
-    normalize_field(menu(VarDef, Alt), Flags, Fi);
+    normalize_field(menu(none, VarDef, Alt), Flags, Fi);    
 normalize({button,Action}, Fi) ->
     Label = button_label(Action),
     normalize_field(button(Label, Action), [], Fi);
@@ -805,21 +809,24 @@ rb_set(#rb{var=Var,val=Val}=Rb, Common0) ->
 %%%
 
 -record(menu,
-	{key,
+	{var,
+	 key,
 	 menu
 	}).
 
-menu(Key, Alt) ->
+menu(Var, Key, Alt) ->
     W = menu_width(Alt, 0) + 2*wings_text:width(" ") + 10,
-    M = #menu{key=Key,menu=Alt},
+    M = #menu{var=Var,key=Key,menu=Alt},
     Fun = menu_fun(),
     {Fun,false,M,W,?LINE_HEIGHT+4}.
 
 menu_fun() ->
     fun({redraw,_Active}, Fi, M, _) ->
 	    menu_draw(Fi, M);
-       (value, _, #menu{key=Key}, _) ->
+       (value, _, #menu{var=none,key=Key}, _) ->
 	    Key;
+       (value, _, #menu{var=Var,key=Key}, _) ->
+	    {Var,Key};
        (Ev, Fi, M, _) ->
 	    menu_event(Ev, Fi, M)
     end.
