@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.88 2003/03/07 05:43:13 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.89 2003/03/08 17:34:44 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -588,26 +588,10 @@ clear_background() ->
 
 clear_background_1(Name) ->
     {X,Y,W,H} = viewport(Name),
-    gl:enable(?GL_SCISSOR_TEST),
     gl:scissor(X, Y, W, H),
+    gl:enable(?GL_SCISSOR_TEST),
     gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
     gl:disable(?GL_SCISSOR_TEST).
-
-%% This method doesn't work on all OpenGL implementations.
-%     gl:pushAttrib(?GL_ENABLE_BIT bor ?GL_DEPTH_BUFFER_BIT),
-%     gl:enable(?GL_DEPTH_TEST),
-%     gl:depthFunc(?GL_ALWAYS),
-%     gl:matrixMode(?GL_PROJECTION),
-%     gl:loadIdentity(),
-%     #win{w=W,h=H} = get_window_data(Name),
-%     glu:ortho2D(0, W, 0, H),
-%     gl:matrixMode(?GL_MODELVIEW),
-%     gl:loadIdentity(),
-%     gl:color3fv(wings_pref:get_value(background_color)),
-%     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
-%     gl:translatef(0, 0, -1),
-%     gl:rectf(0, 0, W, H),
-%     gl:popAttrib().
 
 any_window_below(Name) ->
     Windows = gb_trees:values(get(wm_windows)),
