@@ -8,13 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.19 2003/02/27 19:22:46 bjorng Exp $
+%%     $Id: wings_image.erl,v 1.20 2003/03/06 05:52:31 bjorng Exp $
 %%
 
 -module(wings_image).
 -export([init/0,init_opengl/0,
 	 from_file/1,new/2,create/1,rename/2,txid/1,info/1,images/0,
-	 next_id/0,delete_older/1,delete_from/1,
+	 next_id/0,delete_older/1,delete_from/1,delete/1,
 	 update/2,update_filename/2,draw_preview/5,
 	 window/1]).
 
@@ -70,6 +70,9 @@ delete_older(Id) ->
 
 delete_from(Id) ->
     req({delete_from,Id}).
+
+delete(Id) ->
+    req({delete,Id}).
 
 update(Id, Image) ->
     req({update,Id,Image}).
@@ -151,11 +154,16 @@ handle({txid,Id}, S) ->
 	 TxId -> TxId
      end,S};
 handle({info,Id}, #ist{images=Images}=S) ->
-    {gb_trees:get(Id, Images),S};
+    case gb_trees:lookup(Id, Images) of
+	{value,E3D} -> {E3D,S};
+	none -> {none,S}
+    end;
 handle(images, #ist{images=Images}=S) ->
     {gb_trees:to_list(Images),S};
 handle(next_id, #ist{next=Id}=S) ->
     {Id,S};
+handle({delete,Id}, S) ->
+    delete(Id, S);
 handle({delete_older,Id}, S) ->
     delete_older(Id, S);
 handle({delete_from,Id}, S) ->
@@ -242,14 +250,18 @@ internal_format(?GL_BGR) -> ?GL_RGB;
 internal_format(?GL_BGRA) -> ?GL_RGBA;
 internal_format(Else) -> Else.
 
+delete(Id, #ist{images=Images0}=S) ->
+    gl:deleteTextures(1, [erase(Id)]),
+    Images = gb_trees:delete(Id, Images0),
+    S#ist{images=Images}.
+
 delete_older(Id, #ist{images=Images0}=S) ->
     Images1 = delete_older_1(gb_trees:to_list(Images0), Id),
     Images = gb_trees:from_orddict(Images1),
     S#ist{images=Images}.
 
 delete_older_1([{Id,_}|T], Limit) when Id < Limit ->
-    gl:deleteTextures(1, [get(Id)]),
-    erase(Id),
+    gl:deleteTextures(1, [erase(Id)]),
     delete_older_1(T, Limit);
 delete_older_1(Images, _) -> Images.
 
@@ -261,11 +273,9 @@ delete_from(Id, #ist{images=Images0}=S) ->
 delete_from_1([{Id,_}=Im|T], Limit, Acc) when Id < Limit ->
     delete_from_1(T, Limit, [Im|Acc]);
 delete_from_1([{Id,_}|T], Limit, Acc) ->
-    gl:deleteTextures(1, [get(Id)]),
-    erase(Id),
+    gl:deleteTextures(1, [erase(Id)]),
     delete_from_1(T, Limit, Acc);
-delete_from_1([], _, Acc) ->
-    reverse(Acc).
+delete_from_1([], _, Acc) -> reverse(Acc).
 
 do_update(Id, In = #e3d_image{width=W,height=H,type=Type}, 
 	  #ist{images=Images0}=S) ->

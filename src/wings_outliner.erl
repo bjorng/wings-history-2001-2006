@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.30 2003/03/03 21:41:54 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.31 2003/03/06 05:52:31 bjorng Exp $
 %%
 
 -module(wings_outliner).
@@ -188,6 +188,7 @@ image_menu_1(Id, _) ->
 common_image_menu(Id) ->
     [separator,
      {"Duplicate",menu_cmd(duplicate_image, Id),"Duplicate selected image"},
+     {"Delete",menu_cmd(delete_image, Id),"Delete selected image"},
      {"Rename",menu_cmd(rename_image, Id),"Rename selected image"}].
 
 menu_cmd(Cmd, Id) ->
@@ -220,6 +221,8 @@ command({refresh_image,Id}, _) ->
     refresh_image(Id);
 command({duplicate_image,Id}, _) ->
     duplicate_image(Id);
+command({delete_image,Id}, Ost) ->
+    delete_image(Id, Ost);
 command({rename_image,Id}, _) ->
     rename_image(Id);
 command({make_internal,Id}, _) ->
@@ -234,6 +237,24 @@ duplicate_image(Id) ->
     wings_image:new(Name, Im),
     wings_wm:send(geom, need_save),
     keep.
+
+delete_image(Id, #ost{st=St}) ->
+    Used = wings_material:used_images(St),
+    case gb_sets:is_member(Id, Used) of
+	true ->
+	    wings_util:message("The image is used by a material."),
+	    keep;
+	false ->
+	    case wings_util:yes_no("Are you sure you want to delete the image "
+				   "(NOT undoable)?") of
+		aborted -> keep;
+		no -> keep;
+		yes ->
+		    wings_image:delete(Id),
+		    wings_wm:send(geom, need_save),
+		    keep
+	    end
+    end.
 
 copy_of("Copy of "++_=Name) -> Name;
 copy_of(Name) -> "Copy of "++Name.
