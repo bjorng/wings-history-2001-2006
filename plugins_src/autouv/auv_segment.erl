@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.56 2004/05/10 13:49:59 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.57 2004/05/23 15:33:05 bjorng Exp $
 
 -module(auv_segment).
 
@@ -684,8 +684,11 @@ map_vertex(V0, Vmap) ->
 %%% Cutting along hard edges.
 %%%
 
-cut_model(Charts, Cuts, We) ->
-    map(fun(Keep) -> cut_one_chart(Keep, Cuts, We#we{mirror=none}) end, Charts).
+cut_model(Charts, Cuts0, We) ->
+    Cuts = gb_sets:to_list(Cuts0),
+    map(fun(Keep) ->
+		cut_one_chart(Keep, Cuts, We#we{mirror=none})
+	end, Charts).
 
 cut_one_chart(Keep0, Cuts, We0) ->
     Keep = gb_sets:from_list(Keep0),
@@ -735,18 +738,17 @@ do_cut_shared_1([], _, _, We, Map) -> {We,Map}.
 
 cut_edges(Faces, Cuts0, We, Map) ->
     Inner = wings_face:inner_edges(Faces, We),
-    Cuts = gb_sets:intersection(gb_sets:from_list(Inner), Cuts0),
-    case gb_sets:is_empty(Cuts) of
-	false -> cut_edges_1(Faces, Cuts, We, Map);
-	true -> {We,Map}
+    case ordsets:intersection(Inner, Cuts0) of
+	[] -> {We,Map};
+	Cuts -> cut_edges_1(Faces, Cuts, We, Map)
     end.
 
 cut_edges_1(Faces, Cuts, We0, Map0) ->
     Vs = wings_edge:to_vertices(Cuts, We0),
     {We1,Map1} = bevel_cut_vs(Vs, We0, Map0),
-    NewEdges = wings_we:new_items(edge, We0, We1),
-    {We2,Map,MaybeRem} = cut_new_edges(gb_sets:to_list(NewEdges), We1, Map1, []),
-    We3 = connect_edges(gb_sets:to_list(Cuts), We2),
+    NewEdges = gb_sets:to_list(wings_we:new_items(edge, We0, We1)),
+    {We2,Map,MaybeRem} = cut_new_edges(NewEdges, We1, Map1, []),
+    We3 = connect_edges(Cuts, We2),
     We = cut_cleanup(Faces, MaybeRem, We3),
     {We,Map}.
 
@@ -764,7 +766,8 @@ cut_new_edges([Edge|Es], #we{es=Etab}=We0, Map0, MaybeRemove0) ->
     Map = add_new_vs(Vb, [NewV], add_new_vs(Va, [NewV], Map0)),
     MaybeRemove = [Edge,NewEdge|MaybeRemove0],
     cut_new_edges(Es, We, Map, MaybeRemove);
-cut_new_edges([], We, Map, MaybeRemove) -> {We,Map,MaybeRemove}.
+cut_new_edges([], We, Map, MaybeRemove) ->
+    {We,Map,ordsets:from_list(MaybeRemove)}.
 
 connect_edges([E|Es], #we{es=Etab}=We0) ->
     #edge{vs=Va,ve=Vb,lf=Lf,ltpr=Lp,ltsu=Lu,
@@ -781,18 +784,10 @@ connect_edges([], We) -> We.
 other_vertex(V, Edge, Etab) ->
     wings_vertex:other(V, gb_trees:get(Edge, Etab)).
 
-cut_cleanup(Faces, MaybeRemove, #we{es=Etab}=We) ->
-    Es = wings_face:fold_faces(fun(_, _, E, _, A) -> [E|A] end, [], Faces, We),
-    S1 = sofs:set(Es),
-    S2 = sofs:set(MaybeRemove),
-    S = sofs:intersection(S1, S2),
-    R = sofs:to_external(S),
-    foldl(fun(E, W) ->
-		  case gb_trees:is_defined(E, Etab) of
-		      false -> W;
-		      true -> wings_collapse:collapse_edge(E, W)
-		  end
-	  end, We, R).
+cut_cleanup(Faces, MaybeRemove, We) ->
+    Es = ordsets:intersection(MaybeRemove,
+			      wings_face:to_edges(Faces, We)),
+    foldl(fun(E, W) -> wings_collapse:collapse_edge(E, W) end, We, Es).
 
 add_new_vs(OldV, NewVs, Map) ->
     foldl(fun(NewV, M) -> add_new_vs_1(OldV, NewV, M) end, Map, NewVs).
