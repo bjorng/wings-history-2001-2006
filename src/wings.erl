@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.242 2003/05/19 18:09:47 bjorng Exp $
+%%     $Id: wings.erl,v 1.243 2003/05/25 19:00:48 bjorng Exp $
 %%
 
 -module(wings).
@@ -141,7 +141,7 @@ init(File, Root) ->
     St = wings_undo:init(St1),
     wings_view:init(),
     wings_file:init(),
-    put(wings_hitbuf, sdl_util:malloc(?HIT_BUF_SIZE, ?GL_INT)),
+    put(wings_hitbuf, sdl_util:alloc(?HIT_BUF_SIZE, ?GL_INT)),
     caption(St),
     wings_wm:init(),
     init_menubar(),
@@ -165,11 +165,11 @@ init(File, Root) ->
 	{'EXIT',normal} ->
 	    wings_file:finish(),
 	    wings_pref:finish(),
-	    sdl_util:free(get(wings_hitbuf)),
+	    erase(wings_hitbuf),
 	    sdl:quit();
 	{'EXIT',Reason} ->
 	    io:format("~P\n", [Reason,20]),
-	    sdl_util:free(get(wings_hitbuf)),
+	    erase(wings_hitbuf),
 	    sdl:quit(),
 	    exit(Reason)
     end.
