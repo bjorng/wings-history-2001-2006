@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.144 2003/12/24 17:04:14 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.145 2003/12/25 10:18:48 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -2361,8 +2361,9 @@ label_draw([], _, _) -> keep.
 	{bef,					%Reversed list of characters before cursor.
 	 aft,					%List of characters after cursor.
 	 w_bef,					%Width of characters before cursor.
-	 first=0,			        %First character shown.
+	 first,				        %First character shown.
 	 sel=0,
+	 cpos=0,				%Caret pos (pixels).
 	 max,					%Max numbers of characters.
 	 integer=false,
 	 charset,				%Character set validator.
@@ -2503,7 +2504,7 @@ gen_text_handler({redraw,Active,DisEnabled},
     draw_text(Fi, gb_trees:get(-I, Store), Val, DisEnabled, Active);
 gen_text_handler(value, [#fi{key=Key,index=I}|_], Store) ->
     {value,gb_trees:get(var(Key, I), Store)};
-gen_text_handler(Ev, [Fi=#fi{key=Key,index=I,hook=Hook,flags=Flags}|_], Sto0) ->
+gen_text_handler(Ev, [Fi=#fi{key=Key,index=I,hook=Hook,flags=Flags,w=W}|_], Sto0) ->
     #text{last_val=Val0} = Ts0 = gb_trees:get(-I, Sto0),
     K = var(Key, I),
     Ts1 = case gb_trees:get(K, Sto0) of
@@ -2512,7 +2513,8 @@ gen_text_handler(Ev, [Fi=#fi{key=Key,index=I,hook=Hook,flags=Flags}|_], Sto0) ->
 		  ValStr = text_val_to_str(Val1),
 		  Ts0#text{bef=[],aft=ValStr}
 	  end,
-    Ts = text_event(Ev, Fi, Ts1),
+    Ts2 = text_event(Ev, Fi, Ts1),
+    Ts = text_adjust_first(Ts2, W),
     case text_get_val(Ts) of
 	Val0 ->
 	    {store,gb_trees:update(-I, Ts, Sto0)};
@@ -2520,6 +2522,26 @@ gen_text_handler(Ev, [Fi=#fi{key=Key,index=I,hook=Hook,flags=Flags}|_], Sto0) ->
 	    Sto = gb_trees:update(-I, Ts#text{last_val=Val},Sto0),
 	    hook(Hook, update, [K,I,Val,Sto,Flags])
     end.
+
+text_adjust_first(#text{first=First0,bef=Bef}=Text, Width) ->
+    {First,Left} = text_adjust_first_1(First0, Bef, Width),
+    Text#text{first=First,cpos=Width-Left}.
+
+text_adjust_first_1(First, Bef, Width) ->
+    case length(Bef) of
+	Len when Len < First -> {Len,Width};
+	Len -> text_adjust_first_2(Bef, First, Len, Width)
+    end.
+
+text_adjust_first_2(_, First, NewFirst, Width) when NewFirst =< First ->
+    {First,Width};
+text_adjust_first_2([C|Cs], First, NewFirst, Width0) ->
+    case Width0 - wings_text:width([C]) of
+	Width when Width =< 0 -> {NewFirst,Width0};
+	Width -> text_adjust_first_2(Cs, First, NewFirst-1, Width)
+    end;
+text_adjust_first_2([], First, _, Width) ->
+    {First,Width}.
 
 draw_text(Fi, Text, Val, DisEnabled, false) ->
     draw_text_inactive(Fi, Text, Val, DisEnabled);
@@ -2556,8 +2578,8 @@ draw_text_inactive(#fi{x=X0,y=Y0,w=Width}, #text{max=Max,password=Password},
     keep.
 
 draw_text_active(#fi{x=X0,y=Y0,w=Width},
-		 #text{sel=Sel,first=First0,bef=Bef0,aft=Aft0,
-		       password=Password}=Text,
+		 #text{sel=Sel,first=First,cpos=CaretPos0,
+		       bef=Bef0,aft=Aft0,password=Password}=Text,
 		 DisEnabled) ->
     Ch = wings_text:height(),
     Cw = wings_text:width(),
@@ -2567,8 +2589,7 @@ draw_text_active(#fi{x=X0,y=Y0,w=Width},
     Y = Y0 + Ch,
     X = X0 + (Cw div 2),
     {Bef1,Aft} = stars(Password, Bef0, Aft0),
-    {First,Left} = text_adjust_first(First0, Bef1, Width),
-    CaretPos = X+Width-Left,
+    CaretPos = X + CaretPos0,
 
     %% Draw caret or selection background.
     case {DisEnabled,Sel} of
@@ -2583,7 +2604,7 @@ draw_text_active(#fi{x=X0,y=Y0,w=Width},
 		    SelW = wings_text:width(SelStr),
 		    gl:recti(CaretPos, Y-Ch+3, min(CaretPos+SelW, X0+Width), Y+2);
 		true ->
-		    SelStr = lists:sublist(Bef0, -N),
+		    SelStr = lists:sublist(Bef1, -N),
 		    SelW = wings_text:width(SelStr),
 		    gl:recti(CaretPos, Y-Ch+3, max(CaretPos-SelW, X0), Y+2)
 	    end;
@@ -2593,25 +2614,11 @@ draw_text_active(#fi{x=X0,y=Y0,w=Width},
 
     %% Draw the text itself.
     gl:color3fv(color3_text()),
-    Bef = lists:nthtail(First, reverse(Bef0)),
+    Bef = lists:nthtail(First, reverse(Bef1)),
     wings_io:text_at(X, Y, Bef),
-    text_draw_fitting(Aft, CaretPos, Y, Left),
+    text_draw_fitting(Aft, CaretPos, Y, Width-CaretPos0),
     gl:color3b(0, 0, 0),
     Text#text{first=First}.
-
-text_adjust_first(First, Bef, Width) ->
-    case length(Bef) of
-	Len when Len < First -> {Len,0};
-	_ -> text_adjust_first_1(Bef, First, Width)
-    end.
-
-text_adjust_first_1([C|Cs], First, Width0) ->
-    case Width0 - wings_text:width([C]) of
-	Width when Width =< 0 -> {1+length(Cs),Width0};
-	Width -> text_adjust_first_1(Cs, First, Width)
-    end;
-text_adjust_first_1([], First, Width) ->
-    {First,Width}.
 
 text_draw_fitting([C|Cs], X, Y, W0) ->
     CL = [C],
