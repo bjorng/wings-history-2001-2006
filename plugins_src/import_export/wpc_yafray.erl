@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.27 2003/04/19 08:01:18 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.28 2003/04/20 20:19:18 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -73,6 +73,9 @@
 -define(DEF_BACKGROUND, undefined).
 -define(DEF_BACKGROUND_COLOR, {0.0,0.0,0.0}).
 -define(DEF_TURBIDITY, 4.0).
+%% Hemilight and Pathlight
+-define(DEF_AMBIENT_TYPE, hemilight).
+-define(DEF_SAMPLES, 256).
 
 %% Modulator
 -define(DEF_MOD_MODE, off).
@@ -491,6 +494,17 @@ light_dialog(_Name, infinite, Ps) ->
 		{hframe,
 		 [{text,Turbidity,[{range,0.0,100.0},{key,turbidity}]}]}]}],
       [{title,"Background"}]}];
+light_dialog(_Name, ambient, Ps) ->
+    Type = proplists:get_value(type, Ps, ?DEF_AMBIENT_TYPE),
+    TypeDef = {type,Type},
+    Samples = proplists:get_value(samples, Ps, ?DEF_SAMPLES),
+    Depth = proplists:get_value(depth, Ps, ?DEF_DEPTH),
+    [{hframe,[{key_alt,TypeDef,"Hemilight",hemilight},
+	      {key_alt,TypeDef,"Pathlight",pathlight},
+	      {label,"Depth"},
+	      {text,Depth,[{range,1,100},{key,depth}]}]},
+     {hframe,[{label,"Samples"}, 
+	      {text,Samples,[{range,1,1000000},{key,samples}]}]}];
 light_dialog(_Name, _Type, _Ps) ->
 %    erlang:display({?MODULE,?LINE,{_Name,_Type,_Ps}}),
     [].
@@ -511,6 +525,10 @@ light_result([_,_,{type,photonlight}|_]=Ps) ->
     split_list(Ps, 10);
 light_result([_,{background,_}|_]=Ps) ->
     split_list(Ps, 4);
+light_result([{type,hemilight}|_]=Res) ->
+    split_list(Res, 3);
+light_result([{type,pathlight}|_]=Res) ->
+    split_list(Res, 3);
 light_result(Tail) ->
 %    erlang:display({?MODULE,?LINE,Tail}),
     {[],Tail}.
@@ -1081,6 +1099,24 @@ export_light(F, Name, spot, OpenGL, YafRay) ->
     export_pos(F, from, Position),
     export_pos(F, to, AimPoint),
     export_rgb(F, color, Diffuse),
+    println(F, "</light>"),
+    undefined;
+export_light(F, Name, ambient, OpenGL, YafRay) ->
+    Power = proplists:get_value(power, YafRay, ?DEF_POWER),
+    Type = proplists:get_value(type, YafRay, ?DEF_AMBIENT_TYPE),
+    Samples = proplists:get_value(samples, YafRay, ?DEF_SAMPLES),
+    println(F,"<light type=\"~w\" name=\"~s\" power=\"~.3f\" ", 
+	    [Type,Name,Power]),
+    case Type of
+	hemilight ->
+	    Ambient = proplists:get_value(ambient, OpenGL, 
+					  ?DEF_BACKGROUND_COLOR),
+	    println(F,"       samples=\"~w\">", [Samples]),
+	    export_rgb(F, color, Ambient);
+	pathlight ->
+	    Depth = proplists:get_value(depth, YafRay, ?DEF_DEPTH),
+	    println(F,"       samples=\"~w\" depth=\"~w\">", [Samples,Depth])
+    end,
     println(F, "</light>"),
     undefined;
 export_light(_F, Name, Type, _OpenGL, _YafRay) ->
