@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.236 2004/05/10 12:21:54 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.237 2004/05/10 12:31:23 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -570,8 +570,8 @@ is_power_of_two(X) ->
 %%% Update charts from new state of Geometry window.
 %%%
 
-new_geom_state(#st{shapes=Shs}=GeomSt, AuvSt0) ->
-    case new_geom_state_1(Shs, AuvSt0) of
+new_geom_state(#st{mat=Mat,shapes=Shs}=GeomSt, AuvSt0) ->
+    case new_geom_state_1(Shs, AuvSt0#st{mat=Mat}) of
 	delete ->
 	    cleanup_before_exit(),
 	    delete;
