@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.91 2003/08/30 08:16:09 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.92 2003/09/25 13:35:16 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -255,7 +255,7 @@ dissolve(Faces, #we{id=Id}=We0, Acc) ->
 dissolve_1(Faces, We) ->
     case gb_sets:is_empty(Faces) of
 	true -> We;
-	false -> dissolve_2(Faces, We)
+	false -> wings_we:vertex_gc(dissolve_2(Faces, We))
     end.
 
 dissolve_2(Faces, We0) ->
@@ -271,15 +271,12 @@ dissolve_2(Faces, We0) ->
 do_dissolve(Faces, Ess, Mat, WeOrig, We0) ->
     We1 = do_dissolve_faces(Faces, We0),
     Inner = wings_face:inner_edges(Faces, WeOrig),
-    {DelVs0,We2} = delete_inner(Inner, We1),
+    We2 = delete_inner(Inner, We1),
     {KeepVs,We} = do_dissolve_1(Ess, Mat, WeOrig, [], We2),
-    #we{es=Etab,vc=Vct0,vp=Vtab0,he=Htab0} = We,
-    DelVs = ordsets:subtract(DelVs0, KeepVs),
-    Vtab = foldl(fun(V, A) -> gb_trees:delete(V, A) end, Vtab0, DelVs),
-    Vct1 = foldl(fun(V, A) -> gb_trees:delete(V, A) end, Vct0, DelVs),
-    Vct = update_vtab(KeepVs, Etab, WeOrig, Vct1),
+    #we{es=Etab,vc=Vct0,he=Htab0} = We,
+    Vct = update_vtab(KeepVs, Etab, WeOrig, Vct0),
     Htab = gb_sets:difference(Htab0, gb_sets:from_list(Inner)),
-    We#we{vc=Vct,vp=Vtab,he=Htab}.
+    We#we{vc=Vct,he=Htab}.
 
 do_dissolve_1([EdgeList|Ess], Mat, WeOrig,
 	      KeepVs0, #we{es=Etab0,fs=Ftab0}=We0) ->
@@ -300,15 +297,10 @@ do_dissolve_faces(Faces, #we{fs=Ftab0}=We) ->
     We#we{fs=Ftab}.
 
 delete_inner(Inner, #we{es=Etab0}=We) ->
-    {Vs0,Etab} = foldl(
-		  fun(Edge, {Vacc0,Et0}) ->
-			  #edge{vs=Va,ve=Vb} = gb_trees:get(Edge, Et0),
-			  Vacc = [Va,Vb|Vacc0],
-			  Et = gb_trees:delete(Edge, Et0),
-			  {Vacc,Et}
-		  end, {[],Etab0}, Inner),
-    Vs = ordsets:from_list(Vs0),
-    {Vs,We#we{es=Etab}}.
+    Etab = foldl(fun(Edge, Et) ->
+			 gb_trees:delete(Edge, Et)
+		 end, Etab0, Inner),
+    We#we{es=Etab}.
 
 update_outer([Pred|[Edge|Succ]=T], More, Face, WeOrig, Ftab, KeepVs0, Etab0) ->
     #edge{vs=Va,ve=Vb,rf=Rf} = R0 = gb_trees:get(Edge, Etab0),
