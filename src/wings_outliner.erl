@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.14 2003/01/25 17:36:09 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.15 2003/01/26 23:14:19 bjorng Exp $
 %%
 
 -module(wings_outliner).
@@ -122,7 +122,9 @@ do_menu(Act, X, Y, #ost{os=Objs}) ->
 		   [{"Duplicate",menu_cmd(duplicate_object, Id),
 		     "Duplicate this object"},
 		    {"Delete",menu_cmd(delete_object, Id),
-		     "Delete this object"}];
+		     "Delete this object"},
+		    {"Rename",menu_cmd(rename_object, Id),
+		     "Rename selected objects"}];
 	       {light,Id,_} ->
 		   [{"Edit Light...",menu_cmd(edit_light, Id),
 		    "Edit light properties"},
@@ -154,19 +156,18 @@ menu_cmd(Cmd, Id) ->
 
 command({edit_material,Name0}, _Ost) ->
     Name = list_to_atom(Name0),
-    wings_wm:send(geom, {action,{material,{edit,Name}}}),
-    keep;
+    wings_wm:send(geom, {action,{material,{edit,Name}}});
 command({assign_material,Name0}, _Ost) ->
     Name = list_to_atom(Name0),
-    wings_wm:send(geom, {action,{material,{assign,Name}}}),
-    keep;
-command({duplicate_object,Id}, Ost) ->
-    duplicate_object(Id, Ost);
-command({delete_object,Id}, Ost) ->
-    delete_object(Id, Ost);
+    wings_wm:send(geom, {action,{material,{assign,Name}}});
+command({duplicate_object,Id}, _) ->
+    wings_wm:send(geom, {action,{body,{duplicate_object,[Id]}}});
+command({delete_object,Id}, _) ->
+    wings_wm:send(geom, {action,{body,{delete_object,[Id]}}});
+command({rename_object,Id}, _) ->
+    wings_wm:send(geom, {action,{body,{rename,[Id]}}});
 command({edit_light,Id}, _) ->
-    wings_wm:send(geom, {action,{light,{edit,Id}}}),
-    keep;
+    wings_wm:send(geom, {action,{light,{edit,Id}}});
 command({show_image,Id}, _) ->
     wings_image:window(Id),
     keep;
@@ -178,17 +179,6 @@ command({rename_image,Id}, Ost) ->
     rename_image(Id, Ost);
 command(Cmd, _) ->
     io:format("NYI: ~p\n", [Cmd]),
-    keep.
-
-duplicate_object(Id, #ost{st=#st{shapes=Shs}=St0}) ->
-    We = gb_trees:get(Id, Shs),
-    St = wings_shape:insert(We, "copy", St0),
-    wings_wm:send(geom, {new_state,St}).
-
-delete_object(Id, #ost{st=#st{shapes=Shs0}=St0}) ->
-    Shs = gb_trees:delete(Id, Shs0),
-    St = St0#st{shapes=Shs},
-    wings_wm:send(geom, {new_state,St}),
     keep.
 
 revert_image(_, _) ->

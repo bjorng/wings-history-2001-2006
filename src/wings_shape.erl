@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.50 2003/01/26 15:54:38 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.51 2003/01/26 23:14:19 bjorng Exp $
 %%
 
 -module(wings_shape).
@@ -102,11 +102,6 @@ event({current_state,St}, Ost0) ->
     Ost = update_state(St, Ost0),
     update_scroller(Ost),
     get_event(Ost);
-event({new_name,Id,Name}, #ost{st=#st{shapes=Shs0}=St}) ->
-    We = gb_trees:get(Id, Shs0),
-    Shs = gb_trees:update(Id, We#we{name=Name}, Shs0),
-    wings_wm:send(geom, {new_state,St#st{shapes=Shs}}),
-    keep;
 event(#mousemotion{x=X,y=Y}, Ost) ->
     Act = active_object(Y, Ost),
     help(Act, active_field(X)),
@@ -131,6 +126,8 @@ event({set_knob_pos,Pos}, #ost{first=First0,n=N}=Ost0) ->
 	    get_event(Ost);
 	_ -> keep
     end;
+event({action,{objects,Cmd}}, Ost) ->
+    command(Cmd, Ost);
 event(Ev, Ost) ->
     case wings_hotkey:event(Ev) of
 	{select,deselect} ->
@@ -141,8 +138,7 @@ event(Ev, Ost) ->
 
 help(-1, _) -> wings_wm:message("");
 help(_, name) ->
-    {_,_,Three} = wings_camera:button_names(),
-    wings_wm:message([Three," Rename object"]);
+    wings_util:button_message("Select", [], "Show menu");
 help(_, visibility) ->
     help_1("Toggle visibility of active object",
 	   "Toggle visibility of all other objects");
@@ -158,6 +154,16 @@ help(_, wire) ->
 
 help_1(OneMsg, ThreeMsg) ->
     wings_util:button_message(OneMsg, [], ThreeMsg).
+
+command({delete_object,Id}, _) ->
+    wings_wm:send(geom, {action,{body,{delete_object,[Id]}}});
+command({duplicate_object,Id}, _) ->
+    wings_wm:send(geom, {action,{body,{duplicate_object,[Id]}}});
+command({rename_object,Id}, _) ->
+    wings_wm:send(geom, {action,{body,{rename,[Id]}}});
+command(Cmd, _) ->
+    io:format("NYI: ~p\n", [Cmd]),
+    keep.
 
 update_state(St, #ost{first=OldFirst}=Ost0) ->
     #ost{first=First0} = Ost = update_state_1(St, Ost0),
@@ -393,23 +399,16 @@ do_menu(Act, X, Y, #ost{os=Objs}) ->
     Menu = case lists:nth(Act+1, Objs) of
 	       #we{id=Id} ->
 		   [{"Duplicate",menu_cmd(duplicate_object, Id),
-		     "Duplicate this object"},
+		     "Duplicate selected objects"},
 		    {"Delete",menu_cmd(delete_object, Id),
-		     "Delete this object"}]
+		     "Delete selected objects"},
+		    {"Rename",menu_cmd(rename_object, Id),
+		     "Rename selected objects"}]
 	   end,
     wings_menu:popup_menu(X, Y, objects, Menu).
 
 menu_cmd(Cmd, Id) ->
     {'VALUE',{Cmd,Id}}.
-
-rename_object(#we{id=Id,name=Name}) ->
-    wings_ask:ask("Rename Object",
-		  [{"New Name",Name}],
-		  fun([NewName]) when NewName =/= Name ->
-			  wings_wm:send(object, {new_name,Id,NewName}),
-			  ignore;
-		     (_) -> ignore
-		  end).
 
 %%%
 %%% Draw the object window.

@@ -3,16 +3,17 @@
 %%
 %%     This module contains most of the command for entire Wings objects.
 %%
-%%  Copyright (c) 2001-2002 Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.49 2003/01/05 14:06:16 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.50 2003/01/26 23:14:19 bjorng Exp $
 %%
 
 -module(wings_body).
--export([menu/3,command/2,convert_selection/1,auto_smooth/1]).
+-export([menu/3,command/2,convert_selection/1]).
+-export([auto_smooth/1]).
 
 -include("wings.hrl").
 -import(lists, [map/2,foldl/3,reverse/1,reverse/2,sort/1,seq/2]).
@@ -73,11 +74,15 @@ command({scale,Type}, St) ->
 command(invert, St) ->
     {save_state,invert_normals(St)};
 command(duplicate, St) ->
-    duplicate(none, St);
+    {save_state,duplicate(none, St)};
 command({duplicate,Dir}, St) ->
-    duplicate(Dir, St);
+    save_state,duplicate(Dir, St);
+command({duplicate_object,Ids}, St) ->
+    {save_state,duplicate_object(Ids, St)};
 command(delete, St) ->
     {save_state,delete(St)};
+command({delete_object,Ids}, St) ->
+    {save_state,delete_object(Ids, St)};
 command(tighten, St) ->
     tighten(St);
 command(smooth, St) ->
@@ -100,6 +105,8 @@ command(collapse, St) ->
     {save_state,wings_collapse:collapse(St)};
 command(rename, St) ->
     rename(St);
+command({rename,Ids}, St) ->
+    rename(Ids, St);
 command(strip_texture, St) ->
     {save_state,strip_texture(St)};
 command({mode,Mode}, St) ->
@@ -195,6 +202,17 @@ duplicate(Dir, #st{onext=Oid0}=St0) ->
     end.
 
 %%%
+%%% Duplicate called from the Outliner or Object window.
+%%%
+
+duplicate_object(Objects, #st{shapes=Shs}=St) ->
+    Copy = "copy",
+    foldl(fun(Id, S) ->
+		  We = gb_trees:get(Id, Shs),
+		  wings_shape:insert(We, Copy, S)
+	  end, St, Objects).
+
+%%%
 %%% The Delete command.
 %%%
 
@@ -203,6 +221,16 @@ delete(#st{shapes=Shapes0}=St) ->
 				    gb_trees:delete(Id, Shs)
 			    end, Shapes0, St),
     St#st{shapes=Shapes,sel=[]}.
+
+%%%
+%%% Delete called from the Outliner or Object window.
+%%%
+
+delete_object(Objects, #st{shapes=Shs0}=St) ->
+    Shs = foldl(fun(Id, Shs) ->
+			gb_trees:delete(Id, Shs)
+		end, Shs0, Objects),
+    wings_sel:valid_sel(St#st{shapes=Shs}).
 
 %%%
 %%% The Flip command
@@ -346,6 +374,13 @@ cos_degrees(Angle) ->
 
 rename(St) ->
     Wes = wings_sel:fold(fun(_, We, A) -> [We|A] end, [], St),
+    rename_1(Wes, St).
+
+rename(Objects, #st{shapes=Shs}=St) ->
+    Wes = foldl(fun(Id, A) -> [gb_trees:get(Id, Shs)|A] end, [], Objects),
+    rename_1(Wes, St).
+
+rename_1(Wes, St) ->
     Qs = rename_qs(Wes),
     wings_ask:dialog("Rename", Qs,
 		     fun(NewNames) ->
