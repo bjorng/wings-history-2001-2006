@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.200 2004/03/12 19:37:27 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.201 2004/03/13 09:08:55 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -654,7 +654,7 @@ flip(Flip, We) ->
 %%% Verify that the model in the geometry window hasn't changed its topology.
 %%%
 verify_state(WingsSt, AuvSt) ->
-    case same_topology(WingsSt,AuvSt) of
+    case same_topology(WingsSt, AuvSt) of
 	true -> keep;
 	false ->
 	    wings_wm:dirty(),
@@ -662,9 +662,9 @@ verify_state(WingsSt, AuvSt) ->
     end.
 
 same_topology(#st{shapes=Shs}, #st{bb=#uvstate{id=Id,st=#st{shapes=Orig}}}) ->
-    case {gb_trees:lookup(Id, Shs), gb_trees:lookup(Id, Orig)} of
+    case {gb_trees:lookup(Id, Shs),gb_trees:lookup(Id, Orig)} of
 	{{value,We},{value,We}} -> true;
-	{value,#we{es=Etab1}, {value,#we{es=Etab2}}} -> 
+	{{value,#we{es=Etab1}},{value,#we{es=Etab2}}} ->
 	    gb_trees:keys(Etab1) =:= gb_trees:keys(Etab2);
 	_ ->
 	    false
