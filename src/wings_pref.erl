@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.33 2002/03/01 19:56:42 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.34 2002/03/02 14:29:35 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -90,17 +90,18 @@ command(other_prefs, St) ->
 		    {"Faces",face_hilite},
 		    {"Objects",body_hilite}],
 	    [{title,"Highlighting"}]},
-	   {hframe,[{"Angle",auto_rotate_angle},
-		    {"Delay (ms)",auto_rotate_delay}],
-	    [{title,"Auto Rotate"}]},
-	   {hframe,[{"Size",active_vector_size},
-		    {"Width",active_vector_width},
-		    {"Color",active_vector_color}],
-	    [{title,"Vector Display"}]},
+	   {hframe,
+	    [{vframe,[{"Size",active_vector_size},
+		     {"Width",active_vector_width},
+		     {"Color",active_vector_color}],
+	      [{title,"Vector Display"}]},
+	     {vframe,[{"Angle",auto_rotate_angle},
+		      {"Delay (ms)",auto_rotate_delay}],
+	      [{title,"Auto Rotate"}]}],[]},
 	   {"Show Axis Letters",show_axis_letters},
 	   {"Force Axis-aligned Grid",force_show_along_grid},
 	   {"Show Memory Used",show_memory_used},
-	   {"Display List Optimisation",display_list_opt},
+	   {"Display List Optimization",display_list_opt},
 	   {"Advanced Menus",advanced_menus}],
     Qs = make_query(Qs0),
     wings_ask:ask(Qs, St, fun(Res) -> {edit,{preferences,{set,Res}}} end);

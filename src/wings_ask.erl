@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.7 2002/03/01 19:56:42 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.8 2002/03/02 14:29:35 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -20,6 +20,8 @@
 
 -define(HMARGIN, 16).
 -define(VMARGIN, 8).
+
+-define(HFRAME_SPACING, (2*?CHAR_WIDTH)).
 
 -define(IS_SHIFTED(Mod), ((Mod) band ?SHIFT_BITS =/= 0)).
 -import(lists, [reverse/1,reverse/2,duplicate/2]).
@@ -44,7 +46,8 @@
 	 flags,					%Flags field.
 	 x,y,					%Upper left position.
 	 lw,					%Label width.
-	 w,h					%Width, height.
+	 w,h,					%Width, height.
+	 ipadx=0,ipady=0			%Internal padding.
 	}).
 
 ask(false, Qs, _St, Fun) ->
@@ -55,7 +58,7 @@ ask(true, Qs, St, Fun) -> ask(Qs, St, Fun).
 
 ask(Qs0, Redraw, Fun) ->
     Qs1 = normalize(Qs0),
-    Qs = propagate_sizes(propagate_sizes(Qs1)),
+    Qs = propagate_sizes(Qs1),
     {Fis0,Priv0} = flatten_fields(Qs),
     Fis = list_to_tuple(Fis0),
     Priv = list_to_tuple(Priv0),
@@ -259,40 +262,52 @@ normalize({Prompt,Def}, Fi) ->
 normalize({Prompt,Def,Flags}, Fi) ->
     normalize_field(text_field(Prompt, Def), Flags, Fi).
 
-vframe(Qs, Fi, Flags) ->
-    vframe_1(Qs, Fi, Flags, []).
-
-vframe_1([Q|Qs], #fi{y=Y}=Fi0, Flags, Acc) ->
-    {#fi{h=H}=Fi,Priv} = normalize(Q, Fi0),
-    vframe_1(Qs, Fi#fi{y=Y+H}, Flags, [{Fi,Priv}|Acc]);
-vframe_1([], _, Flags, Fields0) ->
-    [{Fi,_}|_] = Fields = reverse(Fields0),
-    {Lw,W,H} = vframe_size(Fields, 0, 0, 0),
-    Fun = frame_fun(),
-    {Fi#fi{handler=Fun,inert=true,lw=Lw,w=W,h=H,flags=Flags},{vframe,Fields}}.
-
-vframe_size([{#fi{lw=Lw,w=W,h=H},_}|Fis], Lw0, W0, H0) ->
-    vframe_size(Fis, max(Lw0, Lw), max(W0, W), H0+H);
-vframe_size([], Lw, W, H) -> {Lw,W,H}.
-
-hframe(Qs, #fi{x=X0,y=Y}=Fi, Flags) ->
+vframe(Qs, #fi{x=X,y=Y0}=Fi0, Flags) ->
     {Dx,Dy} = case have_border(Flags) of
 		  true -> {10,?LINE_HEIGHT};
 		  false -> {0,0}
 	      end,
-    {Fields,X,H0} = hframe_1(Qs, Fi#fi{x=X0+Dx,y=Y+Dy}, 0, []),
-    W0 = X-X0,
-    {W,H} = case have_border(Flags) of
-		true -> {W0+2*10,H0+?LINE_HEIGHT+10};
-		false -> {W0,H0}
-	    end,
+    {Fields,Y,Lw,W0} = vframe_1(Qs, Fi0#fi{x=X+Dx,y=Y0+Dy}, 0, 0, []),
+    H0 = Y-Y0,
+    {Ipadx,Ipady} = case have_border(Flags) of
+			true -> {10,10};
+			false -> {0,0}
+		    end,
+    W = W0 + Ipadx,
+    H = H0 + Ipady,
     Fun = frame_fun(),
-    {Fi#fi{handler=Fun,inert=true,flags=Flags,lw=0,w=W,h=H},
+    Fi = Fi0#fi{handler=Fun,inert=true,flags=Flags,
+		lw=0,w=W,h=H,ipadx=Ipadx,ipady=Ipady},
+    {Fi,{vframe,Lw,Fields}}.
+
+vframe_1([Q|Qs], #fi{y=Y}=Fi0, Lw0, W0, Acc) ->
+    {#fi{lw=Lw,w=W,h=H}=Fi,Priv} = normalize(Q, Fi0),
+    vframe_1(Qs, Fi#fi{y=Y+H}, max(Lw0, Lw),  max(W0, W), [{Fi,Priv}|Acc]);
+vframe_1([], #fi{y=Y}, Lw, W, Fields) ->
+    {reverse(Fields),Y,Lw,W}.
+
+hframe(Qs, #fi{x=X0,y=Y}=Fi, Flags) ->
+    {Dx0,Dy0} = case have_border(Flags) of
+		    true -> {10,?LINE_HEIGHT};
+		    false -> {0,0}
+		end,
+    {Fields,X,H0} = hframe_1(Qs, Fi#fi{x=X0+Dx0,y=Y+Dy0}, 0, []),
+    W0 = X-X0,
+    {Ipadx,Ipady} = case have_border(Flags) of
+			true -> {2*10,?LINE_HEIGHT+10};
+			false -> {0,0}
+		    end,
+    W = W0 + Ipadx,
+    H = H0 + Ipady,
+    Fun = frame_fun(),
+    {Fi#fi{handler=Fun,inert=true,flags=Flags,
+	   lw=0,w=W,h=H,ipadx=Ipadx,ipady=Ipady},
      {hframe,Fields}}.
     
 hframe_1([Q|Qs], #fi{x=X}=Fi0, H0, Acc) ->
     {#fi{w=W,h=H}=Fi,Priv} = normalize(Q, Fi0),
-    hframe_1(Qs, Fi#fi{lw=0,x=X+W+2*?CHAR_WIDTH}, max(H0, H), [{Fi,Priv}|Acc]);
+    hframe_1(Qs, Fi#fi{x=X+W+?HFRAME_SPACING},
+	     max(H0, H), [{Fi,Priv}|Acc]);
 hframe_1([], #fi{x=X}, H, Fields0) ->
     {reverse(Fields0),X,H}.
 
@@ -303,41 +318,57 @@ normalize_field({Handler,Inert,Priv,Lw,W,H}, Flags, Fi) ->
 %%% Propagate changed sizes to all fields.
 %%%
 
-propagate_sizes({Fi,{vframe,Fields0}}) ->
-    {#fi{w=W},Fields} = vframe_propagate(Fields0, Fi, []),
-    {Fi#fi{w=W},{vframe,Fields}};
-propagate_sizes({Fi,{hframe,Fields0}}) ->
-    Fields = hframe_propagate(Fields0, Fi, []),
-    {Fi,{hframe,Fields}};
-propagate_sizes(Other) -> Other.
+propagate_sizes(Fi) ->
+    propagate_sizes(Fi, 0).
 
-vframe_propagate([{#fi{lw=0}=Fi0,Priv}|Fis], #fi{w=W}=Sz, Acc) ->
-    Fi = Fi0#fi{w=W},
-    vframe_propagate(Fis, Sz, [propagate_sizes({Fi,Priv})|Acc]);
+propagate_sizes({#fi{x=X}=Fi0,{vframe,Lw,Fields0}}, Xoffs) ->
+    case vframe_propagate(Fields0, Fi0#fi{lw=Lw}, Xoffs, []) of
+	{Fi0,Fields0} -> {Fi0#fi{lw=0},{vframe,Lw,Fields0}};
+	{Fi,Fields} -> propagate_sizes({Fi#fi{x=X+Xoffs},{vframe,Lw,Fields}})
+    end;
+propagate_sizes({#fi{x=X}=Fi0,{hframe,Fields0}}, Xoffs) ->
+    case hframe_propagate(Fields0, Fi0, Xoffs, []) of
+	{Fi0,Fields0} -> {Fi0,{hframe,Fields0}};
+	{Fi,Fields} -> propagate_sizes({Fi#fi{x=X+Xoffs},{hframe,Fields}})
+    end;
+propagate_sizes({#fi{x=X}=Fi,Priv}, Xoffs) ->
+    {Fi#fi{x=X+Xoffs},Priv}.
+
+vframe_propagate([{#fi{lw=0}=Fi,Priv}|Fis],
+		 #fi{w=SzW,ipadx=Ipadx}=Sz, Xoffs, Acc) ->
+    {#fi{w=W},_} = New = propagate_sizes({Fi#fi{w=SzW-Ipadx},Priv}, Xoffs),
+    vframe_propagate(Fis, Sz#fi{w=max(W+Ipadx, SzW)}, Xoffs, [New|Acc]);
 vframe_propagate([{#fi{lw=ReqLw,w=ReqW}=Fi0,Priv}|Fis],
-		 #fi{lw=Lw,w=W0}=Sz, Acc) when ReqW-ReqLw+Lw > W0 ->
-    W = ReqW-ReqLw+Lw,
-    Fi = Fi0#fi{lw=Lw,w=W},
-    vframe_propagate(Fis, Sz#fi{w=W}, [propagate_sizes({Fi,Priv})|Acc]);
-vframe_propagate([{Fi0,Priv}|Fis], #fi{lw=Lw,w=W}=Sz, Acc) ->
-    Fi = Fi0#fi{lw=Lw,w=W},
-    vframe_propagate(Fis, Sz, [propagate_sizes({Fi,Priv})|Acc]);
-vframe_propagate([], Fi, Acc) -> {Fi,reverse(Acc)}.
+		 #fi{lw=Lw,w=SzW,ipadx=Ipadx}=Sz, Xoffs, Acc)
+  when ReqW-ReqLw+Lw+Ipadx > SzW ->
+    W0 = ReqW-ReqLw+Lw,
+    Fi = Fi0#fi{lw=Lw,w=W0},
+    New = propagate_sizes({Fi,Priv}, Xoffs),
+    vframe_propagate(Fis, Sz#fi{w=W0+Ipadx}, Xoffs, [New|Acc]);
+vframe_propagate([{Fi0,Priv}|Fis], #fi{lw=Lw,w=SzW,ipadx=Ipadx}=Sz,
+		 Xoffs, Acc) ->
+    Fi = Fi0#fi{lw=Lw,w=SzW},
+    {#fi{w=W},_} = New = propagate_sizes({Fi#fi{w=SzW-Ipadx},Priv}, Xoffs),
+    vframe_propagate(Fis, Sz#fi{w=max(W+Ipadx, SzW)}, Xoffs, [New|Acc]);
+vframe_propagate([], Sz, _Xoffs, Acc) -> {Sz,reverse(Acc)}.
 
-hframe_propagate([{Fi0,Priv}|Fis], #fi{h=H}=Sz, Acc) ->
-    Fi = Fi0#fi{h=H},
-    hframe_propagate(Fis, Sz, [propagate_sizes({Fi,Priv})|Acc]);
-hframe_propagate([], _, Acc) -> reverse(Acc).
+hframe_propagate([{#fi{w=W0}=Fi,Priv}|Fis], Sz, Xoffs0, Acc) ->
+    #fi{w=SzW,h=H,ipady=Ipady} = Sz,
+    {#fi{w=W},_} = New = propagate_sizes({Fi#fi{h=H-Ipady},Priv}, Xoffs0),
+    Dw = W - W0,
+    Xoffs = Xoffs0 + Dw,
+    hframe_propagate(Fis, Sz#fi{w=SzW+Dw}, Xoffs, [New|Acc]);
+hframe_propagate([], Fi, _Xoffs, Acc) -> {Fi,reverse(Acc)}.
 
 %%%
-%%% Calculated flatten fields array.
+%%% Calculate flattened fields array.
 %%%
 
 flatten_fields({Fi,P}) ->
     {Fis,Priv} = flatten_fields(Fi, P, [], []),
     {reverse(Fis),reverse(Priv)}.
 
-flatten_fields(Fi, {vframe,Fields}, FisAcc, PrivAcc) ->
+flatten_fields(Fi, {vframe,_Lw,Fields}, FisAcc, PrivAcc) ->
     frame_flatten(Fields, [Fi|FisAcc], [{vframe,[]}|PrivAcc]);
 flatten_fields(Fi, {hframe,Fields}, FisAcc, PrivAcc) ->
     frame_flatten(Fields, [Fi|FisAcc], [{hframe,[]}|PrivAcc]);
@@ -369,9 +400,9 @@ frame_redraw(#fi{x=X,y=Y0,w=W,h=H0,flags=Flags}) ->
 	    vline(X, Y+1, H-2),
 	    gl:'end'(),
 	    gl:color3fv(?MENU_COLOR),
-	    TextPos = 6*?CHAR_WIDTH,
+	    TextPos = X + 3*?CHAR_WIDTH,
 	    gl:rectf(TextPos-?CHAR_WIDTH, Y-1,
-		     TextPos+(length(Title)+2)*?CHAR_WIDTH, Y+2),
+		     TextPos+(length(Title)+1)*?CHAR_WIDTH, Y+2),
 	    gl:color3f(0, 0, 0),
 	    wings_io:text_at(TextPos, Y0+?CHAR_HEIGHT, Title)
     end.
