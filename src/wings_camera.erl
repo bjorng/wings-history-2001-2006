@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.79 2003/08/16 17:50:34 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.80 2003/09/01 17:09:09 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -536,7 +536,8 @@ zoom(Delta0) ->
 
 pan(Dx0, Dy0) ->
     #view{pan_x=PanX0,pan_y=PanY0,distance=D} = View = wings_view:current(),
-    S = D*(1/8)/(51-wings_pref:get_value(pan_speed)),
+    %% The float/1 call below is a workaround for a compiler bug in R9C-0.
+    S = D*(1/8)/(51-float(wings_pref:get_value(pan_speed))),
     Dx = Dx0*S,
     Dy = Dy0*S,
     PanX = PanX0 + Dx,
