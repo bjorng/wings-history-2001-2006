@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.17 2002/04/12 15:09:13 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.18 2002/04/15 14:13:39 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -107,19 +107,11 @@ tess_face_vtxcol(Tess, []) ->
     glu:tessEndPolygon(Tess).
 
 tess_face(Tess, [P|T]) ->
-    glu_tessVertex(Tess, P),
+    glu:tessVertex(Tess, P),
     tess_face(Tess, T);
 tess_face(Tess, []) ->
     glu:tessEndContour(Tess),
     glu:tessEndPolygon(Tess).
-
--record(tessPtr, {ptr}).
-
-%% Dirty hack until Dan includes it in ESDL.
-glu_tessVertex(#tessPtr{ptr=Tobj}, {X,Y,Z}) ->
-    sdl:cast(<<(941):16, Tobj:32/unsigned,
-	      X:64/float,Y:64/float,Z:64/float,
-	      3:16,0>>).
 
 %%
 %% Draw a face. Tesselate polygons (4 edges or more).
