@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.12 2002/02/23 18:42:42 bjorng Exp $
+%%     $Id: wpa.erl,v 1.13 2002/04/05 05:51:21 bjorng Exp $
 %%
 -module(wpa).
 -export([ask/3,ask/4,error/1,message/1,yes_no/1,
@@ -22,7 +22,8 @@
 	 vertices/1,vertex_pos/2,vertex_flatten/3,vertex_center/2,
 	 faces/1,face_vertices/2,face_outer_vertices/2,face_outer_edges/2,
 	 edge_loop_vertices/2,
-	 obj_name/1,obj_id/1
+	 obj_name/1,obj_id/1,
+	 camera_info/1
 	]).
 
 -include("wings.hrl").
@@ -185,3 +186,25 @@ face_outer_edges(Faces, We) ->
 
 obj_name(#we{name=Name}) -> Name.
 obj_id(#we{id=Id}) -> Id.
+
+%%%
+%%% Camera info.
+%%%
+
+camera_info(As) ->
+    camera_info(As, wings_view:current()).
+
+camera_info([aim|As], #view{origo=Aim}=View) ->
+    [Aim|camera_info(As, View)];
+camera_info([distance_to_aim|As], #view{distance=Dist}=View) ->
+    [Dist|camera_info(As, View)];
+camera_info([azimuth|As], #view{azimuth=Az}=View) ->
+    [Az|camera_info(As, View)];
+camera_info([elevation|As], #view{elevation=El}=View) ->
+    [El|camera_info(As, View)];
+camera_info([tracking|As], #view{pan_x=X,pan_y=Y}=View) ->
+    [{X,Y}|camera_info(As, View)];
+camera_info([fov|As], View) ->
+    %% Field of view. XXX Should not be hard-coded.
+    [45|camera_info(As, View)];
+camera_info([], _) -> [].
