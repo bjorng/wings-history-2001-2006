@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.48 2004/10/08 06:02:31 dgud Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.49 2004/12/25 18:56:30 bjorng Exp $
 %%
 
 -module(wings_vertex_cmd).
@@ -170,8 +170,16 @@ bevel(St0) ->
 		     wings_sel:set(face, FaceSel, St)).
 
 bevel_vertex(V, We0) ->
-    {We,_} = bevel_1(gb_sets:singleton(V), We0, {[],[]}),
-    We.
+    Es = wings_vertex:fold(
+	   fun(Edge, Face, Rec, Acc) ->
+		   [{Edge,Face,Rec}|Acc]
+	   end, [], V, We0),
+    case length(Es) of
+	2 -> We0;
+	NumEdges ->
+	    {We,_,_} = bevel_vertex_1(V, Es, NumEdges, [], We0, []),
+	    We
+    end.
 
 bevel_1(VsSet, #we{id=Id}=We0, {Tvs,Fa}) ->
     Vs = gb_sets:to_list(VsSet),
