@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.90 2003/10/30 14:29:00 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.91 2003/11/13 15:25:48 raimo_niskanen Exp $
 %%
 
 -module(wings_camera).
@@ -57,7 +57,7 @@ command(camera_mode, _St) ->
     PanSpeed0 = wings_pref:get_value(pan_speed),
     View0 = wings_wm:get_prop(Active, current_view),
     #view{fov=Fov0,hither=Hither0,yon=Yon0} = View0,
-    Qs = [{vframe,[mouse_buttons()],[{title,"Mouse Buttons"}]},
+    Qs = [{vframe,[mouse_buttons(2)],[{title,"Mouse Buttons"}]},
 	  {vframe,[camera_modes(-2)],[{title,"Camera Mode"}]},
 	  {vframe,
 	   [{hframe,[{slider,{text,PanSpeed0,[{range,{1,50}}]}}]}],
@@ -95,15 +95,29 @@ command(camera_mode, _St) ->
 			     ignore
 		     end).
 
-mouse_buttons() ->
+
+
+mouse_buttons(DI) ->
     {menu,[{"One",1},{"Two",2},{"Three",3}],
      wings_pref:get_value(num_buttons),
-     [{hook,fun (menu_disabled, {_Var,I,Sto}) ->
-			   case gb_trees:get(I+2, Sto) of
-			       nendo -> [];
-			       blender -> [1];
-			       _ -> [1,2]
-			   end;
+     [{hook,fun (update, {_Var,I,Val,Sto}) ->
+		    Mode0 = gb_trees:get(I+DI, Sto),
+		    Mode = case {Val,Mode0} of
+			       {1,_} -> nendo;
+			       {2,blender} -> blender;
+			       {2,_} -> nendo;
+			       {3,_} -> Mode0
+			   end,
+		    case Mode of
+			Mode0 -> keep;
+			_ -> {store,gb_trees:update(I+DI, Mode, Sto)}
+		    end;
+%%% 		(menu_disabled, {_Var,I,Sto}) ->
+%%% 			   case gb_trees:get(I+2, Sto) of
+%%% 			       nendo -> [];
+%%% 			       blender -> [1];
+%%% 			       _ -> [1,2]
+%%% 			   end;
 		(_, _) -> void
 	    end}]}.
 
@@ -111,12 +125,24 @@ camera_modes(DI) ->
     Modes = [mirai,nendo,maya,tds,blender,mb],
     {menu,[{desc(Mode),Mode} || Mode <- Modes],
      wings_pref:get_value(camera_mode),
-     [{hook,fun (menu_disabled, {_Var,I,Sto}) ->
-		    case gb_trees:get(I+DI, Sto) of
-			1 -> [mirai,maya,tds,blender,mb];
-			2 -> [mirai,maya,tds,mb];
-			3 -> []
+     [{hook,fun (update, {_Var,I,Val,Sto}) ->
+		    But0 = gb_trees:get(I+DI, Sto),
+		    But = case {Val,But0} of
+			      {nendo,_} -> But0;
+			      {blender,1} -> 2;
+			      {blender,_} -> But0;
+			      {_,_} -> 3
+			   end,
+		    case But of
+			But0 -> keep;
+			_ -> {store,gb_trees:update(I+DI, But, Sto)}
 		    end;
+%%% 		(menu_disabled, {_Var,I,Sto}) ->
+%%% 		    case gb_trees:get(I+DI, Sto) of
+%%% 			1 -> [mirai,maya,tds,blender,mb];
+%%% 			2 -> [mirai,maya,tds,mb];
+%%% 			3 -> []
+%%% 		    end;
 		(_, _) -> void
 	    end}]}.
 

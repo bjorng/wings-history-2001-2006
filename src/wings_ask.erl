@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.116 2003/11/13 10:12:40 raimo_niskanen Exp $
+%%     $Id: wings_ask.erl,v 1.117 2003/11/13 15:25:48 raimo_niskanen Exp $
 %%
 
 -module(wings_ask).
@@ -275,13 +275,10 @@ delete(S) ->
     delete_blanket(S),
     delete.
 
-mouse_event(Ev=#mousemotion{x=X0,y=Y0},
-	    #s{mouse_focus=true,ox=Ox,oy=Oy}=S) ->
+mouse_event(Ev=#mousemotion{x=X0,y=Y0}, #s{ox=Ox,oy=Oy}=S) ->
     X = X0-Ox,
     Y = Y0-Oy,
     field_event(Ev#mousemotion{x=X,y=Y}, S);
-mouse_event(#mousemotion{}, #s{}) -> 
-    keep;
 mouse_event(Ev=#mousebutton{x=X0,y=Y0,state=State}, 
 	    S0=#s{mouse_focus=MouseFocus,ox=Ox,oy=Oy,fi=TopFi}) ->
     X = X0-Ox,
@@ -351,17 +348,23 @@ set_focus(NewPath=[#fi{index=NewIndex,handler=NewHandler}|_],
     S#s{focus=NewIndex,mouse_focus=MouseFocus,store=Store}.
 
 
-field_event(_Ev=#mousemotion{x=X,y=Y,state=Bst}, #s{fi=Fi})
-  when (Bst band ?BUTTON_MASK) == 0 ->
+field_event(Ev=#mousemotion{x=X,y=Y,state=Bst}, S=#s{fi=Fi})
+  when (Bst band ?BUTTON_MASK) =:= 0 ->
     case mouse_to_field(X, Y, Fi) of
 	[] ->
-	    wings_wm:allow_drag(false);
-	[#fi{index=_I,flags=Flags}|_] ->
-	    ?DEBUG_DISPLAY({field_event,[_I,_Ev]}),
-	    wings_wm:allow_drag(member(drag, Flags))
-    end,
-    keep;
-field_event(Ev, S=#s{focus=I,fi=Fi}) -> field_event(Ev, S, get_fi(I, Fi)).
+	    wings_wm:allow_drag(false),
+	    wings_util:button_message("", "", "");
+	Path=[#fi{flags=Flags,extra=Extra}|_] ->
+	    ?DEBUG_DISPLAY({field_event,[_I,Ev]}),
+	    wings_wm:allow_drag(member(drag, Flags)),
+	    case Extra of
+		#container{} -> field_event(Ev, S, Path);
+		_ -> wings_util:button_message("", "", "")
+	    end
+    end, keep;
+field_event(Ev, S=#s{focus=I,mouse_focus=true,fi=Fi}) -> 
+    field_event(Ev, S, get_fi(I, Fi));
+field_event(_Ev, _S) -> keep.
 
 field_event(Ev, S=#s{focus=_I,fi=TopFi=#fi{w=W0,h=H0},store=Store0}, 
 	    Path=[#fi{handler=Handler}|_]) ->
@@ -953,7 +956,24 @@ frame_event({redraw,Active},
 	    Store) ->
     DisEnable = hook(Hook, is_disabled, [key(Key, I), I, Store]),
     frame_redraw(Active, Fi, DisEnable, Minimized);
-frame_event(#mousebutton{x=Xb,y=Yb,button=Button,mod=Mod,state=?SDL_RELEASED}, 
+frame_event(#mousemotion{x=Xm,y=Ym,state=Bst},
+	    [#fi{key=Key,index=I,inert=false,disabled=false,x=X,y=Y}|_],
+	    Store) when (Bst band ?BUTTON_MASK) =:= 0 ->
+    case inside(Xm, Ym, X, Y+3, 10, ?CHAR_HEIGHT) of
+	true ->
+	    Minimized = gb_trees:get(key(Key, I), Store),
+	    case Minimized of
+		true -> wings_util:button_message(
+			  "Expand frame and minimize siblings",
+			  "",
+			  "Expand frame");
+		false -> wings_util:button_message(
+			   "Minimize frame", "", "Minimize frame");
+		undefined -> wings_util:button_message("", "", "")
+	    end;
+	false -> wings_util:button_message("", "", "")
+    end;
+frame_event(#mousebutton{x=Xb,y=Yb,button=Button,state=?SDL_RELEASED}, 
 	    Path=[#fi{x=X0,y=Y0}|_], 
 	    Store) ->
     X = X0,
@@ -961,10 +981,9 @@ frame_event(#mousebutton{x=Xb,y=Yb,button=Button,mod=Mod,state=?SDL_RELEASED},
     case inside(Xb, Yb, X, Y, 10, ?CHAR_HEIGHT) of
 	true -> 
 	    case Button of
-		1 -> frame_event({key,$\s,Mod,$\s}, Path, Store);
-		_ -> 
-		    M = ?SHIFT_BITS,
-		    frame_event({key,$\s,M,$\s}, Path, Store)
+		1 -> frame_event({key,$\s,0,$\s}, Path, Store);
+		2 -> keep;
+		3 -> frame_event({key,$\s,?SHIFT_BITS,$\s}, Path, Store)
 	    end;
 	false -> keep
     end;
@@ -1337,9 +1356,9 @@ menu_event(#mousebutton{state=?SDL_PRESSED},
     Val = gb_trees:get(Key, Store),
     Disabled = hook(Hook, menu_disabled, [Key, I, Store]),
     menu_popup(Fi, M, Val, Disabled);
-menu_event({popup_result,Val}, [#fi{index=I}|_], Store) ->
+menu_event({popup_result,Val}, [#fi{index=I,hook=Hook}|_], Store) ->
     #menu{var=Var} = gb_trees:get(-I, Store),
-    {store,gb_trees:update(key(Var, I), Val, Store)};
+    hook(Hook, update, [key(Var, I), I, Val, Store]);
 menu_event(_Ev, _Path, _Store) -> keep.
 
 menu_width([{S,_}|T], W0) ->
