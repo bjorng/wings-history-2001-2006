@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.39 2003/12/30 21:14:50 bjorng Exp $
+%%     $Id: wpa.erl,v 1.40 2003/12/31 20:45:59 bjorng Exp $
 %%
 -module(wpa).
 -export([ask/3,ask/4,dialog/3,dialog/4,error/1,
@@ -150,10 +150,9 @@ export_sel_set_holes(face, Faces0, #we{fs=Ftab}=We) ->
 
 %% export_filename([Prop], Continuation).
 %%   The Continuation fun will be called like this: Continuation(Filename).
-export_filename(Prop, #st{}=St) ->
-    %% XXX Will soon be removed.
-    wings_file:export_filename(Prop, St);
-export_filename(Prop, Cont) ->
+export_filename(Prop0, Cont) ->
+    Dir = wings_pref:get_value(current_directory),
+    Prop = Prop0 ++ [{directory,Dir}],
     wings_plugin:call_ui({file,save_dialog,[{title,"Export"}|Prop],Cont}).
 
 %% export_filename([Prop], St, Continuation).

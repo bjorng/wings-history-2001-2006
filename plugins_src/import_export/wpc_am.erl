@@ -2,7 +2,7 @@
 %
 % Howard Trickey
 %
-% $Id: wpc_am.erl,v 1.5 2003/11/28 15:35:03 raimo_niskanen Exp $
+% $Id: wpc_am.erl,v 1.6 2003/12/31 20:45:58 bjorng Exp $
 %
 -module(wpc_am).
 -export([init/0,menu/2,command/2]).
@@ -83,22 +83,18 @@ menu(_, Menu) -> Menu.
 % and Arg=false if invoked without.
 % That causes a second call where Arg is list of options.
 command({file,{export,{mdl,Arg}}}, St) ->
-	case is_atom(Arg) of
+    if
+	is_atom(Arg) ->
+	    wpa:dialog(Arg, "Hash A:M Export Options", dialog_qs(),
+		       fun(Res) -> {file,{export,{mdl,Res}}} end);
 	true ->
-		wpa:dialog(Arg, "Hash A:M Export Options", dialog_qs(),
-			fun(Res) -> {file,{export,{mdl,Res}}} end);
-	false ->
-		set_pref(Arg),
-		Prop = [{ext,".mdl"},{ext_desc,"Hash A:M Model File"}],
-		case wings_plugin:call_ui({file,save_dialog,[{title,"Export"}|Prop]}) of
-		aborted -> St;
-		Name ->
-			?SLOW(export(Name, Arg, St)),
-			St
-   	 	end
-	end;
-command(_, _) ->
-	next.
+	    set_pref(Arg),
+	    Prop = [{ext,".mdl"},{ext_desc,"Hash A:M Model File"}],
+	    wpa:export_filename(Prop, St, fun(Name) ->
+						  ?SLOW(export(Name, Arg, St))
+					  end)
+    end;
+command(_, _) -> next.
 
 dialog_qs() ->
     [{vradio,[{"A:M V9 or V9.5 format",v9},

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.48 2003/12/30 21:16:04 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.49 2003/12/31 20:45:59 bjorng Exp $
 %%
 
 -module(wings_outliner).
@@ -349,8 +349,7 @@ make_external(Id) ->
 			   wings_util:message(Error)
 		   end
 	   end,
-    Ps = [{directory,wings_pref:get_value(current_directory)},
-	  {extensions,wpa:image_formats()}],
+    Ps = [{extensions,wpa:image_formats()}],
     wpa:export_filename(Ps, Save).
 
 refresh_image(Id) ->
@@ -381,8 +380,7 @@ export_image(Id) ->
 			   wings_util:message(Error)
 		   end
 	   end,
-    Ps = [{directory,wings_pref:get_value(current_directory)},
-	  {extensions,wpa:image_formats()}],
+    Ps = [{extensions,wpa:image_formats()}],
     wpa:export_filename(Ps, Save).
 
 %%%
