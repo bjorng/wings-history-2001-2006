@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.18 2001/11/07 20:54:58 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.19 2001/11/08 16:24:33 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -108,13 +108,14 @@ motion(X, Y, #st{camera=#camera{}=Camera0}=St0) ->
     case sdl_keyboard:getModState() of
 	Mod when Mod band ?SHIFT_BITS =/= 0 ->
 	    #view{pan_x=PanX0,pan_y=PanY0} = View = wings_view:current(),
-	    PanX = PanX0 + Dx,
-	    PanY = PanY0 - Dy,
+	    PanX = PanX0 + Dx / 10,
+	    PanY = PanY0 - Dy / 10,
 	    wings_view:set_current(View#view{pan_x=PanX,pan_y=PanY}),
 	    St;
 	Mod when Mod band ?CTRL_BITS =/= 0 ->
 	    #view{distance=Dist} = View = wings_view:current(),
-	    wings_view:set_current(View#view{distance=Dist-Dy}),
+	    wings_view:projection(),
+	    wings_view:set_current(View#view{distance=Dist-Dy/10}),
 	    St;
 	Other ->
 	    #view{azimuth=Az0,elevation=El0} = View = wings_view:current(),

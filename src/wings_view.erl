@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.12 2001/11/07 07:09:59 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.13 2001/11/08 16:24:33 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -121,10 +121,12 @@ projection() ->
 perspective() ->
     [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
     case wings_pref:get_value(orthogonal_view) of
-	false -> glu:perspective(45.0, W/H, 0.25, 1000.0);
+	false ->
+	    glu:perspective(45.0, W/H, 0.25, 1000.0);
 	true ->
+	    #view{distance=D0} = current(),
 	    Aspect = W/H,
-	    Sz = 4.0,
+	    Sz = 4.0 * D0 / ?CAMERA_DIST,
 	    gl:ortho(-Sz*Aspect, Sz*Aspect, -Sz, Sz, 0.25, 1000.0)
     end.
 
