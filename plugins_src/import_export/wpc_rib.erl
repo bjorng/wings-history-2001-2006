@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_rib.erl,v 1.14 2002/12/28 22:10:27 bjorng Exp $
+%%     $Id: wpc_rib.erl,v 1.15 2003/02/22 07:13:28 bjorng Exp $
 
 -module(wpc_rib).
 -include_lib("e3d.hrl").
@@ -20,7 +20,8 @@
 		flat_length/1,append/1,append/2]).
 
 init() ->
-    true.
+    %% Disabled.
+    false.
 
 menu({file,export}, Menu) ->
     menu_entry(Menu);
@@ -223,7 +224,7 @@ random_string() ->
 %%% Export functions.
 %%%
 
-do_export(Ask, Op, _Exporter, St) when is_atom(Ask) ->
+do_export(Ask, Op, _Exporter, _St) when is_atom(Ask) ->
     wpa:dialog(Ask, "RIB Export Options", dialog_qs(export),
 	       fun(Res) ->
 		       {file,{Op,{rib,Res}}}
