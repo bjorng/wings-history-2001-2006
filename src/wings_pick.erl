@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.19 2001/12/12 15:12:47 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.20 2001/12/13 11:35:45 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -81,16 +81,105 @@ marque_event(#mousebutton{x=X0,y=Y0,button=1,state=?SDL_RELEASED}, M) ->
     Y = (Oy+Y0)/2.0,
     W = abs(Ox-X)*2.0,
     H = abs(Oy-Y)*2.0,
-    St = case pick_all(X, Y, W, H, Inside, St0) of
-	     none -> St0;
-	     Hits ->
-		 St1 = marque_update_sel(Op, Hits, St0),
-		 wings_io:putback_event({new_selection,St1}),
-		 St1
+    St = case marque_pick(Inside, X, Y, W, H, St0) of
+	     {none,St1} -> St1;
+	     {Hits,St1} ->
+		 St2 = marque_update_sel(Op, Hits, St0),
+		 wings_io:putback_event({new_selection,St2}),
+		 St2
 	 end,
     wings:redraw(St),
     pop;
 marque_event(Event, Pick) -> keep.
+
+marque_pick(false, X, Y, W, H, St) ->
+    pick_all(false, X, Y, W, H, St);
+marque_pick(true, X, Y0, W, H, St0) ->
+    case pick_all(true, X, Y0, W, H, St0) of
+	{none,_}=R -> R;
+	{Hits0,St} ->
+	    Hits1 = marque_filter(Hits0, St),
+	    Hits2 = sofs:relation(Hits1),
+	    Hits3 = sofs:relation_to_family(Hits2),
+	    Hits4 = sofs:to_external(Hits3),
+	    wings_view:projection(),
+	    wings_view:model_transformations(),
+	    MM = gl:getDoublev(?GL_MODELVIEW_MATRIX),
+	    PM = gl:getDoublev(?GL_PROJECTION_MATRIX),
+	    [_,_,_,Wh] = ViewPort = gl:getIntegerv(?GL_VIEWPORT),
+	    Y = Wh - Y0,
+	    RectData = {MM,PM,ViewPort,X-W/2,Y-H/2,
+			X+W/2,Y+H/2},
+	    Hits = marque_convert(Hits4, RectData, St, []),
+	    {Hits,St}
+    end.
+
+marque_filter(Hits, #st{selmode=Mode,shapes=Shs}) ->
+    EyePoint = wings_view:eye_point(),
+    marque_filter_1(Hits, Shs, Mode, EyePoint, []).
+
+marque_filter_1([{Id,Face}|Hits], Shs, Mode, EyePoint, Acc) ->
+    #shape{sh=We} = gb_trees:get(Id, Shs),
+    Vs = [V|_] = wings_face:surrounding_vertices(Face, We),
+    N = wings_face:face_normal(Vs, We),
+    D = e3d_vec:dot(wings_vertex:pos(V, We), N),
+    case e3d_vec:dot(EyePoint, N) of
+	S when S < D ->				%Ignore back-facing face.
+	    marque_filter_1(Hits, Shs, Mode, EyePoint, Acc);
+	S ->					%Front-facing face.
+	    marque_filter_1(Hits, Shs, Mode, EyePoint, [{Id,Face}|Acc])
+    end;
+marque_filter_1([], St, Mode, EyePoint, Acc) -> Acc.
+
+marque_convert([{Id,Faces}|Hits], RectData,
+	       #st{selmode=Mode,shapes=Shs}=St, Acc) ->
+    #shape{sh=We} = gb_trees:get(Id, Shs),
+    case marque_convert_1(Faces, Mode, RectData, We) of
+	[] ->
+	    marque_convert(Hits, RectData, St, Acc);
+	Items ->
+	    marque_convert(Hits, RectData, St, [{Id,Items}|Acc])
+    end;
+marque_convert([], RectData, St, Hits) ->
+    sofs:to_external(sofs:family_to_relation(sofs:family(Hits))).
+
+marque_convert_1(Faces0, face, Rect, #we{vs=Vtab}=We) ->
+    Vfs0 = wings_face:fold_faces(
+	     fun(Face, V, _, _, A) ->
+		     [{V,Face}|A]
+	     end, [], Faces0, We),
+    Vfs1 = sofs:relation(Vfs0, [{vertex,face}]),
+    Vfs2 = sofs:relation_to_family(Vfs1),
+    Vfs = sofs:to_external(Vfs2),
+    Kill0 = [Fs || {V,Fs} <- Vfs, not is_inside_rect(pos(V, Vtab), Rect)],
+    Kill1 = sofs:set(Kill0, [[face]]),
+    Kill = sofs:union(Kill1),
+    Faces1 = sofs:from_external(Faces0, [face]),
+    Faces = sofs:difference(Faces1, Kill),
+    sofs:to_external(Faces);
+marque_convert_1(Faces, vertex, Rect, #we{vs=Vtab}=We) ->
+    Vs0 = wings_face:fold_faces(fun(_, V, E, _, A) ->
+					[V|A]
+				end, [], Faces, We),
+    Vs = ordsets:from_list(Vs0),
+    [V || V <- Vs, is_inside_rect(pos(V, Vtab), Rect)];
+marque_convert_1(Faces, edge, Rect, #we{vs=Vtab}=We) ->
+    Es0 = wings_face:fold_faces(fun(_, _, E, Rec, A) ->
+					[{E,Rec}|A]
+				end, [], Faces, We),
+    Es = ordsets:from_list(Es0),
+    [E || {E,#edge{vs=Va,ve=Vb}} <- Es,
+	  is_all_inside_rect([pos(Va, Vtab),pos(Vb, Vtab)], Rect)];
+marque_convert_1(Faces, body, RectData, We) -> [].
+
+is_all_inside_rect([P|Ps], Rect) ->
+    is_inside_rect(P, Rect) andalso is_all_inside_rect(Ps, Rect);
+is_all_inside_rect([], Rect) -> true.
+
+is_inside_rect({Px,Py,Pz}, {MM,PM,ViewPort,X1,Y1,X2,Y2}) ->
+    R = {true,Sx,Sy,_} = glu:project(Px, Py, Pz, MM, PM, ViewPort),
+    X1 < Sx andalso Sx < X2 andalso
+	Y1 < Sy andalso Sy < Y2.
 
 draw_marque(undefined, undefined, _) -> ok;
 draw_marque(X, Y, #marque{ox=Ox,oy=Oy}) ->
@@ -159,15 +248,14 @@ do_pick(X0, Y0, #st{hit_buf=HitBuf,shapes=Shapes,selmode=Mode}=St0) ->
     
     gl:matrixMode(?GL_PROJECTION),
     gl:loadIdentity(),
-
     [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
     X = float(X0),
     Y = H-float(Y0),
     S = 5.0,
     glu:pickMatrix(X, Y, S, S, [0,0,W,H]),
     wings_view:perspective(),
+    wings_view:model_transformations(),
     St = select_draw(St0),
-
     gl:flush(),
     case gl:renderMode(?GL_RENDER) of
 	0 -> none;
@@ -314,9 +402,9 @@ project_vertex(V, We, {ModelMatrix,ProjMatrix,ViewPort}) ->
 %% Pick all in the given rectangle (with center at X,Y).
 %%
 
-pick_all(X, Y, W, H, Inside, St) when W < 1.0; H < 1.0 -> none;
-pick_all(X0, Y0, W, H, Inside, St) ->
-    #st{hit_buf=HitBuf,shapes=Shapes,selmode=Mode} = St,
+pick_all(DrawFaces, X, Y, W, H, St) when W < 1.0; H < 1.0 -> {none,St};
+pick_all(DrawFaces, X0, Y0, W, H, St0) ->
+    #st{hit_buf=HitBuf,shapes=Shapes,selmode=Mode} = St0,
     gl:selectBuffer(?HIT_BUF_SIZE, HitBuf),
     gl:renderMode(?GL_SELECT),
     gl:initNames(),
@@ -328,13 +416,16 @@ pick_all(X0, Y0, W, H, Inside, St) ->
     glu:pickMatrix(X, Y, W, H, ViewPort),
     wings_view:perspective(),
     wings_view:model_transformations(),
-    marque_draw(St),
+    St = case DrawFaces of
+	     true -> select_draw(St0);
+	     false -> marque_draw(St0)
+	 end,
     gl:flush(),
     case gl:renderMode(?GL_RENDER) of
-	0 -> none;
+	0 -> {none,St};
 	NumHits ->
  	    HitData = sdl_util:readBin(HitBuf, 5*NumHits),
- 	    get_hits(NumHits, HitData, [])
+ 	    {get_hits(NumHits, HitData, []),St}
     end.
 
 marque_draw(#st{selmode=edge}=St) ->
@@ -345,8 +436,8 @@ marque_draw(#st{selmode=edge}=St) ->
 		fun(Edge, #edge{vs=Va,ve=Vb}, _) ->
 			gl:loadName(Edge),
 			gl:'begin'(?GL_LINES),
-			gl:vertex3fv(lookup_pos(Va, Vtab)),
-			gl:vertex3fv(lookup_pos(Vb, Vtab)),
+			gl:vertex3fv(pos(Va, Vtab)),
+			gl:vertex3fv(pos(Vb, Vtab)),
 			gl:'end'()
 		end, [], We),
 	      gl:popName()
@@ -379,7 +470,6 @@ marque_draw(St) ->
 %%
 
 select_draw(St0) ->
-    wings_view:model_transformations(),
     #st{dl=#dl{pick=Dlist}=DL} = St = select_draw_0(St0),
     gl:callList(Dlist),
     St.
@@ -407,7 +497,7 @@ select_draw_1(St) ->
 %% Utilities.
 %%
 
-lookup_pos(Key, Tree) ->
+pos(Key, Tree) ->
     #vtx{pos=Pos} = gb_trees:get(Key, Tree),
     Pos.
 
