@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.301 2005/03/21 17:39:33 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.302 2005/03/22 05:50:48 bjorng Exp $
 %%
 
 -module(wpc_autouv).
@@ -398,6 +398,7 @@ command_menu(body, X, Y) ->
 command_menu(face, X, Y) ->
     Scale = scale_directions(),
     Menu = [{basic,{"Face operations",ignore}},
+	    {basic,separator},
 	    {"Move",move,"Move selected faces",[magnet]},
 	    {"Scale",{scale,Scale},"Scale selected faces"},
 	    {"Rotate",rotate,"Rotate selected faces"}
@@ -550,18 +551,20 @@ handle_event_2(Ev, St) ->
 	Cmd -> wings_wm:later({action,Cmd})
     end.
 
-handle_event_3(#mousebutton{state=?SDL_RELEASED,
-			    button=?SDL_BUTTON_RIGHT,
-			    x=X0,y=Y0},
+handle_event_3(#mousebutton{button=?SDL_BUTTON_RIGHT}=Ev,
 	       #st{selmode=Mode0,sel=Sel}) ->
-    {X,Y} = wings_wm:local2global(X0, Y0),
-    Mode = case Sel of 
-	       [] -> undefined; 
-	       _ -> Mode0 
-	   end,
-    R = command_menu(Mode, X, Y),
-%%    io:format("Menu ~p ~n", [R]),
-    R;
+    %% Note: Basic menus must be shown when the right mouse button
+    %% is PRESSED; advanced menus when the button is RELEASED.
+    %% wings_menu:is_popup_event/1 takes care of that.
+    case wings_menu:is_popup_event(Ev) of
+	no -> keep;
+	{yes,X,Y,_} ->
+	    Mode = case Sel of 
+		       [] -> undefined; 
+		       _ -> Mode0 
+		   end,
+	    command_menu(Mode, X, Y)
+    end;
 handle_event_3({drop,_,DropData}, St) ->
     handle_drop(DropData, St);
 handle_event_3({action,{auv,create_texture}},_St) ->
