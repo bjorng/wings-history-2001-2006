@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.90 2003/10/26 17:50:51 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.91 2003/10/29 06:14:47 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -44,15 +44,11 @@ init() ->
     wings_pref:set_default(magnet_distance_route, shortest),
     wings_pref:set_default(magnet_radius, 1.0).
 
-command({pick,PickList0,Acc,Names}, St0) ->
-    pick_init(St0),
-    Modes = [vertex,edge,face],
-    St = mode_restriction(Modes, St0),
+command({pick,PickList0,Acc,Names}, St) ->
     PickList = add_help_text(PickList0),
-    wings_wm:later({action,{pick,PickList,Acc}}),
+    wings_wm:later({pick_init,{pick,PickList,Acc}}),
     CmdStr = command_name(Names) ++ ":",
-    Ss = #ss{selmodes=Modes,names=Names,cmdstr=CmdStr,
-	     f=fun(_, _) -> keep end},
+    Ss = #ss{names=Names,cmdstr=CmdStr,f=fun(_, _) -> keep end},
     {seq,push,get_event(Ss, St)};
 command({pick_special,{Modes,Fun}}, St0) ->
     pick_init(St0),
@@ -217,6 +213,13 @@ handle_event_4({action,{secondary_selection,abort}}, _, _) ->
     wings_wm:later(revert_state),
     pick_finish(),
     pop;
+handle_event_4({pick_init,Pick}, Ss0, St0) ->
+    pick_init(St0),
+    Modes = [vertex,edge,face],
+    St = mode_restriction(Modes, St0),
+    wings_wm:later({action,Pick}),
+    Ss = Ss0#ss{selmodes=Modes, f=fun(_, _) -> keep end},
+    get_event(Ss, St);
 handle_event_4({action,{pick,[],[Res]}}, #ss{names=Ns}, _) ->
     Cmd = wings_menu:build_command(Res, Ns),
     pick_finish(),
