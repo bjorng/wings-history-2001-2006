@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.154 2003/09/12 14:27:37 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.155 2003/09/26 19:16:37 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -70,17 +70,35 @@ prepare_fun(#dlo{src_we=We,split=#split{}=Split}=D, _, [We|Wes]) ->
     {D#dlo{src_we=We,split=Split#split{orig_we=We}},Wes};
 prepare_fun(#dlo{src_we=We}=D, _, [We|Wes]) ->
     {D#dlo{src_we=We},Wes};
-prepare_fun(#dlo{src_we=#we{id=Id},proxy_data=Proxy}=D, Update,
-	    [#we{id=Id,perm=Perm}=We|Wes]) ->
+prepare_fun(#dlo{src_we=#we{id=Id}}=D, Update, [#we{id=Id}=We1|Wes]) ->
+    prepare_fun_1(D, Update, We1, Wes);
+prepare_fun(#dlo{}, _, Wes) ->
+    {deleted,Wes}.
+
+prepare_fun_1(#dlo{src_we=#we{perm=Perm0}=We0}=D, Update, #we{perm=Perm1}=We, Wes) ->
+    case only_permissions_changed(We0, We) of
+	true ->
+	    %% More efficient, and prevents an object from disappearing
+	    %% if lockness was toggled while inside a secondary selection.
+	    case {Perm0,Perm1} of
+		{0,1} -> {D#dlo{src_we=We,pick=none},Wes};
+		{1,0} -> {D#dlo{src_we=We,pick=none},Wes};
+		_ -> prepare_fun_2(D, Update, We, Wes)
+	    end;
+	false -> prepare_fun_2(D, Update, We, Wes)
+    end.
+
+prepare_fun_2(#dlo{proxy_data=Proxy}=D, Update, #we{perm=Perm}=We, Wes) ->
     if 
 	?IS_VISIBLE(Perm) ->
 	    {changed_we(D, Update, #dlo{src_we=We,mirror=none,proxy_data=Proxy}),Wes};
 	true ->
 	    {changed_we(D, Update, #dlo{src_we=empty_we(We),proxy_data=Proxy}),Wes}
-    end;
-prepare_fun(#dlo{}, _, Wes) ->
-    {deleted,Wes}.
+    end.
 
+only_permissions_changed(#we{perm=P}, #we{perm=P}) -> false;
+only_permissions_changed(We0, We1) -> We0#we{perm=0} =:= We1#we{perm=0}.
+    
 invalidate_by_mat(Changed0) ->
     Changed = gb_sets:from_list(Changed0),
     wings_draw_util:map(fun(D, _) -> invalidate_by_mat(D, Changed) end, []).
