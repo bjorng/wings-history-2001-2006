@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.8 2002/07/21 15:47:57 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.9 2002/07/22 03:59:57 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -103,6 +103,7 @@ dispatch_event(#resize{w=W,h=H}=Event) ->
     put(wm_top_size, {W,H}),
     Win0 = get_window_data(top),
     Win1 = Win0#win{w=W,h=H},
+    put_window_data(top, Win1),
     set_video_mode(W, H),
     {R,G,B} = wings_pref:get_value(background_color),
     gl:clearColor(R, G, B, 1.0),
