@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.17 2001/11/20 13:52:36 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.18 2001/11/21 07:06:06 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -135,8 +135,7 @@ model_transformations(St) ->
     [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
     gl:matrixMode(?GL_MODELVIEW),
     gl:loadIdentity(),
-    gl:lightfv(?GL_LIGHT0, ?GL_POSITION, {10000.0,10000.0,0.0,1.0}),
-    gl:lightfv(?GL_LIGHT1, ?GL_POSITION, {-10000.0,-10000.0,0.0,1.0}),
+    gl:lightfv(?GL_LIGHT0, ?GL_POSITION, {0.0,0.0,1.0,0.0}),
     Dist = Dist0 * math:sqrt((W*H) / (640*480)),
     gl:translatef(PanX, PanY, 0.0),
     gl:translatef(0.0, 0.0, -Dist),
@@ -170,7 +169,8 @@ along(Az, El, St) ->
     View = current(),
     set_current(View#view{azimuth=Az,elevation=El}),
     St.
-    
+
+align_to_selection(#st{sel=[]}=St) -> St;
 align_to_selection(#st{selmode=vertex}=St) ->
     Ns = wings_sel:fold(
 	   fun(Id, V, We, Acc) ->
