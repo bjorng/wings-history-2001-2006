@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu_util.erl,v 1.22 2003/07/21 20:10:37 bjorng Exp $
+%%     $Id: wings_menu_util.erl,v 1.23 2003/07/22 11:04:55 bjorng Exp $
 %%
 
 -module(wings_menu_util).
@@ -143,7 +143,7 @@ rotate(1, Ns) ->
      {advanced,separator},
      rotate_axis_fun(last_axis, Ns),
      rotate_axis_fun(default_axis, Ns)];
-rotate(2, Ns) -> {vector,{pick,[axis],[],Ns}};
+rotate(2, Ns) -> {vector,{pick,[axis_point],[],Ns}};
 rotate(3, Ns) -> {vector,{pick,[axis,point],[],Ns}}.
 
 rotate_fun(Dir, Names) ->

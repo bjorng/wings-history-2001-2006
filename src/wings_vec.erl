@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.72 2003/07/21 13:08:09 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.73 2003/07/22 11:04:55 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -54,33 +54,6 @@ command({pick_special,{Modes,Init,Fun}}, St0) ->
     Ss = #ss{selmodes=Modes,f=Fun},
     {seq,push,get_event(Ss, St)}.
 
-command_1(axis, Msg, More, Acc, Names, MagnetPossible, St0) ->
-    pick_init(St0),
-    Modes = [vertex,edge,face],
-    St = mode_restriction(Modes, St0),
-    Ss = #ss{f=fun(check, S) ->
-		       check_vector(S);
-		  (exit, {Mod,S}) ->
-		       common_exit(Mod, More, Acc, Names, MagnetPossible, S);
-		  (message, _) ->
-		       common_message(Msg, More, Names, MagnetPossible)
-	       end,
-	     selmodes=Modes,
-	     is_axis=true},
-    {seq,push,get_event(Ss, wings_sel:reset(St))};
-command_1(point, Msg, More, Acc, Names, MagnetPossible, St0) ->
-    pick_init(St0),
-    Modes = [vertex,edge,face],
-    St = mode_restriction(Modes, St0),
-    Ss = #ss{f=fun(check, S) ->
-		       check_point(S);
-		  (exit, {Mod,S}) ->
-		       common_exit(Mod, More, Acc, Names, MagnetPossible, S);
-		  (message, _) ->
-		       common_message(Msg, More, Names, MagnetPossible)
-	       end,
-	     selmodes=Modes},
-    {seq,push,get_event(Ss, wings_sel:reset(St))};
 command_1(magnet, Msg, [], Acc, Names, _, St) ->
     pick_init(St),
     Modes = [vertex,edge,face],
@@ -93,7 +66,26 @@ command_1(magnet, Msg, [], Acc, Names, _, St) ->
 		       magnet_message(Msg, Names)
 	       end,
 	     selmodes=Modes},
-    {seq,push,get_event(Ss, wings_sel:reset(St#st{selmode=vertex}))}.
+    {seq,push,get_event(Ss, wings_sel:reset(St#st{selmode=vertex}))};
+command_1(Type, Msg, More, Acc, Names, MagnetPossible, St0) ->
+    pick_init(St0),
+    Modes = [vertex,edge,face],
+    St = mode_restriction(Modes, St0),
+    Check = case Type of
+		point -> fun check_point/1;
+		axis -> fun check_vector/1;
+		axis_point -> fun check_vector/1
+	    end,
+    Ss = #ss{f=fun(check, S) ->
+		       Check(S);
+		  (exit, {Mod,S}) ->
+		       common_exit(Type, Mod, More, Acc, Names, MagnetPossible, S);
+		  (message, _) ->
+		       common_message(Msg, More, Names, MagnetPossible)
+	       end,
+	     selmodes=Modes,
+	     is_axis=true},
+    {seq,push,get_event(Ss, wings_sel:reset(St))}.
 
 add_help_text([{Atom,Desc}|T], Names) when is_atom(Atom) ->
     [{Atom,none,Desc}|add_help_text(T, Names)];
@@ -304,34 +296,37 @@ exit_menu(X, Y, Mod, #ss{f=Exit}=Ss, St) ->
 	    pop
     end.
 
-common_exit(_, _, _, _, _, #st{vec=none}) ->
+common_exit(_, _, _, _, _, _, #st{vec=none}) ->
     error;
-common_exit(Mod, More, Acc, Ns, inactive, St) ->
+common_exit(Type, Mod, More, Acc, Ns, inactive, St) ->
     RmbMod = wings_camera:free_rmb_modifier(),
     if
 	Mod band RmbMod =:= 0 ->
-	    common_exit_1(More, Acc, Ns, St);
+	    common_exit_1(Type, More, Acc, Ns, St);
 	More =:= [] ->
-	    common_exit_1(add_magnet(More), Acc, Ns, St);
+	    common_exit_1(Type, add_magnet(More), Acc, Ns, St);
 	true ->
 	    case last(More) of
-		{magnet,_,_} -> common_exit_1(More, Acc, Ns, St);
-		_  -> common_exit_1(add_magnet(More), Acc, Ns, St)
+		{magnet,_,_} -> common_exit_1(Type, More, Acc, Ns, St);
+		_  -> common_exit_1(Type, add_magnet(More), Acc, Ns, St)
 	    end
     end;
-common_exit(_, More, Acc, Ns, _, St) ->
-    common_exit_1(More, Acc, Ns, St).
+common_exit(Type, _, More, Acc, Ns, _, St) ->
+    common_exit_1(Type, More, Acc, Ns, St).
 
 add_magnet(More) ->
     More ++ [{magnet,none,
 	      "Pick outer boundary point for magnet influence"}].
 
-common_exit_1([{point,_,Desc}|More], Acc, Ns, #st{vec={Point,Vec}}) ->
+common_exit_1(_, [{point,_,Desc}|More], Acc, Ns, #st{vec={Point,Vec}}) ->
     PickList = [{point,Point,Desc}|More],
     {vector,{pick,PickList,add_to_acc(Vec, Acc),Ns}};
-common_exit_1(PickList, Acc, Ns, #st{vec={_,Vec}}) ->
+common_exit_1(axis, PickList, Acc, Ns, #st{vec={_,Vec}}) ->
     {vector,{pick,PickList,add_to_acc(Vec, Acc),Ns}};
-common_exit_1(PickList, Acc, Ns, #st{vec=Point}) ->
+common_exit_1(axis_point, PickList, Acc0, Ns, #st{vec={Point,Vec}}) ->
+    Acc = add_to_acc(Point, add_to_acc(Vec, Acc0)),
+    {vector,{pick,PickList,Acc,Ns}};
+common_exit_1(point, PickList, Acc, Ns, #st{vec=Point}) ->
     {vector,{pick,PickList,add_to_acc(Point, Acc),Ns}}.
 
 add_to_acc(Vec, [radial]) -> [{radial,Vec}];

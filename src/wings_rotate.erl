@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_rotate.erl,v 1.33 2003/07/21 20:10:37 bjorng Exp $
+%%     $Id: wings_rotate.erl,v 1.34 2003/07/22 11:04:55 bjorng Exp $
 %%
 
 -module(wings_rotate).
@@ -17,12 +17,8 @@
 
 -import(lists, [foldl/3]).
 
-setup({X,Y,Z}=Vec, St) when is_float(X), is_float(Y), is_float(Z) ->
-    setup(Vec, center, none, St);
 setup({Vec,Center,Magnet}, St) ->
     setup(wings_util:make_vector(Vec), Center, Magnet, St);
-setup({Vec,Magnet}, St) when element(1, Magnet) == magnet ->
-    setup(Vec, center, Magnet, St);
 setup({Vec,Center}, St) ->
     setup(wings_util:make_vector(Vec), Center, none, St).
 
@@ -216,5 +212,3 @@ magnet_rotate(Axis, {Cx,Cy,Cz}, Angle, VsPos, Acc0) ->
 		  Pos = wings_util:share(X+Cx, Y+Cy, Z+Cz),
 		  [{V,Pos}|Acc]
 	  end, Acc0, VsPos).
-
-
