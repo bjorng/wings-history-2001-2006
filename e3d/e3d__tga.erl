@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__tga.erl,v 1.9 2003/03/18 06:50:18 dgud Exp $
+%%     $Id: e3d__tga.erl,v 1.10 2003/11/11 17:18:24 dgud Exp $
 %%
 
 -module(e3d__tga).
@@ -37,7 +37,14 @@ load(FileName, _Opts) ->
 	%% Black&White Image 
 	{ok, <<0,0,11,0,0,0,0,0,0,0,0,0, Image/binary>>} ->
 	    load_comp(Image);
-
+	%% ColorMap Image (uncompressed)
+	{ok, <<0,1,1,0:16/little,Len:16/little,B,0,0,0,0, Image/binary>>} 
+	when B == 24; B == 32 ->
+	    load_mapped(Len,B div 8,false, Image);
+ 	%% ColorMap Image (compressed)
+	{ok, <<0,1,9,0:16/little,Len:16/little,B,0,0,0,0, Image/binary>>} 
+	when B == 24; B == 32 ->
+	    load_mapped(Len,B div 8,true,Image);
 	{ok, <<_Bin:12/binary, _Rest/binary>>} ->
 	    io:format("~p~n", [_Bin]),
 	    {error, {none,?MODULE,unsupported_format}};
@@ -45,11 +52,50 @@ load(FileName, _Opts) ->
 	    Error
     end.
 
+load_mapped(Len,Bpp,Comp, <<W:16/little,H:16/little,
+			   8:8,0:1,0:1,Order:2,Alpha:4,Raw/binary>>) ->
+    Size = W * H,
+    MapSz = (Len*Bpp),
+    <<MapBin:MapSz/binary,Image0/binary>> = Raw,
+    Map = get_map(MapSz-Bpp,Bpp,MapBin,[]),
+
+    Image = case Comp of 
+		false -> 
+		    <<Image1:Size/binary, _/binary>> = Image0,
+		    Image1;
+		true ->
+		    load_comp(Image0, Size, Bpp, [])
+	    end,
+    RealImage = convert(Size-1,Image, Map, Bpp, []),
+
+    Type = case Bpp of
+	       1 when Alpha == 8 -> a8;
+	       1 -> g8;
+	       3 -> b8g8r8;
+	       4 -> b8g8r8a8
+	   end,
+    #e3d_image{width = W, height = H, type = Type, 
+	       order = get_order(Order),
+	       bytes_pp = Bpp, alignment = 1,
+	       image = RealImage}.
+
+get_map(I,B, <<>>, Acc) when I == -B ->
+    list_to_tuple(Acc);
+get_map(I,B,Map0,Acc) ->
+    <<Map:I/binary,C:B/binary>> = Map0,
+    get_map(I-B,B,Map,[C|Acc]).
+
+convert(-1,<<>>, _, _, Acc) ->
+    list_to_binary(Acc);
+convert(I, Image0, Map, B, Acc) ->
+    <<Image:I/binary,Index:8>> = Image0,
+    Col = element(Index+1, Map),
+    convert(I-1,Image, Map, B, [Col|Acc]).
+
 load_uncomp(<<W:16/little,H:16/little,BitsPP:8,0:1,0:1,Order:2, Alpha:4,Image/binary>>) ->
     BytesPerPixel = BitsPP div 8,
-    SpecOK = (W > 0) and (H > 0) and ((BitsPP == 32) 
-				      or (BitsPP == 24) 
-				      or (BitsPP == 8)),
+    SpecOK = (W > 0) and (H > 0) 
+	and ((BitsPP == 32) or (BitsPP == 24) or (BitsPP == 8)),
     if 
 	SpecOK == false ->
 	    io:format("Unsupported image spec W ~p H ~p BitsPP ~p Order ~p Alpha ~p ~n",
