@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.4 2002/02/14 17:46:41 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.5 2002/02/16 15:15:49 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -21,7 +21,9 @@
 -define(HMARGIN, 16).
 -define(VMARGIN, 8).
 
+-define(IS_SHIFTED(Mod), ((Mod) band ?SHIFT_BITS =/= 0)).
 -import(lists, [reverse/1,reverse/2,duplicate/2]).
+
 -record(s,
 	{w,
 	 h,
@@ -84,6 +86,8 @@ event(#keyboard{keysym=#keysym{sym=Sym,mod=Mod,unicode=Unicode}}, S) ->
     event_key({key,Sym,Mod,Unicode}, S);
 event(#mousebutton{button=1,x=X,y=Y}=Ev, S) ->
     mouse_event(X, Y, Ev, S);
+event(#mousemotion{state=Bst}=Ev, S) when Bst band ?SDL_BUTTON_LMASK == 0 ->
+    keep;
 event(#mousemotion{x=X,y=Y}=Ev, S) ->
     mouse_event(X, Y, Ev, S);
 event(#resize{}=Ev, S) ->
@@ -109,26 +113,19 @@ event_key(Ev, S) ->
     field_event(Ev, S).
 
 mouse_event(X0, Y0, Ev, #s{fi=Fis,ox=Ox,oy=Oy,w=W,h=H}=S0) ->
-    case {X0-Ox,Y0-Oy} of
-	{X,Y} when X < -?HMARGIN; X >= W+?HMARGIN;
-		   Y < -?VMARGIN; Y >= W+?VMARGIN ->
+    X = X0-Ox,
+    Y = Y0-Oy,
+    case mouse_to_field(1, Fis, X, Y) of
+	none -> keep;
+	I ->
 	    case Ev of
+		#mousebutton{state=?SDL_PRESSED} ->
+		    S = set_focus(I, S0),
+		    field_event(Ev#mousebutton{x=X,y=Y}, S);
 		#mousebutton{} ->
-		    wings_io:putback_event(redraw),
-		    pop;
-		Other -> keep
-	    end;
-	{X,Y} ->
-	    case mouse_to_field(1, Fis, X, Y) of
-		none -> keep;
-		I ->
-		    case Ev of
-			#mousebutton{} ->
-			    S = set_focus(I, S0),
-			    field_event(Ev#mousebutton{x=X,y=Y}, S);
-			#mousemotion{} ->
-			    field_event(Ev#mousemotion{x=X,y=Y}, I, S0)
-		    end
+		    field_event(Ev#mousebutton{x=X,y=Y}, I, S0);
+		#mousemotion{} ->
+		    field_event(Ev#mousemotion{x=X,y=Y}, I, S0)
 	    end
     end.
 
@@ -295,9 +292,6 @@ frame_init_size(Flags) ->
 	false -> {0,0,0}
     end.
     
-max(A, B) when A > B -> A;
-max(A, B) -> B.
-
 vframe_size([{#fi{lw=Lw,w=W,h=H},_}|Fis], Lw0, W0, H0) ->
     vframe_size(Fis, max(Lw0, Lw), max(W0, W), H0+H);
 vframe_size([], Lw, W, H) -> {Lw,W,H}.
@@ -404,15 +398,16 @@ checkbox_fun() ->
     end.
 
 cb_draw(Active, #fi{x=X,y=Y0}, #cb{label=Label,state=State}) ->
+    wings_io:sunken_rect(X, Y0+6, ?CHAR_WIDTH+1, ?CHAR_WIDTH+1, {1,1,1}),
     Y = Y0+?CHAR_HEIGHT,
     case State of
-	false -> wings_io:text_at(X, Y, "[ ] ");
-	true -> wings_io:text_at(X, Y, "[" ++ [crossmark]++ "] ")
+	false -> ok;
+	true -> wings_io:text_at(X+1, Y, [crossmark])
     end,
-    wings_io:text_at(X+4*?CHAR_WIDTH, Y, Label),
+    wings_io:text_at(X+2*?CHAR_WIDTH, Y, Label),
     if
 	Active == true ->
-	    wings_io:text_at(X+4*?CHAR_WIDTH, Y,
+	    wings_io:text_at(X+2*?CHAR_WIDTH, Y,
 			     duplicate(length(Label), $_));
 	true -> ok
     end.
@@ -457,7 +452,8 @@ text_field(Label, Def) ->
 init_text(Fun, Label, String, Max0, IsInteger) ->
     Max = max(Max0, length(String)+5),
     Ts = #text{label=Label,bef=[],aft=String,integer=IsInteger},
-    {Fun,false,Ts,(length(Label)+1)*?CHAR_WIDTH,Max*?CHAR_WIDTH,?LINE_HEIGHT}.
+    {Fun,false,Ts,(length(Label)+1)*?CHAR_WIDTH,
+     Max*?CHAR_WIDTH,?LINE_HEIGHT+3}.
 
 string_fun() ->
     fun(value, Fi, Ts) -> get_text(Ts);
@@ -500,42 +496,39 @@ term_fun() ->
 gen_text_handler({redraw,Active}, Fi, Ts) ->
     draw_text(Fi, Ts, Active);
 gen_text_handler({event,Ev}, Fi, Ts) ->
-    text_event(Ev, Ts).
+    text_event(Ev, Fi, Ts).
 
-text_event({key,Sym,Mod,Unicode}, Ts) ->
+text_event({key,Sym,Mod,Unicode}, Fi, Ts) ->
     key(Sym, Mod, Unicode, Ts);
-text_event({focus,true}, #text{bef=Bef,aft=Aft}=Ts) ->
+text_event({focus,true}, Fi, #text{bef=Bef,aft=Aft}=Ts) ->
     Str = reverse(Bef, Aft),
     Ts#text{bef=[],sel=length(Str),aft=Str};
-text_event(_Ev, Ts) -> Ts.
+text_event(#mousebutton{x=X,y=Y,state=?SDL_PRESSED}, Fi, Ts) ->
+    text_pos(X, Fi, Ts);
+text_event(#mousebutton{x=X,y=Y,state=?SDL_RELEASED}, Fi, Ts) ->
+    text_sel(X, Fi, Ts);
+text_event(#mousemotion{x=X,y=Y}, Fi, Ts) ->
+    text_sel(X, Fi, Ts);
+text_event(_Ev, _Fi, Ts) -> Ts.
 
-draw_text(#fi{x=X,y=Y0,lw=Lw}, #text{label=Label,bef=BefC,aft=AftC}, false) ->
-    Y = Y0 + ?CHAR_HEIGHT,
-    wings_io:text_at(X, Y, Label),
-    wings_io:text_at(X+Lw, Y, reverse(BefC)),
-    wings_io:text(AftC);
-draw_text(#fi{x=X0,y=Y0,lw=Lw},
-	  #text{label=Label,sel=Sel,bef=BefC,aft=AftC}, true) ->
-    Y = Y0 + ?CHAR_HEIGHT,
-    wings_io:text_at(X0, Y, Label),
-    wings_io:text_at(X0+Lw, Y, reverse(BefC)),
-    X1 = X0+Lw+length(BefC)*?CHAR_WIDTH,
-    case Sel of
-	0 ->
-	    gl:color3f(1, 0, 0),
-	    wings_io:text_at(X1, Y, [caret]),
-	    gl:color3f(0, 0, 0),
-	    wings_io:text_at(X1+2, Y, AftC);
-	_ ->
-	    gl:color3f(0, 0, 0.5),
-	    gl:recti(X1, Y-?CHAR_HEIGHT, X1+Sel*?CHAR_WIDTH, Y+3),
-	    gl:color3f(1, 1, 1),
-	    wings_io:text_at(X1, Y, AftC),
-	    gl:color3f(0, 0, 0)
-    end.
+text_pos(Mx0, #fi{x=X,y=Y,lw=Lw}, Ts) ->
+    text_pos_1(round((Mx0-X-Lw)/?CHAR_WIDTH), Ts).
 
-get_text(#text{bef=Bef,aft=Aft}) ->
-    reverse(Bef, Aft).
+text_pos_1(Mx, #text{bef=[C|Bef],aft=Aft}=Ts) when Mx < length(Bef) ->
+    text_pos_1(Mx, Ts#text{bef=Bef,aft=[C|Aft]});
+text_pos_1(Mx, #text{bef=Bef,aft=[C|Aft]}=Ts) when Mx > length(Bef) ->
+    text_pos_1(Mx, Ts#text{bef=[C|Bef],aft=Aft});
+text_pos_1(Mx, #text{bef=Bef}=Ts) ->
+    Ts#text{sel=0}.
+
+text_sel(Mx0, #fi{x=X,y=Y,lw=Lw}, Ts) ->
+    text_sel_1(round((Mx0-X-Lw)/?CHAR_WIDTH), Ts).
+
+text_sel_1(Mx, #text{bef=Bef,aft=Aft}=Ts) when Mx < length(Bef) ->
+    Ts#text{sel=max(Mx, 0)-length(Bef)};
+text_sel_1(Mx, #text{bef=Bef,aft=Aft}=Ts) ->
+    Ts#text{sel=min(Mx-length(Bef),length(Aft))};
+text_sel_1(Mx, Ts) -> Ts.
 
 key(?SDLK_KP_PLUS, _, _, #text{integer=true}=Ts) ->
     increment(Ts, 1);
@@ -563,14 +556,30 @@ key($\b, Mod, #text{sel=0,bef=[_|Bef]}=Ts) ->	%Bksp (no selection).
     Ts#text{bef=Bef};
 key($\b, Mod, Ts) ->				%Bksp (selection).
     del_sel(Ts);
+key(2, Mod, #text{sel=Sel,bef=Bef}=Ts) when ?IS_SHIFTED(Mod) ->
+    if
+	-length(Bef) < Sel -> Ts#text{sel=Sel-1};
+	true -> Ts
+    end;
 key(2, Mod, #text{bef=[C|Bef],aft=Aft}=Ts) ->	%Ctrl-B
-    set_sel(Mod, Ts, Ts#text{bef=Bef,aft=[C|Aft]});
+    Ts#text{sel=0,bef=Bef,aft=[C|Aft]};
+key(2, Mod, Ts) ->				%Ctrl-B
+    Ts#text{sel=0};
+key(6, Mod, #text{sel=Sel,aft=Aft}=Ts) when ?IS_SHIFTED(Mod) ->
+    if
+	Sel < length(Aft) -> Ts#text{sel=Sel+1};
+	true -> Ts
+    end;
 key(6, Mod, #text{bef=Bef,aft=[C|Aft]}=Ts) ->	%Ctrl-F
-    set_sel(Mod, Ts, Ts#text{bef=[C|Bef],aft=Aft});
+    Ts#text{sel=0,bef=[C|Bef],aft=Aft};
+key(1, Mod, #text{sel=Sel,bef=Bef}=Ts) when ?IS_SHIFTED(Mod) ->
+    Ts#text{sel=-length(Bef)};
 key(1, Mod, #text{bef=Bef,aft=Aft}=Ts) ->	%Ctrl-A
-    set_sel(Mod, Ts, Ts#text{bef=[],aft=reverse(Bef, Aft)});
+    Ts#text{sel=0,bef=[],aft=reverse(Bef, Aft)};
+key(5, Mod, #text{sel=Sel,aft=Aft}=Ts) when ?IS_SHIFTED(Mod) ->
+    Ts#text{sel=length(Aft)};
 key(5, Mod, #text{bef=Bef,aft=Aft}=Ts) ->	%Ctrl-E
-    set_sel(Mod, Ts, Ts#text{bef=reverse(Aft, Bef),aft=[]});
+    Ts#text{sel=0,bef=reverse(Aft, Bef),aft=[]};
 key(11, Mod, #text{}=Ts) ->			%Ctrl-K
     Ts#text{aft=[]};
 key(4, Mod, #text{sel=0,aft=[_|Aft]}=Ts) ->	%Ctrl-D
@@ -579,17 +588,13 @@ key(4, Mod, Ts) ->				%Ctrl-D
     del_sel(Ts);
 key(C, Mod, #text{bef=Bef0}=Ts0) when $\s =< C, C < 256 ->
     del_sel(Ts0#text{bef=[C|Bef0]});
-key(C, Mod, Ts) ->
-    %%erlang:display({C,Ts}),
-    Ts.
+key(C, Mod, Ts) -> Ts.
 
-del_sel(#text{sel=0}=Ts) -> Ts;
-del_sel(#text{sel=Sel,aft=Aft}=Ts) ->
-    Ts#text{sel=0,aft=lists:nthtail(Sel, Aft)}.
-
-set_sel(Mod, _, #text{sel=0}=Ts) when Mod band ?SHIFT_BITS =:= 0 -> Ts;
-set_sel(Mod, _, Ts) when Mod band ?SHIFT_BITS =:= 0 -> Ts#text{sel=0};
-set_sel(Mod, OldTs, Ts) -> Ts.
+del_sel(#text{sel=Sel,bef=Bef}=Ts) when Sel < 0 ->
+    Ts#text{sel=0,bef=lists:nthtail(-Sel, Bef)};
+del_sel(#text{sel=Sel,aft=Aft}=Ts) when Sel > 0 ->
+    Ts#text{sel=0,aft=lists:nthtail(Sel, Aft)};
+del_sel(Ts) -> Ts.
 
 increment(Ts, Incr) ->
     Str0 = get_text(Ts),
@@ -636,3 +641,49 @@ print_tuple(I, I, T) ->
     print_term_1(element(I, T));
 print_tuple(I, Sz, T) ->
     [print_term_1(element(I, T)),$,|print_tuple(I+1, Sz, T)].
+
+draw_text(#fi{x=X0,y=Y0,w=W,lw=Lw,h=H},
+	  #text{label=Label,sel=Sel,bef=Bef0,aft=Aft}, Active) ->
+    wings_io:sunken_rect(X0+Lw-4, Y0+2, W+8, ?CHAR_HEIGHT+2, {1,1,1}),
+    Y = Y0 + ?CHAR_HEIGHT,
+    wings_io:text_at(X0, Y, Label),
+    Bef = reverse(Bef0),
+    wings_io:text_at(X0+Lw, Y, Bef),
+    wings_io:text(Aft),
+    if
+	not Active -> ok;
+	Sel < 0 ->
+	    gl:color3f(0, 0, 0.5),
+	    Skip = length(Bef)+Sel,
+	    X1 = X0+Lw+Skip*?CHAR_WIDTH,
+ 	    gl:recti(X1, Y-?CHAR_HEIGHT+3, X1-Sel*?CHAR_WIDTH, Y+2),
+ 	    gl:color3f(1, 1, 1),
+	    wings_io:text_at(X1, Y, lists:nthtail(Skip, Bef)),
+	    gl:color3f(0, 0, 0);
+	Sel > 0 ->
+	    gl:color3f(0, 0, 0.5),
+	    X1 = X0+Lw+length(Bef)*?CHAR_WIDTH,
+ 	    gl:recti(X1, Y-?CHAR_HEIGHT+3, X1+Sel*?CHAR_WIDTH, Y+2),
+ 	    gl:color3f(1, 1, 1),
+	    draw_text_1(X1, Y, Aft, Sel);
+	true ->
+	    gl:color3f(1, 0, 0),
+	    X1 = X0+Lw+length(Bef)*?CHAR_WIDTH,
+	    wings_io:text_at(X1, Y, [caret]),
+	    gl:color3f(0, 0, 0)
+    end.
+
+draw_text_1(X, Y, T, 0) ->
+    gl:color3f(0, 0, 0);
+draw_text_1(X, Y, [C|T], N) ->
+    wings_io:text_at(X, Y, [C]),
+    draw_text_1(X+?CHAR_WIDTH, Y, T, N-1).
+
+get_text(#text{bef=Bef,aft=Aft}) ->
+    reverse(Bef, Aft).
+
+max(A, B) when A > B -> A;
+max(A, B) -> B.
+
+min(A, B) when A < B -> A;
+min(A, B) -> B.
