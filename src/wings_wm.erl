@@ -3,12 +3,12 @@
 %%
 %%     Window manager for Wings.
 %%
-%%  Copyright (c) 2002-2003 Bjorn Gustavsson
+%%  Copyright (c) 2002-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.136 2004/01/12 18:40:21 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.137 2004/03/17 05:40:22 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -21,7 +21,7 @@
 	 this/0,offset/3,move/2,move/3,resize/2,pos/1,windows/0,is_window/1,
 	 window_below/2,
 	 update_window/2,clear_background/0,
-	 callback/1,current_state/1,get_current_state/0,notify/1,
+	 callback/1,current_state/1,notify/1,
 	 local2global/1,local2global/2,global2local/2,local_mouse_state/0,
 	 translation_change/0]).
 
@@ -87,8 +87,7 @@
 %%% wm_top_size         Size of top window.
 %%% wm_viewport		Current viewport.
 %%% wm_cursor		Default cursor.
-%%%
-%%% Event loop.
+%%% {wm_current_state,Displists}
 %%%
 
 init() ->
@@ -143,10 +142,10 @@ send_after_redraw(Name, Ev) ->
     wings_io:putback_event({wm,{send_after_redraw,Name,Ev}}).
 
 current_state(St) ->
-    case put(wm_current_state, St) of
+    DispLists = get_prop(this(), display_lists),
+    case put({wm_current_state,DispLists}, St) of
 	St -> ok;
 	_ ->
-	    {value,DispLists} = lookup_prop(this(), display_lists),
 	    NewState = {current_state,St},
 	    foreach(fun(#win{props=Props,name=Name}) ->
 			    case gb_trees:lookup(display_lists, Props) of
@@ -158,9 +157,6 @@ current_state(St) ->
 			    end
 		    end, gb_trees:values(get(wm_windows)))
     end.
-
-get_current_state() ->
-    get(wm_current_state).
 
 notify(Note) ->
     Msg = {note,Note},
