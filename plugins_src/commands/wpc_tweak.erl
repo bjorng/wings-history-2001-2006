@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.24 2003/01/11 09:42:45 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.25 2003/02/02 16:33:33 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -244,8 +244,10 @@ obj_to_screen({MVM,PM,VP}, {X,Y,Z}) ->
     {Xs,Ys,Zs}.
 
 screen_to_obj({MVM,PM,VP}, {Xs,Ys,Zs}) ->
-    {true, X,Y,Z} = glu:unProject(Xs, Ys, Zs, MVM, PM, VP),
-    {X,Y,Z}.
+    case glu:unProject(Xs, Ys, Zs, MVM, PM, VP) of
+	{true, X,Y,Z} -> {X,Y,Z};
+	{1, X,Y,Z} -> {X,Y,Z}			%Workaround for new ESDL (ugly).
+    end.
 
 mirror_plane(_, #we{mirror=none}) -> none;
 mirror_plane(V, #we{mirror=Face}=We) ->
