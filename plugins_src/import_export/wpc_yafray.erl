@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.96 2004/08/26 23:22:14 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.97 2005/02/09 20:43:58 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -207,7 +207,7 @@ range_1(halo_fog_density)	-> {0.0,infinity};
 range_1(blend)			-> {0.0,infinity};
 range_1(photons)		-> {0,infinity};
 range_1(depth)			-> {0,infinity};
-range_1(fixedradius)		-> {1.0,infinity};
+range_1(fixedradius)		-> {0.0,infinity};
 range_1(search)			-> {0,infinity};
 range_1(cluster)		-> {0.0,infinity};
 range_1(turbidity)		-> {0.0,infinity};
