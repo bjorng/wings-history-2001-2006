@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.70 2003/06/04 05:44:47 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.71 2003/06/04 06:10:57 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -71,7 +71,7 @@ init() ->
 
 clear_old_dl([#dlo{src_we=We,proxy_data=Pd0}|T]) ->
     Pd = wings_subdiv:clean(Pd0),
-    [#dlo{src_we=check_mirror(We),proxy_data=Pd}|clear_old_dl(T)];
+    [#dlo{src_we=We,mirror=check_mirror(We),proxy_data=Pd}|clear_old_dl(T)];
 clear_old_dl([]) -> [].
 
 check_mirror(#we{mirror=none}) -> none;
