@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_obj.erl,v 1.39 2004/10/12 17:55:42 bjorng Exp $
+%%     $Id: e3d_obj.erl,v 1.40 2004/12/12 10:24:08 bjorng Exp $
 %%
 
 -module(e3d_obj).
@@ -377,13 +377,16 @@ export_object(F, #e3d_object{name=Name,obj=Mesh0}, Flags,
     #e3d_mesh{fs=Fs0,vs=Vs,tx=Tx,ns=Ns} = Mesh,
     mesh_info(F, Mesh),
     foreach(fun({X,Y,Z}) ->
-		    io:format(F, "v ~p ~p ~p\r\n", [X,Y,Z])
+		    io:format(F, "v ~s ~s ~s\r\n",
+			      [fmtf(X),fmtf(Y),fmtf(Z)])
 	    end, Vs),
     foreach(fun({U,V}) ->
-		    io:format(F, "vt ~p ~p\r\n", [U,V])
+		    io:format(F, "vt ~s ~s\r\n",
+			      [fmtf(U),fmtf(V)])
 	    end, Tx),
     foreach(fun({X,Y,Z}) ->
-		    io:format(F, "vn ~p ~p ~p\r\n", [X,Y,Z])
+		    io:format(F, "vn ~s ~s ~s\r\n",
+			      [fmtf(X),fmtf(Y),fmtf(Z)])
 	    end, Ns),
     object_group(F, Name, Flags),
     Fs1 = [{Mat,FaceRec} || #e3d_face{mat=Mat}=FaceRec <- Fs0],
@@ -392,6 +395,11 @@ export_object(F, #e3d_object{name=Name,obj=Mesh0}, Flags,
 		    face_mat(F, Name, Face, Flags, Vbase, UVbase, Nbase)
 	    end, Fs),
     {Vbase+length(Vs),UVbase+length(Tx),Nbase+length(Ns)}.
+
+fmtf(F) when abs(F) < 0.1; abs(F) >= 10000 ->
+    lists:flatten(io_lib:format("~.8e", [F]));
+fmtf(F) ->
+    lists:flatten(io_lib:format("~.8f", [F])).
 
 object_group(F, Name, Flags) ->
     case proplists:get_bool(group_per_material, Flags) of
