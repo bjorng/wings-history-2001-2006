@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.1 2001/08/14 18:16:35 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.2 2001/08/20 07:33:40 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -17,13 +17,15 @@
 	 tighten/1,smooth/1,combine/1,separate/1,auto_smooth/1]).
 
 -include("wings.hrl").
--import(lists, [map/2,foldl/3,reverse/1,reverse/2,sort/1]).
+-import(lists, [map/2,foldl/3,reverse/1,reverse/2,sort/1,seq/2]).
 
 %%
 %% Convert the current selection to a body selection.
 %%
-convert_selection(St) ->
-    St#st{selmode=body,sel=[]}.
+convert_selection(#st{sel=Sel0}=St) ->
+    Zero = gb_sets:singleton(0),
+    Sel = [{Id,Zero} || {Id,_} <- Sel0],
+    St#st{selmode=body,sel=Sel}.
 
 %%%
 %%% The Cleanup command.
@@ -79,21 +81,15 @@ invert_normals_1(#shape{sh=#we{}=We0}=Sh0) ->
 %%% The Duplicate command.
 %%%
 
-duplicate(Dir, #st{onext=Id0,shapes=Shapes0}=St) ->
-    {Shapes,Id} = wings_sel:fold(
-		    fun(#shape{name=Name0}=Sh0, {Shs,I}) ->
-			    Name = new_name(reverse(Name0), I),
-			    Sh = Sh0#shape{id=I,name=Name},
-			    {gb_trees:insert(I, Sh, Shs),I+1}
-		    end, {Shapes0,Id0}, St),
-    wings_move:setup(Dir, St#st{shapes=Shapes,onext=Id}).
-
-new_name([H|T], Id) when $0 =< H, H =< $9 ->    
-    new_name(T, Id);
-new_name("ypoc"++_=Name, Id) ->
-    reverse(Name, integer_to_list(Id));
-new_name(Name, Id) ->
-    reverse(Name, "_copy" ++ integer_to_list(Id)).
+duplicate(Dir, #st{onext=Oid0}=St0) ->
+    Copy = "copy",
+    St = wings_sel:fold(fun(Sh0, St) ->
+				wings_shape:insert(Sh0, Copy, St)
+			end, St0, St0),
+    %% Select the duplicate items, not the original items.
+    Zero = gb_sets:singleton(0),
+    Sel = [{Id,Zero} || Id <- seq(Oid0, St#st.onext-1)],
+    wings_move:setup(Dir, St#st{sel=Sel}).
 
 %%%
 %%% The Delete command.
@@ -325,23 +321,21 @@ combine([], Shapes, We) -> {We,Shapes}.
 %%% The Separate command.
 %%%
 
-separate(St0) ->
-    {St,New} =
-	wings_sel:mapfold(
-	  fun(#shape{sh=#we{}=We0}=Sh0, A) ->
-		  case wings_we:separate(We0) of
-		      [_] -> {Sh0,A};
-		      [We|New] -> {Sh0#shape{sh=We},New++A}
-		  end;
-	     (Sh, A) -> {Sh,A}
-	  end, [], St0),
-    #st{onext=Id0,shapes=Shapes0} = St,
-    {Shapes,Id} = foldl(fun(We, {A,I}) ->
-				Name = "separate"++integer_to_list(I),
-				Sh = #shape{id=I,name=Name,sh=We},
-				{gb_trees:insert(I, Sh, A),I+1}
-			end, {Shapes0,Id0}, New),
-    St#st{onext=Id,shapes=Shapes,sel=[]}.
+separate(St) ->
+    Sep = "sep",
+    wings_sel:fold(
+      fun(#shape{sh=#we{}=We0}=Sh0, St0) ->
+	      case wings_we:separate(We0) of
+		  [_] -> St0;
+		  [We|Wes] ->
+		      St1 = foldl(fun(W, A) ->
+					  Sh = Sh0#shape{sh=W},
+					  wings_shape:insert(Sh, Sep, A)
+				  end, St0, Wes),
+		      Sh = Sh0#shape{sh=We},
+		      wings_shape:update(Sh, St1)
+	      end
+      end, St, St).
 
 %%%
 %%% The Auto-Smooth command.

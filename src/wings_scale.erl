@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_scale.erl,v 1.1 2001/08/14 18:16:39 bjorng Exp $
+%%     $Id: wings_scale.erl,v 1.2 2001/08/20 07:33:40 bjorng Exp $
 %%
 
 -module(wings_scale).
@@ -63,7 +63,7 @@ inset(St) ->
 	    fun(#shape{id=Id,sh=We}, Faces, Acc) ->
 		    [{Id,inset(Faces, We)}|Acc]
 	    end, [], St),
-    wings_drag:init_drag(Tvs, {0,1}, St).
+    wings_drag:init_drag(Tvs, {-?HUGE,1}, St).
 
 inset(Faces, We) ->
     inset(gb_sets:iterator(Faces), We, {[],?HUGE}).

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.1 2001/08/14 18:16:39 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.2 2001/08/20 07:33:40 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -86,15 +86,12 @@ extrude_part([], Faces, We) -> We.
 %%%
 
 extract_region(Type, #st{onext=Id0,shapes=Shapes0}=St0) ->
-    {Shapes,Id,Sel} =
-	wings_sel:fold_shape(
-	  fun(Sh0, Faces, {Shs,I,Sel0}) ->
-		  Name = "extract" ++ integer_to_list(I),
-		  Sh = Sh0#shape{id=I,name=Name},
-		  Sel = [{I,Faces}|Sel0],
-		  {gb_trees:insert(I, Sh, Shs),I+1,Sel}
-	  end, {Shapes0,Id0,[]}, St0),
-    St1 = St0#st{sel=Sel,shapes=Shapes,onext=Id},
+     St1 = wings_sel:fold_shape(
+	     fun(Sh, Faces, #st{sel=Sel0,onext=Oid}=St0) ->
+		     St = wings_shape:insert(Sh, "extract", St0),
+		     Sel = [{Oid,Faces}|Sel0],
+		     St#st{sel=Sel}
+	     end, St0#st{sel=[]}, St0),
     St2 = wings_sel:inverse(St1),
     St3 = dissolve(St2),
     St = wings_sel:inverse(St3),

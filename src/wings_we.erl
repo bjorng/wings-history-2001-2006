@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.1 2001/08/14 18:16:38 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.2 2001/08/20 07:33:40 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -480,7 +480,6 @@ vertex_normals(#we{vs=Vtab,he=Htab}=We, FaceNormals) ->
 		   end
 	   end, [], gb_trees:to_list(Vtab)),
     gb_trees:from_orddict(reverse(Ns)).
-
 
 n_face(Face, Mat, FaceNormals, VtxNormals, We) ->
     {Mat,wings_face:fold(

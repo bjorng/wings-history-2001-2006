@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.1 2001/08/14 18:16:37 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.2 2001/08/20 07:33:40 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -258,8 +258,11 @@ make_face_mat(Mat) -> [Mat].
 
 hard_edges([E|Es], Etab, Acc) ->
     #edge{vs=Va,ve=Vb} = gb_trees:get(E, Etab),
-    hard_edges(Es, Etab, [[Va|Vb]|Acc]);
+    hard_edges(Es, Etab, [hard(Va, Vb)|Acc]);
 hard_edges([], Etab, Acc) -> Acc.
+
+hard(A, B) when A < B -> {A,B};
+hard(A, B) -> {B,A}.
 
 export_mat(#st{mat=Mat0}=St) ->
     Mat = [{Name,export_mat_1(M)} || {Name,M} <- gb_trees:to_list(Mat0)],

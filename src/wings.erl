@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.2 2001/08/17 10:18:47 bjorng Exp $
+%%     $Id: wings.erl,v 1.3 2001/08/20 07:33:40 bjorng Exp $
 %%
 
 -module(wings).
@@ -605,7 +605,7 @@ menu(X, Y, select, St) ->
 			       {"80%",80},
 			       {"90%",90}}}},
 	    separator,
-	    {"Inverse",inverse},
+	    {"Inverse","Ctrl-Shift-I",inverse},
 	    separator,
 	    {"Save selection",save},
 	    {"Load selection",load},
@@ -1021,6 +1021,8 @@ translate_event(#expose{}, St) -> ignore;
 translate_event({action,Action}, St) -> Action.
 
 translate_key($a, Mod, St) when Mod band ?CTRL_BITS =/= 0 -> {select,all};
+translate_key($i, Mod, St) when Mod band ?CTRL_BITS =/= 0,
+				Mod band ?SHIFT_BITS =/= 0 -> {select,inverse};
 translate_key($l, Mod, St) when Mod band ?CTRL_BITS =/= 0 -> {file,merge};
 translate_key($n, Mod, St) when Mod band ?CTRL_BITS =/= 0 -> {file,new};
 translate_key($o, Mod, St) when Mod band ?CTRL_BITS =/= 0 -> {file,open};

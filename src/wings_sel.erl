@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel.erl,v 1.2 2001/08/17 10:18:47 bjorng Exp $
+%%     $Id: wings_sel.erl,v 1.3 2001/08/20 07:33:40 bjorng Exp $
 %%
 
 -module(wings_sel).
@@ -542,7 +542,11 @@ tab_set_intersection(Set, Tab) ->
 %%% Select Inverse.
 %%%
 
-inverse(#st{selmode=body}=St) -> St;
+inverse(#st{selmode=body,sel=Sel0,shapes=Shapes}=St) ->
+    Zero = gb_sets:singleton(0),
+    All = [{Id,Zero} || Id <- gb_trees:keys(Shapes)],
+    Sel = ordsets:subtract(All, Sel0),
+    St#st{sel=Sel};
 inverse(#st{selmode=Mode}=St) ->
     Sel = fold_shape(
 	    fun(#shape{id=Id,sh=We}, Items, A) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.1 2001/08/14 18:16:39 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.2 2001/08/20 07:33:40 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -19,7 +19,7 @@
 	 hardness/2,hardness/3,loop_cut/1,collect_faces/3]).
 
 -include("wings.hrl").
--import(lists, [foldl/3,last/1,member/2,reverse/1,reverse/2,seq/3]).
+-import(lists, [foldl/3,last/1,member/2,reverse/1,reverse/2,seq/3,sort/1]).
 
 %%
 %% Convert the current selection to an edge selection.
@@ -514,31 +514,25 @@ hardness(Edge, Hardness, Htab) ->
 %%% The Loop Cut command.
 %%%
 
-loop_cut(St0) ->
-    {St,New} = wings_sel:mapfold_shape(fun loop_cut/4, [], St0),
-    #st{onext=Id0,shapes=Shapes0} = St,
-    {Shapes,Id} = foldl(fun(We, {A,I}) ->
-				Name = "loopcut"++integer_to_list(I),
-				Sh = #shape{id=I,name=Name,sh=We},
-				{gb_trees:insert(I, Sh, A),I+1}
-			end, {Shapes0,Id0}, New),
-    St#st{onext=Id,shapes=Shapes,sel=[]}.
+loop_cut(#st{sel=OldSel}=St0) ->
+    {Sel0,St1} = wings_sel:fold_shape(fun loop_cut/3, {[],St0}, St0),
+    Sel = sort(Sel0),
+    St2 = St1#st{selmode=face,sel=Sel},
+    St = wings_face_cmd:dissolve(St2),
+    wings_body:convert_selection(St#st{selmode=body,sel=OldSel}).
 
-loop_cut(Id, Edges, #we{es=Etab,fs=Ftab}=We0, Acc) ->
+loop_cut(#shape{id=Id,sh=We0}=Sh, Edges, {Sel0,#st{onext=NewId}=St0}=Acc) ->
+    #we{es=Etab,fs=Ftab} = We0,
     {AnEdge,_} = gb_sets:take_smallest(Edges),
     #edge{lf=Lf,rf=Rf} = gb_trees:get(AnEdge, Etab),
     LeftFaces = collect_faces(Lf, Edges, We0),
     RightFaces = collect_faces(Rf, Edges, We0),
     case proper_division(LeftFaces, RightFaces, We0) of
-	false ->
-	    wings_io:message("The selection doesn't divide the object in two."),
-	    {We0,[]};
+	false -> Acc;				%improper division
 	true ->
-	    LeftEdges = wings_face:inner_edges(LeftFaces, We0),
-	    RightEdges = wings_face:inner_edges(RightFaces, We0),
-	    We = dissolve_edges(LeftEdges, We0),
-	    NewWe = dissolve_edges(RightEdges, We0),
-	    {We,[NewWe|Acc]}
+	    St = wings_shape:insert(Sh, "cut", St0),
+	    Sel = [{Id,LeftFaces},{NewId,RightFaces}|Sel0],
+	    {Sel,St}
     end.
 
 proper_division(Left, Right, #we{fs=Ftab}) ->
