@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.69 2002/07/11 18:18:05 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.70 2002/07/12 04:55:18 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -40,7 +40,7 @@ finish() ->
     end.
 
 menu(X, Y, St) ->
-    ExpFormats = [{"Nendo (.ndo)",ndo}],
+    Formats = [{"Nendo (.ndo)",ndo}],
     Menu = [{"New",new},
 	    {"Open",open},
 	    {"Merge",merge},
@@ -51,9 +51,9 @@ menu(X, Y, St) ->
 	    separator,
 	    {"Revert",revert},
 	    separator,
-	    {"Import",{import,[{"Nendo (.ndo)",ndo}]}},
-	    {"Export",{export,ExpFormats}},
-	    {"Export Selected",{export_selected,ExpFormats}},
+	    {"Import",{import,Formats}},
+	    {"Export",{export,Formats}},
+	    {"Export Selected",{export_selected,Formats}},
 	    separator,
 	    {"Render",{render,[]}},
 	    separator|recent_files([{"Exit",quit}])],
@@ -156,8 +156,7 @@ read(St0) ->
 	St1 ->
 	    case wings_plugin:call_ui({file,open,wings_prop()}) of
 		aborted -> St0;
-		Name0 ->
-		    Name = ensure_extension(Name0, ?WINGS, wings_extensions()),
+		Name ->
 		    add_recent(Name),
 		    File = use_autosave(Name),
 		    case ?SLOW(wings_ff_wings:import(File, St1)) of
@@ -190,8 +189,7 @@ named_open(Name, St0) ->
 merge(St0) ->
     case wings_plugin:call_ui({file,merge,wings_prop()}) of
 	aborted -> St0;
-	Name0 ->
-	    Name = ensure_extension(Name0, ?WINGS, wings_extensions()),
+	Name ->
 	    File = use_autosave(Name),
 	    case ?SLOW(wings_ff_wings:import(File, St0)) of
 		{error,Reason} ->
@@ -333,9 +331,6 @@ autosave_filename(File) ->
 backup_filename(File) ->
     File ++ ?BACKUP.
 
-wings_extensions() ->
-    [?WINGS,?WINGS ++ ?BACKUP,?WINGS ++ ?AUTOSAVE].
-
 add_recent(Name) ->
     Base = filename:basename(Name),
     case filename:extension(Base) of
@@ -395,12 +390,10 @@ import(Prop, Importer, St0) ->
     end.
 
 import_ndo(St0) ->
-    Ext = ".ndo",
     Prop = [{ext,".ndo"},{ext_desc,"Nendo File"}],
     case wings_plugin:call_ui({file,import,Prop}) of
 	aborted -> St0;
-	Name0 ->
-	    Name = ensure_extension(Name0, Ext),
+	Name ->
 	    case ?SLOW(wings_ff_ndo:import(Name, St0)) of
 		#st{}=St ->
 		    wings_getline:set_cwd(dirname(Name)),
@@ -454,41 +447,10 @@ export_file_prop(Prop, #st{file=File}) ->
     Def = filename:rootname(filename:basename(File), ?WINGS) ++ Ext,
     [{default_filename,Def}|Prop].
 
-ensure_extension(Name, Ext) ->
-    case eq_extensions(Ext, filename:extension(Name)) of
-	true -> Name;
-	false -> Name ++ Ext
-    end.
-
-ensure_extension(Name, Default, [Ext|Rest]) when list(Ext) ->
-    case eq_extensions(filename:extension(Name), Ext) of
-	true -> Name;
-	false -> ensure_extension(Name, Default, Rest)
-    end;
-ensure_extension(Name, Default, []) -> Name ++ Default.
-
-eq_extensions(Ext, Actual) when length(Ext) =/= length(Actual) ->
-    false;
-eq_extensions(Ext, Actual) ->
-    IgnoreCase = case os:type() of
-		     {win32,_} -> true;
-		     _ -> false
-		 end,
-    eq_extensions(Ext, Actual, IgnoreCase).
-
-eq_extensions([C|T1], [C|T2], _IgnoreCase) ->
-    eq_extensions(T1, T2);
-eq_extensions([L|T1], [C|T2], true) when $A =< C, C =< $Z, L-C =:= 32 ->
-    eq_extensions(T1, T2);
-eq_extensions([_|_], [_|_], _IgnoreCase) -> false;
-eq_extensions([], [], _IgnoreCase) -> true.
-
 output_file(Tag, Prop) ->
     case wings_plugin:call_ui({file,Tag,Prop}) of
 	aborted -> aborted;
-	Name ->
-	    Ext = property_lists:get_value(ext, Prop),
-	    ensure_extension(Name, Ext)
+	Name -> Name
     end.
 
 %%%

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp9_dialogs.erl,v 1.8 2002/07/11 18:18:04 bjorng Exp $
+%%     $Id: wp9_dialogs.erl,v 1.9 2002/07/12 04:55:18 bjorng Exp $
 %%
 
 -module(wp9_dialogs).
@@ -20,27 +20,24 @@ menus() -> [].
 init(Next) ->
     fun(What) -> ui(What, Next) end.
 
-ui({file,merge,Prop}, Next) ->
-    Ext = property_lists:get_value(ext, Prop, ".wings"),
-    wings_getline:filename("Merge file: ", Ext);
-ui({file,open,Prop}, Next) ->
-    Ext = property_lists:get_value(ext, Prop, ".wings"),
-    wings_getline:filename("Open file: ", Ext);
-ui({file,save,Prop}, Next) ->
+ui({file,open,Prop}, _Next) ->
+    open_file("Open file: ", Prop);
+ui({file,merge,Prop}, _Next) ->
+    open_file("Merge file: ", Prop);
+ui({file,import,Prop}, _Next) ->
+    open_file("Import file: ", Prop);
+ui({file,save,Prop}, _Next) ->
     save_file("Save: ", Prop);
-ui({file,import,Prop}, Next) ->
-    Ext = property_lists:get_value(ext, Prop),
-    wings_getline:filename("Import file: ", Ext);
-ui({file,export,Prop}, Next) ->
+ui({file,export,Prop}, _Next) ->
     save_file("Export file: ", Prop);
-ui({failure,Message,Prop}, Next) ->
+ui({failure,Message,_Prop}, _Next) ->
     wings_io:message(Message),
     aborted;
-ui({message,Message}, Next) ->
+ui({message,Message}, _Next) ->
     message(Message);
-ui({question,Question}, Next) ->
+ui({question,Question}, _Next) ->
     wings_getline:yes_no(Question);
-ui({serious_question,Question}, Next) ->
+ui({serious_question,Question}, _Next) ->
     wings_getline:yes_no(Question);
 ui(What, Next) -> Next(What).
 
@@ -50,11 +47,18 @@ message(Message) ->
 	  [{label,Message},
 	   {button,ok}],
 	  [{title,"Wings Error"}]},
-    wings_ask:dialog(Qs, St, fun(Res) -> ignore end).
+    wings_ask:dialog(Qs, St, fun(_) -> ignore end).
+
+open_file(Prompt, Prop) ->
+    Ext = property_lists:get_value(ext, Prop, ".wings"),
+    case wings_getline:filename(Prompt, Ext) of
+	aborted -> aborted;
+	Name -> ensure_extension(Name, Ext)
+    end.
 
 save_file(Prompt, Prop) ->
     Ext = property_lists:get_value(ext, Prop, ".wings"),
-    case wings_getline:filename("Save: ", Ext) of
+    case wings_getline:filename(Prompt, Ext) of
 	aborted -> aborted;
 	Name0 ->
 	    Name = ensure_extension(Name0, Ext),

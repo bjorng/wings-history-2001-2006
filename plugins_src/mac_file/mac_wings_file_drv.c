@@ -11,7 +11,7 @@
  *  See the file "license.terms" for information on usage and redistribution
  *  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
  *
- *     $Id: mac_wings_file_drv.c,v 1.2 2002/07/11 18:18:05 bjorng Exp $
+ *     $Id: mac_wings_file_drv.c,v 1.3 2002/07/12 04:55:18 bjorng Exp $
  */
 
 /*cc -ObjC -I ~/local/lib/erlang/usr/include -bundle -flat_namespace -undefined suppress -framework Cocoa -o ../../plugins/mac_file/mac_wings_file_drv.so mac_wings_file_drv.c */
@@ -130,7 +130,10 @@ static int mac_wings_file_control(ErlDrvData handle, unsigned int command,
     case 2: /* Save (or export) file */
       {
 	NSArray *fileTypes;
-	NSString *defdir1, *filter1, *filter_desc1, *title1, *defname1;
+	NSString* defdir1;
+	NSString* filter1;
+	NSString* title1;
+	NSString* defname1;
           
 	defdir = buff; /* Default directory */
 	filter = defdir + strlen(defdir) + 1; /* Filter expression (.wings) */
@@ -139,8 +142,8 @@ static int mac_wings_file_control(ErlDrvData handle, unsigned int command,
 	defname = title + strlen(title) + 1; /* Default name for file */
 
         defdir1 = [NSString stringWithCString:defdir];
+	/* The description of the filter is ignored for Mac */
         filter1 = [NSString stringWithCString:filter + 1]; // . not needed for mac
-        filter_desc1 = [NSString stringWithCString:filter_desc];
         title1 = [NSString stringWithCString:title];
         defname1 = [NSString stringWithCString:defname];
 	
@@ -162,6 +165,7 @@ static int mac_wings_file_control(ErlDrvData handle, unsigned int command,
 	  return 0;
 	} else {
 	  NSSavePanel *sPanel = [NSSavePanel savePanel];
+	  [sPanel setRequiredFileType:filter1];
 	  result = [sPanel runModalForDirectory:defdir1 file:defname1];
 	  if (result == NSOKButton) {
 	    NSString *aFile = [sPanel filename];
