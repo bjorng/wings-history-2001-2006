@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.115 2004/05/31 06:18:13 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.116 2004/06/17 04:36:23 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -206,11 +206,11 @@ select_material(Mat, St) ->
 
 set_material(Mat, #st{selmode=face}=St) ->
     wings_sel:map(fun(Faces, We) ->
-			  assign(Mat, Faces, We)
+			  assign(Mat, Faces, We#we{mode=material})
 		  end, St);
 set_material(Mat, #st{selmode=body}=St) ->
     wings_sel:map(fun(_, #we{fs=Ftab}=We) ->
-			  assign(Mat, gb_trees:keys(Ftab), We)
+			  assign(Mat, gb_trees:keys(Ftab), We#we{mode=material})
 		  end, St);
 set_material(_, St) -> St.
 
@@ -752,17 +752,16 @@ assign_materials([{F,M}|_]=MatFace0, We) when is_integer(F), is_atom(M) ->
     assign_materials(MatFace, We);
 assign_materials([], We) -> We.
 
-assign(Mat, _, #we{mat=Mat}=We) ->
-    We#we{mode=material};
+assign(Mat, _, #we{mat=Mat}=We) -> We;
 assign(Mat, Faces, #we{mat=Tab0,fs=Ftab}=We) when is_list(Faces) ->
     case length(Faces) =:= gb_trees:size(Ftab) of
 	true ->
-	    We#we{mode=material,mat=Mat};
+	    We#we{mat=Mat};
 	false ->
 	    Tab = force_list(Tab0, Ftab),
 	    NewTab = sort(make_tab(Mat, Faces)),
 	    MatTab = mat_merge(NewTab, Tab, []),
-	    We#we{mode=material,mat=MatTab}
+	    We#we{mat=MatTab}
     end;
 assign(Mat, Faces, We) ->
     assign(Mat, gb_sets:to_list(Faces), We).
