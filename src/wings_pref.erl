@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.126 2004/10/14 08:54:19 dgud Exp $
+%%     $Id: wings_pref.erl,v 1.127 2004/10/15 14:49:27 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -213,7 +213,7 @@ advanced_prefs() ->
 ui_prefs() ->
     Fonts = wings_text:fonts(),
     Langs0 = wings_lang:available_languages(),
-    Langs = [{Lang,Lang} || Lang <- Langs0],
+    Langs = [{language_name(L),L} || L <- Langs0],
     {hframe,
      [{vframe,
        [{vframe,
@@ -268,6 +268,11 @@ ui_prefs() ->
 			  {color,console_cursor_color}]}],
 	[{title,?STR(ui_prefs,22,"Console")}]}]}
      ]}.
+
+language_name("en") -> "English";
+language_name("it") -> "Italiano";
+language_name("sv") -> "Svenska";
+language_name(Other) -> Other.
 
 misc_prefs() ->
     Flags = case wings_util:is_gl_ext({1,2}, 'GL_ARB_imaging') of
