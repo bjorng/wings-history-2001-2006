@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.54 2001/11/24 18:38:50 bjorng Exp $
+%%     $Id: wings.erl,v 1.55 2001/11/25 13:47:14 bjorng Exp $
 %%
 
 -module(wings).
 -export([start/0,start_halt/0]).
--export([caption/1,redraw/1]).
+-export([caption/1,redraw/1,info/1]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -183,7 +183,6 @@ handle_event(Event, St) ->
 	Other -> Other
     end.
 
-handle_event_1({reactivate_menu,Mi}, St) -> wings_menu:reactivate(Mi);
 handle_event_1(drag_aborted=S, _) -> return_to_top(S);
 handle_event_1({drag_ended,St}, _) -> return_to_top(St);
 handle_event_1({new_selection,St}, _) -> return_to_top(St);
@@ -544,7 +543,7 @@ menu(X, Y, edit, St) ->
 	    separator,
 	    wings_camera:sub_menu(St),
 	    {"Preferences",{preferences,wings_pref:sub_menu(St)}}},
-    wings_menu:menu(X, Y, edit, Menu);
+    wings_menu:menu(X, Y, edit, Menu, St);
 menu(X, Y, view, St) ->
     wings_view:menu(X, Y, St);
 menu(X, Y, select, St) ->
@@ -598,7 +597,7 @@ menu(X, Y, select, St) ->
 	    {"Union with saved",union},
 	    {"Subtract with saved",subtract},
 	    {"Intersection with saved",intersection}},
-    wings_menu:menu(X, Y, select, Menu);
+    wings_menu:menu(X, Y, select, Menu, St);
 menu(X, Y, tools, St) ->
     Dirs = {{"All",all},
 	    {"X",x},
@@ -614,7 +613,7 @@ menu(X, Y, tools, St) ->
 	    {"Scale to Saved BB",{scale_to_bb,Dirs}},
 	    {"Scale to Saved BB Proportionally",{scale_to_bb_prop,Dirs}},
 	    {"Move to Saved BB",{move_to_bb,all_xyz()}}},
-    wings_menu:menu(X, Y, tools, Menu);
+    wings_menu:menu(X, Y, tools, Menu, St);
 menu(X, Y, objects, #st{shapes=Shapes,hidden=Hidden}=St) ->
     All = sort(gb_trees:to_list(Shapes)++gb_trees:to_list(Hidden)),
     Menu0 = map(fun({Id,#shape{name=Name}}) ->
@@ -630,17 +629,17 @@ menu(X, Y, objects, #st{shapes=Shapes,hidden=Hidden}=St) ->
 			  {"Hide Selected",hide_selected},
 			  {"Hide Unselected",hide_unselected},
 			  separator|Menu0]),
-    wings_menu:menu(X, Y, objects, Menu);
+    wings_menu:menu(X, Y, objects, Menu, St);
 menu(X, Y, help, St) ->
     Menu = {{"About",about}},
-    wings_menu:menu(X, Y, help, Menu).
+    wings_menu:menu(X, Y, help, Menu, St).
 
 menu_item_sel_all(Mode, What, #st{selmode=Mode}) ->
     {cap(What),"Ctrl-A",Mode};
 menu_item_sel_all(Mode, What, St) ->
     {cap(What),Mode}.
 
-shape_menu(X, Y, St0) ->
+shape_menu(X, Y, St) ->
     Menu = {{"Tetrahedron",tetrahedron},
 	    {"Octahedron",octahedron},
 	    {"Dodecahedron",dodecahedron},
@@ -654,7 +653,7 @@ shape_menu(X, Y, St0) ->
 	    {"Torus",{torus}},
 	    separator,
 	    {"Grid",{grid}}},
-    wings_menu:popup_menu(X, Y, shape, Menu).
+    wings_menu:popup_menu(X, Y, shape, Menu, St).
 
 vertex_menu(X, Y, St) ->
     XYZ = xyz(),
@@ -680,7 +679,7 @@ vertex_menu(X, Y, St) ->
 	    {"Magnet",{magnet,{{"Gaussian",{gaussian,directions()}},
 			       {"Linear",{linear,directions()}}}}},
 	    {"Deform",wings_deform:sub_menu(St)}},
-    wings_menu:popup_menu(X, Y, vertex, Menu).
+    wings_menu:popup_menu(X, Y, vertex, Menu, St).
 
 edge_menu(X, Y, St) ->
     Menu = {{"Edge operations",ignore},
@@ -710,7 +709,7 @@ edge_menu(X, Y, St) ->
 				   {"Hard",hard}}}},
 	    separator,
 	    {"Loop Cut",loop_cut}},
-        wings_menu:popup_menu(X, Y, edge, Menu).
+        wings_menu:popup_menu(X, Y, edge, Menu, St).
  
 face_menu(X, Y, St) ->
     Menu = {{"Face operations",ignore},
@@ -746,7 +745,7 @@ face_menu(X, Y, St) ->
 	    {"Smooth",smooth},
 	    separator,
 	    {"Set Material",{set_material,materials(St)}}},
-    wings_menu:popup_menu(X, Y, face, Menu).
+    wings_menu:popup_menu(X, Y, face, Menu, St).
 body_menu(X, Y, St) ->
     Dir = {{"Free",free},
 	   {"X",x},
@@ -773,7 +772,7 @@ body_menu(X, Y, St) ->
 	    separator,
 	    {"Duplicate",{duplicate,Dir}},
 	    {"Delete","Bksp",delete}},
-    wings_menu:popup_menu(X, Y, body, Menu).
+    wings_menu:popup_menu(X, Y, body, Menu, St).
 
 materials(#st{mat=Mat0}) ->
     L0 = map(fun(Id) ->

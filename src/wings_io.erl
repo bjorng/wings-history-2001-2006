@@ -8,11 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.12 2001/11/24 18:38:50 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.13 2001/11/25 13:47:14 bjorng Exp $
 %%
 
 -module(wings_io).
 -export([init/0,menubar/1,resize/2,display/1,
+	 draw_ui/1,
 	 update/1,button/2,
 	 info/1,message/1,clear_message/0,progress/2,
 	 clear_menu_sel/0,
@@ -23,7 +24,7 @@
 	 set_timer/2,cancel_timer/1,
 	 enter_event_loop/1]).
 -export([grab/0,ungrab/0]).
--export([setup_for_drawing/0,cleanup_after_drawing/0]).
+-export([setup_for_drawing/0,cleanup_after_drawing/0,ortho_setup/0]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -95,6 +96,9 @@ display(F) ->
     Res = F(W, H),
     cleanup_after_drawing(),
     Res.
+
+draw_ui(St) ->
+    display(fun(Io) -> update(Io, St) end, ?GL_BACK).
 
 update(St) ->
     display(fun(Io) -> update(Io, St) end, ?GL_BACK),
@@ -298,6 +302,21 @@ setup_for_drawing(W, H) ->
 cleanup_after_drawing() ->
     gl:enable(?GL_DEPTH_TEST),
     gl:drawBuffer(?GL_BACK).
+
+ortho_setup() ->
+    #io{w=W,h=H} = Io = get_state(),
+    ?CHECK_ERROR(),
+    gl:pixelStorei(?GL_UNPACK_ALIGNMENT, 1),
+    gl:shadeModel(?GL_FLAT),
+    gl:disable(?GL_DEPTH_TEST),
+    gl:matrixMode(?GL_PROJECTION),
+    gl:loadIdentity(),
+    glu:ortho2D(0.0, float(W), float(H), 0.0),
+    gl:matrixMode(?GL_MODELVIEW),
+    gl:loadIdentity(),
+    gl:color3f(0.0, 0.0, 0.0),
+    ?CHECK_ERROR().
+
 
 get_state() ->
     get(wings_io).

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.32 2001/11/25 08:17:12 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.33 2001/11/25 13:47:14 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -53,7 +53,7 @@ menu(X, Y, St) ->
 			{"Wawefront (.obj)",obj},
 			{"RenderMan (.rib)",rib}}}},
 	    separator|recent_files([{"Exit","Ctrl-Q",quit}])],
-    wings_menu:menu(X, Y, file, list_to_tuple(Menu)).
+    wings_menu:menu(X, Y, file, list_to_tuple(Menu), St).
 
 command(new, St0) ->
     case new(St0) of

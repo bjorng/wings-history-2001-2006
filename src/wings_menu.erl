@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.11 2001/11/24 18:38:50 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.12 2001/11/25 13:47:14 bjorng Exp $
 %%
 
 -module(wings_menu).
--export([menu/4,popup_menu/4,reactivate/1]).
+-export([menu/5,popup_menu/5]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -32,29 +32,38 @@
 	 new=true,				%If just opened, ignore
 						%button release.
 	 timer=make_ref(),			%Active submenu timer.
-	 prev=[]				%Previous menu.
+	 prev=[],				%Previous menu.
+	 redraw,				%Redraw parent fun.
+	 st,					%State record.
+	 num_redraws=0				%Total number of redraws.
 	}).
 
-menu(X, Y, Name, Menu0) ->
+menu(X, Y, Name, Menu0, Redraw) ->
     Menu = wings_plugin:menu(Name, Menu0),
-    Mi = menu_setup(plain, X, Y, Name, Menu, #mi{}),
+    Mi = menu_setup(plain, X, Y, Name, Menu, store_redraw(#mi{}, Redraw)),
     top_level(Mi).
 
-popup_menu(X, Y, Name, Menu0) ->
+popup_menu(X, Y, Name, Menu0, Redraw) ->
     Menu = wings_plugin:menu(Name, Menu0),
-    Mi = menu_setup(popup, X, Y, Name, Menu, #mi{}),
+    Mi = menu_setup(popup, X, Y, Name, Menu, store_redraw(#mi{}, Redraw)),
     top_level(Mi).
 
-menu(X0, Y0, Name, Menu, Mi0) ->
-    Mi = menu_setup(plain, X0, Y0, Name, Menu, Mi0#mi{prev=Mi0}),
+menu(X0, Y0, Name, Menu, Mi0, Redraw) ->
+    Mi = menu_setup(plain, X0, Y0, Name, Menu,
+		    store_redraw(Mi0#mi{prev=Mi0}, Redraw)),
     top_level(Mi).
 
-reactivate(Mi) ->
-    top_level(Mi).
+store_redraw(Mi, #st{}=St0) ->
+    Redraw = fun() ->
+		     St = wings_draw:render(St0),
+		     wings_io:info(wings:info(St)),
+		     wings_io:draw_ui(St)
+	     end,
+    Mi#mi{redraw=Redraw,st=St0,num_redraws=0};
+store_redraw(Mi, Redraw) when is_function(Redraw) ->
+    Mi#mi{redraw=Redraw}.
 
-top_level(#mi{name=Name}=Mi) ->
-    wings_io:setup_for_drawing(),
-    menu_show(Mi),
+top_level(Mi) ->
     {seq,{push,dummy},get_menu_event(Mi)}.
 
 menu_setup(Type, X0, Y0, Name, Menu, Mi) -> 
@@ -71,17 +80,11 @@ menu_setup(Type, X0, Y0, Name, Menu, Mi) ->
 	  shortcut=MwL+2,w=TotalW-10,h=Mh,
 	  sel=none,name=Name,menu=Menu}.
 
-menu_show(#mi{xleft=X,ytop=Y,ymarg=Margin,shortcut=Shortcut,w=Mw,h=Mh,
-	      sel=Item,name=Name,menu=Menu}=Mi) ->
+menu_show(#mi{xleft=X,ytop=Y,ymarg=Margin,shortcut=Shortcut,w=Mw,h=Mh}=Mi) ->
     wings_io:beveled_rect(X, Y, Mw, Mh + 2*Margin+3),
     gl:color3f(0.0, 0.0, 0.0),
     menu_draw(X+3*?CHAR_WIDTH, Y+Margin+?CHAR_HEIGHT,
-	      Shortcut, Mw, 1, Menu),
-    if
-	integer(Item) -> toggle_highlight(Item, Mi);
-	true -> ok
-    end,
-    gl:flush().
+	      Shortcut, Mw, 1, Mi).
 
 menu_width(Menu) ->
     menu_width(Menu, 1, 0, 0).
@@ -99,19 +102,18 @@ menu_width(Menu, I, MaxA0, MaxB0) ->
 max(A, B) when A > B -> A;
 max(A, B) -> B.
     
-get_menu_event(Mi) ->
+get_menu_event(Mi0) ->
+    Mi = redraw(Mi0),
     {replace,fun(Ev) -> handle_menu_event(Ev, Mi) end}.
 
 handle_menu_event(Event, #mi{name=Name,new=New}=Mi0) ->
     case Event of
-	{reactivate_menu,Mi} ->
-	    reactivate(Mi);
 	#keyboard{keysym=#keysym{sym=27}} ->	%escape
 	    wings_io:cleanup_after_drawing(),
 	    wings_io:putback_event(redraw),
 	    next;
 	#mousemotion{x=X,y=Y} ->
-	    Mi1 = highlight_item(X, Y, Mi0),
+	    Mi1 = update_highlight(X, Y, Mi0),
 	    case motion_outside(Event, Mi0) of
 		none ->
 		    Mi = set_submenu_timer(Mi1, Mi0, X, Y),
@@ -121,7 +123,7 @@ handle_menu_event(Event, #mi{name=Name,new=New}=Mi0) ->
 	#mousebutton{button=B,x=X,y=Y,state=?SDL_RELEASED}=Button
 	when not New and ((B == 1) or (B == 3)) ->
 	    clear_timer(Mi0),
-	    Mi1 = highlight_item(X, Y, Mi0),
+	    Mi1 = update_highlight(X, Y, Mi0),
 	    case select_item(X, Y, Mi1) of
 		{seq,_,_}=Seq -> Seq;
 		#mi{}=Mi -> get_menu_event(Mi);
@@ -136,10 +138,9 @@ handle_menu_event(Event, #mi{name=Name,new=New}=Mi0) ->
 	    wings_io:putback_event({menu_action,{Name,Action}}),
 	    pop;
 	redraw ->
-	    wings_io:cleanup_after_drawing(),
-	    wings_io:putback_event({reactivate_menu,Mi0}),
-	    next;
-	IgnoreMe -> get_menu_event(Mi0#mi{new=false})
+	    get_menu_event(Mi0#mi{new=false,num_redraws=0});
+	IgnoreMe ->
+	    get_menu_event(Mi0#mi{new=false})
     end.
 
 button_outside(#mousebutton{x=X,y=Y}=Event, #mi{prev=[]}=Mi) ->
@@ -189,26 +190,23 @@ set_submenu_timer(#mi{sel=Sel}=Mi, OldMi, X, Y) ->
 	    Mi#mi{timer=Timer}
     end.
 
-highlight_item(X0, Y0, Mi) ->
-    case selected_item(X0, Y0, Mi) of
+redraw(#mi{redraw=Redraw,st=St,num_redraws=NumRedraws}=Mi) ->
+    if
+	NumRedraws < 2 ->
+	    Redraw();
+	true -> ok
+    end,
+    wings_io:ortho_setup(),
+    menu_show(Mi),
+    gl:swapBuffers(),
+    Mi#mi{num_redraws=NumRedraws+1}.
+
+update_highlight(X, Y, Mi) ->
+    case selected_item(X, Y, Mi) of
 	NoSel when NoSel == outside; NoSel == none ->
-	    case Mi#mi.sel of
-		none -> Mi;
-		Item ->
-		    toggle_highlight(Item, Mi),
-		    Mi#mi{sel=none}
-	    end;
+	    Mi#mi{sel=none};
 	Item when integer(Item) ->
-	    case Mi#mi.sel of
-		none ->
-		    toggle_highlight(Item, Mi),
-		    Mi#mi{sel=Item};
-		Item -> Mi;
-		OtherItem ->
-		    toggle_highlight(OtherItem, Mi),
-		    toggle_highlight(Item, Mi),
-		    Mi#mi{sel=Item}
-	    end
+	    Mi#mi{sel=Item}
     end.
 
 select_item(X0, Y0, #mi{menu=Menu,xleft=Xleft,w=W}=Mi) ->
@@ -225,12 +223,20 @@ select_item(X0, Y0, #mi{menu=Menu,xleft=Xleft,w=W}=Mi) ->
 		    #mi{xleft=Xleft,ytop=Ytop,ymarg=Margin,w=W,h=H}=Mi,
 		    SubX = Xleft+W,
 		    SubY = Ytop+(Item-1)*?LINE_HEIGHT+Margin,
-		    menu(SubX, SubY, What, SubMenu, Mi);
+		    Redraw = new_redraw_fun(Mi),
+		    menu(SubX, SubY, What, SubMenu, Mi, Redraw);
 		{Act} when Xleft =< X0, X0 < Xleft+W-2*?CHAR_WIDTH ->
 		    Act;
 		Act when atom(Act); integer(Act);
 			 tuple(Act); list(Act) -> Act
 	    end
+    end.
+
+new_redraw_fun(#mi{redraw=Redraw0}=Mi) ->
+    fun() ->
+	    Redraw0(),
+	    wings_io:ortho_setup(),
+	    menu_show(Mi)
     end.
 
 selected_item(X0, Y0, #mi{xleft=Xleft,ytop=Ytop,ymarg=Margin,w=W,h=H}=Mi) ->
@@ -254,20 +260,6 @@ selectable(Item, #mi{menu=Menu}) ->
 	_ -> true
     end.
 	    
-toggle_highlight(Item, #mi{xleft=Xleft,ytop=Ytop,
-			   ymarg=Margin,w=W,menu=Menu}) ->
-    gl:color3f(1.0, 1.0, 0.5),
-    gl:enable(?GL_COLOR_LOGIC_OP),
-    gl:logicOp(?GL_XOR),
-    Right = case has_options(Item, Menu) of
-		true -> Xleft+W-3*?CHAR_WIDTH;
-		false -> Xleft+W-?CHAR_WIDTH
-	    end,
-    gl:recti(Xleft+?CHAR_WIDTH, Ytop+Margin+(Item-1)*?LINE_HEIGHT,
-	     Right, Ytop+Margin+Item*?LINE_HEIGHT),
-    gl:flush(),
-    gl:disable(?GL_COLOR_LOGIC_OP).
-
 has_options(Item, Menu) ->
     case element(Item, Menu) of
 	{_,{_}} -> true;
@@ -288,22 +280,39 @@ is_submenu_1(Item) ->
     not(is_atom(Item) or is_integer(Item) or is_list(Item));
 is_submenu_1(Other) -> true.
 	    
-menu_draw(X, Y, Shortcut, Mw, I, Menu) when I > size(Menu) -> ok;
-menu_draw(X, Y, Shortcut, Mw, I, Menu) ->
+menu_draw(X, Y, Shortcut, Mw, I, #mi{menu=Menu}) when I > size(Menu) -> ok;
+menu_draw(X, Y, Shortcut, Mw, I, #mi{menu=Menu}=Mi) ->
     ?CHECK_ERROR(),
     case element(I, Menu) of
 	separator ->
 	    draw_separator(X, Y, Mw);
-	{S,Item} when list(S) ->
-	    wings_io:menu_text(X, Y, S),
+	{Text,Item} when is_list(Text) ->
+	    item_colors(I, Mi),
+	    wings_io:menu_text(X, Y, Text),
 	    draw_submenu(Item, X+Mw-5*?CHAR_WIDTH, Y-?CHAR_HEIGHT div 3);
-	{S1,S2,Item} when list(S1) ->
-	    S = S1 ++ lists:duplicate(Shortcut-length(S1), $\s) ++ S2,
-	    wings_io:menu_text(X, Y, S),
+	{S1,S2,Item} when is_list(S1) ->
+	    Text = S1 ++ lists:duplicate(Shortcut-length(S1), $\s) ++ S2,
+	    item_colors(I, Mi),
+	    wings_io:menu_text(X, Y, Text),
 	    draw_submenu(Item, X+Mw-5*?CHAR_WIDTH, Y-?CHAR_HEIGHT div 3)
     end,
     ?CHECK_ERROR(),
-    menu_draw(X, Y+?LINE_HEIGHT, Shortcut, Mw, I+1, Menu).
+    menu_draw(X, Y+?LINE_HEIGHT, Shortcut, Mw, I+1, Mi).
+
+item_colors(Sel, #mi{sel=Sel}=Mi) ->
+    draw_blue_rect(Sel, Mi),
+    gl:color3f(1.0, 1.0, 1.0);
+item_colors(I, Mi) -> gl:color3f(0.0, 0.0, 0.0).
+
+draw_blue_rect(Item, #mi{xleft=Xleft,ytop=Ytop,
+			 ymarg=Margin,w=W,menu=Menu}) ->
+    gl:color3f(0.0, 0.0, 0.5),
+    Right = case has_options(Item, Menu) of
+		true -> Xleft+W-3*?CHAR_WIDTH;
+		false -> Xleft+W-?CHAR_WIDTH
+	    end,
+    gl:recti(Xleft+?CHAR_WIDTH, Ytop+Margin+(Item-1)*?LINE_HEIGHT,
+	     Right, Ytop+Margin+Item*?LINE_HEIGHT).
 
 draw_submenu({Item}, X, Y) ->
     wings_io:beveled_rect(X, Y-3, ?CHAR_WIDTH, ?CHAR_WIDTH),
@@ -311,7 +320,6 @@ draw_submenu({Item}, X, Y) ->
 draw_submenu(Item, X, Y) when atom(Item); integer(Item); list(Item) -> ok;
 draw_submenu(Item, X, Y) ->
     ?CHECK_ERROR(),
-    gl:color3f(0.0, 0.0, 0.0),
     gl:'begin'(?GL_TRIANGLES),
     gl:vertex2i(X-?CHAR_WIDTH div 2, Y),
     gl:vertex2i(X-?CHAR_WIDTH, Y-?CHAR_HEIGHT div 3),
@@ -355,4 +363,3 @@ move_if_outside_x(X, Y) when X < 0 ->
     {0,Y};
 move_if_outside_x(X, Y) ->
     {X,Y}.
-

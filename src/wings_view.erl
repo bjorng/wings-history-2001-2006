@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.21 2001/11/25 08:17:12 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.22 2001/11/25 13:47:14 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -52,7 +52,7 @@ menu(X, Y, St) ->
 	    {"Align to Selection",align_to_selection},
 	    separator,
 	    {"Auto Rotate","u",auto_rotate}},
-    wings_menu:menu(X, Y, view, Menu).
+    wings_menu:menu(X, Y, view, Menu, St).
 
 command(reset, St) ->
     reset(),
