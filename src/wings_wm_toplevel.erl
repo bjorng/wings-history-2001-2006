@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.39 2003/10/12 06:35:58 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.40 2003/11/09 10:31:19 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -649,7 +649,20 @@ redraw(#ss{knob_pos=Pos,knob_prop=Prop}) ->
     {W,H} = wings_wm:win_size(),
     wings_io:border(0, 0, W-1, H, ?PANE_COLOR),
     gl:color3f(0.2, 0.2, 0.2),
-    gl:rectf(2.5, H*Pos, W-4.5, H*(Pos+Prop)),
+    X = 1.5, Y = H*Pos+1.5,
+    X2 = W-0.5, Y2 = H*(Pos+Prop),
+    gl:shadeModel(?GL_SMOOTH),
+    gl:'begin'(?GL_QUADS),
+    gl:color3fv(?PANE_COLOR),
+    gl:vertex2f(X2, Y),
+    gl:vertex2f(X2, Y2),
+    gl:color3f(0.7, 0.7, 0.7),
+    gl:vertex2f(X, Y2),
+    gl:vertex2f(X, Y),
+    gl:'end'(),
+    gl:shadeModel(?GL_FLAT),
+    gl:color3b(0, 0, 0),
+    wings_io:border_only(X, Y, X2-X, Y2-Y),
     keep.
 
 min(A, B) when A < B -> A;

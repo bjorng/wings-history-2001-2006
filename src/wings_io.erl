@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.120 2003/11/09 08:27:26 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.121 2003/11/09 10:31:19 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -16,7 +16,7 @@
 	 set_cursor/1,hourglass/0,
 	 info/1,
 	 blend/2,
-	 border/5,border/6,
+	 border/5,border/6,border_only/4,border_only/5,
 	 gradient_border/7,
 	 sunken_rect/4,sunken_rect/5,sunken_rect/6,sunken_rect/7,
 	 sunken_gradient/7,
@@ -154,6 +154,9 @@ gradient_border(X0, Y0, Mw, Mh, FillColor, BorderColor, Double)
     gradient_rect(X0, Y0, Mw, Mh, FillColor),
     set_color(BorderColor),
     border_only(X, Y, Mw, Mh, Double).
+
+border_only(X, Y, Mw, Mh) ->
+    border_only(X, Y, Mw, Mh, false).
 
 border_only(X, Y, Mw, Mh, Double) ->
     gl:'begin'(?GL_LINE_LOOP),
