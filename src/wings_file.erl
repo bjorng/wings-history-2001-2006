@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.61 2002/05/12 05:00:53 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.62 2002/05/17 13:18:37 dgud Exp $
 %%
 
 -module(wings_file).
@@ -255,7 +255,7 @@ use_autosave(File) ->
 				    Auto;
 				no -> 
 				    File;
-				abort ->  %% ???
+				aborted ->  %% ???
 				    File
 			    end;
 			SaveTime >= AutoTime ->
