@@ -1,5 +1,5 @@
 #
-#  wings.nsi --
+#  wings2.nsi --
 #
 #     Install script for NSIS installer.
 #
@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: wings2.nsi,v 1.1 2002/08/13 16:32:34 bjorng Exp $
+#     $Id: wings2.nsi,v 1.2 2002/08/14 06:15:21 bjorng Exp $
 #
 
 Name "Wings 3D"
@@ -91,6 +91,9 @@ Section "ThisNameIsIgnoredSoWhyBother?"
   GetFullPathName /short $1 $INSTDIR
   ClearErrors
   CreateShortCut "$3\Wings 3D\Wings 3D.lnk" "$INSTDIR\erlang\bin\werl.exe" \
+    "-regkey Wings3D -pa $1\ebin -run wings_start start_halt"  "$INSTDIR\ebin\wings.icon" \
+    0 SW_SHOWMINIMIZED
+  CreateShortCut "$DESKTOP\Wings 3D.lnk" "$INSTDIR\erlang\bin\werl.exe" \
     "-regkey Wings3D -pa $1\ebin -run wings_start start_halt"  "$INSTDIR\ebin\wings.icon" \
     0 SW_SHOWMINIMIZED
   IfErrors "" shortcut_created
