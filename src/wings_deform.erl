@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_deform.erl,v 1.15 2001/11/24 10:45:36 bjorng Exp $
+%%     $Id: wings_deform.erl,v 1.16 2001/11/24 11:07:56 bjorng Exp $
 %%
 
 -module(wings_deform).
@@ -102,7 +102,7 @@ rnd(Sc) when float(Sc) ->
 
 inflate(St) ->
     Tvs = wings_sel:fold_shape(fun inflate/3, [], St),
-    wings_drag:init_drag(Tvs, {-1.0,1.0}, percent, St).
+    wings_drag:init_drag(Tvs, none, percent, St).
 
 inflate(#shape{id=Id,sh=#we{vs=Vtab}=We}, Vs0, Acc) ->
     Vs = gb_sets:to_list(Vs0),
@@ -133,7 +133,7 @@ taper(Primary, Effect, St) ->
     Tvs = wings_sel:fold_shape(fun(Sh, Vs, Acc) ->
 				       taper(Sh, Vs, Primary, Effect, Acc)
 			       end, [], St),
-    wings_drag:init_drag(Tvs, none, St).
+    wings_drag:init_drag(Tvs, {-1.0,?HUGE}, St).
 
 taper(#shape{id=Id,sh=We}, Vs0, Primary, Effect, Acc) ->
     [MinR,MaxR] = wings_vertex:bounding_box(Vs0, We),
