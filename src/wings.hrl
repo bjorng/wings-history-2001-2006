@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.22 2001/11/20 12:49:22 bjorng Exp $
+%%     $Id: wings.hrl,v 1.23 2001/11/21 07:01:41 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -114,8 +114,9 @@
 	 fs,					%gb_tree containing faces
 	 he,					%gb_sets containing hard edges
 	 first_id,				%First ID used
-	 next_id				%Next free ID for vertices,
+	 next_id,				%Next free ID for vertices,
 						% edges, and faces
+	 mode					%'vertex'/'material'
 	 }).
 
 %% Edge in a winged-edge shape.
