@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.94 2002/12/26 09:47:08 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.95 2003/01/12 08:10:52 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -157,11 +157,10 @@ quit(St) ->
     end.
 
 new(#st{saved=true}=St0) ->
-    DefMat = wings_material:default(),
-    Empty = gb_trees:empty(),
-    St = St0#st{file=undefined,shapes=Empty,mat=DefMat,sel=[],ssels=Empty},
+    St = clean_st(St0#st{file=undefined}),
     wings:caption(St),
-    wings_material:init(St);
+    wings_material:init(St),
+    St;
 new(St0) -> %% File is not saved or autosaved.
     wings:caption(St0#st{saved=false}), 
     case wings_util:yes_no("Do you want to save your changes?") of
@@ -427,8 +426,8 @@ number_files([], _I, Rest) -> Rest.
 
 revert(#st{file=undefined}=St) -> St;
 revert(#st{file=File}=St0) ->
-    DefMat = wings_material:default(),
-    St1 = wings_material:init(St0#st{shapes=gb_trees:empty(),sel=[],mat=DefMat}),
+    St1 = clean_st(St0),
+    wings_material:init(St1),
     case ?SLOW(wings_ff_wings:import(File, St1)) of
 	#st{}=St -> St;
 	{error,_}=Error ->
@@ -560,6 +559,11 @@ output_file(Title, Prop) ->
 	    Name
     end.
 
+clean_st(St) ->
+    DefMat = wings_material:default(),
+    Empty = gb_trees:empty(),
+    St#st{shapes=Empty,mat=DefMat,sel=[],ssels=Empty}.
+    
 %%%
 %%% Generic import code.
 %%%
