@@ -3,12 +3,12 @@
 %%
 %%     Implements toplevel windows.
 %%
-%%  Copyright (c) 2003 Bjorn Gustavsson
+%%  Copyright (c) 2003-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.45 2003/11/23 07:24:35 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.46 2003/12/28 07:59:26 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -23,6 +23,7 @@
 -include("wings.hrl").
 
 -import(lists, [reverse/1,keysearch/3,sort/1,foreach/2]).
+-import(wings_util, [min/2,max/2]).
 
 -compile(inline).
 
@@ -671,12 +672,6 @@ redraw(#ss{knob_pos=Pos,knob_prop=Prop}) ->
     gl:color3b(0, 0, 0),
     wings_io:border_only(X, Y, X2-X, Y2-Y),
     keep.
-
-min(A, B) when A < B -> A;
-min(_, B) -> B.
-
-max(A, B) when A > B -> A;
-max(_, B) -> B.
 
 %%%
 %%% A close box.
