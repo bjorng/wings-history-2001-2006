@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.48 2004/04/30 12:52:01 dgud Exp $
+%%     $Id: auv_mapping.erl,v 1.49 2004/05/02 09:49:36 bjorng Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -879,7 +879,8 @@ area3d(V1, V2, V3) ->
 	   bv     % Border vertices
 	  }).
 
-stretch_opt(#we{name=#ch{fs=Fs}}=We0, OVs) ->
+stretch_opt(We0, OVs) ->
+    Fs = wings_we:visible(We0),
     wings_pb:start("optimizing"),
     wings_pb:update(0.01, "initializing"),
 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.134 2004/04/19 18:43:44 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.135 2004/05/02 09:49:38 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -713,15 +713,10 @@ pick_all(DrawFaces, X, Y0, W, H, St) ->
     {get_hits(HitBuf),St}.
 
 marquee_draw(#st{selmode=edge}) ->
-      Draw = fun(#we{es=Etab,vp=Vtab}) ->
-		     foreach(fun({Edge,#edge{vs=Va,ve=Vb}}) ->
-				     gl:loadName(Edge),
-				     gl:'begin'(?GL_LINES),
-				     wpc_ogla:two(gb_trees:get(Va, Vtab),
-						  gb_trees:get(Vb, Vtab)),
-				     gl:'end'()
-			     end, gb_trees:to_list(Etab))
-	     end,
+    Draw = fun(#we{es=Etab,vp=Vtab}=We) ->
+		   Vis = gb_sets:from_ordset(wings_we:visible(We)),
+		   marquee_draw_edges(gb_trees:to_list(Etab), Vtab, Vis)
+	   end,
     marquee_draw_1(Draw);
 marquee_draw(#st{selmode=vertex}) ->
     Draw = fun(#we{vp=Vtab}) ->
@@ -734,6 +729,19 @@ marquee_draw(#st{selmode=vertex}) ->
 	   end,
     marquee_draw_1(Draw);
 marquee_draw(_) -> draw().
+
+marquee_draw_edges([{Edge,#edge{vs=Va,ve=Vb,lf=Lf,rf=Rf}}|Es], Vtab, Vis) ->
+    case gb_sets:is_member(Lf, Vis) orelse gb_sets:is_member(Rf, Vis) of
+	false -> ok;
+	true ->
+	    gl:loadName(Edge),
+	    gl:'begin'(?GL_LINES),
+	    wpc_ogla:two(gb_trees:get(Va, Vtab),
+			 gb_trees:get(Vb, Vtab)),
+	    gl:'end'()
+    end,
+    marquee_draw_edges(Es, Vtab, Vis);
+marquee_draw_edges([], _, _) -> ok.
 
 marquee_draw_1(Draw) ->
     wings_draw_util:fold(fun(D, _) -> marquee_draw_fun(D, Draw) end, []).
@@ -801,14 +809,15 @@ draw_dlist(#dlo{mirror=Matrix,pick=Pick,src_we=#we{id=Id}}=D) ->
     gl:frontFace(?GL_CCW),
     D.
 
-draw_1(#dlo{ns=Ns,src_we=#we{perm=Perm,mirror=Mirror}})
+draw_1(#dlo{ns=Ns0,src_we=#we{perm=Perm,mirror=Mirror}=We})
   when ?IS_SELECTABLE(Perm) ->
+    Ns = wings_we:visible(gb_trees:to_list(Ns0), We),
     gl:pushName(0),
     foreach(fun({Face,Info}) when Face =/= Mirror ->
 		    gl:loadName(Face),
 		    face(Info);
 	       (_) -> ok
-	    end, gb_trees:to_list(Ns)),
+	    end, Ns),
     gl:popName();
 draw_1(_) -> ok.
 

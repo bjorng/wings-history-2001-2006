@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.223 2004/04/28 08:16:25 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.224 2004/05/02 09:49:36 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -138,9 +138,8 @@ init_show_maps(Map0, We, St) ->
     Map = gb_trees:from_orddict(sort(Map1)),
     create_uv_state(Map, none, We, St).
 
-create_uv_state(Charts0, MatName0, We, GeomSt0) ->
-    Charts = restrict_ftab(Charts0),
-    wings:mode_restriction([body]),
+create_uv_state(Charts, MatName0, We, GeomSt0) ->
+    wings:mode_restriction([vertex,edge,face,body]),
     wings_wm:current_state(#st{selmode=body,sel=[]}),
     {GeomSt1,MatName} = 
 	case has_texture(MatName0, GeomSt0) of
@@ -211,19 +210,6 @@ redundant_separators([separator|[separator|_]=T]) ->
 redundant_separators([H|T]) ->
     [H|redundant_separators(T)].
 
-restrict_ftab(Charts0) ->
-    Empty = gb_sets:empty(),
-    Charts = [restrict_ftab_1(Ch, Empty) || Ch <- gb_trees:values(Charts0)],
-    gb_trees:from_orddict(Charts).
-
-restrict_ftab_1(#we{id=Id,name=#ch{fs=Fs0},fs=Ftab0}=We, Empty) ->
-    Ftab1 = sofs:from_external(gb_trees:to_list(Ftab0), [{face,edge}]),
-    Fs = sofs:set(Fs0, [face]),
-    Ftab2 = sofs:restriction(Ftab1, Fs),
-    Ftab3 = sofs:to_external(Ftab2),
-    Ftab = gb_trees:from_orddict(Ftab3),
-    {Id,We#we{fs=Ftab,he=Empty}}.
-
 insert_initial_uvcoords(Charts, Id, MatName, #st{shapes=Shs0}=St) ->
     We0 = gb_trees:get(Id, Shs0),
     We1 = update_uvs(gb_trees:values(Charts), We0),
@@ -244,14 +230,17 @@ update_selected_uvcoords(#st{bb=Uvs}=St) ->
 
 %% update_uvs(Charts, We0) -> We
 %%  Update the UV coordinates for the original model.
-update_uvs(Cs, #we{es=Etab0}=We) ->
-    update_uvs_1(Cs, We, Etab0).
+update_uvs(Cs, #we{es=Etab0}=GeomWe) ->
+    update_uvs_1(Cs, GeomWe, Etab0).
 
-update_uvs_1([#we{vp=Vpos0,name=#ch{fs=Fs,vmap=Vmap}}=ChartWe|Cs], We, Etab0) ->
+update_uvs_1([#we{vp=Vpos0,name=#ch{vmap=Vmap,fm_a2g=A2G0}}=ChartWe|Cs],
+	     We, Etab0) ->
+    A2G = gb_trees:from_orddict(sofs:to_external(A2G0)),
     VFace0 = wings_face:fold_faces(
 	       fun(Face, V, _, _, A) ->
-		       [{V,Face}|A]
-	       end, [], Fs, ChartWe),
+		       [{V,gb_trees:get(Face, A2G)}|A]
+	       end, [],
+	       wings_we:visible(ChartWe), ChartWe),
     VFace1 = sofs:relation(VFace0),
     VFace2 = sofs:relation_to_family(VFace1),
     VFace = sofs:to_external(VFace2),
@@ -290,7 +279,7 @@ update_uvs_3(V, Face, UV, Etab, We) ->
       end, Etab, V, We).
 
 insert_material(Cs, MatName, We) ->
-    Faces = lists:append([Fs || #we{name=#ch{fs=Fs}} <- gb_trees:values(Cs)]),
+    Faces = lists:append([wings_we:visible(W) || W <- gb_trees:values(Cs)]),
     wings_material:assign(MatName, Faces, We).
 
 init_edit(Faces0, We0) ->
@@ -307,7 +296,7 @@ has_proper_uvs(Face, We) ->
 	     (_, _) -> false
 	  end, true, wings_face:vertex_info(Face, We)).
 
-build_map([{Fs,Vmap,We0}|T], FvUvMap, No, Acc) ->
+build_map([{Fs,Vmap,#we{fs=Ftab}=We0}|T], FvUvMap, No, Acc) ->
     %% XXX Because auv_segment:cut_model/3 distorts the UV coordinates
     %% (bug in wings_vertex_cmd), we must fetch the UV coordinates
     %% from the original object.
@@ -322,8 +311,12 @@ build_map([{Fs,Vmap,We0}|T], FvUvMap, No, Acc) ->
     true = sofs:is_a_function(sofs:relation(UVs1, [{atom,atom}])),
     Z = zero(),
     UVs = [{V,{X,Y,Z}} || {V,{X,Y}} <- UVs1],
-    Chart = #ch{fs=Fs,size=undefined,vmap=Vmap},
-    We = We0#we{name=Chart,id=No,vp=gb_trees:from_orddict(UVs)},
+    Fs = sort(Fs),
+    HiddenFaces = ordsets:subtract(gb_trees:keys(Ftab), Fs),
+    We1 = wings_we:hide_faces(HiddenFaces, We0),
+    A2G = auv_util:make_face_map(Fs, We1),
+    Chart = #ch{size=undefined,vmap=Vmap,fm_a2g=A2G},
+    We = We1#we{name=Chart,id=No,vp=gb_trees:from_orddict(UVs)},
     build_map(T, FvUvMap, No+1, [{No,We}|Acc]);
 build_map([], _, _, Acc) -> Acc.
 
@@ -394,13 +387,11 @@ command_menu(body, X, Y) ->
 				  {"Stretch optimization", stretch_opt, 
 				   "Optimize the chart stretch"}
 				 ]}, 
-	     "Re-calculate new uv's with choosen algorithmen"}
+	     "Calculate new UVs with choosen algorithm"}
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu);
 command_menu(face, X, Y) ->
     Menu = [{basic,{"Face operations",ignore}},
-	    {"Experimental menu!!!",ignore},
-	    separator,
 	    {"Move",move,"Move selected faces"}
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu);
@@ -417,7 +408,7 @@ command_menu(vertex, X, Y) ->
     Menu = [{basic,{"Vertex operations",ignore}},
 	    {basic,separator},
 	    {"Move",move,"Move selected vertices"},
-	    {"Scale", {scale, Scale}, "Scale selected vertices"}
+	    {"Scale",{scale,Scale},"Scale selected vertices"}
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu).
 
@@ -495,10 +486,9 @@ handle_event_1({action,{auv,Cmd}}, St) ->
     handle_command(Cmd, St);
 handle_event_1({action,{select,Command}}, St0) ->
     case wings_sel_cmd:command(Command, St0) of
-	{save_state,St1} -> ok;
-	#st{}=St1 -> ok
+	{save_state,St} -> ok;
+	#st{}=St -> ok
     end,
-    St = filter_selection(St1),
     new_state(St);
 handle_event_1(got_focus, _) ->
     Msg1 = wings_util:button_format("Select"),
@@ -515,8 +505,8 @@ new_state(#st{bb=#uvstate{}=Uvs}=St0) ->
     GeomSt = update_geom_selection(St0),
     St1 = St0#st{bb=Uvs#uvstate{st=GeomSt}},
     St = update_selected_uvcoords(St1),
-    %%get_event(St).
-    get_event(St#st{selmode=body,sh=false}).
+    get_event(St).
+%%    get_event(St#st{selmode=body,sh=false}).
 
 handle_command(move, St) ->
     drag(wings_move:setup(free_2d, St));
@@ -557,14 +547,14 @@ tighten(St) ->
     wings_drag:do_drag(Drag, none).
 
 tighten(_, #we{vp=Vtab}=We, A) ->
-    Vs = [V || V <- gb_trees:keys(Vtab), not_bordering(V, We)],
+    Vis = gb_sets:from_ordset(wings_we:visible(We)),
+    Vs = [V || V <- gb_trees:keys(Vtab), not_bordering(V, Vis, We)],
     wings_vertex_cmd:tighten(Vs, We, A).
 
-not_bordering(V, #we{fs=Ftab}=We) ->
+not_bordering(V, Vis, We) ->
     wings_vertex:fold(fun(_, _, _, false) -> false;
-			 (_, F, _, true) -> gb_trees:is_defined(F, Ftab)
+			 (_, F, _, true) -> gb_sets:is_member(F, Vis)
 		      end, true, V, We).
-
 
 delete_charts(#st{shapes=Shs0}=St0) ->
     St1 = wpa:sel_map(fun(_, #we{vp=Vp0}=We) ->
@@ -598,36 +588,6 @@ handle_drop(_DropData, _) ->
 
 is_power_of_two(X) ->
     (X band -X ) == X.
-
-%% filter_selection(St0) -> St
-%%  Remove any items in the selection that are outside of a chart.
-filter_selection(#st{sel=[]}=St) -> St;
-filter_selection(#st{selmode=vertex}=St) ->
-    Sel = wpa:sel_fold(fun(Vs0, #we{id=Id,vp=Vtab}, A) ->
-			       Vs1 = gb_trees:keys(Vtab),
-			       Vs2 = gb_sets:from_ordset(Vs1),
-			       Vs = gb_sets:intersection(Vs0, Vs2),
-			       [{Id,Vs}|A]
-		       end, [], St),
-    wpa:sel_set(vertex, Sel, St);
-filter_selection(#st{selmode=edge}=St) ->
-    Sel = wpa:sel_fold(fun(Es0, #we{id=Id,fs=Ftab}=We, A) ->
-			       Fs = gb_trees:keys(Ftab),
-			       Inner0 = wings_face:inner_edges(Fs, We),
-			       Inner = gb_sets:from_ordset(Inner0),
-			       Es = gb_sets:intersection(Es0, Inner),
-			       [{Id,Es}|A]
-		       end, [], St),
-    wpa:sel_set(edge, Sel, St);
-filter_selection(#st{selmode=face}=St) ->
-    Sel = wpa:sel_fold(fun(Fs0, #we{id=Id,fs=Ftab}, A) ->
-			       Fs1 = gb_trees:keys(Ftab),
-			       Fs2 = gb_sets:from_ordset(Fs1),
-			       Fs = gb_sets:intersection(Fs0, Fs2),
-			       [{Id,Fs}|A]
-		       end, [], St),
-    wpa:sel_set(face, Sel, St);
-filter_selection(#st{selmode=body}=St) -> St.
 
 %% update_selection(GemoSt, AuvSt0) -> AuvSt
 %%  Update the selection in the AutoUV window given a selection
@@ -668,30 +628,35 @@ update_selection_1(face, Mode, Elems, Charts) ->
 update_selection_1(body, Mode, Elems, Charts) ->
     update_body_sel(Mode, Elems, Charts).
 
-%% update_face_sel(SelModeInGeom, Elems, Charts) -> Selection
+%% update_face_sel(SelModeInGeom, GeomFaces, Charts) -> Selection
 %%  Convert the selection from the geoemetry window to
 %%  a face selection in the AutoUV window.
 
+update_face_sel(vertex, Vs, Charts) ->
+    io:format("~p: ~p\n", [?LINE,edge]),
+    none;
+update_face_sel(edge, _, _) ->
+    io:format("~p: ~p\n", [?LINE,edge]),
+    none;
 update_face_sel(face, Faces, Charts) ->
     face_sel_to_face(Charts, Faces, []);
 update_face_sel(body, _, Charts) ->
-    body_sel_to_face(Charts, []);
-update_face_sel(Mode, _, _) ->
-    io:format("~p: ~p\n", [?LINE,Mode]),
-    none.
+    body_sel_to_face(Charts, []).
 
-face_sel_to_face([{K,#we{name=#ch{fs=Fs}}}|Cs], Faces, Sel) ->
-    case ordsets:intersection(sort(Fs), Faces) of
+face_sel_to_face([{K,We}|Cs], Faces, Sel) ->
+    ChartFaces = auv2geom_faces(wings_we:visible(We), We),
+    case ordsets:intersection(ChartFaces, Faces) of
  	[] ->
 	    face_sel_to_face(Cs, Faces, Sel);
  	FaceSel0 ->
-	    FaceSel = gb_sets:from_list(FaceSel0),
+	    FaceSel1 = geom2auv_faces(FaceSel0, We),
+	    FaceSel = gb_sets:from_list(FaceSel1),
 	    face_sel_to_face(Cs, Faces, [{K,FaceSel}|Sel])
     end;
 face_sel_to_face([], _, Sel) -> Sel.
 
-body_sel_to_face([{K,#we{fs=Ftab}}|Cs], Sel) ->
-    FaceSel = gb_sets:from_ordset(gb_trees:keys(Ftab)),
+body_sel_to_face([{K,We}|Cs], Sel) ->
+    FaceSel = gb_sets:from_ordset(wings_we:visible(We)),
     body_sel_to_face(Cs, [{K,FaceSel}|Sel]);
 body_sel_to_face([], Sel) -> Sel.
 
@@ -708,7 +673,8 @@ update_body_sel(Mode, _, _) ->
     io:format("~p: ~p\n", [?LINE,Mode]),
     none.
 
-face_sel_to_body([{K,#we{name=#ch{fs=Fs}}}|Cs], Faces, Sel) ->
+face_sel_to_body([{K,We}|Cs], Faces, Sel) ->
+    Fs = wings_we:visible(We),
     case ordsets:intersection(sort(Fs), Faces) of
  	[] ->
 	    face_sel_to_body(Cs, Faces, Sel);
@@ -730,21 +696,25 @@ update_geom_selection(#st{sel=[],bb=#uvstate{st=GeomSt}}) ->
     wpa:sel_set(face, [], GeomSt);
 update_geom_selection(#st{selmode=body,sel=Sel,
 			  bb=#uvstate{st=GeomSt,id=Id}}=St) ->
-    Fs0 = wpa:sel_fold(fun(_, #we{name=#ch{fs=Fs}}, A) ->
+    Fs0 = wpa:sel_fold(fun(_, We, A) ->
+			       Fs0 = wings_we:visible(We),
+			       Fs = auv2geom_faces(Fs0, We),
 			       Fs++A
 		       end, [], St#st{sel=Sel}),
     Fs = gb_sets:from_list(Fs0),
     wpa:sel_set(face, [{Id,Fs}], GeomSt);
 update_geom_selection(#st{selmode=face,sel=Sel,
 			  bb=#uvstate{st=GeomSt,id=Id}}=St) ->
-    Fs0 = wpa:sel_fold(fun(Fs, _, A) ->
-			       [Fs|A]
+    Fs0 = wpa:sel_fold(fun(Fs, We, A) ->
+			       auv2geom_faces(gb_sets:to_list(Fs), We)++A
 		       end, [], St#st{sel=Sel}),
-    Fs = gb_sets:union(Fs0),
+    Fs = gb_sets:from_list(Fs0),
     wpa:sel_set(face, [{Id,Fs}], GeomSt);
 update_geom_selection(#st{selmode=edge,sel=Sel,
 			  bb=#uvstate{st=GeomSt,id=Id}}=St) ->
-    Fs0 = wpa:sel_fold(fun(_, #we{name=#ch{fs=Fs}}, A) ->
+    Fs0 = wpa:sel_fold(fun(_, We, A) ->
+			       Fs0 = wings_we:visible(We),
+			       Fs = auv2geom_faces(Fs0, We),
 			       Fs++A
 		       end, [], St#st{sel=Sel}),
     Fs = gb_sets:from_list(Fs0),
@@ -761,11 +731,11 @@ update_geom_sel_vtx(Vs, #we{name=#ch{vmap=Vmap}}, A) ->
     [auv_segment:map_vertex(V, Vmap) || V <- gb_sets:to_list(Vs)] ++ A.
 
 reset_sel(St0) ->
-    %%wings_sel:reset(St0).
-    case wings_sel:reset(St0) of
-	#st{selmode=body,sh=false}=St -> St;
-	St -> St#st{selmode=body,sh=false}
-    end.
+    wings_sel:reset(St0).
+%     case wings_sel:reset(St0) of
+% 	#st{selmode=body,sh=false}=St -> St;
+% 	St -> St#st{selmode=body,sh=false}
+%    end.
 
 %%%% GUI Operations
 
@@ -792,7 +762,8 @@ flip(Flip, We) ->
 remap(stretch_opt, We, St) ->
     Vs3d = orig_pos(We,St),
     ?SLOW(auv_mapping:stretch_opt(We, Vs3d));
-remap(Type, #we{name=#ch{fs=Fs}=Ch}=We0, St) ->
+remap(Type, #we{name=Ch}=We0, St) ->
+    Fs = wings_we:visible(We0),
     [Lower,Upper] = wings_vertex:bounding_box(We0),
     {W,H,_} = e3d_vec:sub(Upper, Lower),
 
@@ -852,8 +823,7 @@ uvs_updated(We, AuvSt) ->
     topology_updated(We, AuvSt).
 
 topology_updated(#we{fs=Ftab}=We, St) ->
-    Charts0 = init_edit(gb_trees:keys(Ftab), We),
-    Charts = restrict_ftab(Charts0),
+    Charts = init_edit(gb_trees:keys(Ftab), We),
     St#st{shapes=Charts}.
 
 %%%
@@ -923,3 +893,28 @@ pattern_repeat(N, D) ->
 	0 -> [B|B];
 	1 -> [D,B|B]
     end.
+
+%%%
+%%% Conversion routines.
+%%%
+
+auv2geom_faces(Fs0, #we{name=#ch{fm_a2g=A2G}}) ->
+    Fs1 = sofs:from_external(Fs0, [atom]),
+    Fs = sofs:image(A2G, Fs1),
+    sofs:to_external(Fs).
+
+geom2auv_faces(Fs0, #we{name=#ch{fm_a2g=A2G}}) ->
+    Fs1 = sofs:from_external(Fs0, [atom]),
+    Fs = sofs:inverse_image(A2G, Fs1),
+    sofs:to_external(Fs).
+
+geom2auv_vs(Vs, #we{name=#ch{vmap=Vmap},vp=Vtab}) ->
+    geom2auv_vs_1(gb_trees:keys(Vtab), gb_sets:from_list(Vs), Vmap, []).
+
+geom2auv_vs_1([V|Vs], VsSet, Vmap, Acc) ->
+    case gb_sets:is_member(auv_segment:map_vertex(V, Vmap), VsSet) of
+	true -> geom2auv_vs_1(Vs, VsSet, Vmap, [V|Acc]);
+	false -> geom2auv_vs_1(Vs, VsSet, Vmap, Acc)
+    end;
+geom2auv_vs_1([], _, _, Acc) -> sort(Acc).
+    

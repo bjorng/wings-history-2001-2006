@@ -9,14 +9,14 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv.hrl,v 1.29 2004/03/11 07:03:07 bjorng Exp $
+%%     $Id: auv.hrl,v 1.30 2004/05/02 09:49:36 bjorng Exp $
 
 %% Chart record (one for each chart).
 %% Stored in the 'name' field in the #we{} record.
 -record(ch,
 	{size,
-	 fs,					%Faces in chart (list).
-	 vmap					%Map back to original vertex numbers.
+	 vmap,			 %Map back to original vertex numbers.
+	 fm_a2g					%Face map: Auv => Geom
 	}).
 
 -record(uvstate,

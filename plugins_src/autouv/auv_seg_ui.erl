@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_seg_ui.erl,v 1.15 2004/03/20 18:42:37 bjorng Exp $
+%%     $Id: auv_seg_ui.erl,v 1.16 2004/05/02 09:49:36 bjorng Exp $
 
 -module(auv_seg_ui).
 -export([start/3]).
@@ -16,7 +16,8 @@
 -define(NEED_ESDL, 1).
 -include("wings.hrl").
 -include("auv.hrl").
--import(lists, [sort/1,map/2,member/2,foldl/3]).
+
+-import(lists, [sort/1,map/2,member/2,foldl/3,reverse/1]).
 
 %%%
 %%% Segmentation interface.
@@ -292,16 +293,22 @@ seg_map_charts_1(_, _, _, _, MappedCharts, #seg{we=#we{id=Id}}) ->
 			   end, []),
     pop.
 
-seg_map_chart([{Fs,Vmap,#we{id=Id}=We0}|Cs], Type, I, N, Acc0, #seg{st=St0}=Ss) ->
-    case auv_mapping:map_chart(Type, Fs, We0) of
+seg_map_chart([{Fs0,Vmap,#we{id=Id,fs=Ftab}=We0}|Cs], Type, I, N, Acc0,
+	      #seg{st=St0}=Ss) ->
+    case auv_mapping:map_chart(Type, Fs0, We0) of
 	{error,Message} ->
 	    wings_pb:done(),
 	    wings_util:message(Message),
-	    St = St0#st{selmode=face,sel=[{Id,gb_sets:from_ordset(Fs)}]},
+
+	    St = St0#st{selmode=face,sel=[{Id,gb_sets:from_ordset(Fs0)}]},
 	    get_seg_event(seg_init_message(Ss#seg{st=St}));
 	Vs ->
-	    We = We0#we{vp=gb_trees:from_orddict(sort(Vs))},
-	    Acc = [We#we{name=#ch{fs=Fs,vmap=Vmap}}|Acc0],
+	    We1 = We0#we{vp=gb_trees:from_orddict(sort(Vs))},
+	    Fs0 = sort(Fs0),
+	    Hidden = ordsets:subtract(gb_trees:keys(Ftab), Fs0),
+	    We = wings_we:hide_faces(Hidden, We1),
+	    A2G = auv_util:make_face_map(Fs0, We),
+	    Acc = [We#we{name=#ch{vmap=Vmap,fm_a2g=A2G}}|Acc0],
 	    seg_map_charts_1(Cs, Type, I+1, N, Acc, Ss)
     end.
 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.130 2004/04/12 18:34:43 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.131 2004/05/02 09:49:38 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -275,7 +275,14 @@ render_plain(#dlo{work=Faces,edges=Edges,src_we=We,proxy_data=none}=D, SelMode) 
 	    gl:polygonOffset(2, 2),
 	    gl:shadeModel(?GL_SMOOTH),
 	    gl:enable(?GL_LIGHTING),
-	    call(Faces),
+	    case We of
+		#we{fvf=0} ->
+		    call(Faces);
+		_ ->
+		    gl:disable(?GL_CULL_FACE),
+		    call(Faces),
+		    gl:enable(?GL_CULL_FACE)
+	    end,
 	    gl:disable(?GL_LIGHTING),
 	    gl:shadeModel(?GL_FLAT);
 	true -> ok
@@ -357,6 +364,11 @@ render_smooth(#dlo{work=Work,edges=Edges,smooth=Smooth,transparent=Trans,
 	    gl:depthMask(?GL_TRUE)
     end,
 
+    case We of
+	#we{fvf=0} -> ok;
+	_ -> gl:disable(?GL_CULL_FACE)
+    end,
+
     case {Smooth,RenderTrans} of
 	{none,false} ->
 	    if
@@ -369,6 +381,7 @@ render_smooth(#dlo{work=Work,edges=Edges,smooth=Smooth,transparent=Trans,
 	{[_,Tr],true} -> call(Tr);
 	{_,_} -> ok
     end,
+    gl:enable(?GL_CULL_FACE),
 
     gl:disable(?GL_POLYGON_OFFSET_FILL),
     gl:depthMask(?GL_TRUE),
@@ -490,7 +503,8 @@ prepare(Ftab, #we{mode=vertex}=We, St) ->
 	{true,_} ->
 	    {color,vtx_color_split(Ftab, We),St}
     end;
-prepare(Ftab, #we{mode=material}=We, St) ->
+prepare(Ftab0, #we{mode=material}=We, St) ->
+    Ftab = wings_we:visible(Ftab0, We),
     MatFaces = wings_material:mat_faces(Ftab, We),
     {material,MatFaces,St}.
 

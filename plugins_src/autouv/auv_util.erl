@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_util.erl,v 1.6 2003/09/16 09:01:49 dgud Exp $
+%%     $Id: auv_util.erl,v 1.7 2004/05/02 09:49:36 bjorng Exp $
 
 -module(auv_util).
 
@@ -17,7 +17,7 @@
 -export([moveAndScale/5]).
 -export([outer_edges/2,outer_edges/3]).
 -export([number/1,number/2]).
--export([mark_segments/4,make_mat/1,seg_materials/0]).
+-export([mark_segments/4,make_mat/1,seg_materials/0,make_face_map/2]).
 
 -include("wings.hrl").
 -include("auv.hrl").
@@ -152,3 +152,14 @@ seg_materials() -> % Intensity 0.7 for all
      {'AuvChart8',{0.4,0.0,0.7}},  % Magenta -> Blue
      {'AuvChart9',{0.7,0.4,0.0}},
      {?HOLE,      {0.0,0.0,0.9}}]. % _Hole_
+
+make_face_map(OrigFs, We) ->
+    NewFs = wings_we:visible(We),
+    sofs:from_external(zip(NewFs, OrigFs), [{atom,atom}]).
+
+zip(As, Bs) ->
+    zip_1(As, Bs, []).
+
+zip_1([A|As], [B|Bs], Acc) ->
+    zip_1(As, Bs, [{A,B}|Acc]);
+zip_1([], [], Acc) -> reverse(Acc).

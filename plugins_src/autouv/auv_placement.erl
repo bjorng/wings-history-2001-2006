@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_placement.erl,v 1.22 2004/04/16 13:20:13 dgud Exp $
+%%     $Id: auv_placement.erl,v 1.23 2004/05/02 09:49:36 bjorng Exp $
 
 -module(auv_placement).
 
@@ -23,7 +23,8 @@
 %% Returns a gb_tree with areas...
 place_areas([]) -> [];
 place_areas(Areas0) ->
-    Rotate = fun(#we{name=#ch{fs=Fs}=Ch0}=We0, {C, BBs}) ->
+    Rotate = fun(#we{name=Ch0}=We0, {C,BBs}) ->
+		     Fs = wings_we:visible(We0),
 		     {{Dx,Dy}=Size, Vs} = center_rotate(Fs, We0),
 		     Ch = Ch0#ch{size=Size},
 		     We = We0#we{id=C,vp=gb_trees:from_orddict(Vs),name=Ch},

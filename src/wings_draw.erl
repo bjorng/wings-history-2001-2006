@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.202 2004/04/29 04:59:59 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.203 2004/05/02 09:49:38 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -137,26 +137,30 @@ update_normals(#dlo{ns={Ns0},src_we=#we{fs=Ftab}=We}=D) ->
 update_normals(D) -> D.
 
 update_normals_1(none, Ftab, We) ->
-    update_normals_2(Ftab, [], We, []);
+    update_normals_2(Ftab, [], We);
 update_normals_1(Ns, Ftab, We) ->
-    update_normals_2(Ftab, gb_trees:to_list(Ns), We, []).
+    update_normals_2(Ftab, gb_trees:to_list(Ns), We).
 
-update_normals_2([{Face,Edge}|Fs], [{Face,Data}=Pair|Ns], We, Acc) ->
+update_normals_2(Ftab0, Ns, We) ->
+    Ftab = wings_we:visible(Ftab0, We),
+    update_normals_3(Ftab, Ns, We, []).
+
+update_normals_3([{Face,Edge}|Fs], [{Face,Data}=Pair|Ns], We, Acc) ->
     Ps = wings_face:vertex_positions(Face, Edge, We),
     case Data of
 	[_|Ps] ->
-	    update_normals_2(Fs, Ns, We, [Pair|Acc]);
+	    update_normals_3(Fs, Ns, We, [Pair|Acc]);
 	{_,_,Ps} ->
-	    update_normals_2(Fs, Ns, We, [Pair|Acc]);
+	    update_normals_3(Fs, Ns, We, [Pair|Acc]);
 	_ ->
-	    update_normals_2(Fs, Ns, We, [{Face,face_ns_data(Ps)}|Acc])
+	    update_normals_3(Fs, Ns, We, [{Face,face_ns_data(Ps)}|Acc])
     end;
-update_normals_2([{Fa,_}|_]=Fs, [{Fb,_}|Ns], We, Acc) when Fa > Fb ->
-    update_normals_2(Fs, Ns, We, Acc);
-update_normals_2([{Face,Edge}|Fs], Ns, We, Acc) ->
+update_normals_3([{Fa,_}|_]=Fs, [{Fb,_}|Ns], We, Acc) when Fa > Fb ->
+    update_normals_3(Fs, Ns, We, Acc);
+update_normals_3([{Face,Edge}|Fs], Ns, We, Acc) ->
     Ps = wings_face:vertex_positions(Face, Edge, We),
-    update_normals_2(Fs, Ns, We, [{Face,face_ns_data(Ps)}|Acc]);
-update_normals_2([], _, _, Acc) -> gb_trees:from_orddict(reverse(Acc)).
+    update_normals_3(Fs, Ns, We, [{Face,face_ns_data(Ps)}|Acc]);
+update_normals_3([], _, _, Acc) -> gb_trees:from_orddict(reverse(Acc)).
 
 %% face_ns_data([Position]) ->
 %%    [Normal|[Position]] |                        Tri or quad
@@ -471,7 +475,8 @@ update_sel_all(#dlo{src_we=#we{fs=Ftab}}=D) ->
     %% No suitable display list to re-use. Build selection from scratch.
     update_face_sel(gb_trees:keys(Ftab), D).
 
-update_face_sel(Fs, D) ->
+update_face_sel(Fs0, #dlo{src_we=We}=D) ->
+    Fs = wings_we:visible(Fs0, We),
     List = gl:genLists(1),
     gl:newList(List, ?GL_COMPILE),
     gl:'begin'(?GL_TRIANGLES),
@@ -545,7 +550,8 @@ vs_to_faces(Vs, We) ->
 vs_to_faces_1([V|Vs], Fun, We, Acc0) ->
     Acc = wings_vertex:fold(Fun, Acc0, V, We),
     vs_to_faces_1(Vs, Fun, We, Acc);
-vs_to_faces_1([], _, _, Acc) -> ordsets:from_list(Acc).
+vs_to_faces_1([], _, We, Acc) ->
+    wings_we:visible(ordsets:from_list(Acc), We).
 
 static_vs(Fs, Vs, We) ->
     VsSet = gb_sets:from_ordset(Vs),
