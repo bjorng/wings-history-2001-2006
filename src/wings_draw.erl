@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.16 2001/11/07 07:09:59 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.17 2001/11/09 07:08:01 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -99,7 +99,7 @@ draw_plain_shapes(#st{selmode=SelMode}=St) ->
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
     gl:enable(?GL_POLYGON_OFFSET_LINE),
     gl:polygonOffset(1.0, 1.0),
-    gl:disable(?GL_CULL_FACE),
+    %%gl:disable(?GL_CULL_FACE),
     draw_we(St),
 
     %% If vertex selection mode, draw vertices.
