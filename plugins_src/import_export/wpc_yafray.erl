@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.6 2003/01/21 22:20:30 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.7 2003/01/23 22:21:40 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -242,7 +242,7 @@ export_shader(F, Name, Mat) ->
     OpenGL = proplists:get_value(opengl, Mat),
     YafRay = proplists:get_value(?TAG, Mat, []),
     println(F, "<shader type=\"generic\" name=\"~s\">~n"++ 
-	    "    <attributes>", [atom_to_list(Name)]),
+	    "    <attributes>", [format(Name)]),
     {Dr,Dg,Db,Opacity} = proplists:get_value(diffuse, OpenGL),
     Transparency = 1 - Opacity,
     export_rgb(F, color, 
@@ -265,7 +265,7 @@ export_shader(F, Name, Mat) ->
     println(F, "</shader>").
 
 export_modulator(F, Texname) ->
-    println(F, "        <modulator texname=\"~s\" mode=\"mix\""++
+    println(F, "        <modulator texname=\"~s\" mode=\"mix\"~n"++
 	    "                   sizex=\"1.0\" sizey=\"1.0\" sizez=\"1.0\">~n"++
 	    "            <color value=\"0.0\"/>~n"++
 	    "            <specular value=\"0.0\"/>~n"++
@@ -277,13 +277,13 @@ export_modulator(F, Texname) ->
 
 
 export_rgb(F, Type, {R,G,B,_}) ->
-    println(F, "        <~s r=\"~.10f\" g=\"~.10f\" b=\"~.10f\"/>", 
-	    [atom_to_list(Type),R,G,B]).
+    println(F, ["        <",format(Type)," r=\"",format(R),
+		"\" g=\"",format(G),"\" b=\"",format(B),"\"/>"]).
 
 
 
 export_object(F, NameStr, #e3d_mesh{}=Mesh, Attr) ->
-    #e3d_mesh{fs=Fs,vs=Vs} = e3d_mesh:triangulate(Mesh),
+    #e3d_mesh{fs=Fs,vs=Vs,tx=Tx} = e3d_mesh:triangulate(Mesh),
     %% Find the default material
     MM = sort(foldl(fun (#e3d_face{mat=[M|_]}, Ms) -> [M|Ms] end, [], Fs)),
     [{_Count,DefaultMaterial}|_] = reverse(sort(count_equal(MM))),
@@ -292,7 +292,7 @@ export_object(F, NameStr, #e3d_mesh{}=Mesh, Attr) ->
 	    "shadow=\"on\" caus_IOR=\"1.0\"~n"++
 	    "        emit_rad=\"on\" recv_rad=\"on\">~n"++
 	    "    <attributes>",
-	    [NameStr, atom_to_list(DefaultMaterial)]),
+	    [NameStr, format(DefaultMaterial)]),
     export_rgb(F, caus_rcolor, {0.0,0.0,0.0,1.0}),
     export_rgb(F, caus_tcolor, {0.0,0.0,0.0,1.0}),
     println(F, "    </attributes>~n"++
@@ -301,7 +301,7 @@ export_object(F, NameStr, #e3d_mesh{}=Mesh, Attr) ->
     export_vertices(F, Vs),
     println(F, "        </points>~n"++
 	    "        <faces>", []),
-    export_faces(F, Fs, DefaultMaterial),
+    export_faces(F, Fs, DefaultMaterial, list_to_tuple(Tx)),
     println(F, "        </faces>~n"++
 	    "    </mesh>~n"++
 	    "</object>", []).
@@ -319,30 +319,33 @@ export_vertices(F, [Pos|T]) ->
 %% It assumes X=South Y=East Z=Up in YafRay coordinates.
 %% Hence Z=South, X=East, Y=Up in Wings coordinates.
 export_pos(F, Type, {X,Y,Z}) ->
-    println(F, ["        <",atom_to_list(Type)," x=\"",format(Z),
+    println(F, ["        <",format(Type)," x=\"",format(Z),
 		"\" y=\"",format(X),"\" z=\"",format(Y),"\"/>"]).
-% export_pos(F, Type, {X,Y,Z}) ->
-%    println(F, "        <~s x=\"~.10f\" y=\"~.10f\" z=\"~.10f\"/>",
-% 		   [atom_to_list(Type),Z,X,Y]).
 
 
 
-export_faces(_F, [], _DefMat) ->
+export_faces(_F, [], _DefMat, _TxT) ->
     ok;
-export_faces(F, [#e3d_face{vs=[A,B,C],mat=[Mat|_]}|T], DefaultMaterial) ->
-    case Mat of
-	DefaultMaterial ->
-	    println(F, ["        <f a=\"",format(A),
-			"\" b=\"",format(B),"\" c=\"",format(C),"\"/>"]);
-% 	    println(F, "        <f a=\"~w\" b=\"~w\" c=\"~w\"/>", [A,B,C]);
-	_ ->
-	    println(F, ["        <f a=\"",format(A),
-			"\" b=\"",format(B),"\" c=\"",format(C),
-			"\" shader_name=\"",atom_to_list(Mat),"\"/>"])
-% 	    println(F, "        <f a=\"~w\" b=\"~w\" c=\"~w\" "++
-% 		    "shader_name=\"~s\"/>", [A,B,C,atom_to_list(Mat)])
-    end,
-    export_faces(F, T, DefaultMaterial).
+export_faces(F, [#e3d_face{vs=[A,B,C],mat=[Mat|_]}|T], DefaultMaterial, TxT) ->
+    Shader =
+	case Mat of
+	    DefaultMaterial -> "";
+	    _ -> [" shader_name=\"",format(Mat),"\""]
+	end,
+    UV = case TxT of
+	     {} -> "";
+	     _ ->
+		 {Ua,Va} = element(1+A, TxT),
+		 {Ub,Vb} = element(1+B, TxT),
+		 {Uc,Vc} = element(1+C, TxT),
+		 [" u_a=\"",format(Ua),"\" v_a=\"",format(Va),
+		  "\" u_b=\"",format(Ub),"\" v_b=\"",format(Vb),
+		  "\" u_c=\"",format(Uc),"\" v_c=\"",format(Vc),"\""]
+	 end,
+    println(F, ["        <f a=\"",format(A),
+		"\" b=\"",format(B),"\" c=\"",format(C),"\"",
+		Shader,UV,"/>"]),
+    export_faces(F, T, DefaultMaterial, TxT).
 
 
 
@@ -382,8 +385,7 @@ export_light(F, Name, spot, OpenGL) ->
     export_rgb(F, color, Diffuse),
     println(F, "</light>");
 export_light(_F, Name, Type, _OpenGL) ->
-    io:format("Ignoring unknown light \"~s\" type: ~p~n", 
-	      [Name, atom_to_list(Type)]).
+    io:format("Ignoring unknown light \"~s\" type: ~p~n", [Name, format(Type)]).
 
 
 
@@ -507,12 +509,16 @@ close(F) ->
 
 
 
-format(I) when is_integer(I) ->
-    integer_to_list(I);
 format(F) when is_float(F) ->
     I = trunc(F),
     D = abs(F) - float(abs(I)),
-    [integer_to_list(I)|format_decimals(D)].
+    [integer_to_list(I)|format_decimals(D)];
+format(I) when is_integer(I) ->
+    integer_to_list(I);
+format(A) when is_atom(A) ->
+    atom_to_list(A);
+format(L) when is_list(L) ->
+    L.
 
 format_decimals(F) when float(F), F >= 0.0 ->
     format_decimals_1(F).
