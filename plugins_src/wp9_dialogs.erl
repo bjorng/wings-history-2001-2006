@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp9_dialogs.erl,v 1.18 2003/08/16 17:50:33 bjorng Exp $
+%%     $Id: wp9_dialogs.erl,v 1.19 2003/11/24 00:18:16 raimo_niskanen Exp $
 %%
 
 -module(wp9_dialogs).
@@ -35,7 +35,7 @@ ui(What, Next) -> Next(What).
 message(Message) ->
     Qs = {vframe,
 	  [{label,Message},
-	   {hframe,[{button,ok}]}]},
+	   {hframe,[{button,ok,[ok]}]}]},
     wings_ask:dialog("Error!", Qs, fun(_) -> ignore end).
 
 open_file(Prompt, Prop) ->

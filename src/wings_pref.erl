@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.101 2003/10/29 15:03:21 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.102 2003/11/24 00:18:17 raimo_niskanen Exp $
 %%
 
 -module(wings_pref).
@@ -298,7 +298,7 @@ make_query({alt,Key,Label,Val}) ->
     {key_alt,{Key,Def},Label,Val};
 make_query({menu,List,Key}) ->
     Def = get_value(Key),
-    {menu,List,{Key,Def}};
+    {menu,List,Def,[{key,Key}]};
 make_query({slider,{text,Key,Flags}}) ->
     Def = get_value(Key),
     {slider,{text,Def,[{key,Key}|Flags]}};

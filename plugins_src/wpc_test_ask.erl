@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_test_ask.erl,v 1.14 2003/11/20 23:40:44 raimo_niskanen Exp $
+%%     $Id: wpc_test_ask.erl,v 1.15 2003/11/24 00:18:16 raimo_niskanen Exp $
 %%
 
 -module(wpc_test_ask).
@@ -142,12 +142,12 @@ large_dialog_l(MinimizedL, MinimizedC) ->
     PaneColor = wings_pref:get_value(dialog_color),
     {vframe,
      [{label,"Label"},
-      {key_alt,d,1,"Alt 3",3,[{hook,disable_hook(c)}]},
+      {key_alt,{d,1},"Alt 3",3,[{hook,disable_hook(c)}]},
       separator,
       {"Checkbox",false},
       {"Checkbox key",false,[{key,c},{hook,disable_hook(-1)}]},
       separator,
-      {key_alt,d,1,"Alt 1",1,[{hook,disable_hook(c)}]},
+      {key_alt,{d,1},"Alt 1",1,[{hook,disable_hook(c)}]},
       {custom,40,10,fun (X, Y, W, H, Store) ->
 			    Color = case gb_trees:get(c, Store) of
 					true -> {1,1,0};
@@ -159,7 +159,7 @@ large_dialog_l(MinimizedL, MinimizedC) ->
 					   end)
 		    end},
       {slider,[{range,{1,3}},{key,d},{hook,disable_hook(c)}]},
-      {key_alt,d,1,"Alt 2",2,[{hook,disable_hook(c)}]},
+      {key_alt,{d,1},"Alt 2",2,[{hook,disable_hook(c)}]},
       separator,
       {custom,40,10,fun (X, Y, W, H, Store) ->
 			    R = gb_trees:get(red, Store),
@@ -209,8 +209,8 @@ large_dialog_r(MinimizedR) ->
       {slider,{text,0.5,[{range,{0.0,1.0}}]}},
       {color,{1.0,0.0,0.0},[{hook,disable_hook(c)}]},
       {color,{0.0,1.0,0.0,1.0}},
-      {menu,[{"Alt 1",1},{"Alt 2",2},{"Alt 3",3}],d,3,
-       [{key,menu},{hook,disable_hook(c)},{info,info(c)}]},
+      {menu,[{"Alt 1",1},{"Alt 2",2},{"Alt 3",3}],3,
+       [{key,d},{hook,disable_hook(c)},{info,info(c)}]},
       {hframe,[{color,{0.0,0.0,1.0}},
 	       panel,
 	       {"Hide next frame",true,
@@ -221,8 +221,9 @@ large_dialog_r(MinimizedR) ->
       {hframe,[{text,1.23},
 	       {button,"Ok",ok,[{hook,disable_hook(c)}]}],
        [{minimized,true}]},
-      {menu,[{"A",a},{"B",b},{"C",c}],m,a,
-       [{hook,fun (menu_disabled, {_Var,_I,Sto}) ->
+      {menu,[{"A",a},{"B",b},{"C",c}],a,
+       [{key,m},
+	{hook,fun (menu_disabled, {_Var,_I,Sto}) ->
 		      case gb_trees:get(c, Sto) of
 			  true -> [];
 			  _ -> [{b,[{info,info(c)}]}]

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.127 2003/11/20 23:40:45 raimo_niskanen Exp $
+%%     $Id: wings_ask.erl,v 1.128 2003/11/24 00:18:17 raimo_niskanen Exp $
 %%
 
 -module(wings_ask).
@@ -113,6 +113,8 @@ ask_unzip(Qs) ->
     ask_unzip(Qs, [], []).
 ask_unzip([{Label,{menu,_,_}=Menu}|T], AccA, AccB) ->
     ask_unzip(T, [{label,Label}|AccA], [Menu|AccB]);
+ask_unzip([{Label,{menu,_,_,_}=Menu}|T], AccA, AccB) ->
+    ask_unzip(T, [{label,Label}|AccA], [Menu|AccB]);
 ask_unzip([{Label,Def}|T], AccA, AccB) ->
     ask_unzip(T, [{label,Label}|AccA], [{text,Def}|AccB]);
 ask_unzip([{Label,Def,Flags}|T], AccA, AccB) ->
@@ -162,9 +164,7 @@ do_dialog(Title, Qs, Level, Fun) ->
     setup_blanket(Name, S),
     Op = {seq,push,get_event(S)},
     {{X,Y},Anchor} 
-	= case find_field(fun([#fi{index=Index}|_]) ->
-				  field_type(Index, Store) =:= position
-			  end, Fi) of
+	= case find_position(Fi, Store) of
 	      [] -> {mouse_pos(),n};
 	      [#fi{index=Index}|_] ->
 		  case gb_trees:get(-Index, Store) of
@@ -198,7 +198,7 @@ setup_ask(Qs, Fun) ->
 
 
 setup_blanket(Dialog, #s{fi=Fi,store=Sto}) ->
-    EyePicker = case get_eyepicker(Fi, Sto) of
+    EyePicker = case find_eyepicker(Fi, Sto) of
 		    [#fi{}|_] -> true;
 		    [] -> false
 		end,
@@ -273,7 +273,7 @@ event({drop,{X,Y},DropData}, S) ->
 event({action,Action}, S) ->
     field_event(Action, S);
 event(Ev={picked_color,_}, #s{fi=Fi,store=Sto}=S) ->
-    field_event(Ev, S, get_eyepicker(Fi, Sto));
+    field_event(Ev, S, find_eyepicker(Fi, Sto));
 event(Ev, S) -> field_event(Ev, S).
 
 event_key({key,?SDLK_ESCAPE,_,_}, S) ->
@@ -284,30 +284,26 @@ event_key({key,?SDLK_TAB,_,_}, S) ->
     get_event(next_focus(+1, S));
 event_key({key,_,_,$\t}, S) ->
     get_event(next_focus(+1, S));
-event_key({key,?SDLK_KP_ENTER,_,_}, S) ->
-    enter_pressed({key,$\r,$\r,$\r}, S);
+event_key({key,?SDLK_KP_ENTER,Mod,_}, S) ->
+    enter_pressed({key,$\r,Mod,$\r}, S);
 event_key({key,_,_,$\r}=Ev, S) ->
     enter_pressed(Ev, S);
 event_key(Ev, S) ->
     field_event(Ev, S).
 
-enter_pressed(Ev, #s{focus=Index,store=Store}=S) ->
-    case field_type(Index, Store) of
-	but -> field_event(Ev, S);
-	_ -> return_result(S)
-    end.
-
-field_type(I, Store) ->
-    case gb_trees:lookup(-I, Store) of
-	{value,F} -> element(1, F);
-	none -> undefined
+enter_pressed(Ev, S0=#s{fi=TopFi,store=Store}) ->
+    case find_ok(TopFi, Store) of
+	[] -> return_result(S0);
+	Path -> 
+	    S = set_focus(Path, S0, false),
+	    case field_event(Ev, S, Path) of
+		keep -> get_event(S);
+		Other -> Other
+	    end
     end.
 
 escape_pressed(S0=#s{fi=TopFi,store=Sto}) -> 
-    case find_field(fun([#fi{index=Index,flags=Flags}|_]) ->
-			    (field_type(Index, Sto) =:= but)
-				andalso member(cancel, Flags)
-		    end, TopFi) of
+    case find_cancel(TopFi, Sto) of
 	[] -> keep;
 	Path -> 
 	    S = set_focus(Path, S0, false),
@@ -404,7 +400,7 @@ field_event(Ev=#mousemotion{x=X,y=Y,state=Bst}, S=#s{fi=Fi})
 	Path=[#fi{index=_I,inert=Inert,disabled=Disabled,
 		  flags=Flags,extra=Extra}|_] ->
 	    ?DEBUG_DISPLAY({field_event,[_I,Ev]}),
-	    Enabled = (not Inert) and (not Disabled),
+	    Enabled = (Inert =:= false) and (not Disabled),
 	    wings_wm:allow_drag(Enabled andalso member(drag, Flags)),
 	    case Extra of
 		#container{} when Enabled -> field_event(Ev, S, Path);
@@ -549,12 +545,36 @@ binsearch(Cmp, Tuple, L, U) when L =< U ->
 %%% Dialog tree functions
 %%%
 
-get_eyepicker(Fi, Sto) ->
+find_ok(Fi, Sto) ->
+    find_field(fun([#fi{index=Index,flags=Flags}|_]) ->
+		       (field_type(Index, Sto) =:= but)
+			   andalso proplists:get_bool(ok, Flags)
+	       end, Fi).
+
+find_cancel(Fi, Sto) ->
+    find_field(fun([#fi{index=Index,flags=Flags}|_]) ->
+		       (field_type(Index, Sto) =:= but)
+			   andalso proplists:get_bool(cancel, Flags)
+	       end, Fi).
+
+find_eyepicker(Fi, Sto) ->
     find_field(fun([#fi{index=Index}|_]) ->
 		       field_type(Index, Sto) =:= eyepicker
 	       end, Fi).
 
-%% Search field to find fields with some specific attribute.
+find_position(Fi, Sto) ->
+    find_field(fun([#fi{index=Index}|_]) ->
+		       field_type(Index, Sto) =:= position
+	       end, Fi) .
+
+field_type(I, Store) ->
+    case gb_trees:lookup(-I, Store) of
+	{value,F} -> element(1, F);
+	none -> undefined
+    end.
+
+%% Search tree to find field matching a predicate using reverse linear scan.
+
 find_field(Fun, Fi) -> find_field_1(Fun, Fi, []).
 
 find_field_1(Fun, Fi=#fi{extra=#container{fields=Fields}}, Path) ->
@@ -708,8 +728,8 @@ get_fi(Index, #fi{extra=#container{fields=Fields}}, Path) ->
 
 mktree(Qs0, Sto0) when is_list(Qs0) ->
     Qs = {hframe,[{vframe,Qs0},
-		  {vframe,[{button,ok},
-			   {button,cancel}]}]},
+		  {vframe,[{button,ok,[ok]},
+			   {button,cancel,[cancel]}]}]},
     {Fis,Sto,I} = mktree(Qs, Sto0, 1),
     {Fis,Sto,I-1};
 mktree(Qs, Sto0) ->
@@ -722,6 +742,7 @@ mktree({label_column,Qs0}, Sto, I) ->
 	  [{vframe,Labels},
 	   {vframe,Fields}]},
     mktree(Qs, Sto, I);
+%%
 mktree({vradio,Qs,Var,Def}, Sto, I) ->
     mktree(radio(vframe, Qs, Var, Def, []), Sto, I);
 mktree({vradio,Qs,Var,Def,Flags}, Sto, I) ->
@@ -730,6 +751,7 @@ mktree({hradio,Qs,Var,Def}, Sto, I) ->
     mktree(radio(hframe, Qs, Var, Def, []), Sto, I);
 mktree({hradio,Qs,Var,Def,Flags}, Sto, I) ->
     mktree(radio(hframe, Qs, Var,Def, Flags), Sto, I);
+%%
 mktree({vframe,Qs}, Sto, I) ->
     mktree_container(Qs, Sto, I, [], vframe);
 mktree({vframe,Qs,Flags}, Sto, I) ->
@@ -738,22 +760,28 @@ mktree({hframe,Qs}, Sto, I) ->
     mktree_container(Qs, Sto, I, [], hframe);
 mktree({hframe,Qs,Flags}, Sto, I) ->
     mktree_container(Qs, Sto, I, Flags, hframe);
+%%
 mktree(panel, Sto, I) ->
     mktree_fi(panel(), Sto, I, []);
+%%
 mktree({eyepicker,Hook}, Sto, I) ->
     mktree_fi(eyepicker(), Sto, I, [{hook,Hook}]);
+%%
 mktree({position,Position}, Sto, I) ->
     mktree_fi(position(Position), Sto, I, []);
 mktree({position,Position,Flags}, Sto, I) ->
     mktree_fi(position(Position), Sto, I, Flags);
+%%
 mktree({label,Label}, Sto, I) ->
     mktree_fi(label(Label, []), Sto, I, []);
 mktree({label,Label,Flags}, Sto, I) ->
     mktree_fi(label(Label, Flags), Sto, I, Flags);
+%%
 mktree({color,Def}, Sto, I) ->
     mktree_fi(color(Def), Sto, I, [drag]);
 mktree({color,Def,Flags}, Sto, I) ->
     mktree_fi(color(Def), Sto, I, [drag|Flags]);
+%%
 mktree({alt,{Var,Def},Prompt,Val}, Sto, I) ->
     mktree_fi(radiobutton(Var, Def, Prompt, Val), Sto, I, []);
 mktree({alt,Var,Def,Prompt,Val}, Sto, I) ->
@@ -762,36 +790,28 @@ mktree({alt,Var,Def,Prompt,Val,Flags}, Sto, I) ->
     mktree_fi(radiobutton(Var, Def, Prompt, Val), Sto, I, Flags);
 mktree({key_alt,{Key,Def},Prompt,Val}, Sto, I) ->
     mktree_fi(radiobutton(Key, Def, Prompt, Val), Sto, I, [{key,Key}]);
-mktree({key_alt,Key,Def,Prompt,Val}, Sto, I) ->
-    mktree_fi(radiobutton(Key, Def, Prompt, Val), Sto, I, [{key,Key}]);
-mktree({key_alt,Key,Def,Prompt,Val,Flags}, Sto, I) ->
+mktree({key_alt,{Key,Def},Prompt,Val,Flags}, Sto, I) ->
     mktree_fi(radiobutton(Key, Def, Prompt, Val), Sto, I, [{key,Key}|Flags]);
-mktree({menu,Menu,{Var,Def}}, Sto, I) ->
-    mktree_fi(menu(Menu, Var, Def), Sto, I, [{key,Var}]);
+%%
 mktree({menu,Menu,Def}, Sto, I) ->
-    mktree_fi(menu(Menu, 0, Def), Sto, I, []);
-mktree({menu,Menu,{Var,Def}, Flags}, Sto, I) ->
-    mktree_fi(menu(Menu, Var, Def), Sto, I, [{key,Var}|Flags]);
-mktree({menu,Menu,Def,Flags}, Sto, I) when list(Flags) ->
-    mktree_fi(menu(Menu, 0, Def), Sto, I, Flags);
-mktree({menu,Menu,Var,Def}, Sto, I) ->
-    mktree_fi(menu(Menu, Var, Def), Sto, I, []);
-mktree({menu,Menu,Var,Def,Flags}, Sto, I) ->
-    mktree_fi(menu(Menu, Var, Def), Sto, I, Flags);
+    mktree_fi(menu(Menu, Def), Sto, I, []);
+mktree({menu,Menu,Def,Flags}, Sto, I) when is_list(Flags) ->
+    mktree_fi(menu(Menu, Def), Sto, I, Flags);
+%%
 mktree({button,Action}, Sto, I) ->
-    Flags = case Action of
-		cancel -> [cancel];
-		_ -> []
-	    end,
+    mktree_fi(button(Action), Sto, I, []);
+mktree({button,Action,Flags}, Sto, I) when is_list(Flags) ->
     mktree_fi(button(Action), Sto, I, Flags);
 mktree({button,Label,Action}, Sto, I) ->
     mktree_fi(button(Label, Action), Sto, I, []);
 mktree({button,Label,Action,Flags}, Sto, I) ->
     mktree_fi(button(Label, Action), Sto, I, Flags);
+%%
 mktree({custom,W,H,Custom}, Sto, I) ->
     mktree_fi(custom(W, H, Custom), Sto, I, []);
 mktree({custom,W,H,Custom,Flags}, Sto, I) ->
     mktree_fi(custom(W, H, Custom), Sto, I, Flags);
+%%
 mktree({slider,Flags}, Sto, I) when is_list(Flags) ->
     mktree_fi(slider(Flags), Sto, I, Flags);
 mktree({slider,{text,_,Flags}=Field}, Sto, I) ->
@@ -800,12 +820,15 @@ mktree({slider,{text,_,Flags}=Field}, Sto, I) ->
 		      _ -> Flags
 		  end,
     mktree({hframe,[Field,{slider,SliderFlags}]}, Sto, I);
+%%
 mktree(separator, Sto, I) ->
     mktree_fi(separator(), Sto, I, []);
+%%
 mktree({text,Def}, Sto, I) ->
     mktree_fi(text(Def, []), Sto, I, []);
 mktree({text,Def,Flags}, Sto, I) ->
     mktree_fi(text(Def, Flags), Sto, I, Flags);
+%%
 mktree({Prompt,Def}, Sto, I) when Def==false; Def == true ->
     mktree_fi(checkbox(Prompt, Def), Sto, I, []);
 mktree({Prompt,Def,Flags}, Sto, I) when Def==false; Def == true ->
@@ -1408,48 +1431,45 @@ rb_set(#fi{index=I,hook=Hook}, #rb{var=Var,val=Val}, Store) ->
 %%%
 
 -record(menu,
-	{var,
-	 def,
+	{def,
 	 menu
 	}).
 
-menu(Menu0, Var, Def) ->
+menu(Menu0, Def) ->
     Menu = [case X of
 		{D,V} -> {D,V,[]};
-		{_,_,F}=DVF when list(F) -> DVF 
+		{_,_,F}=DVF when is_list(F) -> DVF 
 	    end || X <- Menu0],
     W = menu_width(Menu, 0) + 2*wings_text:width(" ") + 10,
-    M = #menu{var=Var,def=Def,menu=Menu},
+    M = #menu{def=Def,menu=Menu},
     Fun = fun menu_event/3,
     {Fun,false,M,W,?LINE_HEIGHT+4}.
 
-menu_event({redraw,Active}, [Fi=#fi{hook=Hook,index=I}|_], Store) ->
-    M = #menu{var=Var} = gb_trees:get(-I, Store),
-    Key = var(Var, I),
-    DisEnable = hook(Hook, is_disabled, [Key, I, Store]),
-    menu_draw(Active, Fi, M, gb_trees:get(Key, Store), DisEnable);
-menu_event(init, [#fi{index=I}|_], Store) ->
-    #menu{var=Var,def=Def} = gb_trees:get(-I, Store),
-    {store,gb_trees:enter(var(Var, I), Def, Store)};
-menu_event(value, [#fi{index=I}|_], Store) ->
-    #menu{var=Var} = gb_trees:get(-I, Store),
-    {value,gb_trees:get(var(Var, I), Store)};
-menu_event({key,_,_,$\s}, [Fi=#fi{hook=Hook,index=I}|_], Store) ->
-    M = #menu{var=Var} = gb_trees:get(-I, Store),
-    Key = var(Var, I),
-    Val = gb_trees:get(Key, Store),
-    Disabled = hook(Hook, menu_disabled, [Key, I, Store]),
-    menu_popup(Fi, M, Val, Disabled);
+menu_event({redraw,Active}, [Fi=#fi{hook=Hook,key=Key,index=I}|_], Store) ->
+    #menu{menu=Menu} = gb_trees:get(-I, Store),
+    Var = var(Key, I),
+    DisEnable = hook(Hook, is_disabled, [Var, I, Store]),
+    menu_draw(Active, Fi, Menu, gb_trees:get(Var, Store), DisEnable);
+menu_event(init, [#fi{key=Key,index=I}|_], Store) ->
+    #menu{def=Def} = gb_trees:get(-I, Store),
+    {store,gb_trees:enter(var(Key, I), Def, Store)};
+menu_event(value, [#fi{key=Key,index=I}|_], Store) ->
+    {value,gb_trees:get(var(Key, I), Store)};
+menu_event({key,_,_,$\s}, [Fi=#fi{hook=Hook,key=Key,index=I}|_], Store) ->
+    #menu{menu=Menu} = gb_trees:get(-I, Store),
+    Var = var(Key, I),
+    Val = gb_trees:get(Var, Store),
+    Disabled = hook(Hook, menu_disabled, [Var, I, Store]),
+    menu_popup(Fi, Menu, Val, Disabled);
 menu_event(#mousebutton{state=?SDL_PRESSED,button=1}, 
-	   [Fi=#fi{hook=Hook,index=I}|_], Store) ->
-    M = #menu{var=Var} = gb_trees:get(-I, Store),
-    Key = var(Var, I),
-    Val = gb_trees:get(Key, Store),
-    Disabled = hook(Hook, menu_disabled, [Key, I, Store]),
-    menu_popup(Fi, M, Val, Disabled);
-menu_event({popup_result,Val}, [#fi{index=I,hook=Hook}|_], Store) ->
-    #menu{var=Var} = gb_trees:get(-I, Store),
-    hook(Hook, update, [var(Var, I), I, Val, Store]);
+	   [Fi=#fi{hook=Hook,key=Key,index=I}|_], Store) ->
+    #menu{menu=Menu} = gb_trees:get(-I, Store),
+    Var = var(Key, I),
+    Val = gb_trees:get(Var, Store),
+    Disabled = hook(Hook, menu_disabled, [Var, I, Store]),
+    menu_popup(Fi, Menu, Val, Disabled);
+menu_event({popup_result,Val}, [#fi{index=I,key=Key,hook=Hook}|_], Store) ->
+    hook(Hook, update, [var(Key, I), I, Val, Store]);
 menu_event(_Ev, _Path, _Store) -> keep.
 
 menu_width([{D,_,_}|T], W0) ->
@@ -1459,7 +1479,7 @@ menu_width([{D,_,_}|T], W0) ->
     end;
 menu_width([], W) -> W.
 
-menu_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #menu{menu=Menu}, Val, DisEnable) ->
+menu_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, Menu, Val, DisEnable) ->
     FgColor = case DisEnable of
 		  disable -> color3_disabled();
 		  _-> color3_text()
@@ -1501,12 +1521,12 @@ menu_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #menu{menu=Menu}, Val, DisEnable) ->
 	 menu					%Tuple.
 	}).
 
-menu_popup(#fi{x=X0,y=Y0,w=W}, #menu{menu=Menu0}, Val, Disabled) ->
+menu_popup(#fi{x=X0,y=Y0,w=W}, Menu0, Val, Disabled) ->
     {X1,Y1} = wings_wm:local2global(X0+?HMARGIN, Y0+?VMARGIN),
     Menu1 = [case proplists:get_value(V, Disabled) of
 		 undefined -> {Desc,V,false,Flags};
 		 true -> {Desc,V,true,Flags};
-		 F when list(F) -> {Desc,V,true,F++Flags}
+		 F when is_list(F) -> {Desc,V,true,F++Flags}
 	     end || {Desc,V,Flags} <- Menu0],
     case popup_find_index(Menu1, Val) of
 	0 -> ok;
@@ -1861,7 +1881,7 @@ eyepicker_event(_Ev, _Path, _Store) -> keep.
 %%%
 
 position(Position) ->
-    {fun position_event/3, false, #position{position=Position}, 0, 0}.
+    {fun position_event/3, value, #position{position=Position}, 0, 0}.
 
 position_event(value, _Path, _Store) ->
     {value,wings_wm:win_ul({controller,wings_wm:this()})};
@@ -2592,7 +2612,7 @@ hook(Hook, menu_disabled, [Var, I, Store]) ->
 	_ when is_function(Hook) ->
 	    case Hook(menu_disabled, {Var,I,Store}) of
 		void -> [];
-		Disabled when list(Disabled) -> Disabled
+		Disabled when is_list(Disabled) -> Disabled
 	    end
     end.
 

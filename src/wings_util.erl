@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.85 2003/11/12 21:40:12 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.86 2003/11/24 00:18:17 raimo_niskanen Exp $
 %%
 
 -module(wings_util).
@@ -126,7 +126,7 @@ join_msg(Msg1, Msg2) ->
 message(Message) ->
     Qs = {vframe,
 	  [{label,Message},
-	   {hframe,[{button,ok}]}]},
+	   {hframe,[{button,ok,[ok]}]}]},
     wings_ask:dialog("", Qs, fun(_) -> ignore end).
 
 magnet_string() ->
