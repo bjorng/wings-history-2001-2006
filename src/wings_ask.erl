@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.137 2003/12/03 00:44:33 raimo_niskanen Exp $
+%%     $Id: wings_ask.erl,v 1.138 2003/12/08 01:57:34 raimo_niskanen Exp $
 %%
 
 -module(wings_ask).
@@ -125,20 +125,172 @@ ask_unzip([], Labels, Vals) ->
 
 %%
 %% Syntax of Qs.
+%% See also wpc_test_ask.erl for examples.
 %%
-%% {hframe,Qs [,Flags]}				-- Horizontal frame
-%% {vframe,Qs [,Flags]}				-- Vertical frame
+%% Common types:
+%%     String = string()
+%%     Boolean = true | false
+%%     Fields = [Field]
+%%     Field  -- Any field tuple described below
+%%     Key = term()
+%%         Note: An integer() Key is a relative field address,
+%%             any other term is an absolute storage identifier.
+%%             Since an integer() Key mean something it is a bad idea
+%%             to use a float() as Key. It should work, but the slightest
+%%             programming mistake in this module may lead to a mismatch.
+%%               Field common data (common for all field types, used for
+%%             dialog tree traversing, etc) is stored in the dialog tree,
+%%             consisting of nested #fi{} records.
+%%               Field private data (special to a given field type), and 
+%%             field values are all stored in the same gb_trees store.
+%%               All fields have a field index in the dialog tree, which
+%%             is an integer from 1 and up assigned in tree traversal
+%%             order (depth first - same as Qs order).
+%%               Field private data is stored with negative field index as 
+%%             key in the gb_trees store and is different record types 
+%%             depending on field type. Field values is stored in the 
+%%             gb_trees store with the field index as key (the default),
+%%             or if using an integer key, the field shares value with
+%%             another field and the key is a relative field index
+%%             offset. If the key is any other term it is the actual
+%%             key used in the store.
+%%               All fields that have a non-integer key will return
+%%             {Key,Value} as the field result of the dialog. The
+%%             others just returns Value. Most fields return values,
+%%             except when noted below.
+%%     Hook = function()
+%%         Hook should have arity 2 and return 'void' for any 
+%%         unknown arguments, like this:
+%%         fun (is_disabled, {Var,I,Store}) -> Bool;
+%%                 %% Only called for regular fields.
+%%             (update, {Var,I,Val,Store}) ->
+%%                 keep|{store,NewStore}|done|{done,NewStore}|{layout,NewStore};
+%%                 %% Should make sure Val gets stored in NewStore.
+%%                 %% done|{done,_} finishes the dialog (may get restarted),
+%%                 %% {layout,_} re-layouts the dialog.
+%%             (menu_disabled, {Var,I,Store}) -> [Disabled];
+%%                 %% Should return list of disabled menu values.
+%%                 %% Only called for menu fields.
+%%             (_, _) -> void
+%%         end
+%%
+%% Qs is either one field below (preferably containing more fields,
+%% or a list of fields, in which case the list is enclosed in a
+%% {hframe,...} containing two {vframe,...}s, the first containing
+%% Qs and the second containing an Ok and a Cancel button.
+%%
+%%
+%%
+%% Container fields (dialog tree nodes):
+%%
+%% {hframe,Fields[,Flags]}			-- Horizontal frame
+%% {vframe,Fields[,Flags]}			-- Vertical frame
 %%     Flags = [Flag]
-%%     Flag = {title,Title,String}
+%%     Flag = {title,String}|{minimized,Boolean}|{key,Key}|{hook,Hook}
+%% Only frames with both 'title' and 'minimized' flags return a value.
 %%
-%% {label,LabelString}				-- Textual label
+%% {oframe,Fields[,Flags]}			-- Overlay frame
+%%     Flags = [Flag]
+%%     Flag = {title,String}|{style,Style}|{key,Key}|{hook,Hook}
+%%     Style = menu|buttons  -- menu is default
 %%
-%% {vradio,Alts,DefaultValue[,Flags]}	-- Radio buttons vertically
-%% {hradio,Alts,DefaultValue[,Flags]}     -- Radio buttons horizontally
+%%
+%%
+%% Composite fields (consisting of other fields)
+%%
+%% {vradio,Alts,DefaultValue[,Flags]}		-- Radio buttons vertically
+%% {hradio,Alts,DefaultValue[,Flags]}		-- Radio buttons horizontally
 %%     Alts = [{PromptString,Value}]
 %%     Flags = [Flag]
-%%     Flag = {key,Key}|{title,TitleString}
-%% (Example: see wpc_am.erl.)
+%%     Flag = {key,Key}|{title,String}|{hook,Hook}
+%% Example: see wpc_am.erl. These are {key,...} or {key_alt,...} fields 
+%% in a {hframe,...} or {vframe,...}.
+%%
+%% {label_column,Rows}				-- Column of labeled fields
+%%     Rows = [Row]
+%%     Row = {String,Field}
+%% This is a {hframe,...} containing one {vframe,...} with {label,String}
+%% fields and one {vframe,Fields} containing the fields.
+%%
+%% {slider,{text,Def,Flags}}			-- Slider on text field
+%% {slider,{color,Col,Flags}}			-- Slider on color box
+%% See slider regular field below. This is a {hframe,...} containing
+%% two fields.
+%%
+%%
+%%
+%% Regular fields (dialog tree leafs).
+%% Additional types:
+%%     RegularFlags = [RegularFlag]
+%%     RegularFlag = {key,Key}|{hook,Hook}
+%%
+%% panel					-- Blank filler
+%% Does not return a value.
+%%
+%% {label,String}				-- Textual label
+%% Does not return a value.
+%%
+%% separator					-- Horizontal separator line
+%% Does not return a value.
+%%
+%% {color,Col[,RegularFlags]}			-- Color box with sub-dialog
+%%     Col = {R,G,B}|{R,G,B,A}
+%%     R = G = B = A = X, 0.0 =< X, X =< 1.0
+%%
+%% {alt,Def,String,Val[,RegularFlags]}		-- Radiobutton
+%%     Def = term()  -- Start value for radiobutton group. 
+%%                      One radiobutton in group must have this value.
+%%     Val = term()  -- This button's value.
+%%
+%% {key_alt,{Key,Def},String,Val[,Flags]}	-- Radiobutton
+%%    -> {alt,Def,String,Val,[{key,Key}|Flags]}
+%%
+%% {menu,Alts,Def[,RegularFlags]}		-- Pop-up menu
+%%     Def = term()        -- Start value for menu.
+%%                            One menu alternative must have this value.
+%%     Alts = [Alt]
+%%     Alt = {String,Val}  -- Menu alternative description and value.
+%%     Val = term()
+%%
+%% {button[,String],Action[,RegularFlags]}	-- Button
+%%     Action = ok|cancel|done|function(Result)
+%% Only Action == done returns a value.
+%% If String is omitted and Action is an atom, a String is
+%% constructed by capitalizing the atom's string representation. 
+%% If Action is not an atom, String is mandatory.
+%%
+%% {custom,W,H,DrawFun[,RegularFlags]}		-- Custom look viewer
+%%     W = H = integer()  -- Field size
+%%     DrawFun = function(X, Y, W, H, Store)
+%%         %% Should draw field and probably return 'keep'.
+%%         %% Other return values are possible - read the source.
+%%
+%% {slider,{text,Def,Flags}}			-- Slider on text field
+%% {slider,{color,Col,Flags}}			-- Slider on color box
+%% {slider,Flags}				-- Solo slider
+%%     Flags = [Flag]
+%%     Flag = {range,{Min,Max}}|{color,true}|{color,ColKeySpec}|
+%%            value|RegularFlag
+%%     ColKeySpec = {r,KeyG,KeyB}|{g,KeyR,KeyB}|{b,KeyR,KeyG}|
+%%                  {h,KeyS,KeyV}|{s,KeyH,KeyV}|{v,KeyH,KeyS}
+%% The 'range' flag is mandatory.
+%% Do not use other ranges than 0.0 through 1.0 for R,G,B,H,S color sliders,
+%% nor other than 0.0 through 360.0 for a V color slider.
+%% The Key* keys are used to read in the other color properties for the
+%% slider to draw a sensible background color.
+%% The same Flags are passed on to the {text,_,_} or {color,_,_} fields.
+%% Returns a value only if the 'value' flag is used.
+%%
+%% {text,Def[,Flags]}				-- Numerical or text field
+%%     Def = integer()|float()|String  -- Start value
+%%     Flags = {range,{Min,Max}}|{width,CharW}|{password,Bool}|RegularFlag
+%%     CharW = integer() >= 1
+%%         %% Min and Max should be of same type as Def and is not
+%%         %% allowed with a String field.
+%%         %% CharW is in characters. Default width is 30 for
+%%         %% String fields, 8 for integer() and 12 for float().
+%%
+%% {String,Bool[,RegularFlags]}			-- Checkbox
 %%
 
 dialog(false, _Title, Qs, Fun) ->
@@ -791,9 +943,9 @@ mktree({menu,Menu,Def}, Sto, I) ->
 mktree({menu,Menu,Def,Flags}, Sto, I) when is_list(Flags) ->
     mktree_fi(menu(Menu, Def), Sto, I, Flags);
 %%
-mktree({button,Action}, Sto, I) ->
+mktree({button,Action}, Sto, I) when is_atom(Action) ->
     mktree_fi(button(Action), Sto, I, []);
-mktree({button,Action,Flags}, Sto, I) when is_list(Flags) ->
+mktree({button,Action,Flags}, Sto, I) when is_atom(Action), is_list(Flags) ->
     mktree_fi(button(Action), Sto, I, Flags);
 mktree({button,Label,Action}, Sto, I) ->
     mktree_fi(button(Label, Action), Sto, I, []);
@@ -1119,10 +1271,14 @@ minimize_siblings(_Path, Sto) -> Sto.
 
 minimize_siblings(I, Fields, Index, Sto0) when I =< size(Fields) ->
     case element(I, Fields) of
-	#fi{key=Key,index=Ix,extra=#container{minimized=false}} 
+	#fi{key=Key,index=Ix,hook=Hook,extra=#container{minimized=false}} 
 	when Ix =/= Index -> 
-	    Sto = gb_trees:update(var(Key, Ix), true, Sto0),
-	    minimize_siblings(I+1, Fields, Index, Sto);
+	    case hook(Hook, update, [var(Key, Ix),Ix,true,Sto0]) of
+		{store,Sto} -> minimize_siblings(I+1, Fields, Index, Sto);
+		{done,Sto} -> minimize_siblings(I+1, Fields, Index, Sto);
+		{layout,Sto} -> minimize_siblings(I+1, Fields, Index, Sto);
+		_ -> minimize_siblings(I+1, Fields, Index, Sto0)
+	    end;
 	#fi{} -> minimize_siblings(I+1, Fields, Index, Sto0)
     end;
 minimize_siblings(_I, _Fields, _Index, Sto) -> Sto.
@@ -1195,18 +1351,25 @@ frame_event(#mousebutton{x=Xb,y=Yb,button=Button,state=?SDL_RELEASED},
 	false -> keep
     end;
 frame_event({key,_,Mod,$\s}, 
-	    Path=[#fi{key=Key,index=I,
+	    Path=[#fi{key=Key,index=I,hook=Hook,
 		      extra=#container{minimized=Minimized}}|_], 
 	    Store0) ->
     case Minimized of
 	undefined -> keep;
 	true ->
-	    Store = 
+	    Store1 = 
 		if  ?IS_SHIFTED(Mod) -> Store0;
 		    true -> minimize_siblings(Path, Store0)
 		end,
-	    {layout,gb_trees:update(var(Key, I), false, Store)};
-	false -> {layout,gb_trees:update(var(Key, I), true, Store0)}
+	    case hook(Hook, update, [var(Key, I), I, false, Store1]) of
+		{store,Store} -> {layout,Store};
+		Other -> Other
+	    end;
+	false -> 
+	    case hook(Hook, update, [var(Key, I), I, true, Store0]) of
+		{store,Store} -> {layout,Store};
+		Other -> Other
+	    end
     end;
 frame_event(value, [#fi{key=Key,index=I}|_], Store) ->
     {value,gb_trees:get(var(Key, I), Store)};
@@ -1962,9 +2125,8 @@ button_event(init, [#fi{key=Key,index=I}|_], Store) ->
     {store,gb_trees:insert(var(Key, I), Val, Store)};
 button_event(value, [#fi{key=Key,index=I}|_], Store) ->
     case gb_trees:get(-I, Store) of
-	#but{action=ok} -> none;
-	#but{action=cancel} -> none;
-	#but{} -> {value,gb_trees:get(var(Key, I), Store)}
+	#but{action=done} -> {value,gb_trees:get(var(Key, I), Store)};
+	#but{} -> none
     end;
 button_event(#mousebutton{x=X,y=Y,state=?SDL_RELEASED,button=1},
 	     Path=[#fi{x=Bx,y=By,w=W,h=H}|_], Store)
@@ -2185,23 +2347,13 @@ label_draw([], _, _) -> keep.
 	 charset,				%Character set validator.
 	 last_val,
 	 validator,
-         password=false,
-	 slider_h,
-	 slider_range,
-	 val
+         password=false
 	}).
 
 text(Val, Flags) ->
     IsInteger = is_integer(Val),
     ValStr = text_val_to_str(Val),
-    {Max0,Validator,Charset,Range} = validator(Val, Flags),
-    {SliderH,Val} =
-	case proplists:get_value(color, Flags) of
-	    {_Type,_KeyC}=TK ->
-		{9,TK};
-	    undefined ->
-		{2,Val}
-	end,
+    {Max0,Validator,Charset} = validator(Val, Flags),
     Max = case proplists:get_value(width, Flags) of
 	      undefined -> Max0;
 	      M when integer(M), M >= 1 -> M
@@ -2209,8 +2361,7 @@ text(Val, Flags) ->
     Password = proplists:get_bool(password, Flags),
     Ts = #text{last_val=Val,bef=[],aft=ValStr,max=Max,
 	       integer=IsInteger,charset=Charset,
-               validator=Validator,password=Password,
-	       slider_h=SliderH,slider_range=Range,val=Val},
+               validator=Validator,password=Password},
     Fun = fun gen_text_handler/3,
     {Fun,false,Ts,(1+Max)*?CHAR_WIDTH,?LINE_HEIGHT+2}.
 
@@ -2232,25 +2383,23 @@ validator(Val, _Flags) when is_list(Val) ->
 
 integer_validator(Flags) ->
     case proplists:get_value(range, Flags) of
-	undefined -> {8,fun accept_all/1,integer_chars(),undefined};
-	{Min,Max}=Range when is_integer(Min), is_integer(Max), Min =< Max ->
+	undefined -> {8,fun accept_all/1,integer_chars()};
+	{Min,Max} when is_integer(Min), is_integer(Max), Min =< Max ->
 	    Digits = trunc(math:log(Max-Min+1)/math:log(10))+2,
-	    {Digits,integer_range(Min, Max),integer_chars(Min, Max),Range}
+	    {Digits,integer_range(Min, Max),integer_chars(Min, Max)}
     end.
 
 float_validator(Flags) ->
     case proplists:get_value(range, Flags) of
-	undefined -> {12,fun accept_all/1,float_chars(),undefined};
-	{Min,Max}=Range when is_float(Min), is_float(Max), Min =< Max ->
+	undefined -> {12,fun accept_all/1,float_chars()};
+	{Min,Max} when is_float(Min), is_float(Max), Min =< Max ->
 	    Digits = min(trunc(math:log(Max-Min+1)/math:log(10))+8, 20),
-	    {Digits,float_range(Min, Max),float_chars(Min, Max),Range}
+	    {Digits,float_range(Min, Max),float_chars(Min, Max)}
     end.
 
-string_validator() ->
-    {30,fun accept_all/1,fun all_chars/1,undefined}.
+string_validator() -> {30,fun accept_all/1,fun all_chars/1}.
 
-integer_chars() ->
-    integer_chars(-1, 1).
+integer_chars() -> integer_chars(-1, 1).
 
 integer_chars(Min, Max) ->
     fun ($-) when Min < 0 -> true;
@@ -2259,8 +2408,7 @@ integer_chars(Min, Max) ->
 	(_) -> false
     end.
 
-float_chars() ->
-    float_chars(-1.0, +1.0).
+float_chars() -> float_chars(-1.0, +1.0).
 
 float_chars(Min, Max) ->
     fun ($-) when Min < 0.0 -> true;

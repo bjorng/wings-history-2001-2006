@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_test_ask.erl,v 1.20 2003/12/03 00:44:32 raimo_niskanen Exp $
+%%     $Id: wpc_test_ask.erl,v 1.21 2003/12/08 01:57:34 raimo_niskanen Exp $
 %%
 
 -module(wpc_test_ask).
@@ -116,27 +116,25 @@ minimal_dialog(_St) ->
 
 
 
-large_dialog(St) -> do_large_dialog(St, false, true, false, undefined).
+large_dialog(St) -> 
+    wings_ask:dialog("Test Ask Large",
+		     mk_large_dialog(false, true, false),
+		     large_result(St)).
 
-do_large_dialog(St, MinimizedL, MinimizedC, MinimizedR, Pos) ->
-    Dialog =
-	[{hframe,
-	  [large_dialog_l(MinimizedL, MinimizedC),
-	   large_dialog_r(MinimizedR)]},
-	 {position,Pos,[{key,position}]}],
-    wings_ask:dialog("Test Ask Large", Dialog, large_result(St)).
+mk_large_dialog(MinimizedL, MinimizedC, MinimizedR) ->
+    [{hframe,[large_dialog_l(MinimizedL, MinimizedC),
+	      large_dialog_r(MinimizedR)]}].
 
 large_result(St) ->
     fun ([MinimizedL|Res]) -> 
 	    erlang:display({?MODULE,?LINE,Res}),
 	    MinimizedC = proplists:get_value(minimized_c, Res),
 	    MinimizedR = proplists:get_value(minimized_r, Res),
-	    Pos = proplists:get_value(position, Res),
 	    case proplists:get_value(reset, Res) of
 		true -> 
-		    do_large_dialog(St, MinimizedL, MinimizedC, MinimizedR, 
-				    Pos),
-		    ignore;
+		    {dialog,
+		     mk_large_dialog(MinimizedL, MinimizedC, MinimizedR),
+		     large_result(St)};
 		false -> ignore
 	    end
     end.
