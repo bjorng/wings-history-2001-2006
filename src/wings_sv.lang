@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sv.lang,v 1.50 2005/01/13 06:02:34 bjorng Exp $
+%%     $Id: wings_sv.lang,v 1.51 2005/01/14 06:09:43 bjorng Exp $
 %%
 
 {wings,
@@ -201,7 +201,10 @@
     {27,"Ta bort"},
     {28,"Ta bort markerade objekt"},
     {29,"Döp om..."},
-    {30,"Döp om markerade objekt"}]},
+    {30,"Döp om markerade objekt"},
+    {31,"Visa alla"},
+    {32,"Visa alla ytor för makerade objekt"}
+   ]},
   {mode_conv,
    [{1,"Punktfärgsläge"},
     {2,"Ändra objektets läge till punktfärger (material bevaras, "
@@ -468,7 +471,10 @@
     {28,"Dela upp ytorna så att de blir jämnare (Catmull-Clark)"},
     {29,"Dela upp"},
     {30,"Punktfärger"},
-    {31,"Sätt punktfärger på valda objekt"}]},
+    {31,"Sätt punktfärger på valda ytor"},
+    {32,"Göm"},
+    {33,"Göm markerade ytor"}
+   ]},
   {put_on,
    [{1,"Markera bara en yta."}]},
   {put_on_check_selection,
