@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.48 2002/11/08 17:37:17 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.49 2002/11/09 15:00:11 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -502,13 +502,22 @@ init_show_maps(Map0, #we{name=Name}=We0, Vmap, OrigWe, St0) ->
 		   geom=Geom},
     {seq,{push,dummy},get_event(Uvs)}.
    
-insert_uvcoords(#areas{orig_we=We0,we=WorkWe,as=UV,matname=MatName,vmap=Vmap}) ->
-    UVpos = gen_uv_pos(gb_trees:values(UV), WorkWe, []),
-    We = insert_coords(UVpos, Vmap, We0),
-    Ftab0 = [{Face,Rec#face{mat=MatName}} ||
- 		{Face,Rec} <- gb_trees:to_list(We#we.fs)],
-    Ftab = gb_trees:from_orddict(Ftab0),
-    We#we{mode=uv,fs=Ftab}.
+insert_uvcoords(#areas{orig_we=We0,we=WorkWe,as=Cs0,matname=MatName,vmap=Vmap}) ->
+    Cs = gb_trees:values(Cs0),
+    UVpos = gen_uv_pos(Cs, WorkWe, []),
+    We1 = insert_coords(UVpos, Vmap, We0),
+    We = insert_material(Cs, MatName, We1),
+    We#we{mode=uv}.
+
+insert_material(Cs, MatName, #we{fs=Ftab0}=We) ->
+    Faces = lists:append([Fs || #ch{fs=Fs} <- Cs]),
+    Ftab = foldl(fun(Face, A) ->
+			 case gb_trees:get(Face, A) of
+			     #face{mat=MatName} -> A;
+			     Rec -> gb_trees:update(Face, Rec#face{mat=MatName}, A)
+			 end
+		 end, Ftab0, Faces),
+    We#we{fs=Ftab}.
 
 gen_uv_pos([#ch{fs=Fs,center={CX,CY},scale=Sc,vpos=Vs}|T], We, Acc) ->
     Vpos0 = auv_util:moveAndScale(Vs, CX, CY, Sc, []),
