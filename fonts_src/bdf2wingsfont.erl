@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: bdf2wingsfont.erl,v 1.2 2005/04/06 18:31:43 bjorng Exp $
+%%     $Id: bdf2wingsfont.erl,v 1.3 2005/04/08 05:46:54 bjorng Exp $
 %%
 
 -module(bdf2wingsfont).
@@ -210,10 +210,11 @@ skip_whitespace(Cs) -> Cs.
 %%%
 
 write_font(G, Out) ->
+    #glyph{bbx=[W,H,_,_]} = findchar(0, G),
     {Gl,Bit} = write_font_1(G, 0, [], []),
     Key = list_to_atom(filename:rootname(filename:basename(Out))),
     Desc = atom_to_list(Key),
-    Font = {Key,Desc,6,11,Gl,Bit},
+    Font = {Key,Desc,W,H,Gl,Bit},
     Term = {wings_font,?wings_version,Font},
     Bin = term_to_binary(Term, [compressed]),
     file:write_file(Out, Bin).
@@ -226,3 +227,9 @@ write_font_1([#glyph{code=C,bbx=BBx,dwidth=Dwidth,bitmap=B}|Gs],
     write_font_1(Gs, Offset+size(B), [G|GlAcc], [B|BiAcc]);
 write_font_1([], _, GlAcc, BiAcc) ->
     {reverse(GlAcc),list_to_binary(reverse(BiAcc))}.
+
+findchar(C, [#glyph{code=C}=G|_]) -> G;
+findchar(C, [_|Gs]) -> findchar(C, Gs).
+
+
+    

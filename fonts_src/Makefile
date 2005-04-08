@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.2 2005/04/06 18:31:43 bjorng Exp $
+#     $Id: Makefile,v 1.3 2005/04/08 05:46:54 bjorng Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -29,7 +29,9 @@ endif
 
 FONTS=       \
 	6x11 \
-	7x14
+	7x14 \
+	fixed6x12 \
+	terminal8x12
 
 MODULES= \
 	bdf2wingsfont
@@ -55,6 +57,12 @@ $(FONT_DIR)/6x11.wingsfont: 6x11_latin1.bdf 6x11_latin2.bdf
 	erl -noshell -run bdf2wingsfont convert $@ $?
 
 $(FONT_DIR)/7x14.wingsfont: 7x14_latin1.bdf
+	erl -noshell -run bdf2wingsfont convert $@ $?
+
+$(FONT_DIR)/fixed6x12.wingsfont: fixed6x12_latin1.bdf
+	erl -noshell -run bdf2wingsfont convert $@ $?
+
+$(FONT_DIR)/terminal8x12.wingsfont: terminal8x12_latin1.bdf
 	erl -noshell -run bdf2wingsfont convert $@ $?
 
 clean:

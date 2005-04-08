@@ -3,18 +3,18 @@
 %%
 %%     Text and font support.
 %%
-%%  Copyright (c) 2001-2004 Bjorn Gustavsson
+%%  Copyright (c) 2001-2005 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_text.erl,v 1.29 2005/03/26 07:53:55 bjorng Exp $
+%%     $Id: wings_text.erl,v 1.30 2005/04/08 05:46:56 bjorng Exp $
 %%
 
 -module(wings_text).
 -export([init/0,resize/0,width/0,width/1,height/0,draw/1,char/1,bold/1]).
 -export([break_lines/2]).
--export([font_module/1,fonts/0]).
+-export([fonts/0]).
 
 -define(NEED_ESDL, 1).
 -define(NEED_OPENGL, 1).
@@ -25,17 +25,16 @@
 
 init() ->
     ets:new(wings_fonts, [named_table,ordered_set]),
-    wings_pref:set_default(system_font, wpf_7x14),
-    wings_pref:set_default(console_font, wpf_terminal8x12).
+    load_fonts(),
+    verify_font(system_font),
+    verify_font(console_font),
+    wings_pref:set_default(system_font, '7x14'),
+    wings_pref:set_default(console_font, 'terminal8x12').
 
 resize() ->
     %% Force rebuild of display lists next time each font
     %% is needed.
     foreach(fun({_,Font}) -> erase(Font) end, fonts()).
-
-font_module(Mod) ->
-    Desc = Mod:desc(),
-    ets:insert(wings_fonts, {Mod,Desc}).
 
 width(S) ->
     Mod = current_font(),
@@ -94,6 +93,8 @@ char(C) ->
 	(current_font()):char(C)
     catch
 	error:function_clause ->
+	    bad_char(C);
+	  error:{badchar,_} ->
 	    bad_char(C)
     end.
 
@@ -102,12 +103,44 @@ bold(S) ->
 
 current_font() ->
     case wings_wm:this() of
-	none -> wings_pref:get_value(system_font);
-	This -> wings_wm:get_prop(This, font)
+	none ->
+	    FontKey = wings_pref:get_value(system_font),
+	    [{_,Font,_}] = ets:lookup(wings_fonts, FontKey),
+	    Font;
+	This ->
+	    FontKey = wings_wm:get_prop(This, font),
+	    [{_,Font,_}] = ets:lookup(wings_fonts, FontKey),
+	    Font
+    end.
+
+verify_font(PrefKey) ->
+    case wings_pref:get_value(PrefKey) of
+	undefined -> ok;
+	FontKey ->
+	    case is_font(FontKey) of
+		true -> ok;
+		false ->
+		    wings_pref:delete_value(PrefKey),
+		    case atom_to_list(FontKey) of
+			"wpf_"++Key ->
+			    NewFontKey = list_to_atom(Key),
+			    case is_font(NewFontKey) of
+				false -> ok;
+				true ->
+				    wings_pref:set_value(PrefKey, NewFontKey)
+			    end
+		    end
+	    end
+    end.
+
+is_font(FontKey) ->
+    case ets:lookup(wings_fonts, FontKey) of
+	[] -> false;
+	[_] -> true
     end.
 
 fonts() ->
-    MatchSpec = ets:fun2ms(fun({Font,Desc}) -> {Desc,Font} end),
+    MatchSpec = ets:fun2ms(fun({Key,_Font,Desc}) -> {Desc,Key} end),
     ets:select(wings_fonts, MatchSpec).
 
 break_lines(Lines, Limit) ->
@@ -389,3 +422,28 @@ bad_char(C) ->
     H = height(),
     B = list_to_binary(lists:duplicate(((W+7) div 8)*H, 16#FF)),
     gl:bitmap(W, H, 0, 0, W+1, 0, B).
+
+%%%
+%%% Load a Wings font.
+%%%
+
+load_fonts() ->
+    Wc = filename:join([code:lib_dir(wings),"fonts","*.wingsfont"]),
+    Fonts = filelib:wildcard(Wc),
+    foreach(fun(F) -> load_font(F) end, Fonts).
+
+load_font(Name) ->
+    {ok,Bin} = file:read_file(Name),
+    Font = binary_to_term(Bin),
+    Mod = load_font_1(Font),
+    Key = Mod:key(),
+    Desc = Mod:desc(),
+    ets:insert(wings_fonts, {Key,Mod,Desc}).
+
+load_font_1({wings_font,?wings_version,Font}) ->
+    load_font_2(Font).
+
+load_font_2({Key,Desc,Width,Height,GlyphInfo,Bitmaps}) ->
+    T = ets:new(font, [set]),
+    ets:insert(T, GlyphInfo),
+    wings__font:new(Key, Desc, Width, Height, T, Bitmaps).

@@ -4,12 +4,12 @@
 %%     Experimental support of plugins.
 %%
 %%  Copyright (c) 2001 Jakob Cederlund, Bjorn Gustavsson
-%%  Copyright (c) 2002-2004 Bjorn Gustavsson
+%%  Copyright (c) 2002-2005 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_plugin.erl,v 1.33 2004/12/18 19:36:21 bjorng Exp $
+%%     $Id: wings_plugin.erl,v 1.34 2005/04/08 05:46:56 bjorng Exp $
 %%
 -module(wings_plugin).
 -export([init/0,menu/2,dialog/2,dialog_result/2,command/2,call_ui/1]).
@@ -35,7 +35,6 @@
 %%% The types are defined as following:
 %%%
 %%% c   Command extension plugin-in.
-%%% f   Font.
 %%% 8   External user-interface plugin.
 %%% 9   Default user-interface plugin.
 %%%
@@ -146,8 +145,6 @@ init_plugin(user_interface, M) ->
 	Other ->
 	    io:format("~w:init/1 bad return value: ~P\n", [M,Other,20])
     end;
-init_plugin(font, M) ->
-    wings_text:font_module(M);
 init_plugin(_, M) ->
     case catch M:init() of
 	true ->
@@ -215,7 +212,6 @@ list_dir_1([N|Ns], Dir0, Dirs, Beams) ->
 list_dir_1([], _Dir, Dirs, Beams) -> {Dirs,Beams}.
     
 convert_type($c) -> command;
-convert_type($f) -> font;
 convert_type($8) -> user_interface;
 convert_type($9) -> user_interface;
 convert_type(_) -> undefined.
