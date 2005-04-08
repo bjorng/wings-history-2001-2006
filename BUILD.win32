@@ -4,8 +4,8 @@ BUILDING WINGS 3D ON WINDOWS
 This guide describes how you can build Wings 3D from the
 sources on a Windows system.
 
-$Revision: 1.11 $
-$Date: 2004/10/29 05:31:15 $
+$Revision: 1.12 $
+$Date: 2005/04/08 06:02:27 $
 
 Required software
 =================
@@ -19,7 +19,7 @@ The following software is needed:
 
 - Cygwin, a unix-like environment for Windows. http://www.cygwin.com
 
-- Erlang/OTP R10B-1 or later. http://www.erlang.org
+- Erlang/OTP R10B-4 or later. http://www.erlang.org
   (Download the pre-built binaries for Windows.)
 
 - ESDL 0.94.1025 or later. http://esdl.sf.net
