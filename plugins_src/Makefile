@@ -3,12 +3,12 @@
 #
 #     Makefile for building the plug-ins.
 #
-#  Copyright (c) 2001-2004 Bjorn Gustavsson
+#  Copyright (c) 2001-2005 Bjorn Gustavsson
 #
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.10 2004/11/27 19:27:14 bjorng Exp $
+#     $Id: Makefile,v 1.11 2005/04/08 08:18:28 dgud Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -47,7 +47,6 @@ common: $(TARGET_FILES) subdirs
 
 subdirs:
 	(cd accel; $(MAKE))
-	(cd fonts; $(MAKE))
 	(cd import_export; $(MAKE))
 	(cd primitives; $(MAKE))
 	(cd commands; $(MAKE))
@@ -59,7 +58,6 @@ clean: subdirs_clean
 
 subdirs_clean:
 	(cd accel; $(MAKE) clean)
-	(cd fonts; $(MAKE) clean)
 	(cd import_export; $(MAKE) clean)
 	(cd primitives; $(MAKE) clean)
 	(cd commands; $(MAKE) clean)
