@@ -3,29 +3,32 @@
 #
 #     Top-level Makefile for building Wings 3D.
 #
-#  Copyright (c) 2001-2004 Bjorn Gustavsson
+#  Copyright (c) 2001-2005 Bjorn Gustavsson
 #
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.18 2005/03/12 09:28:50 bjorng Exp $
+#     $Id: Makefile,v 1.19 2005/04/08 08:17:57 dgud Exp $
 #
 include vsn.mk
 
 all:
 	(cd src; $(MAKE))
+	(cd fonts_src; $(MAKE))
 	(cd e3d; $(MAKE))
 	(cd plugins_src; $(MAKE))
 	(cd icons; $(MAKE))
 
 debug:
 	(cd src; $(MAKE) debug)
+	(cd fonts_src; $(MAKE) debug)
 	(cd e3d; $(MAKE) debug)
 	(cd plugins_src; $(MAKE) debug)
 	(cd icons; $(MAKE) debug)
 
 clean:
 	(cd src; $(MAKE) clean)
+	(cd fonts_src; $(MAKE) clean)
 	(cd e3d; $(MAKE) clean)
 	(cd plugins_src; $(MAKE) clean)
 	(cd icons; $(MAKE) clean)
