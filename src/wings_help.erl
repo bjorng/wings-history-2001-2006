@@ -3,12 +3,12 @@
 %%
 %%     This module implements the Help menu.
 %%
-%%  Copyright (c) 2001-2004 Bjorn Gustavsson
+%%  Copyright (c) 2001-2005 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.81 2004/12/16 20:05:11 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.82 2005/04/09 19:00:19 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -107,7 +107,7 @@ getting_started(Head) ->
 	 wings_msg:button_format([],
 				  B++?__(middle_def,
 					  "middle button or scroll wheel")++E),
-	 wings_msg:button_format([],
+	 wings_msg:button_format([], [],
 				  B++?__(right_def,
 					  "right button")++E),
 
