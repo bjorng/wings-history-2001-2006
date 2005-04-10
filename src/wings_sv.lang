@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sv.lang,v 1.54 2005/03/04 09:31:05 dgud Exp $
+%%     $Id: wings_sv.lang,v 1.55 2005/04/10 17:22:57 bjorng Exp $
 %%
 
 {wings,
@@ -1854,7 +1854,8 @@
     {59,"Auto-rotera"},
     {60,"Roterar kameran"}]},
   {view_legend,
-   [{1,"Från ~s ~s avstånd ~.4g"},
+   [{from,"Från"},
+    {distance,"avstånd"},
     {2,"längs +X"},
     {3,"längs +Y"},
     {4,"längs +Z"},
