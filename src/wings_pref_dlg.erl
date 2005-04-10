@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref_dlg.erl,v 1.3 2005/04/10 13:42:50 bjorng Exp $
+%%     $Id: wings_pref_dlg.erl,v 1.4 2005/04/10 16:55:06 bjorng Exp $
 %%
 
 -module(wings_pref_dlg).
@@ -210,7 +210,9 @@ ui_prefs() ->
 	[{title,?__(22,"Console")}]}]}
      ]}.
 
-language_name("cs") -> "Cesky";
+language_name("cs") ->
+    %% "Czech" in Czech as Unicode:
+    [16#10C|"eský"];
 language_name("en") -> "English";
 language_name("de") -> "Deutsch";
 language_name("es") -> "Español";
@@ -220,7 +222,7 @@ language_name("pl") -> "Polski";
 language_name("pt") -> "Português";
 language_name("ru") ->
     %% "Russian" in Russian as Unicode:
-    [1056,1091,1089,1089,1082,1080,1081|" (Russian)"];
+    [1056,1091,1089,1089,1082,1080,1081];
 language_name("sv") -> "Svenska";
 language_name(Other) -> Other.
 
