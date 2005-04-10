@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.166 2004/12/18 19:36:22 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.167 2005/04/10 17:22:32 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -1251,28 +1251,29 @@ camera_pos_dir_up(#view{distance=Dist}=View) ->
 
 view_legend(#view{distance=Dist,along_axis=Along}=View) ->
     [{Pos,Dir,_}] = camera_info([pos_dir_up], View),
-    Legend = 
-	io_lib:format(
-	  ?__(1,"From ~s ~s distance ~.4g"),
-	  [pos_legend(Pos),
-	   case Along of
-	       x -> ?__(2,"along +X");
-	       y -> ?__(3,"along +Y");
-	       z -> ?__(4,"along +Z");
-	       neg_x -> ?__(5,"along -X");
-	       neg_y -> ?__(6,"along -Y");
-	       neg_z -> ?__(7,"along -Z");
-	       none ->
-		   Aim = e3d_vec:add(Pos, Dir),
-		   AimLen = e3d_vec:len(Aim),
-		   if AimLen < Dist*0.000001 ->
-			   %% Close enough to Origin
-			   ?__(8,"towards Origin");
-		      true ->
-			   ?__(9,"towards ")++pos_legend(e3d_vec:neg(Dir))
-		   end
-	   end,
-	   Dist]),
+    From = ?__(from, "From"),
+    DistStr = ?__(distance, "distance"),
+    AlongStr = case Along of
+		   x -> ?__(2,"along +X");
+		   y -> ?__(3,"along +Y");
+		   z -> ?__(4,"along +Z");
+		   neg_x -> ?__(5,"along -X");
+		   neg_y -> ?__(6,"along -Y");
+		   neg_z -> ?__(7,"along -Z");
+		   none ->
+		       Aim = e3d_vec:add(Pos, Dir),
+		       AimLen = e3d_vec:len(Aim),
+		       if AimLen < Dist*0.000001 ->
+			       %% Close enough to Origin
+			       ?__(8,"towards Origin");
+			  true ->
+			       ?__(9,"towards ")++pos_legend(e3d_vec:neg(Dir))
+		       end
+	       end,
+    %% io_lib:format/2 cannot be used here since ~s doesn't accept
+    %% characters > 255.
+    Legend = [From," ",pos_legend(Pos)," ",AlongStr," ",
+	      DistStr ++ io_lib:format(" ~.4g", [Dist])],
     lists:flatten(Legend).
 
 pos_legend({X,Y,Z}) ->
