@@ -1,5 +1,6 @@
+%%                     -*- mode:erlang; coding:iso-latin-1-unix -*-
 %%
-%%  wings_pref.erl --
+%%  wings_pref_dlg.erl --
 %%
 %%     Preference management.
 %%
@@ -8,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref_dlg.erl,v 1.2 2005/04/04 08:59:59 bjorng Exp $
+%%     $Id: wings_pref_dlg.erl,v 1.3 2005/04/10 13:42:50 bjorng Exp $
 %%
 
 -module(wings_pref_dlg).
@@ -217,7 +218,9 @@ language_name("fr") -> "Français";
 language_name("it") -> "Italiano";
 language_name("pl") -> "Polski";
 language_name("pt") -> "Português";
-language_name("ru") -> "Russian";
+language_name("ru") ->
+    %% "Russian" in Russian as Unicode:
+    [1056,1091,1089,1089,1082,1080,1081|" (Russian)"];
 language_name("sv") -> "Svenska";
 language_name(Other) -> Other.
 
