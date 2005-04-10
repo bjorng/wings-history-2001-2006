@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: bdf2wingsfont.erl,v 1.3 2005/04/08 05:46:54 bjorng Exp $
+%%     $Id: bdf2wingsfont.erl,v 1.4 2005/04/10 13:28:28 bjorng Exp $
 %%
 
 -module(bdf2wingsfont).
@@ -24,7 +24,7 @@
 
 convert([Out|SrcFonts]) ->
     G = read_fonts(SrcFonts, []),
-    io:format("Output file: ~s\n", [Out]),
+    io:format("  Writing: ~s\n", [Out]),
     write_font(G, Out),
     init:stop().
 
@@ -131,13 +131,17 @@ read_bitmap(F, Acc) ->
     end.
 
 to_unicode(Gs, Ps) ->
-    "ISO8859" = proplists:get_value("CHARSET_REGISTRY", Ps),
-    case proplists:get_value("CHARSET_ENCODING", Ps) of
-	"1" -> Gs;
-	"-"++Enc ->
-	    to_unicode_1(Gs, "map-ISO8859-"++Enc);
-	Enc ->
-	    to_unicode_1(Gs, "map-ISO8859-"++Enc)
+    case proplists:get_value("CHARSET_REGISTRY", Ps) of
+	"ISO10646" ->				%Already in Unicode.
+	    Gs;
+	"ISO8859" ->
+	    case proplists:get_value("CHARSET_ENCODING", Ps) of
+		"1" -> Gs;
+		"-"++Enc ->
+		    to_unicode_1(Gs, "map-ISO8859-"++Enc);
+		Enc ->
+		    to_unicode_1(Gs, "map-ISO8859-"++Enc)
+	    end
     end.
 
 to_unicode_1(Gs, MapName) ->
@@ -230,6 +234,3 @@ write_font_1([], _, GlAcc, BiAcc) ->
 
 findchar(C, [#glyph{code=C}=G|_]) -> G;
 findchar(C, [_|Gs]) -> findchar(C, Gs).
-
-
-    
