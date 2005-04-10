@@ -3,12 +3,12 @@
 %%
 %%     Console for Wings.
 %%
-%%  Copyright (c) 2004 Raimo Niskanen
+%%  Copyright (c) 2004-2005 Raimo Niskanen
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_console.erl,v 1.6 2004/12/18 19:36:03 bjorng Exp $
+%%     $Id: wings_console.erl,v 1.7 2005/04/10 07:18:56 bjorng Exp $
 %%
 
 -module(wings_console).
@@ -154,6 +154,8 @@ fix_lines(Lines) ->
     [case L of
 	 {Tag,B} when is_atom(Tag), is_binary(B) -> 
 	     {Tag,binary_to_list(B)};
+	 {Tag,B} when is_atom(Tag), is_list(B) -> 
+	     L;
 	 {Bef,Aft} when is_list(Bef), is_list(Aft) -> 
 	     L 
      end || L <- Lines].
@@ -383,7 +385,7 @@ server_loop(#state{gmon=Gmon,tref=Tref}=State) ->
 	{io_request,From,ReplyAs,Request}=Msg when is_pid(From) ->
 	    case io_request(State, Request) of
 		{NewState,_,forward} ->
-		    group_leader() ! Msg,
+		    forward(Msg),
 		    server_loop(NewState);
 		{NewState,Reply,_} ->
 		    io_reply(From, ReplyAs, Reply),
@@ -417,7 +419,6 @@ server_loop(#state{gmon=Gmon,tref=Tref}=State) ->
     end.
 
 send_update() ->
-%%%     catch wings_wm:pdirty(),
     catch wings_wm:psend(?WIN_NAME, {?MODULE,updated}),
     erlang:start_timer(?DIRTY_TIME, self(), dirty).
 
@@ -428,8 +429,29 @@ io_reply(From, ReplyAs, Reply) ->
 wings_console_reply(From, ReplyAs, Reply) ->
     From ! {wings_console_reply,ReplyAs,Reply}.
 
+forward({io_request,From,ReplyAs,Req0}) ->
+    Req = forward_1(Req0),
+    group_leader() ! {io_request,From,ReplyAs,Req}.
+    
+forward_1({put_chars,Chars}) when is_list(Chars) ->
+    try
+	{put_chars,binary_to_list(Chars)}
+    catch
+	error:badarg ->
+	    {put_chars,filter_chars(Chars)}
+    end;
+forward_1({put_chars,Mod,Func,Args}) ->
+    forward_1({put_chars,apply(Mod, Func, Args)}).
 
+filter_chars([H|T]) when is_list(H) ->
+    [filter_chars(H)|filter_chars(T)];
+filter_chars([H|T]) when is_integer(H), 255 < H ->
+    [$?,filter_chars(T)];
+filter_chars([H|T]) ->
+    [H|filter_chars(T)];
+filter_chars([]) -> [].
 
+%%%
 %%% I/O requests
 %%%
 
@@ -442,9 +464,9 @@ io_request(State, {put_chars,Mod,Func,Args}) ->
 	_ ->
 	    {State,{error,Func},error}
     end;
-io_request(State, {requests,Requests}) when list(Requests) ->
+io_request(State, {requests,Requests}) when is_list(Requests) ->
     io_request_loop(Requests, {State,ok,ok});
-io_request(State, {setopts,Opts}) when list(Opts) ->
+io_request(State, {setopts,Opts}) when is_list(Opts) ->
     {State,{error,badarg},error};
 io_request(State, Request) ->
     {State,{error,{request,Request}}}.
@@ -492,7 +514,13 @@ put_chars_2(State, [Char|Chars], Cnt, Lines, Bef, [_|Aft], N, Stack) ->
 
 put_chars_nl(#state{height=Height,save_lines=SaveLines,pos=Pos}=State0, 
 	     Chars, Cnt0, Lines0, Bef, Aft, N, Stack, Tag) ->
-    Lines1 = queue:snoc(Lines0, {Tag,list_to_binary(reverse(Bef, Aft))}),
+    Line0 = reverse(Bef, Aft),
+    Line = try
+	       list_to_binary(Line0)
+	   catch
+	       error:badarg -> Line0
+	   end,
+    Lines1 = queue:snoc(Lines0, {Tag,Line}),
     Cnt = Cnt0 + 1,
     H = Height+SaveLines,
     if Cnt > H ->
@@ -512,6 +540,7 @@ put_chars_nl(#state{height=Height,save_lines=SaveLines,pos=Pos}=State0,
 	    put_chars_2(State0, Chars, Cnt, Lines1, [], [], N, Stack)
     end.
 
+%%%
 %%% Wings console requests
 %%%
 
