@@ -8,13 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: bdf2wingsfont.erl,v 1.4 2005/04/10 13:28:28 bjorng Exp $
+%%     $Id: bdf2wingsfont.erl,v 1.5 2005/04/10 16:41:54 bjorng Exp $
 %%
 
 -module(bdf2wingsfont).
 -export([convert/1]).
 
--import(lists, [reverse/1,sort/1]).
+-import(lists, [reverse/1,sort/1,foldl/3]).
 
 -record(glyph,
 	{code,					%Unicode for glyph.
@@ -24,7 +24,7 @@
 
 convert([Out|SrcFonts]) ->
     G = read_fonts(SrcFonts, []),
-    io:format("  Writing: ~s\n", [Out]),
+    io:format("  Writing ~s (~p glyphs)\n", [Out,length(G)]),
     write_font(G, Out),
     init:stop().
 
@@ -87,7 +87,26 @@ read_font_glyphs(F) ->
     case read_line(F) of
 	["CHARS",N0] ->
 	    N = list_to_integer(N0),
-	    read_font_glyphs(F, N, []);
+	    try
+		Gl = read_font_glyphs(F, N, []),
+		case read_line(F) of
+		    ["ENDFONT"] -> Gl;
+		    ["STARTCHAR"|_] ->
+			io:format("CHARS declaration said there were ~p glyphs;"
+				  " but there is at least one more glyph.\n",
+				  [N]),
+			exit(error);
+		    _Other ->
+			io:format("Garbage instead of ENDFONT after last glyph\n"),
+			exit(error)
+		end
+	    catch
+		throw:{endfont,Left} ->
+		    io:format("There are only ~p glyphs in this font; "
+			      "CHARS declaration said there were ~p glyphs.\n",
+			      [N-Left,N]),
+		    exit(error)
+	    end;
 	_ ->
 	    read_font_glyphs(F)
     end.
@@ -97,7 +116,9 @@ read_font_glyphs(F, N, Acc) ->
     case read_line(F) of
 	["STARTCHAR"|_] ->
 	    G = read_one_glyph(F),
-	    read_font_glyphs(F, N-1, [G|Acc])
+	    read_font_glyphs(F, N-1, [G|Acc]);
+	["ENDFONT"] ->
+	    throw({endfont,N})
     end.
 
 read_one_glyph(F) ->
@@ -133,7 +154,7 @@ read_bitmap(F, Acc) ->
 to_unicode(Gs, Ps) ->
     case proplists:get_value("CHARSET_REGISTRY", Ps) of
 	"ISO10646" ->				%Already in Unicode.
-	    Gs;
+	    filter_unicode(Gs);
 	"ISO8859" ->
 	    case proplists:get_value("CHARSET_ENCODING", Ps) of
 		"1" -> Gs;
@@ -144,9 +165,27 @@ to_unicode(Gs, Ps) ->
 	    end
     end.
 
-to_unicode_1(Gs, MapName) ->
+to_unicode_1(Gs0, MapName) ->
     Map = read_map(MapName),
-    [G#glyph{code=gb_trees:get(C, Map)} || #glyph{code=C}=G <- Gs].
+    Gs = [G#glyph{code=gb_trees:get(C, Map)} || #glyph{code=C}=G <- Gs0],
+
+    %% Throw away any Unicode characters falling in the 0x00 - 0xFF
+    %% (ISO-8859-1) range. They are already defined in the ISO-8859-1 font.
+    [G || #glyph{code=C}=G <- Gs, C >= 256].
+
+filter_unicode(Gs) ->
+    MapFiles = filelib:wildcard("map-ISO8859-*"),
+    io:put_chars("  Filtering Unicode font to only include characters in:"),
+    Map = foldl(fun(F, A) ->
+			"map-"++CharSet = filename:basename(F),
+			io:format(" ~s", [CharSet]),
+			gb_trees:to_list(read_map(F)) ++ A
+		end, [], MapFiles),
+    io:nl(),
+    Needed0 = [To || {_From,To} <- Map],
+    Needed = gb_sets:from_list(Needed0),
+    [G || #glyph{code=C}=G <- Gs, gb_sets:is_member(C, Needed)].
+    
 
 read_map(MapName) ->
     {ok,F} = file:open(MapName, [read,read_ahead]),

@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.5 2005/04/10 11:38:33 bjorng Exp $
+#     $Id: Makefile,v 1.6 2005/04/10 16:41:54 bjorng Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -31,7 +31,7 @@ FONTS=       \
 	6x11 \
 	7x14 \
 	fixed6x12 \
-	terminal8x12
+	fixed7x14
 
 MODULES= \
 	bdf2wingsfont
@@ -53,16 +53,16 @@ opt debug:
 common: $(TARGET_FILES)
 
 
-$(FONT_DIR)/6x11.wingsfont: 6x11_latin1.bdf 6x11_latin2.bdf
+$(FONT_DIR)/6x11.wingsfont: 6x11_latin1.bdf 6x11_latin2.bdf 6x11_cyrillic.bdf
 	erl -noshell -run bdf2wingsfont convert $@ $^
 
-$(FONT_DIR)/7x14.wingsfont: 7x14_latin1.bdf 7x14_latin2.bdf
+$(FONT_DIR)/7x14.wingsfont: 7x14_latin1.bdf 7x14_latin2.bdf 7x14_cyrillic.bdf
 	erl -noshell -run bdf2wingsfont convert $@ $^
 
-$(FONT_DIR)/fixed6x12.wingsfont: fixed6x12_latin1.bdf
+$(FONT_DIR)/fixed6x12.wingsfont: fixed6x12.bdf
 	erl -noshell -run bdf2wingsfont convert $@ $^
 
-$(FONT_DIR)/terminal8x12.wingsfont: terminal8x12_latin1.bdf
+$(FONT_DIR)/fixed7x14.wingsfont: fixed7x14.bdf
 	erl -noshell -run bdf2wingsfont convert $@ $^
 
 clean:
