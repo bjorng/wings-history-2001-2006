@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.167 2005/04/10 17:22:32 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.168 2005/04/10 17:37:37 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -1272,9 +1272,13 @@ view_legend(#view{distance=Dist,along_axis=Along}=View) ->
 	       end,
     %% io_lib:format/2 cannot be used here since ~s doesn't accept
     %% characters > 255.
-    Legend = [From," ",pos_legend(Pos)," ",AlongStr," ",
-	      DistStr ++ io_lib:format(" ~.4g", [Dist])],
+    Legend = [From," ",pos_legend(Pos)," ",AlongStr,
+	      add_dist_str(DistStr),io_lib:format(" ~.4g", [Dist])],
     lists:flatten(Legend).
+
+%% Don't add a space if the string is empty (Italian).
+add_dist_str("") -> "";
+add_dist_str(S) -> [$\s|S].
 
 pos_legend({X,Y,Z}) ->
     %% Sort the coordinates as greatest absolute value first.
