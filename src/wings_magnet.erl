@@ -3,12 +3,12 @@
 %%
 %%     This module implements the Magnet command.
 %%
-%%  Copyright (c) 2001-2004 Bjorn Gustavsson
+%%  Copyright (c) 2001-2005 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_magnet.erl,v 1.52 2004/12/18 19:36:20 bjorng Exp $
+%%     $Id: wings_magnet.erl,v 1.53 2005/04/11 05:53:20 bjorng Exp $
 %%
 
 -module(wings_magnet).
@@ -99,10 +99,10 @@ drag_help(Type) ->
 
 help_1(Type, [{Digit,Type}|T]) ->
     "[" ++ [$0+Digit] ++ "] " ++
-	[{bold,wings_util:cap(atom_to_list(Type))}] ++ "  " ++ help_1(Type, T);
+	[{bold,magnet_shape_str(Type)}] ++ "  " ++ help_1(Type, T);
 help_1(Type, [{Digit,ThisType}|T]) ->
     "[" ++ [$0+Digit] ++ "] " ++
-	wings_util:cap(atom_to_list(ThisType)) ++ "  " ++ help_1(Type, T);
+	magnet_shape_str(ThisType) ++ "  " ++ help_1(Type, T);
 help_1(_, []) -> [].
 
 hotkey($1) -> bell;
@@ -110,6 +110,11 @@ hotkey($2) -> dome;
 hotkey($3) -> straight;
 hotkey($4) -> spike;
 hotkey(_) -> none.
+
+magnet_shape_str(bell) -> ?__(bell,"Bell");
+magnet_shape_str(dome) -> ?__(dome,"Dome");
+magnet_shape_str(straight) -> ?__(straight,"Straight");
+magnet_shape_str(spike) -> ?__(spike,"Spike").
     
 %%%
 %%% Local functions.
