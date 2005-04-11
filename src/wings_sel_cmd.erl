@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.58 2005/01/23 08:44:30 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.59 2005/04/11 05:43:55 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -505,12 +505,25 @@ new_group_name(Name, #st{ssels=Ssels0,selmode=Mode,sel=Sel}=St) ->
     case gb_trees:is_defined(Key, Ssels0) of
 	false -> ok;
 	true ->
-	    wings_u:error(?__(1,"~s selection group ~p already exists."),
-			     [wings_util:cap(atom_to_list(Mode)),
-			      Name])
+	    %% Careful: don't use io_lib:format/2 here. The group name
+	    %% may contain Unicode characters.
+	    GroupMode = group_mode_string(Mode),
+	    Exists = ?__(exists,"already exists."),
+	    Msg0 = [GroupMode," \"",Name,"\" ",Exists],
+            Msg = lists:flatten(Msg0),
+	    wings_u:error(Msg)
     end,
     Ssels = gb_trees:insert(Key, Sel, Ssels0),
     St#st{ssels=Ssels}.
+
+group_mode_string(vertex) ->
+    ?__(vertex, "Vertex selection group");
+group_mode_string(edge) ->
+    ?__(edge, "Edge selection group");
+group_mode_string(face) ->
+    ?__(face, "Face selection group");
+group_mode_string(body) ->
+    ?__(body, "Body selection group").
 
 %%%
 %%% Select Similar.
