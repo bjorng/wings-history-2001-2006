@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_text.erl,v 1.31 2005/04/12 06:04:55 bjorng Exp $
+%%     $Id: wings_text.erl,v 1.32 2005/04/12 06:16:44 bjorng Exp $
 %%
 
 -module(wings_text).
@@ -34,7 +34,9 @@ init() ->
 resize() ->
     %% Force rebuild of display lists next time each font
     %% is needed.
-    foreach(fun({_,Font}) -> erase(Font) end, fonts()).
+    MatchSpec = ets:fun2ms(fun({_Key,Font,_Desc}) -> Font end),
+    foreach(fun(Font) -> erase(Font) end,
+	    ets:select(wings_fonts, MatchSpec)).
 
 width(S) ->
     Mod = current_font(),
