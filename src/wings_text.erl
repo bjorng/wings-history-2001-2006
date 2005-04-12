@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_text.erl,v 1.30 2005/04/08 05:46:56 bjorng Exp $
+%%     $Id: wings_text.erl,v 1.31 2005/04/12 06:04:55 bjorng Exp $
 %%
 
 -module(wings_text).
@@ -29,7 +29,7 @@ init() ->
     verify_font(system_font),
     verify_font(console_font),
     wings_pref:set_default(system_font, '7x14'),
-    wings_pref:set_default(console_font, 'terminal8x12').
+    wings_pref:set_default(console_font, 'fixed7x14').
 
 resize() ->
     %% Force rebuild of display lists next time each font
@@ -128,7 +128,8 @@ verify_font(PrefKey) ->
 				false -> ok;
 				true ->
 				    wings_pref:set_value(PrefKey, NewFontKey)
-			    end
+			    end;
+			_ -> ok
 		    end
 	    end
     end.
