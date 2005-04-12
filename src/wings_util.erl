@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.108 2005/03/25 08:42:45 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.109 2005/04/12 20:20:48 bjorng Exp $
 %%
 %% Note: To keep the call graph clean, wings_util MUST NOT call
 %%       other wings_* modules (except wings_pref).
@@ -16,6 +16,7 @@
 -module(wings_util).
 -export([wings/0,share/1,share/3,make_vector/1,
 	 rel2fam/1,
+	 format/2,
 	 key_format/2,
 	 cap/1,upper/1,stringify/1,quote/1,
 	 expand_utf8/1,
@@ -82,6 +83,14 @@ make_vector(Axis) when Axis == last_axis; Axis == default_axis ->
 
 key_format(Key, Msg) ->
     [Key,160,Msg].
+
+%% Like io_lib:format/2, but with very restricted format characters.
+%% BUT allows arguments to ~s to be lists containing Unicode characters.
+%%
+%% Format directives allowed: ~s ~p
+
+format(Format, Args) ->
+    format_1(Format, Args, []).
 
 rel2fam(Rel) ->
     sofs:to_external(sofs:relation_to_family(sofs:relation(Rel))).
@@ -276,3 +285,27 @@ limit(Val, {'-infinity',Max}) when Val > Max -> Max;
 limit(Val, {Min,Max}) when Min < Max, Val < Min -> Min;
 limit(Val, {Min,Max}) when Min < Max, Val > Max -> Max;
 limit(Val, {Min,Max}) when Min < Max -> Val.
+
+%%%
+%%% Local functions.
+%%%
+
+format_1("~s"++F, [S0|Args], Acc) ->
+    S = if
+	    is_atom(S0) -> atom_to_list(S0);
+	    is_list(S0) -> S0
+	end,
+    format_1(F, Args, [S|Acc]);
+format_1("~p"++F, [S0|Args], Acc) ->
+    S = format_p(S0),
+    format_1(F, Args, [S|Acc]);
+format_1("~~"++F, Args, Acc) ->
+    format_1(F, Args, [$~|Acc]);
+format_1([C|F], Args, Acc) when C =/= $~ ->
+    format_1(F, Args, [C|Acc]);
+format_1([], [], Acc) -> reverse(Acc).
+
+format_p(Str) when is_list(Str)  ->
+    [$",Str,$"];
+format_p(Str) ->
+    io_lib:format("~p", [Str]).
