@@ -3,12 +3,12 @@
 %%
 %%     Initialization of Wings video and event handling.
 %%
-%%  Copyright (c) 2003 Bjorn Gustavsson
+%%  Copyright (c) 2003-2005 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_init.erl,v 1.6 2004/12/16 15:42:04 bjorng Exp $
+%%     $Id: wings_init.erl,v 1.7 2005/04/12 17:31:03 bjorng Exp $
 %%
 
 -module(wings_init).
@@ -76,7 +76,7 @@ opengl_modes() ->
      [{buffer_size,0},{depth_size,0},{stencil_size,0},{accum_size,0}]].
 
 try_video_modes(Modes, TopSize) ->
-    io:format(?__(1,"Trying OpenGL modes\n")),
+    io:put_chars(?__(1,"Trying OpenGL modes\n")),
     case try_video_modes_1(Modes, TopSize) of
 	ok -> ok;
 	error -> video_mode_failure()
