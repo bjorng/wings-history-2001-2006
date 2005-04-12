@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.333 2005/03/26 07:28:15 bjorng Exp $
+%%     $Id: wings.erl,v 1.334 2005/04/12 20:25:56 bjorng Exp $
 %%
 
 -module(wings).
@@ -906,7 +906,7 @@ measure(Base, #st{selmode=face,sel=[{Id,Fs}],shapes=Shs}) ->
  	    [Face] = gb_sets:to_list(Fs),
 	    {X,Y,Z} = wings_face:center(Face, We),
 	    Mat = wings_facemat:face(Face, We),
-	    [Base|io_lib:format(?__(4,". Midpt ~s ~s ~s.\nMaterial ~s"),
+	    [Base|wings_util:format(?__(4,". Midpt ~s ~s ~s.\nMaterial ~s"),
 				[wings_util:nice_float(X),
 				 wings_util:nice_float(Y),
 				 wings_util:nice_float(Z),
@@ -928,11 +928,14 @@ shape_info(#we{id=Id,name=Name,fs=Ftab,es=Etab,vp=Vtab,mode=Mode}) ->
     Faces = gb_trees:size(Ftab),
     Edges = gb_trees:size(Etab),
     Vertices = gb_trees:size(Vtab),
-    io_lib:format(?__(1,
-		       "Object ~p \"~s\" has ~p polygons, "
-		       "~p edges, ~p vertices.\n"
-		       "Mode is ~p"),
-		  [Id,Name,Faces,Edges,Vertices,Mode]).
+    wings_util:format(?__(object_info,
+			  "Object ~p \"~s\" has ~p polygons, "
+			  "~p edges, ~p vertices.\n"
+			  "Mode is ~s"),
+		      [Id,Name,Faces,Edges,Vertices,object_mode(Mode)]).
+
+object_mode(vertex) -> ?__(vertex,"vertex color");
+object_mode(material) -> ?__(material,"material").
 
 shape_info(Objs, Shs) ->
     shape_info(Objs, Shs, 0, 0, 0, 0).
@@ -945,7 +948,7 @@ shape_info([{Id,_}|Objs], Shs, On, Vn, En, Fn) ->
     shape_info(Objs, Shs, On+1, Vn+Vertices, En+Edges, Fn+Faces);
 shape_info([], _Shs, N, Vertices, Edges, Faces) ->
     io_lib:format(?__(2,
-		       "~p objects, ~p faces, ~p edges, ~p vertices"),
+		      "~p objects, ~p faces, ~p edges, ~p vertices"),
 		  [N,Faces,Edges,Vertices]).
 
 command_name(_Repeat, #st{repeatable=ignore}) ->
