@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_mapping.erl,v 1.69 2005/04/05 16:30:52 dgud Exp $
+%%     $Id: auv_mapping.erl,v 1.70 2005/04/12 23:36:32 dgud Exp $
 %%
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
@@ -94,7 +94,7 @@ spheremap(Chart, Pinned, Loop ={_,BEdges}, We) ->
     Vtab0 = gb_trees:from_orddict(Vs1),
     %% Get poles.
     {{V1,_},{V2,_}} = case Pinned of 
-			  none -> find_poles(Loop,We#we{vp=Vtab0});
+			  none -> find_pinned_from_edges(Loop,We#we{vp=Vtab0}); % find_poles(Loop,We#we{vp=Vtab0});
 			  _ -> Pinned
 		      end,
     V1p = gb_trees:get(V1,Vtab0),
@@ -124,7 +124,7 @@ spheremap(Chart, Pinned, Loop ={_,BEdges}, We) ->
     Vtab1 = gb_trees:from_orddict(Vs), 
     TempWe = We#we{vp=Vtab1},
     BorderVs0 = 
-	lists:map(fun({VS,VE,_,Face,_}) -> 
+	lists:map(fun(#be{vs=VS,ve=VE,face=Face}) -> 
 			  {X0,_,Z} = gb_trees:get(VS,Vtab1),
 			  {X1,_,_} = gb_trees:get(VE,Vtab1),
 			  X = (X0+X1)/2,
@@ -156,11 +156,11 @@ spheremap(Chart, Pinned, Loop ={_,BEdges}, We) ->
 %clamp_near_zero(Z) -> Z.     
 
 find_poles(Loop={_,BEdges}, We=#we{name=#ch{vmap=Vmap}}) ->
-    Mapped = [{auv_segment:map_vertex(V,Vmap),V} || {V,_,_,_,_} <- BEdges],
+    Mapped = [{auv_segment:map_vertex(V,Vmap),V} || #be{vs=V} <- BEdges],
     case uncut_verts(lists:sort(Mapped),[]) of
 	[V1,V2] -> {{V1,ignore},{V2,ignore}};
 	_ -> 
-	    find_pinned(Loop,We)
+	    find_pinned_from_edges(Loop,We)
     end.
 
 uncut_verts([{V1,_},{V1,_}|R],Acc) ->
@@ -262,7 +262,7 @@ lsqcm(Fs, Pinned0, Loop, We) ->
     {Vs1,Area} = project_faces(TriFs,TriWe,-1,[],0.0),
     Pinned = case Pinned0 of
 		 none -> 
-		     {V1, V2} = find_pinned(Loop,We),
+		     {V1, V2} = find_pinned_from_edges(Loop,We),
 		     [V1,V2];
 		 _ -> 
 		     Pinned0
@@ -295,10 +295,88 @@ calc_2dface_area([Face|Rest],We,Area) ->
 calc_2dface_area([],_,Area) ->
     Area.
 
+
+-record(link,{no=0,pos={0.0,0.0,0.0}}).
+
+find_pinned_from_edges({Circumference, BorderEdges}, #we{vp=Vtab}) ->    
+    [First,Second,Third|RestOfEdges] = 
+	case BorderEdges of %% Check order
+	    [#be{ve=TO},#be{vs=TO}|_] -> BorderEdges;
+	    _ -> reverse(BorderEdges)
+	end,
+    POS = fun(V) -> gb_trees:get(V,Vtab) end,
+    Left = #link{no=1,pos=POS(Second#be.vs)},
+    Right = foldl(fun(#be{vs=V}, #link{no=No,pos=Apos}) ->
+			  #link{no=No+1,pos=e3d_vec:add(Apos,POS(V))}
+		  end, #link{}, RestOfEdges),
+    Vert1 = {First#be.vs,POS(First#be.vs)},
+    VertN = {Third#be.vs,POS(Third#be.vs)},
+    Best = {Vert1,VertN,calc_vp(Vert1,VertN,Left,Right)},
+    HCC = Circumference/2, %% - Circumference/100,
+    Dist = First#be.dist + Second#be.dist,
+%    io:format("S ~p(~p) ~p~n",[Dist,HCC,Best]),
+%    io:format(" L ~p R ~p~n",[Left,Right]),
+    find_pinned_from_edges2(First,[Second],Third,RestOfEdges,First,Dist,HCC,Left,Right,POS,Best).
+
+find_pinned_from_edges2(_S,_LVs,Start,_,Start,_Dist,_HCC,_Left0,_Right0,_POS,{{V1,_},{V2,_},_Best}) ->
+    io:format("Pinned ~p ~p ~p~n", [V1,V2,_Best]),
+    {{V1,{0.0,0.0}},{V2,{1.0,1.0}}};
+find_pinned_from_edges2(S,LVs,E,[Next|RVs],Start,Dist,HCC,Left0,Right0,POS,Best0)
+  when Dist < HCC ->
+%    io:format("LT ~p(~p) +~p ",[Dist,HCC,E]),
+    NewDist = Dist + E#be.dist,
+    {Left,Right,Best} = recalc_positions(S,E,Left0,Next,Right0,POS,Best0,incr),
+    find_pinned_from_edges2(S,LVs++[E],Next,RVs,Start,NewDist,HCC,Left,Right,POS,Best);
+find_pinned_from_edges2(S,[Next|LVs],E,RVs,Start,Dist,HCC,Left0,Right0,POS,Best0) -> 
+%    io:format("RT ~p(~p) -~p ",[Dist,HCC,S]),
+    NewDist = Dist - S#be.dist,
+    {Left,Right,Best} = recalc_positions(E,S,Right0,Next,Left0,POS,Best0,decr),
+    find_pinned_from_edges2(Next,LVs,E,RVs++[S],Start,NewDist,HCC,Left,Right,POS,Best).
+
+recalc_positions(Start,Prev,#link{no=Ino,pos=Ipos},Next,#link{no=Dno,pos=Dpos},POS,Best0,Op) ->
+    {_PV1,_PV2,Least} = Best0,
+    Left  = #link{no=Ino+1,pos=e3d_vec:add(Ipos,POS(Prev#be.vs))},
+    Right = #link{no=Dno-1,pos=e3d_vec:sub(Dpos,POS(Next#be.vs))},
+    Vert1 = {Start#be.vs,POS(Start#be.vs)},
+    Vert2 = {Next#be.vs,POS(Next#be.vs)},
+    New = calc_vp(Vert1,Vert2,Left,Right),
+    case New < Least of
+	true when Op == incr -> {Left,Right,{Vert1,Vert2,New}};
+	true ->  {Right,Left,{Vert2,Vert1,New}};
+	false when Op == incr -> {Left,Right,Best0};
+	false -> {Right,Left,Best0}
+    end.
+
+calc_vp(_VI1={_Id1,V1},_VI2={_Id2,V2},Left,Right) ->
+    try 
+	AxisVec = e3d_vec:sub(V2,V1),
+	AxisLen = e3d_vec:len(AxisVec),
+	Axis = e3d_vec:norm(AxisVec),
+	LeftPos = divide(Left#link.pos, Left#link.no),
+	RightPos = divide(Right#link.pos, Right#link.no),
+	Vec1 = e3d_vec:sub(V2,LeftPos),
+	Vec2 = e3d_vec:sub(V2,RightPos),
+	A1   = abs(math:acos(e3d_vec:dot(e3d_vec:norm(Vec1),Axis))),
+	A2   = abs(math:acos(e3d_vec:dot(e3d_vec:norm(Vec2),Axis))),
+	Val  = abs((A1 + 10*e3d_vec:len(Vec1)/AxisLen) - (A2 + 10*e3d_vec:len(Vec2)/AxisLen)),
+%	Val = abs(A1 - A2),
+%	io:format("~p ~p => ~p~n",[_Id1,_Id2,Val]),
+%	io:format("Angles ~p ~p ~n",[A1,A2]),	
+%	io:format("Dist ~p(~p) ~p(~p) ~n",[LeftPos,Left#link.no,RightPos,Right#link.no]),
+	Val
+    catch _:_What ->
+	    io:format("~p:~p: Badarg ~p ~p~n", 
+		      [?MODULE,?LINE,_What,erlang:get_stacktrace()]),
+	    9999999999.99
+    end.
+
+divide(What,0) -> What;
+divide(Vec,S) -> e3d_vec:divide(Vec,S).
+     
 find_pinned({Circumference, BorderEdges}, We) ->
-    Vs = [gb_trees:get(V1, We#we.vp) || {V1,_,_,_,_} <- BorderEdges],
+    Vs = [gb_trees:get(V1, We#we.vp) || #be{vs=V1} <- BorderEdges],
     Center = e3d_vec:average(Vs),
-    AllC = lists:map(fun({Id,_,_,_,_}) ->
+    AllC = lists:map(fun(#be{vs=Id}) ->
 			     Pos = gb_trees:get(Id, We#we.vp),
 			     Dist = e3d_vec:dist(Pos, Center),
 			     {Dist, Id, Pos}
@@ -309,7 +387,7 @@ find_pinned({Circumference, BorderEdges}, We) ->
     {V1, V2} = find_pinned(BE1, BE1, 0.0, HalfCC, HalfCC, undefined), 
     {{V1,{0.0,0.0}},{V2,{1.0,1.0}}}.
     
-find_pinned(Curr=[{C1,_,_,_,Clen}|CR],Start=[{_,S2,_,_,Slen}|SR],Len,HCC,Best,BVs) ->    
+find_pinned(Curr=[#be{vs=C1,dist=Clen}|CR],Start=[#be{ve=S2,dist=Slen}|SR],Len,HCC,Best,BVs) ->    
     Dlen = HCC-(Clen+Len),
     ADlen = abs(Dlen),
 %    ?DBG("Testing ~p ~p ~p ~p ~p~n", [{S2,C1},Dlen,{Len+Clen,HCC}, Best, BVs]),    
@@ -331,7 +409,7 @@ find_pinned([], _, _, _, _Best, Bvs) ->
 %    ?DBG("Found ~p ~p~n", [_Best, Bvs]),
     Bvs.
 
-reorder_edge_loop(V1, [Rec={V1,_,_,_,_}|Ordered], Acc) ->
+reorder_edge_loop(V1, [Rec=#be{vs=V1}|Ordered], Acc) ->
     Ordered ++ lists:reverse([Rec|Acc]);
 reorder_edge_loop(V1, [H|Tail], Acc) ->
     reorder_edge_loop(V1, Tail, [H|Acc]).

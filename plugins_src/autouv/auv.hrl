@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv.hrl,v 1.35 2005/03/23 16:12:02 dgud Exp $
+%%     $Id: auv.hrl,v 1.36 2005/04/12 23:36:32 dgud Exp $
 
 %% Chart record (one for each chart).
 %% Stored in the 'name' field in the #we{} record.
@@ -34,3 +34,6 @@
 -else.
 -define(DBG(S,A), ok).
 -endif.
+
+%% auv_placement:group_edge_loops(Faces, We) delivers a list of these
+-record(be,{vs,ve,edge,face,dist}).
