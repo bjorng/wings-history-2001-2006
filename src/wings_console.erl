@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_console.erl,v 1.7 2005/04/10 07:18:56 bjorng Exp $
+%%     $Id: wings_console.erl,v 1.8 2005/04/12 17:29:54 bjorng Exp $
 %%
 
 -module(wings_console).
@@ -435,11 +435,13 @@ forward({io_request,From,ReplyAs,Req0}) ->
     
 forward_1({put_chars,Chars}) when is_list(Chars) ->
     try
-	{put_chars,binary_to_list(Chars)}
+	{put_chars,list_to_binary(Chars)}
     catch
 	error:badarg ->
 	    {put_chars,filter_chars(Chars)}
     end;
+forward_1({put_chars,Chars}=Req) when is_binary(Chars) ->
+    Req;
 forward_1({put_chars,Mod,Func,Args}) ->
     forward_1({put_chars,apply(Mod, Func, Args)}).
 
