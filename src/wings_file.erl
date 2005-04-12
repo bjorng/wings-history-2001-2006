@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.156 2004/12/18 19:36:20 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.157 2005/04/12 20:27:29 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -482,7 +482,7 @@ autosave(#st{file=Name}=St) ->
 	    wings_u:caption(St#st{saved=auto});
 	{error,Reason} ->
 	    F = ?__(1,"Autosaving \"~s\" failed: ~s"),
-	    Msg = lists:flatten(io_lib:format(F, [Auto,Reason])),
+	    Msg = lists:flatten(wings_util:format(F, [Auto,Reason])),
 	    wings_u:message(Msg)
     end.
 

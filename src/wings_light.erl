@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.63 2005/02/20 05:20:19 bjorng Exp $
+%%     $Id: wings_light.erl,v 1.64 2005/04/12 20:27:29 bjorng Exp $
 %%
 
 -module(wings_light).
@@ -141,7 +141,7 @@ is_any_light_selected([{Id,_}|Sel], Shs) ->
 is_any_light_selected([], _) -> false.
 
 info(#we{name=Name,light=#light{type=Type}=L}=We) ->
-    Info0 = io_lib:format(?__(1,"Light ~s"), [Name]),
+    Info0 = wings_util:format(?__(1,"Light ~s"), [Name]),
     case Type of
 	ambient -> Info0;
 	_ ->
