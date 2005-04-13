@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.306 2005/03/30 22:46:36 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.307 2005/04/13 19:51:29 dgud Exp $
 %%
 
 -module(wpc_autouv).
@@ -376,9 +376,9 @@ add_material(#e3d_image{}=Tx, Name, none, St0) ->
 	    {St,MatName}
     end;
 add_material(Im = #e3d_image{}, _, MatName,St) ->
-    wings_material:update_image(MatName, diffuse, Im, St),
+    catch wings_material:update_image(MatName, diffuse, Im, St),
     {St,MatName}.
-    
+   
 %%%% Menus.
 
 command_menu(body, X, Y) ->
@@ -407,6 +407,7 @@ command_menu(body, X, Y) ->
 	    {"Tighten",tighten,
 	     "Move UV coordinates towards average midpoint"},
 	    separator,
+	    {"Hide",hide,"Hide selected charts but keep UV-coordinates"},
 	    {"Delete",delete,"Remove UV-coordinates for the selected charts"},
 	    separator,
 	    {"ReMap UV", {remap, [{"Stretch optimization", stretch_opt, 
@@ -765,6 +766,8 @@ handle_command({tighten,Magnet}, St) ->
     tighten(Magnet, St);
 handle_command(delete, St) ->
     get_event(delete_charts(St));
+handle_command(hide, St) ->
+    get_event(hide_charts(St));
 handle_command({'ASK',Ask}, St) ->
     wings:ask(Ask, St, fun handle_command/2);
 handle_command({flatten, Plane}, St0 = #st{selmode=vertex}) ->
@@ -831,7 +834,7 @@ add_faces(NewFs,St0=#st{bb=ASt=#uvstate{id=Id,mode=Mode,st=GeomSt=#st{shapes=Shs
 	    case gb_sets:intersection(NewFs,Fs0) of
 		NewFs -> 
 		    St0#st{bb=ASt#uvstate{mode=Fs}};
-		_ ->  %% Some new faces should shown, force a chart rebuild
+		_ ->  %% Some new faces should be shown, force a chart rebuild
 		    We = gb_trees:get(Id,Shs0),
 		    Shs = gb_trees:update(Id, We#we{fs=undefined,es=gb_trees:empty()}, Shs0),
 		    Fake = GeomSt#st{sel=[],shapes=Shs},
@@ -881,6 +884,16 @@ not_bordering(V, Vis, We) ->
     wings_vertex:fold(fun(_, _, _, false) -> false;
 			 (_, F, _, true) -> gb_sets:is_member(F, Vis)
 		      end, true, V, We).
+
+hide_charts(#st{shapes=Shs0,bb=UVs}=St) ->
+    Shs = wpa:sel_fold(fun(_, #we{id=Id}, Shs) ->
+			       gb_trees:delete(Id, Shs)
+		       end, Shs0, St),
+    Fs = foldl(fun(#we{fs=Ftab},Acc) ->
+		       Fs = gb_sets:from_ordset(gb_trees:keys(Ftab)),
+		       gb_sets:union(Fs,Acc)
+	       end, gb_sets:empty(), gb_trees:values(Shs)),
+    St#st{shapes=Shs,sel=[],bb=UVs#uvstate{mode=Fs}}.
 
 delete_charts(#st{shapes=Shs0}=St0) ->
     St1 = wpa:sel_map(fun(_, #we{vp=Vp0}=We) ->
@@ -1101,8 +1114,16 @@ rebuild_charts(We, St = #st{bb=UVS=#uvstate{st=Old,mode=Mode}}, ExtraCuts) ->
     Charts = update_uv_tab(Charts2, FvUvMap),
     wings_wm:set_prop(wireframed_objects,
 		      gb_sets:from_ordset(lists:seq(1, length(Charts2)))),
-    St#st{sel=[],bb=UVS#uvstate{st=Old#st{sel=[]}},shapes=Charts}.
+    St#st{sel=[],bb=UVS#uvstate{mode=update_mode(Faces,We),st=Old#st{sel=[]}},
+	  shapes=Charts}.
 
+update_mode(Faces0, #we{fs=Ftab}) ->
+    Fs = gb_sets:from_list(Faces0),
+    case gb_sets:size(Fs) == gb_trees:size(Ftab) of 
+	true -> object;
+	false -> Fs
+    end.
+	    
 update_uv_tab(Cs, FvUvMap) ->
     update_uv_tab_1(Cs, FvUvMap, []).
 
