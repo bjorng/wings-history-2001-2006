@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_seg_ui.erl,v 1.35 2005/03/30 22:46:36 dgud Exp $
+%%     $Id: auv_seg_ui.erl,v 1.36 2005/04/13 19:09:51 dgud Exp $
 %%
 
 -module(auv_seg_ui).
@@ -156,7 +156,8 @@ seg_mode_menu(face, _, Tail) ->
 		   (Other) -> Other
 		end, auv_util:seg_materials()),
     Menu = Menu0 ++
-	[separator,
+	[{"Ignore Faces", ignore_faces},
+	 separator,
 	 {"Select",{select,Menu0}}|Tail],
     [separator|Menu].
 
@@ -246,7 +247,22 @@ seg_command({segment,Type}, #seg{st=St0}=Ss) ->
     get_seg_event(Ss#seg{st=St});
 seg_command({debug,Cmd}, Ss) ->
     seg_command_debug(Cmd, Ss);
-
+seg_command(ignore_faces,#seg{st=St0,fs=Mode0}=Ss) ->    
+    HiddenFs = wpa:sel_fold(fun(Fs,_,Acc) -> gb_sets:union(Fs,Acc) end,
+			    gb_sets:empty(), St0),
+    #st{shapes=Shs0} = St0,
+    [We0 = #we{id=Id}] = gb_trees:values(Shs0),
+    {Mode,We} = case Mode0 of
+		    object -> 
+			Vis = wings_sel:inverse_items(face, HiddenFs, We0),
+			{Vis,wings_we:hide_faces(HiddenFs, We0)};
+		    ShownFs -> 
+			Vis = gb_sets:subtract(ShownFs,HiddenFs),
+			{Vis,wings_we:hide_faces(HiddenFs, We0)}
+		end,
+    St = St0#st{shapes=gb_trees:update(Id,We,Shs0),sel=[]},
+    io:format("Hide ~p ~n", [gb_sets:to_list(HiddenFs)]), 
+    get_seg_event(Ss#seg{st=St,fs=Mode});
 seg_command(Cmd, #seg{st=#st{mat=Mat}=St0}=Ss) ->
     case gb_trees:is_defined(Cmd, Mat) of
 	false ->
