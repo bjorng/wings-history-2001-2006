@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.307 2005/04/13 19:51:29 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.308 2005/04/14 13:28:24 dgud Exp $
 %%
 
 -module(wpc_autouv).
@@ -21,7 +21,7 @@
 -include("auv.hrl").
  
 -export([init/0,menu/2,command/2,redraw/1]).
--export([handle_event/2]). %% Debug
+-export([handle_event/2,bg_image/0]). %% Debug
 -import(lists, [sort/1,keysort/2,map/2,foldl/3,reverse/1,
 		append/1,delete/2,usort/1,max/1,min/1,
 		member/2,foreach/2,keysearch/3]).
@@ -31,6 +31,8 @@
 
 %% Exports to auv_seg_ui.
 -export([init_show_maps/4]).
+
+%% Background Image compressed.
 
 init() ->
     true.
@@ -189,7 +191,7 @@ do_edit(MatName, Mode, #we{id=Id}=We, #st{shapes=Shs0}=GeomSt) ->
 init_show_maps(Charts0, Fs, #we{name=WeName,id=Id}, GeomSt0) ->
     Charts1 = auv_placement:place_areas(Charts0),
     Charts = gb_trees:from_orddict(keysort(1, Charts1)),
-    Tx = checkerboard(128, 128),
+    Tx = bg_image(),
     {GeomSt1,MatName} = add_material(Tx, WeName, none, GeomSt0),
     GeomSt = insert_initial_uvcoords(Charts, Id, MatName, GeomSt1),
     EditWin   = {autouv,Id},
@@ -1539,25 +1541,49 @@ cleanup_before_exit() ->
 
 %% Generate a checkerboard image of 4x4 squares 
 %% with given side length in pixels.
-checkerboard(Width, Height) ->
-    White = [240,240,220],
-    Black = [215,215,181],
-    FourWhite = pattern_repeat(4, White),
-    FourBlack = pattern_repeat(4, Black),
-    R1 = pattern_repeat(Width div 8, [FourBlack|FourWhite]),
-    R2 = pattern_repeat(Width div 8, [FourWhite|FourBlack]),
-    R8 = [pattern_repeat(4, [R1])|pattern_repeat(4, [R2])],
-    Pixels = list_to_binary(pattern_repeat(Height div 8, R8)),
-    #e3d_image{width=Width,height=Height,image=Pixels,order=lower_left}.
 
-pattern_repeat(0, _) -> [];
-pattern_repeat(1, D) -> [D];
-pattern_repeat(N, D) ->
-    B = pattern_repeat(N div 2, D),
-    case N rem 2 of
-	0 -> [B|B];
-	1 -> [D,B|B]
-    end.
+compressed_bg() ->
+<<131,80,0,0,12,5,120,156,181,211,193,106,19,81,20,6,224,60,128,111,225,131,248,
+ 12,130,224,170,43,209,141,138,96,187,201,74,208,165,136,139,212,214,82,187,105,
+ 153,133,40,184,42,177,138,132,80,170,196,90,104,67,179,154,42,169,138,88,81,132,
+ 136,1,67,146,241,159,254,230,207,157,51,167,205,184,72,249,25,78,134,225,59,247,
+ 158,123,123,189,84,58,83,186,176,116,197,205,167,185,190,155,229,155,127,86,230,
+ 250,249,36,107,103,221,80,123,253,254,221,73,254,239,221,33,243,125,117,144,250,
+ 179,61,104,31,118,135,100,85,140,205,246,122,154,172,159,36,137,235,147,69,240,
+ 1,106,249,248,73,252,213,234,32,227,67,174,95,75,51,106,33,31,91,8,119,65,31,
+ 239,213,133,181,124,224,236,146,241,33,171,75,214,191,247,114,9,81,139,208,231,
+ 100,140,143,149,35,254,124,70,120,126,62,42,66,63,172,195,249,100,10,131,159,48,
+ 31,108,33,244,177,114,115,190,139,55,126,105,62,206,252,57,249,220,124,138,223,
+ 79,247,114,158,114,63,239,60,232,187,169,156,187,236,230,197,252,140,155,100,
+ 230,188,27,106,173,120,40,153,53,181,184,182,173,132,254,215,184,33,153,245,216,
+ 108,108,165,201,250,152,167,240,167,207,7,242,241,190,122,235,33,19,250,120,63,
+ 94,249,113,61,198,43,119,211,140,90,200,135,44,60,244,221,249,208,252,183,242,
+ 208,199,95,182,144,15,89,187,40,232,103,158,147,124,60,209,66,7,49,209,199,226,
+ 247,170,21,60,139,251,97,139,137,62,112,20,120,102,124,78,158,167,16,248,211,
+ 187,159,157,242,186,155,103,107,143,221,204,239,189,117,115,123,225,146,27,106,
+ 189,230,23,197,248,159,219,31,17,227,199,63,127,152,66,96,235,96,27,49,62,102,
+ 216,141,118,152,208,135,220,168,111,33,106,65,13,223,155,66,248,147,141,69,68,
+ 45,228,187,243,193,123,118,97,49,209,135,204,2,239,141,31,14,199,248,220,130,
+ 241,49,25,196,248,74,222,15,135,99,124,110,193,248,213,118,140,20,247,221,243,
+ 229,228,121,10,69,230,163,243,53,254,244,238,103,173,118,213,205,197,104,193,77,
+ 167,94,118,83,142,58,110,168,29,29,237,152,130,218,155,195,3,38,239,247,190,53,
+ 17,227,55,15,123,140,241,49,46,83,80,195,207,251,155,27,136,90,8,239,182,34,68,
+ 45,168,225,251,104,179,139,168,133,88,172,28,201,251,166,160,150,254,191,28,23,
+ 104,97,124,83,200,223,223,127,132,228,125,206,7,91,112,125,51,159,83,252,255,
+ 154,143,252,252,124,92,31,43,231,124,80,20,89,63,39,207,83,48,62,207,23,71,16,
+ 250,211,187,159,127,1,245,246,60,42>>.
+
+bg_image() ->
+    Orig = binary_to_term(compressed_bg()),
+    Pixels = repeat_image(Orig, []),
+    Width = Height = 256,
+    #e3d_image{width=Width,height=Height,image=Pixels,order=lower_left}.
+    
+repeat_image(<<Row:(32*3)/binary,Rest/binary>>, Acc) ->
+    repeat_image(Rest,[Row,Row,Row,Row,Row,Row,Row,Row|Acc]);
+repeat_image(<<>>,Acc) -> 
+    Im = lists:reverse(Acc),
+    list_to_binary([Im,Im,Im,Im,Im,Im,Im,Im]).
 
 %%%
 %%% Conversion routines.
@@ -1565,7 +1591,6 @@ pattern_repeat(N, D) ->
 
 auv2geom_faces(Fs, _) ->
     Fs.
-
 geom2auv_faces(Fs, _) ->
     Fs.
 
