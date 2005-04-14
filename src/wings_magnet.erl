@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_magnet.erl,v 1.53 2005/04/11 05:53:20 bjorng Exp $
+%%     $Id: wings_magnet.erl,v 1.54 2005/04/14 18:15:17 bjorng Exp $
 %%
 
 -module(wings_magnet).
@@ -32,7 +32,7 @@ setup({magnet,Type,Route,Point}, VsSel, We) ->
 
 info_string() ->
     ["(",?__(1,"Magnet route:"),
-     atom_to_list(wings_pref:get_value(magnet_distance_route)),
+     magnet_route(wings_pref:get_value(magnet_distance_route)),
      ")"].
 
 transform(Trans, VsInf) ->
@@ -88,10 +88,12 @@ dialog(Point, Fun) ->
 
 common_dialog() ->
     Route = wings_pref:get_value(magnet_distance_route),
-    [{hradio,[{?__(1,"Shortest"),shortest},
-	      {?__(2,"Midpoint"),midpoint},
-	      {?__(3,"Surface"),surface}],
+    [{hradio,[{magnet_route(R),R} || R <- [shortest,midpoint,surface]],
       Route, [{title,?__(4,"Distance Route")}]}].
+
+magnet_route(shortest) -> ?__(shortest,"Shortest");
+magnet_route(midpoint) -> ?__(midpoint,"Midpoint");
+magnet_route(surface) -> ?__(surface,"Surface").
 
 drag_help(Type) ->
     ?__(1,"[+] or [-] Adjust Radius  ") ++
