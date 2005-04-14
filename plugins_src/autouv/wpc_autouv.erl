@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.308 2005/04/14 13:28:24 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.309 2005/04/14 22:27:16 dgud Exp $
 %%
 
 -module(wpc_autouv).
@@ -616,7 +616,9 @@ handle_event_3({action,{auv,{draw_options,Opt}}}, #st{bb=Uvs}=St) ->
 	    wings_image:window(Id),
 	    get_event(St);
 	_ ->
-	    {GeomSt,MatName} = add_material(Tx, undefined, MatName0, GeomSt0),
+	    {GeomSt,MatName} = 
+		add_material(Tx#e3d_image{name=atom_to_list(MatName0)}, 
+			     undefined, MatName0, GeomSt0),
 	    wings_wm:send(geom, {new_state,GeomSt}),
 	    get_event(St#st{bb=Uvs#uvstate{st=GeomSt,matname=MatName}})
     end;
@@ -1577,7 +1579,8 @@ bg_image() ->
     Orig = binary_to_term(compressed_bg()),
     Pixels = repeat_image(Orig, []),
     Width = Height = 256,
-    #e3d_image{width=Width,height=Height,image=Pixels,order=lower_left}.
+    #e3d_image{width=Width,height=Height,image=Pixels,
+	       order=lower_left,name="auvBG"}.
     
 repeat_image(<<Row:(32*3)/binary,Rest/binary>>, Acc) ->
     repeat_image(Rest,[Row,Row,Row,Row,Row,Row,Row,Row|Acc]);
