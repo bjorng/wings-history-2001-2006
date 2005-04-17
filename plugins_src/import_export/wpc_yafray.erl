@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.97 2005/02/09 20:43:58 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.98 2005/04/17 21:09:59 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -1893,6 +1893,7 @@ light_dialog(_Name, ambient, Ps) ->
 				    ?DEF_BACKGROUND_MAPPING),
     BgPower = proplists:get_value(background_power, Ps, 
 				  ?DEF_BACKGROUND_POWER),
+    BgEnlight = proplists:get_value(background_enlight, Ps, false),
     %%
     Type = proplists:get_value(type, Ps, ?DEF_AMBIENT_TYPE),
     Samples = proplists:get_value(samples, Ps, ?DEF_SAMPLES),
@@ -2000,15 +2001,27 @@ light_dialog(_Name, ambient, Ps) ->
 			 [key(background_filename_image),
 			  {props,BrowsePropsImage}]}}],
 	[hook(open, [member,?KEY(background),image])]},
-       {hframe,[{label,"Exposure Adjust"},
-		{text,BgExpAdj,[key(background_exposure_adjust),
-				range(exposure_adjust)]},
-		{menu,[{"Angular Map",probe},{"Spherical Map",spherical}],
-		 BgMapping,[key(background_mapping)]}],
-	[hook(open, [member,?KEY(background),'HDRI'])]},
-       {hframe,[{label,"Power"},
-		{text,BgPower,[key(background_power),range(power)]}],
-	[hook(open, [member,?KEY(background),image])]},
+       {hframe,
+	[{hframe,[{label,"Exposure Adjust"},
+		  {text,BgExpAdj,[key(background_exposure_adjust),
+				  range(exposure_adjust)]},
+		  {menu,[{"Angular Map",probe},{"Spherical Map",spherical}],
+		   BgMapping,[key(background_mapping)]}],
+	  [hook(open, [member,?KEY(background),'HDRI'])]},
+	 {hframe,[{label,"Power"},
+		  {text,BgPower,[key(background_power),range(power)]}],
+	  [hook(open, [member,?KEY(background),image])]},
+	 {"Enlight",BgEnlight,[key(background_enlight)]}],
+       [hook(open, [member,?KEY(background),'HDRI',image])]},
+%%        {hframe,[{label,"Exposure Adjust"},
+%% 		{text,BgExpAdj,[key(background_exposure_adjust),
+%% 				range(exposure_adjust)]},
+%% 		{menu,[{"Angular Map",probe},{"Spherical Map",spherical}],
+%% 		 BgMapping,[key(background_mapping)]}],
+%% 	[hook(open, [member,?KEY(background),'HDRI'])]},
+%%        {hframe,[{label,"Power"},
+%% 		{text,BgPower,[key(background_power),range(power)]}],
+%% 	[hook(open, [member,?KEY(background),image])]},
        {hframe,[{label,"Color"},
 		{color,BgColor,[key(background_color)]}],
 	[hook(open, [member,?KEY(background),constant])]}],
@@ -2057,11 +2070,11 @@ light_result([_,{?KEY(arealight_samples),_}|_]=Ps) ->
     split_list(Ps, 3);
 %% Ambient
 light_result([{?KEY(type),hemilight}|_]=Ps) ->
-    split_list(Ps, 25);
+    split_list(Ps, 26);
 light_result([{?KEY(type),pathlight}|_]=Ps) ->
-    split_list(Ps, 25);
+    split_list(Ps, 26);
 light_result([{?KEY(type),globalphotonlight}|_]=Ps) ->
-    split_list(Ps, 25);
+    split_list(Ps, 26);
 light_result(Ps) ->
 %    erlang:display({?MODULE,?LINE,Ps}),
     {[],Ps}.
@@ -3038,6 +3051,7 @@ export_light(F, Name, spot, OpenGL, YafRay) ->
 export_light(F, Name, ambient, OpenGL, YafRay) ->
     Type = proplists:get_value(type, YafRay, ?DEF_AMBIENT_TYPE),
     Power = proplists:get_value(power, YafRay, ?DEF_POWER),
+    Bg = proplists:get_value(background, YafRay, ?DEF_BACKGROUND),
     case Type of
 	hemilight when Power > 0.0 ->
 	    println(F,"<light type=\"~w\" name=\"~s\" power=\"~.3f\"", 
@@ -3048,11 +3062,16 @@ export_light(F, Name, ambient, OpenGL, YafRay) ->
 					  ?DEF_BACKGROUND_COLOR),
 	    Samples = proplists:get_value(samples, YafRay, 
 					  ?DEF_SAMPLES),
+	    BgEnlight = proplists:get_value(background_enlight, YafRay, false),
 	    println(F,"       use_QMC=\"~s\" samples=\"~w\">", 
 		    [format(UseQMC),Samples]),
-	    export_rgb(F, color, Ambient),
-	    println(F, "</light>");
-	hemilight -> ok;
+	    if BgEnlight, Bg == 'HDRI';
+	       BgEnlight, Bg == image -> ok; % Skip color tag
+	       true -> export_rgb(F, color, Ambient)
+	    end,
+	    println(F, "</light>"),
+	    Bg;
+	hemilight -> Bg;
 	pathlight when Power > 0.0 ->
 	    println(F,"<light type=\"~w\" name=\"~s\" power=\"~.3f\"", 
 		    [Type,Name,Power]),
@@ -3101,8 +3120,9 @@ export_light(F, Name, ambient, OpenGL, YafRay) ->
 			false -> ok
 		    end
 	    end,
-	    println(F, ">~n</light>", []);
-	pathlight -> ok;
+	    println(F, ">~n</light>", []),
+	    Bg;
+	pathlight -> Bg;
 	globalphotonlight ->
 	    println(F,"<light type=\"~w\" name=\"~s\"", [Type,Name]),
 	    GplPhotons = proplists:get_value(
@@ -3120,9 +3140,9 @@ export_light(F, Name, ambient, OpenGL, YafRay) ->
 	    println(F,"       photons=\"~w\" radius=\"~.3f\" "
 		    "depth=\"~w\" search=\"~w\">", 
 		    [GplPhotons,GplRadius,GplDepth,GplSearch]),
-	    println(F, "</light>")
-    end,
-    proplists:get_value(background, YafRay, ?DEF_BACKGROUND);
+	    println(F, "</light>"),
+	    Bg
+    end;
 export_light(F, Name, area, OpenGL, YafRay) ->
     Color = proplists:get_value(diffuse, OpenGL, {1.0,1.0,1.0,1.0}),
     #e3d_mesh{vs=Vs,fs=Fs0} = proplists:get_value(mesh, OpenGL, #e3d_mesh{}),
@@ -3790,9 +3810,13 @@ help(text, light_dialog) ->
      <<"All other OpenGl properties are ignored, particulary the "
       "Attenuation properties">>,
      <<"YafRay parameters mapping is pretty straightforward - "
-      "the dialog field names should be self-explanatory">>,
-    <<"Note: For a YafRay Global Photon Light (one of the Ambient lights) - "
-     "the Power parameter is ignored">>];
+      "the dialog field names should be self-explanatory except:">>,
+     <<"The Enlight checkbox in a Hemilight with an image background "
+      "activates the background image as ambient light source instead of "
+      "the defined ambient color by excluding the 'color' tag "
+      "from the Hemilight.">>,
+     <<"Note: For a YafRay Global Photon Light (one of the Ambient lights) - "
+      "the Power parameter is ignored">>];
 help(title, pref_dialog) ->
     "YafRay Options";
 help(text, pref_dialog) ->
