@@ -1,4 +1,4 @@
-$Id: AUTHORS,v 1.27 2004/11/30 06:21:28 bjorng Exp $
+$Id: AUTHORS,v 1.28 2005/04/17 17:49:58 bjorng Exp $
 
 Björn Gustavsson:
 	Has written the bulk of code.
@@ -93,6 +93,11 @@ Paul M (elrond79):
 
 Nicolas Bouillard (syndarion):
 	French translation.
+
+
+Andrzej Giniewic, Malgorzata Napiontek, and Krzysztof Giniewicz:
+	Polish translation.
+
 
 Auto-UV credits
 ===============
