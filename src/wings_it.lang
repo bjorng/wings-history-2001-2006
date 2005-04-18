@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_it.lang,v 1.35 2005/04/10 17:40:35 bjorng Exp $
+%%     $Id: wings_it.lang,v 1.36 2005/04/18 18:26:02 bjorng Exp $
 %%
 
 {wings,
@@ -93,8 +93,9 @@
     {3,"Nulla da rimuovere"},
     {4,"Rimuovi tutti gli stati (NON annullabile)?"}]},
   {shape_info,
-   [{1,"L'oggetto ~p \"~s\" ha ~p poligoni, ~p spigoli, ~p vertici.\n"
-     "Il modo e' ~p"},
+   [{object_info,
+     "L'oggetto ~p \"~s\" ha ~p poligoni, ~p spigoli, ~p vertici.\n"
+     "Il modo e' ~s"},
     {2,"~p oggetti, ~p facce, ~p spigoli, ~p vertici"}]},
   {tools_menu,
    [{8,"Allinea"},
@@ -884,10 +885,7 @@
  [{check_radius,
    [{1,"Raggio di influenza troppo corto."}]},
   {common_dialog,
-   [{1,"Il piu' corto"},
-    {2,"P.medio"},
-    {3,"Superficie"},
-    {4,"Percorso di distanza"}]},
+   [{4,"Percorso di distanza"}]},
   {dialog,
    [{1,"Opzioni per i magneti"},
     {2,"Raggio di influenza"},
@@ -895,7 +893,12 @@
   {drag_help,
    [{1,"[+] o [-] Varia il raggio  "}]},
   {info_string,
-   [{1,"Percorso magnete:"}]}]}.
+   [{1,"Percorso magnete:"}]},
+  {magnet_route,
+   [{shortest,"Il piu' corto"},
+    {midpoint,"P.medio"},
+    {surface,"Superficie"}]}
+ ]}.
 {wings_material,
  [{edit,
    [{1,"Proprieta' del materiale: "}]},
@@ -1434,7 +1437,7 @@
    [{1,"Crea un nuovo gruppo"},
     {2,"Nome del gruppo"}]},
   {new_group_name,
-   [{1,"~s gruppo selezione ~p esiste."}]},
+   [{exists,"esiste."}]},
   {sel_all_str,
    [{1,"Tutti i vertici"},
     {2,"Tutti gli spigoli"},
