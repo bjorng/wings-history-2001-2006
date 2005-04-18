@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_fr.lang,v 1.8 2005/04/10 17:40:35 bjorng Exp $
+%%     $Id: wings_fr.lang,v 1.9 2005/04/18 18:29:24 bjorng Exp $
 %%
 
 {wings,
@@ -93,7 +93,7 @@
     {3,"Rien a effacer"},
     {4,"Effacer tous les etats ? (IMPOSSIBLE de FAIRE MARCHE ARRIERE)"}]},
   {shape_info,
-   [{1,"Objet ~p \"~s\" contenant ~p polygones, ~p aretes, ~p points.\nMode est ~p"},
+   [{object_info,"Objet ~p \"~s\" contenant ~p polygones, ~p aretes, ~p points.\nMode est ~s"},
     {2,"~p objets, ~p facettes, ~p aretes, ~p vertices"}]},
   {tools_menu,
    [{8,"Aligner"},
@@ -911,10 +911,7 @@
   {check_radius,
    [{1,"Rayon d'influence trop court."}]},
   {common_dialog,
-   [{1,"Le plus court"},
-    {2,"Moyenne"},
-    {3,"Surface"},
-    {4,"Le plus eloigne"}]},
+   [{4,"Le plus eloigne"}]},
   {dialog,
    [{1,"Options de l'aimant"},
     {2,"Rayon d'influence"},
@@ -922,7 +919,13 @@
   {drag_help,
    [{1,"[+] or [-] Ajuste le rayon  "}]},
   {info_string,
-   [{1,"Chemin de l'aimant:"}]}
+   [{1,"Chemin de l'aimant:"}]},
+  {magnet_route,
+   [
+    {shortest,"Le plus court"},
+    {midpoint,"Moyenne"},
+    {surface,"Surface"}
+   ]}
  ]}.
 {wings_material,
  [
@@ -1486,7 +1489,7 @@
    [{1,"Creer un nouveau groupe"},
     {2,"Le Nom du groupe"}]},
   {new_group_name,
-   [{1,"~s le groupe selectionne ~p existe deja."}]},
+   [{exists,"existe deja."}]},
   {sel_all_str,
    [{1,"Tous les points"},
     {2,"Toutes les aretes"},
