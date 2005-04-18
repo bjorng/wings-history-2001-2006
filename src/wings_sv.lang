@@ -3,12 +3,12 @@
 %%
 %%     Swedish language strings.
 %%
-%%  Copyright (c) 2004 Dan Gudmundsson, Bjorn Gustavsson
+%%  Copyright (c) 2004-2005 Dan Gudmundsson, Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sv.lang,v 1.55 2005/04/10 17:22:57 bjorng Exp $
+%%     $Id: wings_sv.lang,v 1.56 2005/04/18 05:49:26 bjorng Exp $
 %%
 
 {wings,
@@ -85,6 +85,11 @@
     {2,". Avstånd ~s"},
     {3,". Medelpunkt ~s ~s ~s. Längd ~s"},
     {4,". Medelpunkt ~s ~s ~s.\nMaterial ~s"}]},
+  {object_mode,
+   [
+    {material,"material"},
+    {vertex,"punktfärger"}
+   ]},
   {patches,
    [{1,"Använd "}]},
   {purge_undo,
@@ -93,8 +98,8 @@
     {3,"Inget att rensa"},
     {4,"Rensa alla tillstånd (kan inte ångras)?"}]},
   {shape_info,
-   [{1,"Objekt ~p \"~s\" har ~p ytor, ~p kanter, ~p punkter.\n"
-     "Läge är ~p"},
+   [{object_info,"Objekt ~p \"~s\" har ~p ytor, ~p kanter, ~p punkter.\n"
+     "Läge är ~s"},
     {2,"~p objekt, ~p ytor, ~p kanter, ~p punkter"}]},
   {tools_menu,
    [{8,"Arrangera"},
@@ -966,11 +971,8 @@
  [
   {check_radius,
    [{1,"För liten influensradie."}]},
-  {common_dialog,
-   [{1,"Kortast"},
-    {2,"Medelpunkt"},
-    {3,"Yta"},
-    {4,"Vägdistans"}]},
+   {common_dialog,
+    [{4,"Vägdistans"}]},
   {dialog,
    [{1,"Magnetval"},
     {2,"Influensradie"},
@@ -978,8 +980,19 @@
   {drag_help,
    [{1,"[+] eller [-] Justera radie  "}]},
   {info_string,
-   [{1,"Magnetväg:"}]}
- ]}.
+   [{1,"Magnetväg:"}]},
+  {magnet_route,
+   [{shortest,"Kortast"},
+    {midpoint,"Medelpunkt"},
+    {surface,"Yta"}]},
+  {magnet_shape_str,
+   [
+    {bell,"Klocka"},
+    {dome,"Kupol"},
+    {spike,"Tagg"},
+    {straight,"Rakt"}
+   ]}
+  ]}.
 {wings_material,
  [
   {edit,
@@ -993,7 +1006,7 @@
     {6,"Opacity"},
     {7,"OK"}]},
   {load_map_1,
-   [{1,"Ladning fallerade"}]},
+   [{1,"Laddning misslyckades"}]},
   {material_fun,
    [{1,"Sätt existerande material på markerade element"},
     {2,"Skapa och sätt nytt material"}]},
@@ -1428,6 +1441,13 @@
  [
   {ask,
    [{1,"Markera med Id"}]},
+  {group_mode_string,
+   [
+    {body,"Objektmarkeringsgruppen"},
+    {edge,"Kantmarkeringsgruppen"},
+    {face,"Ytmarkeringsgruppen"},
+    {vertex,"Punktmarkeringsgruppen"}
+   ]},
   {group_title,
    [{1,"punkt: "},
     {2,"kant: "},
@@ -1436,7 +1456,7 @@
   {groups_menu,
    [{1,"Ta bort grupp"},
     {2,"Ta bort grupp \""},
-    {4,"Lägg till grupp"},
+    {4,"Lägg till i grupp"},
     {5,"Lägg till nuvarande markering till grupp \""},
     {7,"Subtrahera från grupp"},
     {8,"Subtrahera nuvarande markering från grupp \""},
@@ -1453,7 +1473,7 @@
     {21,"\" från nuvarande markering"}]},
   {item_by_id,
    [{1,"Inget att markera."},
-    {2,"Objekt Id"}]},
+    {2,"Objektid"}]},
   {less_help,
    [{1,"Avmarkera alla punkter som ligger bredvid en omarkerad punkt"},
     {2,"Avmarkera alla kanter som ligger bredvid en omarkerad kant"},
@@ -1526,8 +1546,8 @@
     {74,"Lås objekt som inte är markerade"},
     {75,"Visa alla"},
     {76,"Visa alla objekt som blivigt gömda"},
-    {77,"Låsupp alla"},
-    {78,"Låsupp alla låsta objekt"},
+    {77,"Lås upp alla"},
+    {78,"Lås upp alla låsta objekt"},
     {79,"Spara markering"},
     {80,"Spara markering till grupp med namn \"StoredSelection\""},
     {81,"Ta tillbaka markering"},
@@ -1535,21 +1555,21 @@
     {83,"Ny grupp..."},
     {84,"Skapa en markeringsgrupp"}]},
   {more_help,
-   [{1,"Markera alla punkter nära en markerd punkt"},
+   [{1,"Markera alla punkter nära en markerad punkt"},
     {2,"Markera alla kanter nära en markerad kant"},
     {3,"Markera alla ytor som delar en punkt med en markerad yta"}]},
   {new_group,
-   [{1,"Skapa en nygrupp"},
-    {2,"Grupp namn"}]},
+   [{1,"Skapa en ny grupp"},
+    {2,"Gruppnamn"}]},
   {new_group_name,
-   [{1,"~s markerings gruppen ~p finns redan."}]},
+   [{exists,"finns redan."}]},
   {sel_all_str,
    [{1,"Alla punkter"},
     {2,"Alla kanter"},
     {3,"Alla ytor"},
     {4,"Alla objekt"}]},
   {short_edges,
-   [{1,"Längd tolerans"},
+   [{1,"Längdtolerans"},
     {2,"Markera korta kanter"}]},
   {similar_help,
    [{1,"Markera punkter liknande de som redan är markerade"},
