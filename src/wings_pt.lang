@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pt.lang,v 1.5 2005/04/10 17:40:35 bjorng Exp $
+%%     $Id: wings_pt.lang,v 1.6 2005/04/18 18:33:49 bjorng Exp $
 %%
 
 {wpa,
@@ -699,10 +699,6 @@
     {1,"Criar um Novo Grupo"},
     {2,"Nome do Grupo"}
    ]},
-  {new_group_name,
-   [
-    {1,"~s selection group ~p already exists."}
-   ]},
   {sel_all_str,
    [
     {1,"Todos os Vértices"},
@@ -1342,11 +1338,7 @@
     {1,"Raio de influência muito curto."}
    ]},
   {common_dialog,
-   [
-    {1,"Mais próximo"},
-    {2,"Ponto central"},
-    {3,"Superfície"},
-    {4,"Trajetória"}
+   [{4,"Trajetória"}
    ]},
   {dialog,
    [
@@ -1361,7 +1353,11 @@
   {info_string,
    [
     {1,"Trajetória do Magneto:"}
-   ]}
+   ]},
+  {magnet_route,
+   [{shortest,"Mais próximo"},
+    {midpoint,"Ponto central"},
+    {surface,"Superfície"}]}
  ]}.
 {wings_light,
  [
@@ -2574,7 +2570,8 @@
    ]},
   {shape_info,
    [
-    {1,"Objeto ~p \"~s\" tem ~p polígonos, ~p arestas, ~p vértices.\nModo é ~p"},
+    {object_info,
+     "Objeto ~p \"~s\" tem ~p polígonos, ~p arestas, ~p vértices.\nModo é ~s"},
     {2,"~p objetos, ~p faces, ~p arestas, ~p vértices"}
    ]},
   {tools_menu,
