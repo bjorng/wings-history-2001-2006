@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pl.lang,v 1.2 2005/04/17 17:50:28 bjorng Exp $
+%%     $Id: wings_pl.lang,v 1.3 2005/04/19 05:06:18 bjorng Exp $
 %%
 %%  Translation:  Andrzej Giniewicz
 %%  Correction:   Małgorzata Napiontek
@@ -879,12 +879,12 @@
     {8,"Połóź na"},
     {9," i "},
     {10,"Płaszczyzna"},
-    {11,"Unieś"},
+    {11,"Unieś."},
     {12,"Operacje wektorowe: Masz możliwość wyznaczenia wektora (np.: przekształcenia) i zmiany jego punktu zaczepienia."},
     {13,"Operacje magnetyczne: Technika pozwalająca na dokonywanie łagodnych modyfikacji poprzez wpływ narzędzia również na otaczające elementy. Typ i siła przyciągania mogą być dowolnie dostosowywane."},
     {14,"Operacje wektorowe i magnetyczne mogą być używane jednocześnie."},
     {15,"Jeśli masz włączony zaawansowany tryb menu, wiele komend zachowuje się różnie w zależności od tego którego przycisku myszy użyjesz do włączenia tejże komendy."},
-    {16,"Na przykład naciśnięcie prawym (P) przyciskiem myszy na komendzie Obróć, pozwala ci wybrać kierunek wektora wokół którego chcesz obrócić obiekt, natomiast naciśnięcie środkowym (Ś) pozwala na wybranie kierunku i punktu zaczepienia tegoż wektora (wektor ten nie musi być równoległy do osi), podczas gdy naciśnięcie nań lewym (L) przyciskiem myszy pozwala na wybranie kierunku obrotu spośród osi, wolnego obrotu lub zdefiniowanego wcześniej wektora"},
+    {16,"Na przykład naciśnięcie prawym (P) przyciskiem myszy na komendzie Obróć, pozwala ci wybrać kierunek wektora wokół którego chcesz obrócić obiekt, natomiast naciśnięcie środkowym (Ś) pozwala na wybranie kierunku i punktu zaczepienia tegoż wektora (wektor ten nie musi być równoległy do osi), podczas gdy naciśnięcie nań lewym (L) przyciskiem myszy pozwala na wybranie kierunku obrotu spośród osi, wolnego obrotu lub zdefiniowanego wcześniej wektora."},
     {17,"Na początku bardzo ważne jest dokładne czytanie zawarości linii informacyjnej na dole okna, która podaje dostępne możliwości wywołania danej komendy."}
    ]},
   {def_commands,
