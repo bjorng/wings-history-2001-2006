@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.309 2005/04/14 22:27:16 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.310 2005/04/19 16:58:56 dgud Exp $
 %%
 
 -module(wpc_autouv).
@@ -188,13 +188,21 @@ do_edit(MatName, Mode, #we{id=Id}=We, #st{shapes=Shs0}=GeomSt) ->
     AuvSt = create_uv_state(gb_trees:empty(), MatName, Mode, We, FakeGeomSt),
     new_geom_state(GeomSt, AuvSt).
 
-init_show_maps(Charts0, Fs, #we{name=WeName,id=Id}, GeomSt0) ->
+init_show_maps(Charts0, Fs, OldWe=#we{name=WeName,id=Id}, GeomSt0) ->
     Charts1 = auv_placement:place_areas(Charts0),
-    Charts = gb_trees:from_orddict(keysort(1, Charts1)),
-    Tx = bg_image(),
-    {GeomSt1,MatName} = add_material(Tx, WeName, none, GeomSt0),
+    Charts  = gb_trees:from_orddict(keysort(1, Charts1)),
+    ExistingMats = wings_facemat:used_materials(OldWe),
+    MatName0 = list_to_atom(WeName++"_auv"),
+    {GeomSt1,MatName} = 
+	case lists:member(MatName0,ExistingMats) of
+	    true -> 
+		{GeomSt0,MatName0};
+	    false ->
+		Tx = bg_image(),
+		add_material(Tx, WeName, none, GeomSt0)
+	end,
     GeomSt = insert_initial_uvcoords(Charts, Id, MatName, GeomSt1),
-    EditWin   = {autouv,Id},
+    EditWin = {autouv,Id},
     case wings_wm:is_window(EditWin) of
 	true -> 
 	    wings_wm:send(EditWin, {add_faces,Fs,GeomSt}),
@@ -241,6 +249,7 @@ create_uv_state(Charts, MatName, Fs, We, GeomSt) ->
     wings_wm:later(got_focus),
 
     Win = wings_wm:this(),
+    put({?MODULE,show_background}, true),
     wings:register_postdraw_hook(Win, ?MODULE,
 				 fun draw_background/1),
     wings_wm:menubar(Win, menubar()),
@@ -254,6 +263,11 @@ menubar() ->
 	      [{"Undo/Redo",undo_toggle,"Undo or redo the last command"},
 	       {"Redo",redo,"Redo the last command that was undone"},
 	       {"Undo",undo,"Undo the last command"}]
+      end},
+     {"View",view,
+      fun(_) ->
+	      [{"Show Background Image",toggle_background,
+		"Toggle display of the background texture image"}]
       end},
      {"Select",select,
       fun(St) ->
@@ -472,7 +486,9 @@ command_menu(vertex, X, Y) ->
 	     "Move UV coordinates towards average midpoint",
 	     [magnet]},
 	    separator, 
-	    {"Unfold",lsqcm,"Unfold the chart (without moving the selected vertices)"}
+	    {"Unfold",lsqcm,"Unfold the chart (without moving the selected vertices)"},
+	    {"SphereMap",sphere,"Create a spherical mapping with "
+	     "selected vertices being North/South pole"}
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu);
 command_menu(_, X, Y) ->
@@ -626,8 +642,12 @@ handle_event_3({action,{auv,{remap,Method}}}, St0) ->
     St = remap(Method, St0),
     get_event(St);
 handle_event_3({action,{auv,lsqcm}}, St0) ->
-    St = reunfold(St0),
+    St = reunfold(lsqcm,St0),
     get_event(St);
+handle_event_3({action,{auv,sphere}}, St0) ->
+    St = reunfold(sphere,St0),
+    get_event(St);
+
 
 %% Others
 handle_event_3({vec_command,Command,_St}, _) when is_function(Command) ->
@@ -656,6 +676,11 @@ handle_event_3({action,{edit,undo}}=Act, _) ->
     wings_wm:send(geom, Act);
 handle_event_3({action,{edit,redo}}=Act, _) ->
     wings_wm:send(geom, Act);
+handle_event_3({action,{view,toggle_background}}, _) ->
+    Old = get({?MODULE,show_background}),
+    put({?MODULE,show_background},not Old),
+    wings_wm:dirty();
+
 handle_event_3({action,Ev}, St) ->
     case Ev of
 	{_, {move,_}} ->
@@ -1410,10 +1435,13 @@ stretch(Dir,We) ->
     T = e3d_mat:mul(e3d_mat:translate(Pos), T1),
     wings_we:transform_vs(T, We).
     
-reunfold(#st{sel=Sel,selmode=vertex}=St0) ->
+reunfold(Method,#st{sel=Sel,selmode=vertex}=St0) ->
     %% Check correct pinning.
     Ch = fun(Vs, _, _) ->
 		 case gb_sets:size(Vs) of
+		     N when N /= 2, Method == sphere -> 
+			 E = "Select two vertices, the North and South pole",
+			 wpa:error(E);
 		     N when N < 2 ->
 			 E = "At least two vertices per chart must be pinned",
 			 wpa:error(E);
@@ -1433,7 +1461,7 @@ reunfold(#st{sel=Sel,selmode=vertex}=St0) ->
 			      {S,T,_} = gb_trees:get(V, Vtab),
 			      {V,{S,T}}
 			  end || V <- gb_sets:to_list(Vs)],
-		{remap(lsqcm, Pinned, We, St0),I+1}
+		{remap(Method, Pinned, We, St0),I+1}
 	end,
     {St,_} = wings_sel:mapfold(R, 1, St0),
     wings_pb:done(update_selected_uvcoords(St)).
@@ -1508,7 +1536,7 @@ draw_background(#st{mat=Mats,bb=#uvstate{matname=MatN}}) ->
     gl:enable(?GL_DEPTH_TEST),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
     gl:color3f(1, 1, 1),			%Clear
-    case has_texture(MatN, Mats) of
+    case get({?MODULE,show_background}) andalso has_texture(MatN, Mats) of
 	false -> ok;
 	_ -> wings_material:apply_material(MatN, Mats)
     end,

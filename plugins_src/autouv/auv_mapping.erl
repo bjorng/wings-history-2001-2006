@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_mapping.erl,v 1.70 2005/04/12 23:36:32 dgud Exp $
+%%     $Id: auv_mapping.erl,v 1.71 2005/04/19 16:58:56 dgud Exp $
 %%
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
@@ -94,8 +94,8 @@ spheremap(Chart, Pinned, Loop ={_,BEdges}, We) ->
     Vtab0 = gb_trees:from_orddict(Vs1),
     %% Get poles.
     {{V1,_},{V2,_}} = case Pinned of 
-			  none -> find_pinned_from_edges(Loop,We#we{vp=Vtab0}); % find_poles(Loop,We#we{vp=Vtab0});
-			  _ -> Pinned
+			  none -> find_pinned_from_edges(Loop,We#we{vp=Vtab0}); 
+			  [P1,P2] -> {P1,P2}
 		      end,
     V1p = gb_trees:get(V1,Vtab0),
     V2p = gb_trees:get(V2,Vtab0),
@@ -151,23 +151,6 @@ spheremap(Chart, Pinned, Loop ={_,BEdges}, We) ->
 		end
 	end,
     lists:map(Proj, Vs).
-
-%clamp_near_zero(Z) when Z < 1.0e-5, Z > -1.0e-5 -> 0.0;
-%clamp_near_zero(Z) -> Z.     
-
-find_poles(Loop={_,BEdges}, We=#we{name=#ch{vmap=Vmap}}) ->
-    Mapped = [{auv_segment:map_vertex(V,Vmap),V} || #be{vs=V} <- BEdges],
-    case uncut_verts(lists:sort(Mapped),[]) of
-	[V1,V2] -> {{V1,ignore},{V2,ignore}};
-	_ -> 
-	    find_pinned_from_edges(Loop,We)
-    end.
-
-uncut_verts([{V1,_},{V1,_}|R],Acc) ->
-    uncut_verts(R,Acc);
-uncut_verts([{_,V}|R],Acc) ->
-    uncut_verts(R,[V|Acc]);
-uncut_verts([],Acc) -> Acc.
 
 projectFromChartNormal(Chart, We) ->
     Normal = chart_normal(Chart,We),
