@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.310 2005/04/19 16:58:56 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.311 2005/04/20 21:34:22 dgud Exp $
 %%
 
 -module(wpc_autouv).
@@ -804,7 +804,17 @@ handle_command({flatten, Plane}, St0 = #st{selmode=vertex}) ->
     St = update_selected_uvcoords(St1),
     get_event(St);
 handle_command(stitch, St0 = #st{selmode=edge}) ->
-    St1 = stitch(St0),
+    Es = wpa:sel_fold(fun(Es,We=#we{name=#ch{emap=Emap},es=Etab},A) ->
+			      Vis = gb_sets:from_list(wings_we:visible(We)),
+			      [auv_segment:map_edge(E,Emap)
+			       || E<-gb_sets:to_list(Es),
+				  begin 
+				      #edge{lf=LF,rf=RF}=gb_trees:get(E,Etab),
+				      border(gb_sets:is_member(LF,Vis),
+					       gb_sets:is_member(RF,Vis))
+				  end] ++ A
+		      end, [], St0),
+    St1 = stitch(Es,St0),
     AuvSt = #st{bb=#uvstate{id=Id,st=Geom}} = update_selected_uvcoords(St1),
     %% Do something here, i.e. restart uvmapper.
     St = rebuild_charts(gb_trees:get(Id,Geom#st.shapes), AuvSt, []),
@@ -936,41 +946,113 @@ delete_charts(#st{shapes=Shs0}=St0) ->
 		       end, Shs0, St),
     St#st{shapes=Shs,sel=[]}.
 
-stitch(St0) ->
-    Map0 = wpa:sel_fold(fun(Es,#we{id=Id,name=#ch{emap=Emap}},A) ->
-				[{auv_segment:map_edge(E,Emap),{Id,E}}
-				 || E<-gb_sets:to_list(Es)] ++ A
-			end, [], St0),
-    Map1 = sofs:to_external(sofs:relation_to_family(sofs:relation(Map0))),
-    foldl(fun stitch/2, St0, Map1).
+border(false,true) -> true;
+border(true,false) -> true;
+border(_,_) -> false.
 
-stitch({_E, [_]}, St) -> St; %% Both edges not selected ignore
-stitch({_E, [{Id,E1id},{Id,E2id}]},St0 = #st{shapes=Sh0}) -> %% Same We
-    We = #we{name=#ch{vmap=Vmap},es=Etab,vp=Vpos0} = gb_trees:get(Id,Sh0),
-    #edge{vs=Vs1,ve=Ve1} = gb_trees:get(E1id,Etab),
-    #edge{vs=Vs2,ve=Ve2} = gb_trees:get(E2id,Etab),
-    Vs1map = auv_segment:map_vertex(Vs1, Vmap),
-    Same = case auv_segment:map_vertex(Vs2, Vmap) of
-	       Vs1map -> [{Vs1,Vs2},{Ve1,Ve2}];
-	       _ -> [{Vs1,Ve2},{Ve1,Vs2}]
-	   end,
+stitch(WEs,St0) ->
+    Mapped0 = map_edges(WEs,St0),
+    %% 1st pass take care and remove all chart-internal cuts.
+    {Mapped1,St1} = stitch_edges(Mapped0, St0, []),
+    %% Cluster all edges between 2 charts together
+    ChartStitches = cluster_chart_moves(lists:keysort(2,Mapped1),undef,[],[]),
+    %% 2nd pass take care of chart stitches
+    stitch_charts(ChartStitches,gb_sets:empty(),St1).
+
+stitch_edges([{_E,{Id,_,{Vs1,Ve1}},{Id,_,{Vs2,Ve2}}}|Rest],
+	     St0=#st{shapes=Sh0},Acc) -> 
+    %% Same We do the internal stiches
+    We = #we{vp=Vpos0} = gb_trees:get(Id,Sh0),
+    Same = [{Vs1,Vs2},{Ve1,Ve2}],
     Vpos = average_pos(Same, Vpos0),
-    St0#st{shapes = gb_trees:update(Id, We#we{vp=Vpos}, Sh0)};
+    St = St0#st{shapes = gb_trees:update(Id, We#we{vp=Vpos}, Sh0)},
+    stitch_edges(Rest,St,Acc);
+stitch_edges([Other|Rest], St, Acc) ->
+    stitch_edges(Rest,St,[Other|Acc]);
+stitch_edges([],St,Acc) -> {Acc,St}.
 
-stitch({_E, [{Id1,E1id},{Id2,E2id}]}, St0 = #st{shapes=Sh0}) -> % Merge Charts
-    We1 = #we{name=#ch{vmap=Vmap1},es=Etab1,vp=Vpos1} = gb_trees:get(Id1,Sh0),
-    We2 = #we{name=#ch{vmap=Vmap2},es=Etab2,vp=Vpos2} = gb_trees:get(Id2,Sh0),
-    #edge{vs=Vs1,ve=Ve1} = gb_trees:get(E1id,Etab1),
-    #edge{vs=Vs2,ve=Ve2} = gb_trees:get(E2id,Etab2),
-    Vs1map = auv_segment:map_vertex(Vs1, Vmap1),
-    Same = case auv_segment:map_vertex(Vs2, Vmap2) of
-	       Vs1map -> [{Vs1,Vs2},{Ve1,Ve2}];
-	       _ -> [{Vs1,Ve2},{Ve1,Vs2}]
-	   end,
+stitch_charts([],_,St0) -> St0;
+stitch_charts([[]|Rest],Moved,St0) -> 
+    stitch_charts(Rest,Moved,St0);
+stitch_charts([ChartStitches|Other],Moved,St0=#st{shapes=Sh0}) ->
+    {Id1,Id2,{Vs1,Ve1,Vs2,Ve2}} = find_longest_dist(ChartStitches, St0),
+    #we{vp=Vpos1}=gb_trees:get(Id1,Sh0),
+    We2_0 = #we{vp=Vpos2}=gb_trees:get(Id2,Sh0),
+    Vs1P = gb_trees:get(Vs1,Vpos1),Ve1P = gb_trees:get(Ve1,Vpos1),
+    Vs2P = gb_trees:get(Vs2,Vpos2),Ve2P = gb_trees:get(Ve2,Vpos2),
+    C1 = e3d_vec:average(Vs1P,Ve1P),
+    C2 = e3d_vec:average(Vs2P,Ve2P),
+    Dist = e3d_vec:sub(C1,C2),
+    Deg0 = (x_rad(Vs1P,Ve1P) - x_rad(Vs2P,Ve2P)) * 180.0/math:pi(),
+    Deg = if abs(Deg0) < 90.0 -> Deg0;
+	     true -> Deg0 + 180
+	  end,
+    %% Do we translate the correct chart BUGBUG !!!!!!!!!!!!!
+    We2_1 = rotate_chart(-Deg,C2,We2_0),
+    T = e3d_mat:translate(Dist),
+    %% io:format("Rotate ~p Dist ~p ~n~p~n", [-Deg,Dist,{Vs1,Ve1,Vs2,Ve2}]),
+    %% BUGBUG Fixme we may have an inverted Chart here..
+    We2 = wings_we:transform_vs(T, We2_1),
+    Sh  = gb_trees:update(Id2, We2, Sh0),
+    St = foldl(fun stitch_charts2/2, St0#st{shapes=Sh}, ChartStitches),
+%%    St = St0#st{shapes=Sh},
+    stitch_charts(Other, Moved, St).
+    
+stitch_charts2({_E,{Id1,E1,{Vs1,Ve1}},{Id2,E2,{Vs2,Ve2}}}, 
+	       St0=#st{shapes=Sh0,sel=Sel}) ->
+    We1 = #we{vp=Vpos1} = gb_trees:get(Id1,Sh0),
+    We2 = #we{vp=Vpos2} = gb_trees:get(Id2,Sh0),
+    Same = [{Vs1,Vs2},{Ve1,Ve2}],
     {Vp1,Vp2} = average_pos(Same, Vpos1, Vpos2),
     Sh1 = gb_trees:update(Id1, We1#we{vp=Vp1}, Sh0),
     Sh  = gb_trees:update(Id2, We2#we{vp=Vp2}, Sh1),
-    St0#st{shapes = Sh}.
+    St0#st{shapes = Sh, sel=add_sel([{Id1,E1},{Id2,E2}],Sel)}.
+
+add_sel([{Id,Edge}|R],Sel) ->
+    case lists:keysearch(Id,1,Sel) of
+	{value, {Id,Set}} ->
+	    add_sel(R, lists:keyreplace(Id, 1, Sel, {Id,gb_sets:add(Edge,Set)}));
+	false ->
+	    add_sel(R, [{Id,gb_sets:singleton(Edge)}|Sel])
+    end;
+add_sel([],Sel) -> Sel.
+
+x_rad({X1,Y1,_},{X2,Y2,_}) ->
+    math:atan2(Y2-Y1,X2-X1).
+
+find_longest_dist([{_,{Id1,_,{Vs1,Ve1}},{Id2,_,{Vs2,Ve2}}}|Rest],#st{shapes=Sh}) ->
+    %% Need to find a vector to use as basis to rotate the other chart to
+    %% we grab the longest distance between to verts of chart1
+    #we{vp=Vpos} = gb_trees:get(Id1,Sh),
+    Dist = e3d_vec:dist(gb_trees:get(Vs1,Vpos),gb_trees:get(Ve1,Vpos)),
+    {Id1,Id2,find_longest_dist(Rest,Dist,Vs1,Ve1,Vs2,Ve2,Vpos)}.
+
+find_longest_dist([],_Dist,Bs1,Be1,Bs2,Be2,_Vpos) -> {Bs1,Be1,Bs2,Be2};
+find_longest_dist([This|Rest],Dist,Bs1,Be1,Bs2,Be2,Vpos) ->
+    {_,{_,_,{Vs1,Ve1}},{_,_,{Vs2,Ve2}}} = This,
+    Dist1 = e3d_vec:dist(gb_trees:get(Vs1,Vpos),gb_trees:get(Be1,Vpos)),
+    Dist2 = e3d_vec:dist(gb_trees:get(Vs1,Vpos),gb_trees:get(Bs1,Vpos)),
+    Dist3 = e3d_vec:dist(gb_trees:get(Ve1,Vpos),gb_trees:get(Be1,Vpos)),
+    Dist4 = e3d_vec:dist(gb_trees:get(Ve1,Vpos),gb_trees:get(Bs1,Vpos)),
+    if (Dist1>Dist),(Dist1>Dist2),(Dist1>Dist3),(Dist1>Dist4) ->
+	    find_longest_dist(Rest,Dist1,Vs1,Be1,Vs2,Be2,Vpos);
+       (Dist2>Dist),(Dist2>Dist3),(Dist2>Dist4) ->
+	    find_longest_dist(Rest,Dist2,Vs1,Bs1,Vs2,Bs2,Vpos);
+       (Dist3>Dist),(Dist3>Dist4) ->
+	    find_longest_dist(Rest,Dist3,Ve1,Be1,Ve2,Be2,Vpos);
+       (Dist4>Dist) ->
+	    find_longest_dist(Rest,Dist4,Ve1,Bs1,Ve2,Bs2,Vpos)
+    end.
+
+%%%% BUGBUG This is buggy FIX (it isn't sure that Id2 is in order %%
+cluster_chart_moves([EM={_,{Id1,_,_},{Id2,_,_}}|R],{Id1,Id2},Curr,All) ->
+    cluster_chart_moves(R,{Id1,Id2},[EM|Curr],All);
+cluster_chart_moves([EM={_,{Id1,_,_},{Id2,_,_}}|R],_,Prev,All) ->
+    cluster_chart_moves(R,{Id1,Id2},[EM],[Prev|All]);
+cluster_chart_moves([[]|R],P0,P1,All) ->
+    cluster_chart_moves(R,P0,P1,All);
+cluster_chart_moves([],_,Prev,All) ->
+    [Prev|All].
 
 average_pos([{V1,V2}|R], Vpos0) ->
     Pos = e3d_vec:average(gb_trees:get(V1,Vpos0),gb_trees:get(V2,Vpos0)),
@@ -988,23 +1070,13 @@ average_pos([],Vpos1,Vpos2) -> {Vpos1,Vpos2}.
 
 displace_cuts(SelEs,St=#st{shapes=Sh,bb=#uvstate{id=WeId,st=#st{shapes=GSh}}})->
     Elinks = wings_edge_loop:partition_edges(SelEs,gb_trees:get(WeId,GSh)),
-    AuvEdsGroups = [edge_sel_to_edge(gb_trees:to_list(Sh),Es,[]) || Es <- Elinks],
-    %% AuvEdsGroups = [[{id,auv_eds},..], [{id,auv_eds},..]]
-    MapEds = fun({Id,Es},A) ->
-		     #we{name=#ch{emap=Emap}} = gb_trees:get(Id,Sh),
-		     [{auv_segment:map_edge(E,Emap),{Id,E}}
-		      || E<-gb_sets:to_list(Es)] ++ A
-	     end,
-    MapAndClusterEds =
-	fun(AuvEds) ->
-		Mapped = foldl(MapEds, [], AuvEds),
-		sofs:to_external(sofs:relation_to_family(sofs:relation(Mapped)))
-	end,
-    Remapped = [MapAndClusterEds(EdgeGroup) || EdgeGroup <- AuvEdsGroups],
+    Remapped = [map_edges(Elink,St) || Elink <- Elinks],
     %% Remapped = [[{GeomEdge, [{AuvWeId,AuvEdge1},{AuvWeId2,AuvEdge2}]},..]
     Displaced = foldl(fun displace_cuts1/2, Sh, Remapped),
     %% Update selection to all new edges
-    Sel0 = lists:append([WeEds || {_,WeEds} <- lists:append(Remapped)]),
+    Sel0 = lists:append([[{Id1,E1},{Id2,E2}] || 
+			    {_,{Id1,E1,_},{Id2,E2,_}} 
+				<- lists:append(Remapped)]),
     Sel1 = sofs:to_external(sofs:relation_to_family(
 			      sofs:relation(Sel0))),
     Sel = [{Id,gb_sets:from_ordset(Eds)} || {Id,Eds} <- Sel1],
@@ -1014,16 +1086,10 @@ displace_cuts1(Eds, Sh0) ->
     Sh1 = displace_edges(Eds,Sh0),
     displace_charts(Eds,gb_sets:empty(),Sh1).
 
-displace_edges([{_,[{Id,Edge1},{Id,Edge2}]}|Eds], Sh) ->
-    We = #we{name=#ch{vmap=Vmap},es=Etab,vp=Vpos0} = gb_trees:get(Id,Sh),
-    #edge{vs=Vs1,ve=Ve1} = gb_trees:get(Edge1,Etab),
-    #edge{vs=Vs2,ve=Ve2} = gb_trees:get(Edge2,Etab),
+displace_edges([{_,{Id,Edge1,{Vs1,Ve1}},{Id,_,{Vs2,Ve2}}}|Eds], Sh) ->
+    We = #we{vp=Vpos0} = gb_trees:get(Id,Sh),
     %% Get the vertices
-    Vs1map = auv_segment:map_vertex(Vs1, Vmap),
-    Same = case auv_segment:map_vertex(Vs2, Vmap) of
-	       Vs1map -> [{Vs1,Vs2},{Ve1,Ve2}];
-	       _ -> [{Vs1,Ve2},{Ve1,Vs2}]
-	   end,   
+    Same = [{Vs1,Vs2},{Ve1,Ve2}],
     Vs = [{V1,V2} || {V1,V2} <- Same,
 		     V1 /= V2,
 		     gb_trees:get(V1,Vpos0) == gb_trees:get(V2,Vpos0)],
@@ -1047,9 +1113,9 @@ displace_edges([_Skip|Eds], Sh) ->
 displace_edges([],Sh) -> Sh.
 
 displace_charts([],_,Sh) -> Sh;
-displace_charts([{_,[{Id,_},{Id,_}]}|Eds],Moved,Sh) ->
+displace_charts([{_,{Id,_,_},{Id,_,_}}|Eds],Moved,Sh) ->
     displace_charts(Eds,Moved,Sh);
-displace_charts([{_,[{Id1,_},{Id2,_}]}|Eds], Moved, Sh) ->
+displace_charts([{_,{Id1,_,_},{Id2,_,_}}|Eds], Moved, Sh) ->
     case gb_sets:is_member(Id1,Moved) or gb_sets:is_member(Id2,Moved) of
 	true -> displace_charts(Eds,Moved,Sh);
 	false ->
@@ -1079,6 +1145,31 @@ displace_dirs(Dist,Edge1,We = #we{es=Etab,vp=Vpos}) ->
 	false -> reverse(Moves)
     end.
 
+%% Create a mapping from wings_edges to autouv edges.
+%% Res is [{GeomEdge, {AuvWeId,AuvEdge1,{E1Vs,E1Ve}},{AuvWeId2,AuvEdge2,..}},..]
+map_edges(WingsEs,#st{shapes=Sh}) ->
+    AuvEds = edge_sel_to_edge(gb_trees:to_list(Sh),WingsEs,[]),
+    %% AuvEds = [{id,auv_eds},..], [{id,auv_eds},..]
+    MapEds = fun({Id,Es},A) ->
+		     #we{name=#ch{emap=Emap}} = gb_trees:get(Id,Sh),
+		     [{auv_segment:map_edge(E,Emap),{Id,E}}
+		      || E<-gb_sets:to_list(Es)] ++ A
+	     end,
+    Mapped0 = foldl(MapEds, [], AuvEds),
+    Mapped = sofs:to_external(sofs:relation_to_family(sofs:relation(Mapped0))),
+    lists:map(
+      fun({E,[{Id1,E1},{Id2,E2}]}) ->
+	      #we{name=#ch{vmap=Vmap1},es=Etab1}=gb_trees:get(Id1,Sh),
+	      #we{name=#ch{vmap=Vmap2},es=Etab2}=gb_trees:get(Id2,Sh),
+	      #edge{vs=Vs1,ve=Ve1} = gb_trees:get(E1,Etab1),
+	      #edge{vs=Vs2,ve=Ve2} = gb_trees:get(E2,Etab2),
+	      Vs1map = auv_segment:map_vertex(Vs1, Vmap1),
+	      case auv_segment:map_vertex(Vs2, Vmap2) of
+		  Vs1map -> {E,{Id1,E1,{Vs1,Ve1}},{Id2,E2,{Vs2,Ve2}}};
+		  _ ->      {E,{Id1,E1,{Vs1,Ve1}},{Id2,E2,{Ve2,Vs2}}}
+	      end
+      end, Mapped).
+	      
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 drag_filter({image,_,_}) ->
     {yes,"Drop: Change the texture image"};
