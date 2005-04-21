@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_seg_ui.erl,v 1.36 2005/04/13 19:09:51 dgud Exp $
+%%     $Id: auv_seg_ui.erl,v 1.37 2005/04/21 20:25:19 dgud Exp $
 %%
 
 -module(auv_seg_ui).
@@ -128,6 +128,7 @@ mappers() ->
      {"Projection Normal",project},
      {"Projection Camera",camera},
      {"Sphere Map",sphere}
+%%     ,{"Cylindrical Map",cyl}
     ].
 -else.
 seg_debug(Tail) ->

@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_mapping.erl,v 1.71 2005/04/19 16:58:56 dgud Exp $
+%%     $Id: auv_mapping.erl,v 1.72 2005/04/21 20:25:19 dgud Exp $
 %%
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
@@ -82,10 +82,11 @@ map_chart_1(Type, Chart, Loop, Options, We) ->
 
 map_chart_2(project, C, _, _, We) ->    projectFromChartNormal(C, We);
 map_chart_2(camera, C, _, Dir, We) ->   projectFromCamera(C, Dir, We);
-map_chart_2(sphere,C, Loop, Pinned, We) -> spheremap(C, Pinned, Loop,We);
+map_chart_2(sphere,C, Loop, Pinned, We) -> spheremap(sphere,C, Pinned, Loop,We);
+map_chart_2(cyl,C, Loop, Pinned, We) -> spheremap(cyl,C, Pinned, Loop,We);
 map_chart_2(lsqcm, C, Loop, Pinned, We) -> lsqcm(C, Pinned, Loop, We).
 
-spheremap(Chart, Pinned, Loop ={_,BEdges}, We) ->
+spheremap(Type,Chart, Pinned, Loop ={_,BEdges}, We) ->
     %% Rotates to +Z axis
     ChartNormal = chart_normal(Chart,We),
     Vs0 = wings_face:to_vertices(Chart, We),
@@ -105,46 +106,57 @@ spheremap(Chart, Pinned, Loop ={_,BEdges}, We) ->
 	end,
     %% Center and rotate chart so poles are at Y=1.0 and -1.0,
     Center = e3d_vec:average(NPolePos,SPolePos),
+    Dist   = e3d_vec:dist(NPolePos,SPolePos),
     {UpX,UpY,UpZ} = e3d_vec:norm(e3d_vec:sub(NPolePos,Center)),
     %%    ZAngle = math:acos(e3d_vec:dot(e3d_vec:norm({UpX,UpY,0.0}),{0.0,1.0,0.0})),
     ZAngle = math:atan2(UpX,UpY),
     Rot0   = e3d_mat:rotate(ZAngle*180/math:pi(), {0.0,0.0,1.0}),
     XAngle = math:atan2(UpZ,UpY),
     Rot1   = e3d_mat:rotate(XAngle*180/math:pi(), {1.0,0.0,0.0}),
-%     io:format("Center ~p is of ~p~n  ~p~n",[Center,{V1,V2},{NPolePos,SPolePos}]),
-%     io:format("Angle is ~p @Z ~p @X degrees and CN ~p ~n",
-% 	      [ZAngle*180/math:pi(),XAngle*180/math:pi(),ChartNormal]),
-    Transl = e3d_mat:translate(e3d_vec:neg(Center)),
+%%     io:format("Center ~p is of ~p~n  ~p~n",[Center,{V1,V2},{NPolePos,SPolePos}]),
+%%     io:format("Angle is ~p @Z ~p @X degrees and CN ~p ~n",
+%%  	      [ZAngle*180/math:pi(),XAngle*180/math:pi(),ChartNormal]),
+    CenterPos = case Type of
+		    sphere -> Center;
+		    cyl -> wings_vertex:center(We#we{vp=Vtab0})
+		end,
+    Transl = e3d_mat:translate(e3d_vec:neg(CenterPos)),
     Transf = e3d_mat:mul(Rot1,e3d_mat:mul(Rot0, Transl)),
-    Vs = [{V,e3d_vec:norm(e3d_mat:mul_point(Transf,Pos))} || {V,Pos} <- Vs1],
+    Vs = [{V,e3d_mat:mul_point(Transf,Pos)} || {V,Pos} <- Vs1],
 
-%     io:format("Npole ~p~n", [e3d_vec:norm(e3d_mat:mul_point(Transf,NPolePos))]),
-%     io:format("Spole ~p~n", [e3d_vec:norm(e3d_mat:mul_point(Transf,SPolePos))]),
+%%     io:format("Npole ~p~n", [e3d_vec:norm(e3d_mat:mul_point(Transf,NPolePos))]),
+%%     io:format("Spole ~p~n", [e3d_vec:norm(e3d_mat:mul_point(Transf,SPolePos))]),
     %% Check the border vertices positions should they be mapped on X= -1 or X=1
     Vtab1 = gb_trees:from_orddict(Vs), 
     TempWe = We#we{vp=Vtab1},
     BorderVs0 = 
 	lists:map(fun(#be{vs=VS,ve=VE,face=Face}) -> 
-			  {X0,_,Z} = gb_trees:get(VS,Vtab1),
-			  {X1,_,_} = gb_trees:get(VE,Vtab1),
+			  {X0,_,Z} = e3d_vec:norm(gb_trees:get(VS,Vtab1)),
+			  {X1,_,_} = e3d_vec:norm(gb_trees:get(VE,Vtab1)),
 			  X = (X0+X1)/2,
 			  {FX,_,_} = wings_face:center(Face,TempWe),
 			  R=if  Z < 0.0, FX < 0, X > -0.0005 -> {VS,{x,-1.0}};
 				Z < 0.0, FX > 0, X < 0.0005 -> {VS,{x,1.0}};
 				true -> {VS,calc}
 			    end,
-% 			  io:format("X = ~p FX=~p => ~p ~n",[X,FX,R]),
+ 			  %%io:format("X = ~p FX=~p => ~p ~n",[X,FX,R]),
 			  R
 		  end, BEdges),
     BorderVs = gb_trees:from_orddict(lists:sort(BorderVs0)),
     Proj =
 	fun({V,_}) when V == North -> {V,{0.0,0.5,0.0}};
 	   ({V,_}) when V == South -> {V,{0.0,-0.5,0.0}};
-	   ({V,{X0,Y0,Z0}}) ->
-		T = math:acos(-Y0)/math:pi()-0.5,
+	   ({V,Pos = {_,YC,_}}) ->
+		{X0,Y0,Z0} = e3d_vec:norm(Pos),
+		T = case Type of 
+			sphere -> math:acos(-Y0)/math:pi()-0.5;
+			cyl -> 
+			    %%io:format("~p ~p ~p~n", [V,YC,YC/Dist]),
+			    YC/Dist
+		    end,
 		case gb_trees:lookup(V,BorderVs) of
-		    {value, {x, S}} -> 
-%%			io:format("Border ~p ~n", [V]),
+		    {value, {x, S}} when Type == sphere -> 
+			%%io:format("Border ~p ~n", [V]),
 			{V,{S,T,0.0}};
 		    _ ->
 			{V,{math:atan2(X0,Z0)/math:pi(),T,0.0}}
@@ -302,7 +314,7 @@ find_pinned_from_edges({Circumference, BorderEdges}, #we{vp=Vtab}) ->
     find_pinned_from_edges2(First,[Second],Third,RestOfEdges,First,Dist,HCC,Left,Right,POS,Best).
 
 find_pinned_from_edges2(_S,_LVs,Start,_,Start,_Dist,_HCC,_Left0,_Right0,_POS,{{V1,_},{V2,_},_Best}) ->
-    io:format("Pinned ~p ~p ~p~n", [V1,V2,_Best]),
+    %%io:format("Pinned ~p ~p ~p~n", [V1,V2,_Best]),
     {{V1,{0.0,0.0}},{V2,{1.0,1.0}}};
 find_pinned_from_edges2(S,LVs,E,[Next|RVs],Start,Dist,HCC,Left0,Right0,POS,Best0)
   when Dist < HCC ->

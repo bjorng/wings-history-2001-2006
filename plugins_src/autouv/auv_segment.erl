@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.77 2005/03/23 16:12:03 dgud Exp $
+%%     $Id: auv_segment.erl,v 1.78 2005/04/21 20:25:19 dgud Exp $
 
 -module(auv_segment).
 
@@ -713,16 +713,14 @@ cut_one_chart(Keep0, Cuts, We0) ->
     Map0 = gb_trees:empty(),
     {We1,Map1} = cut_shared_vertices(Keep, OuterEdges, We0, Map0),
     {We2,Vmap} = cut_edges(Keep0, InnerEdges, Cuts, We1, Map1),
-
-    %% Create edge map and finish We.
-    Me = wings_we:new_items_as_ordset(edge, We1, We2),
-    Emap = make_emap(Me, Vmap, We0, We2, []),
-    We3 = We2#we{name=#ch{vmap=Vmap,me=Me,emap=Emap}},
-
     %% Dissolve unneeded faces and also hide them.
-    #we{fs=Ftab} = We = wpa:face_dissolve_complement(Keep0, We3),
+    #we{fs=Ftab} = We3 = wpa:face_dissolve_complement(Keep0, We2),
     Hidden = ordsets:subtract(gb_trees:keys(Ftab), Keep0),
-    wings_we:hide_faces(Hidden, We).
+    We4 = wings_we:hide_faces(Hidden, We3),
+    %% Create edge map and finish We.
+    Me = wings_we:new_items_as_ordset(edge, We1, We4),
+    Emap = make_emap(Me, Vmap, We0, We4, []),
+    We4#we{name=#ch{vmap=Vmap,me=Me,emap=Emap}}.
 
 make_emap([ME|T], Vmap, We0, #we{es=Etab}=We, Acc) ->
     case gb_trees:lookup(ME, Etab) of
