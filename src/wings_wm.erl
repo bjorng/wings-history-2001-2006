@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.152 2005/03/26 07:28:15 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.153 2005/04/23 16:52:18 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -207,7 +207,7 @@ new(Name, {X,Y,Z0}, {W,H}, Op) when is_integer(X), is_integer(Y),
 				    is_integer(W), is_integer(H) ->
     Z = new_resolve_z(Z0),
     Stk = handle_response(Op, dummy_event, default_stack(Name)),
-    Props = gb_trees:from_orddict([{font,wings_pref:get_value(system_font)}]),
+    Props = gb_trees:from_orddict([{font,wings_pref:get_value(new_system_font)}]),
     Win = #win{x=X,y=Y,z=Z,w=W,h=H,name=Name,stk=Stk,props=Props},
     put(wm_windows, gb_trees:insert(Name, Win, get(wm_windows))),
     dirty().

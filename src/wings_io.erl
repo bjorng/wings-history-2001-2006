@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.136 2005/03/26 07:53:07 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.137 2005/04/23 16:52:17 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -247,10 +247,10 @@ gradient_rect(X, Y, W, H, Color) ->
 use_font(Font, Fun) ->
     case wings_wm:this() of
 	none ->
-	    OldFont = wings_pref:get_value(system_font),
-	    wings_pref:set_value(system_font, Font),
+	    OldFont = wings_pref:get_value(new_system_font),
+	    wings_pref:set_value(new_system_font, Font),
 	    Res = Fun(),
-	    wings_pref:set_value(system_font, OldFont),
+	    wings_pref:set_value(new_system_font, OldFont),
 	    Res;
 	This ->
 	    OldFont = wings_wm:get_prop(This, font),

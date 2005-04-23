@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_console.erl,v 1.8 2005/04/12 17:29:54 bjorng Exp $
+%%     $Id: wings_console.erl,v 1.9 2005/04/23 16:52:17 bjorng Exp $
 %%
 
 -module(wings_console).
@@ -174,7 +174,7 @@ do_window(Name) ->
     Height0 = wings_pref:get_value(console_height),
     wings_wm:delete(Name),
     {X1,_,W1,H1} = wings_wm:viewport(desktop),
-    Font = wings_pref:get_value(console_font),
+    Font = wings_pref:get_value(new_console_font),
     CwLh = wings_io:use_font(Font, fun() -> {?CHAR_WIDTH,?LINE_HEIGHT} end),
     {Cw,Lh} = CwLh,
     Sw = wings_wm:vscroller_width(),
@@ -187,7 +187,7 @@ do_window(Name) ->
     do_window(Name, Font, CwLh, PosUR, Size).
 
 do_window(Name, Pos, Size) ->
-    Font = wings_pref:get_value(console_font),
+    Font = wings_pref:get_value(new_console_font),
     CwLh = wings_io:use_font(Font, fun() -> {?CHAR_WIDTH,?LINE_HEIGHT} end),
     do_window(Name, Font, CwLh, Pos, Size).
 

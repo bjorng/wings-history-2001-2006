@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_text.erl,v 1.32 2005/04/12 06:16:44 bjorng Exp $
+%%     $Id: wings_text.erl,v 1.33 2005/04/23 16:52:18 bjorng Exp $
 %%
 
 -module(wings_text).
@@ -26,10 +26,10 @@
 init() ->
     ets:new(wings_fonts, [named_table,ordered_set]),
     load_fonts(),
-    verify_font(system_font),
-    verify_font(console_font),
-    wings_pref:set_default(system_font, '7x14'),
-    wings_pref:set_default(console_font, 'fixed7x14').
+    verify_font(new_system_font),
+    verify_font(new_console_font),
+    wings_pref:set_default(new_system_font, '7x14'),
+    wings_pref:set_default(new_console_font, 'fixed7x14').
 
 resize() ->
     %% Force rebuild of display lists next time each font
@@ -106,7 +106,7 @@ bold(S) ->
 current_font() ->
     case wings_wm:this() of
 	none ->
-	    FontKey = wings_pref:get_value(system_font),
+	    FontKey = wings_pref:get_value(new_system_font),
 	    [{_,Font,_}] = ets:lookup(wings_fonts, FontKey),
 	    Font;
 	This ->

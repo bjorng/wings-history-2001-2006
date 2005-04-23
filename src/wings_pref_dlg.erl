@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref_dlg.erl,v 1.4 2005/04/10 16:55:06 bjorng Exp $
+%%     $Id: wings_pref_dlg.erl,v 1.5 2005/04/23 16:52:17 bjorng Exp $
 %%
 
 -module(wings_pref_dlg).
@@ -158,7 +158,7 @@ ui_prefs() ->
     {hframe,
      [{vframe,
        [{vframe,
-	 [{menu,Fonts,system_font}],
+	 [{menu,Fonts,new_system_font}],
 	 [{title,?__(1,"System Font")}]},
 	{hframe,
 	 [{vframe,
@@ -193,7 +193,7 @@ ui_prefs() ->
 	 [{menu,Langs,language}],
 	 [{title,?__(23,"Language")}]},
 	{vframe,
-	 [{menu,Fonts,console_font}],
+	 [{menu,Fonts,new_console_font}],
 	 [{title,?__(15,"Console Font")}]},
 	{hframe,[{vframe,[{label,?__(16,"Width")},
 			  {label,?__(17,"Height")},
@@ -317,10 +317,10 @@ smart_set_value_1(Key, Val, St) ->
 		    wings_file:init_autosave();
 		proxy_shaded_edge_style ->
 		    clear_proxy_edges(St);
-		system_font ->
+		new_system_font ->
 		    delayed_set_value(Key, OldVal, Val),
 		    wings_u:message(?__(1,"The change to the system font will take effect the next time Wings 3D is started."));
-		console_font ->
+		new_console_font ->
 		    wings_console:window();
 		camera_mode ->
 		    wings_wm:translation_change();
