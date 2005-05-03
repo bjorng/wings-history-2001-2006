@@ -3,12 +3,12 @@
 #
 #     Makefile for building the E3D modules.
 #
-#  Copyright (c) 2001-2003 Bjorn Gustavsson
+#  Copyright (c) 2001-2005 Bjorn Gustavsson
 #
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.13 2003/09/25 08:23:01 bjorng Exp $
+#     $Id: Makefile,v 1.14 2005/05/03 16:23:06 dgud Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -34,6 +34,7 @@ MODULES= \
 	e3d_util \
 	e3d_vec \
 	e3d_q \
+	e3d_bv \
 	e3d__tri_quad \
 	e3d__meshclean \
 	e3d__bmp \

@@ -3,12 +3,12 @@
 %%
 %%     Operations on matrices.
 %%
-%%  Copyright (c) 2001-2004 Bjorn Gustavsson
+%%  Copyright (c) 2001-2005 Bjorn Gustavsson and Dan Gudmundsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mat.erl,v 1.29 2004/06/27 11:58:56 bjorng Exp $
+%%     $Id: e3d_mat.erl,v 1.30 2005/05/03 16:23:08 dgud Exp $
 %%
 
 -module(e3d_mat).
@@ -17,7 +17,7 @@
 	 translate/1,translate/3,scale/1,scale/3,
 	 rotate/2,rotate_to_z/1,rotate_s_to_t/2,
 	 project_to_plane/1,
-	 transpose/1,mul/2,mul_point/2,mul_vector/2]).
+	 transpose/1,mul/2,mul_point/2,mul_vector/2, eigenv3/1]).
 -compile(inline).
 
 identity() ->
@@ -298,3 +298,141 @@ share(X, X, Z) -> {X,X,Z};
 share(X, Y, Y) -> {X,Y,Y};
 share(X, Y, X) -> {X,Y,X};
 share(X, Y, Z) -> {X,Y,Z}.
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Calculates Eigenvalues and vectors
+%%   This is converted from Dave Eberly's MAGIC library
+%% Returns ordered by least EigenValue first
+%% {Evals={V1,V2,V3},Evects={X1,Y1,Z1,X2,Y2,Z2,X3,Y3,Z3}}
+
+-define(EIG_EPS, 1.0e-06).
+
+eigenv3(Mat0={A,B,C,D,E,F,G,H,I}) 
+  when is_float(A), is_float(B), is_float(C), 
+       is_float(D), is_float(E), is_float(F), 
+       is_float(G), is_float(H), is_float(I) ->
+    {Mat1,Diag,SubD} = eig_triDiag3(Mat0),
+    {{Va1,Va2,Va3},Vecs} = eig_ql(0,0,Diag,SubD,Mat1),
+    {X1,X2,X3,Y1,Y2,Y3,Z1,Z2,Z3} = Vecs,
+    if (Va1 =< Va2), (Va2 =< Va3) ->
+	    {{Va1,Va2,Va3},{X1,Y1,Z1,X2,Y2,Z2,X3,Y3,Z3}};
+       (Va1 =< Va3), (Va3 =< Va2) ->
+	    {{Va1,Va3,Va2},{X1,Y1,Z1,X3,Y3,Z3,X2,Y2,Z2}};       
+       (Va2 =< Va1), (Va1 =< Va3) ->
+	    {{Va2,Va1,Va3},{X2,Y2,Z2,X1,Y1,Z1,X3,Y3,Z3}};
+       (Va2 =< Va3), (Va3 =< Va1) ->
+	    {{Va2,Va3,Va1},{X2,Y2,Z2,X3,Y3,Z3,X1,Y1,Z1}};
+       (Va3 =< Va1), (Va1 =< Va2) ->
+	    {{Va3,Va1,Va2},{X3,Y3,Z3,X1,Y1,Z1,X2,Y2,Z2}};
+       (Va3 =< Va2), (Va2 =< Va1) ->
+	    {{Va3,Va2,Va1},{X3,Y3,Z3,X2,Y2,Z2,X1,Y1,Z1}}
+    end.
+
+eig_triDiag3({A0,B0,C0,_,D0,E0,_,_,F0}) 
+  when is_float(A0), is_float(B0), is_float(C0), 
+       is_float(D0), is_float(E0), is_float(F0) ->
+    Di0 = A0,
+    if abs(C0) >= ?EIG_EPS ->
+	    Ell = math:sqrt(B0*B0+C0*C0),
+	    B = B0/Ell,
+	    C = C0/Ell,
+	    Q = 2*B*E0+C*(F0-D0),
+	    Di1 = D0+C*Q,
+	    Di2 = F0-C*Q,
+	    Su0 = Ell,
+	    Su1 = E0-B*Q,
+	    Mat = {1.0, 0.0, 0.0,
+		   0.0,   B,   C,
+		   0.0,   C,  -B},
+	    {Mat,{Di0,Di1,Di2},{Su0,Su1,0.0}};
+       true ->
+	    Mat = {1.0, 0.0, 0.0,
+		   0.0, 1.0, 0.0,
+		   0.0, 0.0, 1.0},
+	    {Mat,{Di0,D0,F0},{B0,E0,0.0}}
+    end.
+
+-define(S(I),element(I+1,Subd0)).
+-define(D(I),element(I+1,Diag0)).
+-define(Set(I,Val,Tup),setelement(I+1,Tup,Val)).
+
+-define(M_SIZE,3).
+-define(MAX_ITER,32).
+
+eig_ql(I0,I1,Diag0,Subd0,Mat0) when I0 < ?M_SIZE, I1 < ?MAX_ITER ->
+    case eig_cont(I0,Diag0,Subd0) of
+	I0 ->
+	    eig_ql(I0+1,0,Diag0,Subd0,Mat0);
+	I2 ->
+	    FG0 = (?D(I0+1)-?D(I0))/(2.0*?S(I0)),
+	    FR = math:sqrt(FG0*FG0+1.0),
+	    FG1 = if FG0 < 0.0 ->
+			  ?D(I2)-?D(I0)+?S(I0)/(FG0-FR);
+		     true ->
+			  ?D(I2)-?D(I0)+?S(I0)/(FG0+FR)
+		  end,
+	    {FP,FG,Diag1,Subd1,Mat} = 
+		eig_ql2(I2-1,I0,1.0,1.0,0.0,FG1,Diag0,Subd0,Mat0),
+	    Diag  = ?Set(I0,element(I0+1,Diag1)-FP,Diag1),
+	    Subd2 = ?Set(I0,FG,Subd1),
+	    Subd  = ?Set(I2,0.0,Subd2),
+	    eig_ql(I0,I1+1,Diag,Subd,Mat)
+    end;
+eig_ql(I0,I1,Diag,Subd,Mat) when I1 >= ?MAX_ITER -> 
+    io:format("Hmm I1>MAX_ITER,original algo break fails here~n",[]),
+    eig_ql(I0+1,0,Diag,Subd,Mat);
+eig_ql(_,_,D,_,M) -> 
+    {D,M}.
+
+eig_cont(I2,Diag0,Subd0) when I2 =< ?M_SIZE-2 ->
+    Ftmp = abs(?D(I2))+abs(?D(I2+1)),
+    if (abs(?S(I2))+Ftmp) == Ftmp ->
+	    I2;
+       true ->
+	    eig_cont(I2+1,Diag0,Subd0)
+    end;
+eig_cont(I2,_,_) -> I2.
+
+eig_ql2(I3,I0,Sin0,Cos0,FP0,FG0,Diag0,Subd0,Mat0) when I3 >= I0 ->
+    FF = Sin0*?S(I3),
+    FB = Cos0*?S(I3),
+    {Si3p1,Sin1,Cos1} =
+	if abs(FF) >= abs(FG0) -> 
+		eig_up(FG0,FF,pos);
+	   true -> 
+		eig_up(FF,FG0,neg)
+	end,
+    FG1 = ?D(I3+1)-FP0,
+    FR  = (?D(I3)-FG1)*Sin1+2.0*FB*Cos1,
+    FP1 = Sin1*FR, 
+    Di3p1 = FG1+FP1,
+    Mat = eig_vec(0,I3,Sin1,Cos1,Mat0),
+    eig_ql2(I3-1,I0,Sin1,Cos1,FP1,Cos1*FR-FB,
+	    ?Set(I3+1,Di3p1,Diag0),?Set(I3+1,Si3p1,Subd0),Mat);
+eig_ql2(_,_,_,_,FP,FG,Diag,Subd,Mat) ->
+    {FP,FG,Diag,Subd,Mat}.
+
+eig_up(FG,FF,Type) ->
+    Cos = FG/FF,
+    FR = math:sqrt(Cos*Cos+1.0),
+    FSin = 1.0/FR,
+    case Type of
+	pos -> 
+	    {FF*FR,FSin,Cos*FSin};
+	neg ->
+	    {FF*FR,Cos*FSin,FSin}
+    end.
+
+eig_vec(I4,I3,Sin,Cos,Mat0) when I4 < ?M_SIZE ->
+    Idx43p1 = I4*?M_SIZE+I3+1+1,
+    Idx43 = I4*?M_SIZE+I3+1,
+    Mat43 = element(Idx43,Mat0),
+    FF    = element(Idx43p1,Mat0),
+    Mat1  = setelement(Idx43p1, Mat0, Sin*Mat43+Cos*FF),
+    Mat2  = setelement(Idx43,   Mat1, Cos*Mat43-Sin*FF),
+    eig_vec(I4+1,I3,Sin,Cos,Mat2);
+eig_vec(_,_,_,_,Mat) -> Mat.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
