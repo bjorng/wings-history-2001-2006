@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.5 2005/04/06 17:49:32 bjorng Exp $
+#     $Id: Makefile,v 1.6 2005/05/12 04:26:24 bjorng Exp $
 #
 FBXSDK = FBXSDK60
 LIBDIR=../../plugins/fbx
@@ -44,6 +44,7 @@ else
    OS_LDFLAGS = -bundle -flat_namespace -undefined suppress
    STRIP_FLAGS = -S
    EXTRA_INCLUDES := -I/usr/include/sys
+   CXX = /usr/bin/g++-3.3
   endif
   OS_CFLAGS = -O2 -fPIC
   ERL_TOP := /usr/local/lib/erlang
