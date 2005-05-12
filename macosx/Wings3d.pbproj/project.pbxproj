@@ -258,17 +258,18 @@
 				29B9732DFDCFA39411CA2CEA,
 			);
 			buildSettings = {
-				CC = "/usr/bin/gcc-3.3";
 				ERLANG_PATH = /usr/local/lib/erlang;
 				FRAMEWORK_SEARCH_PATHS = "";
 				GGC_VERSION = 3.x;
 				HEADER_SEARCH_PATHS = "";
 				INSTALL_PATH = "$(HOME)/Applications";
+				JAVA_COMPILER_DEBUGGING_SYMBOLS = NO;
 				LIBRARY_SEARCH_PATHS = "";
 				OTHER_CFLAGS = "";
 				OTHER_LDFLAGS = "-s";
 				PRODUCT_NAME = Wings3d;
 				SECTORDER_FLAGS = "";
+				USE_GCC3_PFE_SUPPORT = NO;
 				WARNING_CFLAGS = "-Wmost -Wno-four-char-constants -Wno-unknown-pragmas";
 				WRAPPER_EXTENSION = app;
 			};
