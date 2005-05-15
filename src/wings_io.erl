@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.138 2005/05/15 16:42:14 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.139 2005/05/15 16:45:34 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -616,8 +616,8 @@ grab() ->
 
 do_grab(0) ->
     case os:type() of
-%%	{unix, darwin} ->
-%%	    ignore;  %% GRAB doesn't work good enough on Darwin
+	{unix, darwin} ->
+	    ignore;  %% GRAB doesn't work good enough on Darwin
 	_ ->
 	    %% Good for Linux to read out any mouse events here.
 	    sdl_events:peepEvents(1, ?SDL_MOUSEMOTIONMASK),
@@ -654,10 +654,6 @@ warp(X, Y) ->
     %% On Windows, the mouse cursor must not be visible.
     case os:type() of
 	{unix,sunos} ->
-	    sdl_mouse:showCursor(true),
-	    sdl_mouse:warpMouse(X, Y),
-	    sdl_mouse:showCursor(false);
-	{unix,darwin} ->
 	    sdl_mouse:showCursor(true),
 	    sdl_mouse:warpMouse(X, Y),
 	    sdl_mouse:showCursor(false);
