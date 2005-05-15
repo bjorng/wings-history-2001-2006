@@ -3,12 +3,12 @@
 %%
 %%     This module implements the Move command.
 %%
-%%  Copyright (c) 2001-2004 Bjorn Gustavsson
+%%  Copyright (c) 2001-2005 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_move.erl,v 1.55 2005/03/20 19:08:34 dgud Exp $
+%%     $Id: wings_move.erl,v 1.56 2005/05/15 16:42:14 bjorng Exp $
 %%
 -module(wings_move).
 -export([setup/2,setup_we/4,plus_minus/3,magnet_move_fun/3]).
@@ -67,8 +67,10 @@ setup_we(Mode, Vec, _, We) when ?IS_LIGHT(We) ->
 setup_we(Mode, Vec, Items, We) ->
     setup_we_1(Mode, Vec, Items, We).
 
+setup_we_1(Mode, Vec, Items, We) when not is_list(Items) ->
+    setup_we_1(Mode, Vec, gb_sets:to_list(Items), We);
 setup_we_1(vertex, Vec, Items, We) ->
-    vertices_to_vertices(gb_sets:to_list(Items), We, Vec);
+    vertices_to_vertices(Items, We, Vec);
 setup_we_1(edge, Vec, Items, We) ->
     edges_to_vertices(Items, We, Vec);
 setup_we_1(face, Vec, Items, We) ->
@@ -152,7 +154,7 @@ edges_to_vertices(Es, We, normal) ->
 		       Normal = e3d_vec:norm(e3d_vec:add(NL, NR)),
 		       [{Va,{Normal,VaPos,EdgeDir}},
 			{Vb,{Normal,VbPos,e3d_vec:neg(EdgeDir)}}|D0]
-	       end, [], gb_sets:to_list(Es)),
+	       end, [], Es),
     average(Vs);
 edges_to_vertices(Es, We, Vec) ->
     make_tvs(wings_edge:to_vertices(Es, We), Vec, We).
@@ -194,7 +196,7 @@ faces_to_vertices(Faces, #we{vp=Vtab}=We, normal) ->
     Vs = foldl(fun(Face, Acc0) ->
 		       Vs = wings_face:vertices_cw(Face, We),
 		       face_normal(Vs, Vtab, Acc0)
-	       end, [], gb_sets:to_list(Faces)),
+	       end, [], Faces),
     face_average(Vs, Vtab);
 faces_to_vertices(Faces, We, Vec) ->
     make_tvs(wings_face:to_vertices(Faces, We), Vec, We).

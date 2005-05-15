@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.132 2005/01/30 06:37:22 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.133 2005/05/15 16:42:13 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -880,8 +880,7 @@ lift_from_edge_2(Dir, Face, Edge, Side, #we{id=Id,es=Etab}=We0, Tv) ->
 	    {We,Rot};
 	_Other ->
 	    Vec = wings_util:make_vector(Dir),
-	    Move = wings_move:setup_we(vertex, Vec,
-				       gb_sets:from_list(FaceVs), We),
+	    Move = wings_move:setup_we(vertex, Vec, FaceVs, We),
 	    {We,[{Id,Move}|Tv]}
     end.
 
