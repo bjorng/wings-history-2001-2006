@@ -3,12 +3,12 @@
 %%
 %%     Czech language strings.
 %%
-%%  Copyright (c) 2005 Libor Diviš (www.musculus.cz - info@musculus.cz) 
-%%
+%%  Copyright (c) 2005 Libor Diviš
+%%  www.musculus.cz (info@musculus.cz) 
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_cs.lang,v 1.4 2005/04/27 05:08:30 bjorng Exp $
+%%     $Id: wings_cs.lang,v 1.5 2005/05/24 20:15:54 bjorng Exp $
 %%
 {wings,
  [
@@ -902,7 +902,7 @@
    ]},
   {getting_started,
    [
-    {1,"Když se učící ovládat WINGS, sledujte informace v informační lince na spodu obrazovky. Zpravidla zde najdete informace o tom, ce udělá stisknutí tlačítka myši."},
+    {1,"Když se učíte ovládat WINGS, sledujte informace v informační lince na spodu obrazovky. Zpravidla zde najdete informace o tom, ce udělá stisknutí tlačítka myši."},
     {2,"Akce pro tlačítka myši se zobrazují nejdříve, popisem"},
     {7,"Zpravidla levé tlačítko myši je užívané pro výběr a potvrzení, prostřední tlačítko myši pro manipulaci s kamerou, a pravé tlačítko myši zpřístupnuje kontextové (Pop-up) menu."},
     {left_def,"left mouse button"},
@@ -2620,6 +2620,9 @@
    ]}
  ]}.
 
+%%
+%% The following strings have no translation.
+%%
 
 {wings,
  [
@@ -2643,9 +2646,9 @@
  [
   {group_mode_string,
    [
-    {body,"Skupiny vybraných objektů"},
-    {edge,"Skupina vybraných hran"},
-    {face,"Skupina vybraných ploch"},
-    {vertex,"Skupina vybraných vrcholů"}
+    {body,"Skupinový výběr objektů"},
+    {edge,"Skupinový výběr hran"},
+    {face,"Skupinový výběr ploch"},
+    {vertex,"Skupinový výběr vrcholů"}
    ]}
  ]}.

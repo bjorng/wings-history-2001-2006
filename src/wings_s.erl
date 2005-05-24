@@ -3,12 +3,12 @@
 %%
 %%     Common text strings.
 %%
-%%  Copyright (c) 2004 Bjorn Gustavsson
+%%  Copyright (c) 2004-2005 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_s.erl,v 1.6 2004/12/06 08:01:46 bjorng Exp $
+%%     $Id: wings_s.erl,v 1.7 2005/05/24 20:15:56 bjorng Exp $
 %%
 
 -module(wings_s).
@@ -67,7 +67,7 @@ dir(radial_y) ->  ?__(r,"Radial") ++ " " ++ dir(y);
 dir(radial_z) ->  ?__(r,"Radial") ++ " " ++ dir(z).
 
 dir_axis(Axis) -> 
-    io_lib:format(?STR(dir,the_axis,"the ~s axis"), [dir(Axis)]).
+    wings_util:format(?STR(dir,the_axis,"the ~s axis"), [dir(Axis)]).
 
 %% Camera modes; probably don't need to be translated, but could
 %% need to be transliterad for languages with non-Latin alphabets.
