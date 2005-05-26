@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.98 2005/04/17 21:09:59 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.99 2005/05/26 21:02:56 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -75,6 +75,7 @@ key(Key) -> {key,?KEY(Key)}.
 -define(DEF_BIAS, 0.1).
 -define(DEF_WIDTH, 100).
 -define(DEF_HEIGHT, 100).
+-define(DEF_ORTHO, false).
 -define(DEF_DOF_FILTER, false).
 -define(DEF_NEAR_BLUR, 1.0).
 -define(DEF_FAR_BLUR, 1.0).
@@ -2143,6 +2144,7 @@ export_prefs() ->
      {background_color,?DEF_BACKGROUND_COLOR},
      {width,?DEF_WIDTH},
      {height,?DEF_HEIGHT},
+     {ortho,?DEF_ORTHO},
      {antinoise_filter,?DEF_ANTINOISE_FILTER},
      {dof_filter,?DEF_DOF_FILTER},
      {fog_density,?DEF_FOG_DENSITY},
@@ -2166,6 +2168,7 @@ export_dialog_qs([{subdivisions,SubDiv},
 		  {background_color,BgColor},
 		  {width,Width},
 		  {height,Height},
+		  {ortho,Ortho},
 		  {antinoise_filter,AntinoiseFilter},
 		  {dof_filter,DofFilter},
 		  {fog_density,FogDensity},
@@ -2213,7 +2216,8 @@ export_dialog_qs([{subdivisions,SubDiv},
       [{vframe,[{label,"Width"}]},
        {vframe,[{text,Width,[range(pixels),{key,width}]}]},
        {vframe,[{label,"Height"}]},
-       {vframe,[{text,Height,[range(pixels),{key,height}]}]}],
+       {vframe,[{text,Height,[range(pixels),{key,height}]}]},
+       {"Ortho",Ortho,[{key,ortho}]}],
       [{title,"Camera"}]},
      {hframe,
       [{vframe,[panel,
@@ -2248,7 +2252,7 @@ export_dialog_qs([{subdivisions,SubDiv},
 	      {button,"Reset",done,[{info,"Reset to default values"}]}]}].
 
 export_dialog_loop(Fun, Attr) ->
-    {Prefs,Buttons} = split_list(Attr, 22),
+    {Prefs,Buttons} = split_list(Attr, 23),
     case Buttons of
 	[true,false,false] -> % Save
 	    set_user_prefs(Prefs),
@@ -3214,12 +3218,15 @@ export_camera(F, Name, Attr) ->
 	proplists:lookup(camera_info, Attr),
     Width = proplists:get_value(width, Attr),
     Height = proplists:get_value(height, Attr),
+    Ortho = proplists:get_value(ortho, Attr),
     Ro = math:pi()/180.0,
     %% Fov is vertical angle from lower to upper border.
     %% YafRay focal plane is 1 unit wide.
     FocalDist = 0.5 / ((Width/Height) * math:tan(limit_fov(Fov)*0.5*Ro)),
     println(F, "<camera name=\"~s\" "++
-	    "resx=\"~w\" resy=\"~w\" focal=\"~.10f\">",
+	    "resx=\"~w\" resy=\"~w\" focal=\"~.10f\""++
+	    if Ortho -> "~n        type=\"ortho\">";
+	       true  -> ">" end,
 	    [Name,Width,Height,FocalDist]),
     export_pos(F, from, Pos),
     export_pos(F, to, e3d_vec:add(Pos, Dir)),
