@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.312 2005/04/21 20:25:19 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.313 2005/06/04 06:40:08 dgud Exp $
 %%
 
 -module(wpc_autouv).
@@ -84,12 +84,9 @@ command({face,{?MODULE, Op}} , St) ->
 command({?MODULE, Op}, St) ->
     start_uvmap(Op, St);
 command({window,uv_editor_window}, St) ->
-    window(St);
+        start_uvmap(edit, St);
 command(_Cmd, _) -> 
     next.
-
-window(St) ->
-    start_uvmap(edit, St).
 
 start_uvmap(edit, #st{sel=[]}) -> wings_u:error("Nothing selected");
 start_uvmap(Action, #st{sel=Sel}=St) ->
@@ -116,7 +113,7 @@ start_uvmap_1([{Id,_}|T], Action, St) ->
     start_uvmap_1(T, Action, St);
 start_uvmap_1([], _, _) -> keep.
 
-segment_or_edit(edit, _Id, _St) -> edit;
+segment_or_edit(edit, _Id, _St) -> {edit,object};
 segment_or_edit(segment,Id,#st{selmode=face,sel=Sel,shapes=Shs}) ->
     We = gb_trees:get(Id, Shs),
     UVFs = gb_sets:from_ordset(wings_we:uv_mapped_faces(We)),
@@ -1201,10 +1198,17 @@ handle_drop({image,_,#e3d_image{width=W,height=H}=Im}, #st{bb=Uvs0}=St) ->
 	false -> keep;
 	true ->
 	    #uvstate{st=GeomSt0,matname=MatName0} = Uvs0,
-	    {GeomSt,MatName} = add_material(Im, undefined, MatName0, GeomSt0),
-	    wings_wm:send(geom, {new_state,GeomSt}),
-	    Uvs = Uvs0#uvstate{st=GeomSt,matname=MatName},
-	    get_event(St#st{bb=Uvs})
+	    case MatName0 of 
+		none -> 
+		    wings_u:error("Your are editing the uv-coords of several\n"
+				  "materials, quit the uv-window set all faces\n"
+				  "to the same material");
+		_ ->
+		    {GeomSt,MatName} = add_material(Im, undefined, MatName0, GeomSt0),
+		    wings_wm:send(geom, {new_state,GeomSt}),
+		    Uvs = Uvs0#uvstate{st=GeomSt,matname=MatName},
+		    get_event(St#st{bb=Uvs})
+	    end
     end;
 handle_drop(_DropData, _) ->
     keep.
