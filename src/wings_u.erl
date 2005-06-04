@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_u.erl,v 1.3 2005/03/26 07:26:58 bjorng Exp $
+%%     $Id: wings_u.erl,v 1.4 2005/06/04 05:53:21 dgud Exp $
 %%
 
 -module(wings_u).
@@ -102,6 +102,7 @@ crash_log(WinName, Reason, StackTrace) ->
     LogFileDir = log_file_dir(),
     LogName = filename:absname("wings_crash.dump", LogFileDir),
     F = open_log_file(LogName),
+    io:format(F, "Version: ~s\n", [?WINGS_VERSION]),
     io:format(F, "Window: ~p\n", [WinName]),
     io:format(F, "Reason: ~p\n\n", [Reason]),
     ShortStackTrace = [{M,N,if
