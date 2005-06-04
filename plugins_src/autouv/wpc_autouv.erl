@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.313 2005/06/04 06:40:08 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.314 2005/06/04 08:11:22 dgud Exp $
 %%
 
 -module(wpc_autouv).
@@ -665,6 +665,9 @@ handle_event_3({action,{auv,quit}}, _St) ->
 handle_event_3({action,{auv,Cmd}}, St) ->
 %%    io:format("Cmd ~p ~n", [Cmd]),
     handle_command(Cmd, St);
+handle_event_3({action,{select,show_all}}, #st{bb=#uvstate{st=GeomSt,id=Id}}) ->
+    wings_wm:send({autouv,Id}, {add_faces,object,GeomSt}),
+    keep;
 handle_event_3({action,{select,Command}}, St0) ->
     case wings_sel_cmd:command(Command, St0) of
 	{save_state,St} -> ok;
@@ -701,7 +704,7 @@ handle_event_3({action,Ev}, St) ->
 	{view,Cmd} when Cmd == frame ->
 	    wings_view:command(Cmd,St),
 	    get_event(St);
-	_ ->
+	_ ->	    
 	    keep
     end;
 handle_event_3(got_focus, _) ->
