@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_doosabin.erl,v 1.1 2005/06/03 14:56:53 dgud Exp $
+%%     $Id: wpc_doosabin.erl,v 1.2 2005/06/04 08:42:08 dgud Exp $
 %%
 
 -module(wpc_doosabin).
@@ -34,7 +34,7 @@ menu(_, Menu) -> Menu.
 add_menu([Smooth = {_,smooth,_}|Rest]) ->
     [Smooth, 
      {"DS subdivision", doo_sabin, 
-      "Makes a Doo-Sabin subdivision according to WasaMonkey"}|Rest];
+      "Makes a Doo-Sabin subdivision according to WasaMonkey (warning messes up all uv-coords)"}|Rest];
 add_menu([Other|Rest]) ->
     [Other| add_menu(Rest)];
 add_menu([]) -> %% Just in case we end up here..
@@ -50,12 +50,16 @@ command({edit,{plugin_preferences,doo_sabin}}, St) ->
 command(_Cmd, _) -> next.
 
 doo_sabin(We0 = #we{es=Etab0, id=Id}, St0 = #st{shapes=Sh0,sel=OrigSel}) ->
+    wings_pb:start(?__(1,"Doo-Sabin")),
     OrigEdges = gb_trees:keys(Etab0),
     %% Set all edges hard. 
     We1 = We0#we{he=gb_sets:from_ordset(OrigEdges)},
+    wings_pb:update(0.25, ?__(2,"Smoothing pass1")),
     We2 = #we{es=Etab1} = wings_subdiv:smooth(We1),
     SubdEdges = gb_trees:keys(Etab1),
+    wings_pb:update(0.70, ?__(3,"Smoothing pass 2")),
     We3 = wings_subdiv:smooth(We2),
+    wings_pb:update(0.85, ?__(4,"Dissolving pass 1")),
     %% Set selection to the subd-edges and update the object we are subd'ing
     %%
     %% I do the dissolving (not like Wasamonkey) in two steps to be able to
@@ -72,6 +76,7 @@ doo_sabin(We0 = #we{es=Etab0, id=Id}, St0 = #st{shapes=Sh0,sel=OrigSel}) ->
     We5 = wings_edge:dissolve_isolated_vs(IsolatedVs1, We4),
     %% Step 2
     %% Find the SubdEdges loops
+    wings_pb:update(0.98, ?__(5,"Dissolving pass 2")),
     CurrEds = gb_sets:from_ordset(gb_trees:keys(We5#we.es)),
     SubdEdges2 = gb_sets:intersection(gb_sets:from_ordset(SubdEdges),CurrEds),
      St2 = St0#st{sel=[{Id,SubdEdges2}],
@@ -86,8 +91,10 @@ doo_sabin(We0 = #we{es=Etab0, id=Id}, St0 = #st{shapes=Sh0,sel=OrigSel}) ->
     IsolatedVs2 = wings_vertex:isolated(We6),
     We7 =#we{fs=Ftab}= wings_edge:dissolve_isolated_vs(IsolatedVs2, We6),
     %% Fix the selection
+    wings_pb:update(1.0, ?__(6,"Updating Selection")),
     Fs = gb_sets:from_ordset(gb_trees:keys(Ftab)),
     CornerEds = wings_edge:from_faces(gb_sets:intersection(ScaleFaces,Fs),We7),
+    wings_pb:done(),
     %% Return the result
     St1#st{sel=[{Id,CornerEds}|OrigSel],
 	   shapes=gb_trees:update(Id,We7,Sh0)}.
