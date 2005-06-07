@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.334 2005/04/12 20:25:56 bjorng Exp $
+%%     $Id: wings.erl,v 1.335 2005/06/07 17:38:28 bjorng Exp $
 %%
 
 -module(wings).
@@ -821,9 +821,9 @@ info_1(#st{selmode=edge,sel=[{_,Sel}]}=St) ->
 	    measure(io_lib:format(?__(4,"Edge ~p selected"), [Edge]), St);
 	N when N < 5 ->
 	    Edges = gb_sets:to_list(Sel),
-	    item_list(Edges, ?__(5,"Edges"));
+	    measure(item_list(Edges, ?__(5,"Edges")), St);
 	N ->
-	    io_lib:format(?__(6,"~p edges selected"), [N])
+	    measure(io_lib:format(?__(6,"~p edges selected"), [N]), St)
     end;
 info_1(#st{selmode=face,sel=[{_,Sel}]}=St) ->
     case gb_sets:size(Sel) of
@@ -831,6 +831,9 @@ info_1(#st{selmode=face,sel=[{_,Sel}]}=St) ->
 	1 ->
 	    [Face] = gb_sets:to_list(Sel),
 	    measure(io_lib:format(?__(7,"Face ~p selected"), [Face]), St);
+	2 ->
+	    Faces = gb_sets:to_list(Sel),
+	    measure(item_list(Faces,?__(8,"Faces")), St);
 	N when N < 5 ->
 	    Faces = gb_sets:to_list(Sel),
 	    item_list(Faces,?__(8,"Faces"));
@@ -863,15 +866,19 @@ measure(Base, #st{selmode=vertex,sel=[{Id,Vs}],shapes=Shs}) ->
 	2 ->
 	    We = gb_trees:get(Id, Shs),
  	    [Va,Vb] = gb_sets:to_list(Vs),
+            {Xa,Ya,Za} = wings_vertex:pos(Va, We),
+            {Xb,Yb,Zb} = wings_vertex:pos(Vb, We),
  	    Dist = e3d_vec:dist(wings_vertex:pos(Va, We),
 				wings_vertex:pos(Vb, We)),
-	    [Base|io_lib:format(?__(2,". Distance ~s"),
-				[wings_util:nice_float(Dist)])];
+	    [Base|io_lib:format(?__(5,". Distance ~s  <~s, ~s, ~s>"),
+				[wings_util:nice_float(Dist),
+				 wings_util:nice_float(Xb - Xa),
+				 wings_util:nice_float(Yb - Ya),
+				 wings_util:nice_float(Zb - Za)])];
 	_ -> Base
     end;
 measure(Base, #st{selmode=vertex,sel=[{IdA,VsA},{IdB,VsB}],shapes=Shs}) ->
     case gb_sets:size(VsA) == 1 andalso gb_sets:size(VsB) == 1 of
-	false -> Base;
 	true ->
 	    WeA = gb_trees:get(IdA, Shs),
 	    WeB = gb_trees:get(IdB, Shs),
@@ -880,24 +887,50 @@ measure(Base, #st{selmode=vertex,sel=[{IdA,VsA},{IdB,VsB}],shapes=Shs}) ->
  	    Dist = e3d_vec:dist(wings_vertex:pos(Va, WeA),
 				wings_vertex:pos(Vb, WeB)),
 	    [Base|io_lib:format(?__(2,". Distance ~s"),
-				[wings_util:nice_float(Dist)])]
+				[wings_util:nice_float(Dist)])];
+	_ -> Base
     end;
 measure(Base, #st{selmode=edge,sel=[{Id,Es}],shapes=Shs}) ->
     case gb_sets:size(Es) of
-	1 ->
-	    We = gb_trees:get(Id, Shs),
- 	    [Edge] = gb_sets:to_list(Es),
-	    #edge{vs=Va,ve=Vb} = gb_trees:get(Edge, We#we.es),
-	    PosA = wings_vertex:pos(Va, We),
-	    PosB = wings_vertex:pos(Vb, We),
- 	    Dist = e3d_vec:dist(PosA, PosB),
-	    {X,Y,Z} = e3d_vec:average([PosA,PosB]),
-	    [Base|io_lib:format(?__(3,". Midpt ~s ~s ~s. Length ~s"),
-				[wings_util:nice_float(X),
-				 wings_util:nice_float(Y),
-				 wings_util:nice_float(Z),
-				 wings_util:nice_float(Dist)])];
-	_ -> Base
+        1 ->
+            We = gb_trees:get(Id, Shs),
+            [Edge] = gb_sets:to_list(Es),
+            #edge{vs=Va,ve=Vb} = gb_trees:get(Edge, We#we.es),
+            PosA = wings_vertex:pos(Va, We),
+            PosB = wings_vertex:pos(Vb, We),
+            Length = e3d_vec:dist(PosA, PosB),
+            {X,Y,Z} = e3d_vec:average([PosA,PosB]),
+            [Base|io_lib:format(?__(3,". Midpt ~s ~s ~s. Length ~s"),
+                                [wings_util:nice_float(X),
+                                 wings_util:nice_float(Y),
+                                 wings_util:nice_float(Z),
+                                 wings_util:nice_float(Length)])];
+        2 ->
+            We = gb_trees:get(Id, Shs),
+            Edges = gb_sets:to_list(Es),
+            [E0,E1] = Edges,
+            #edge{vs=V0s,ve=V0e} = gb_trees:get(E0, We#we.es),
+            #edge{vs=V1s,ve=V1e} = gb_trees:get(E1, We#we.es),
+            {X0s,Y0s,Z0s} = wings_vertex:pos(V0s, We),
+            {X0e,Y0e,Z0e} = wings_vertex:pos(V0e, We),
+            {X1s,Y1s,Z1s} = wings_vertex:pos(V1s, We),
+            {X1e,Y1e,Z1e} = wings_vertex:pos(V1e, We),
+            V0 = {X0e-X0s, Y0e-Y0s, Z0e-Z0s},
+            V1 = {X1e-X1s, Y1e-Y1s, Z1e-Z1s},
+
+            RawAngle = e3d_vec:degrees(V0, V1),
+            Angle = case {V0s,V0e} of
+                      {V1s,_} -> RawAngle;
+                      {_,V1e} -> RawAngle;
+                      {V1e,_} -> 180.0 - RawAngle;
+                      {_,V1s} -> 180.0 - RawAngle;
+                      {_,_}   -> RawAngle   %%% unconnected
+                    end,
+
+            [Base|io_lib:format(?__(6,". Angle ~s"),
+                                [wings_util:nice_float(Angle)])];
+        _ -> 
+            Base
     end;
 measure(Base, #st{selmode=face,sel=[{Id,Fs}],shapes=Shs}) ->
     case gb_sets:size(Fs) of
@@ -911,6 +944,14 @@ measure(Base, #st{selmode=face,sel=[{Id,Fs}],shapes=Shs}) ->
 				 wings_util:nice_float(Y),
 				 wings_util:nice_float(Z),
 				 Mat])];
+        2 ->
+	    We = gb_trees:get(Id, Shs),
+ 	    [F0,F1] = gb_sets:to_list(Fs),
+	    N0 = wings_face:normal(F0, We),
+	    N1 = wings_face:normal(F1, We),
+	    Angle = e3d_vec:degrees(N0,N1),
+	    [Base|wings_util:format(?__(6,". Angle ~s"),
+				    [wings_util:nice_float(Angle)])];
 	_ -> Base
     end;
 measure(Base, _) -> Base.
