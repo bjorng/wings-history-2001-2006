@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face.erl,v 1.51 2005/01/23 07:55:33 bjorng Exp $
+%%     $Id: wings_face.erl,v 1.52 2005/06/07 17:40:18 bjorng Exp $
 %%
 
 -module(wings_face).
@@ -34,7 +34,7 @@
 	 iter2etab/1,
 	 patch_face/3,patch_face/4,
 	 delete_bad_faces/2,
-	 are_neighbors/3]).
+	 are_neighbors/3,is_planar/3]).
 
 -include("wings.hrl").
 -import(lists, [map/2,foldl/3,reverse/1,sort/1,keymember/3,member/2]).
@@ -491,3 +491,26 @@ are_neighbors(FaceA, FaceB, We) ->
     VsB = wings_face:vertices_ccw(FaceB, We),
     ordsets:intersection(ordsets:from_list(VsA),
 			 ordsets:from_list(VsB)) =/= [].
+
+%% Test whether a face is planar
+is_planar(Tolerance, Face, We) ->
+    Norm = normal(Face, We),
+    VertPos = vertex_positions(Face, We),
+    [Vert0|Verts] = VertPos,
+    Dist = e3d_vec:dot(Norm,Vert0),
+    is_planar_1(ture,Norm,Dist,Tolerance,Verts).
+    
+is_planar_1(Planar,Norm,Dist,Tolerance,[Vert|T]) ->
+    case Planar of
+        false -> false;
+        _ ->
+            Diff = abs(e3d_vec:dot(Norm,Vert) - Dist),
+            case Diff > Tolerance of
+                true ->
+                    false;
+                _ ->
+                    is_planar_1(true,Norm,Dist,Tolerance,T)
+            end
+    end;
+is_planar_1(_,_,_,_,[]) ->
+    true.

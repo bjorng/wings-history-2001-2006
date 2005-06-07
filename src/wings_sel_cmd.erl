@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.59 2005/04/11 05:43:55 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.60 2005/06/07 17:40:18 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -63,6 +63,8 @@ menu(St) ->
 	    hard_edges,?__(33,"Select all hard edges")},
 	   {?__(34,"Isolated Vertices"),
 	    isolated_vertices,?__(35,"Select all isolated vertices")},
+	   {?__(85,"Non-planar Faces"),
+	    nonplanar_faces,?__(86,"Select all non-planar faces"),[option]},
 	   {?__(36,"Vertices With"),
 	    {vertices_with,
 	     [{?__(37,"2 Edges"),2},
@@ -281,6 +283,8 @@ by_command(hard_edges, St) ->
     {save_state,wings_sel:make(Sel, edge, St)};
 by_command(isolated_vertices, St) ->
     {save_state,select_isolated(St)};
+by_command({nonplanar_faces,Ask}, St) ->
+    nonplanar_faces(Ask, St);
 by_command({vertices_with,N}, St) ->
     Sel = fun(V, We) ->
 		  Cnt = wings_vertex:fold(
@@ -821,3 +825,19 @@ select_isolated_1(#we{id=Id}=We, A) ->
 	true -> A;
 	false -> [{Id,Isolated}|A]
     end.
+
+%%%
+%%% Select nonplanar faces
+%%%
+
+nonplanar_faces(Ask, _St) when is_atom(Ask) ->
+    Qs = [{label,?__(1,"Distance tolerance")},
+	  {text,1.0E-3,[{range,{1.0E-5,10.0}}]}],
+    wings_ask:dialog(Ask, ?__(2,"Select Non-planar Faces"),
+		     [{hframe,Qs}],
+		     fun(Res) -> {select,{by,{nonplanar_faces,Res}}} end);
+nonplanar_faces([Tolerance], St) ->
+    Sel = fun(Face, We) ->
+              not wings_face:is_planar(Tolerance,Face,We)
+          end,
+    {save_state,wings_sel:make(Sel, face, St)}.
