@@ -3,12 +3,12 @@
 %%
 %%     Arithmetic on vectors and points (represented as three-tuples).
 %%
-%%  Copyright (c) 2001-2004 Bjorn Gustavsson
+%%  Copyright (c) 2001-2005 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_vec.erl,v 1.24 2004/12/30 09:31:06 bjorng Exp $
+%%     $Id: e3d_vec.erl,v 1.25 2005/06/07 17:36:56 bjorng Exp $
 %%
 
 -module(e3d_vec).
@@ -16,7 +16,7 @@
 -export([zero/0,is_zero/1,add/1,add/2,add_prod/3,sub/1,sub/2,norm_sub/2,mul/2,
 	 divide/2,neg/1,dot/2,cross/2,len/1,dist/2,dist_sqr/2,
 	 norm/1,norm/3,normal/3,normal/1,average/1,average/2,average/4,
-	 bounding_box/1,area/3]).
+	 bounding_box/1,area/3,degrees/2]).
 
 -compile(inline).
 -compile({inline_size,24}).
@@ -280,3 +280,18 @@ bounding_box_1([_|Vs], X0, X1, Y0, Y1, Z0, Z1) ->
     bounding_box_1(Vs, X0, X1, Y0, Y1, Z0, Z1);
 bounding_box_1([], X0, X1, Y0, Y1, Z0, Z1) ->
     [{X0,Y0,Z0},{X1,Y1,Z1}].
+
+degrees(V0,V1) ->
+    Dot = e3d_vec:dot(V0,V1),
+    LenMul = e3d_vec:len(V0) * e3d_vec:len(V1),
+    %%% protect against divide-by-zero
+    RawCos = if (abs(LenMul) > 1.0E-30) -> Dot / LenMul;
+               true -> 1.0
+             end,
+    %%% protect against invalid cosine values
+    Cos = if
+            (RawCos > +1.0) -> +1.0;
+            (RawCos < -1.0) -> -1.0;
+            true -> RawCos
+          end,
+    math:acos(Cos) * (180.0 / math:pi()).
