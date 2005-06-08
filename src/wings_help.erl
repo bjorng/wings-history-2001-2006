@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.82 2005/04/09 19:00:19 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.83 2005/06/08 05:36:50 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -538,7 +538,7 @@ splash_contents() ->
      {text,?__(5,"(including commercial).")},
      {spacer,0,10},
      {text,?__(6,"Copyright") 
-      ++ [$\s,169] ++ " 2001-2004 "++"Bj" ++ [246] ++ "rn Gustavsson " ++
+      ++ [$\s,169] ++ " 2001-2005 "++"Bj" ++ [246] ++ "rn Gustavsson " ++
       ?__(7,"& Others")},
      {text,?__(8,"JPEG library: Copyright") ++ [$\s,169] ++
       " 1991-1998 Thomas G. Lane"}
