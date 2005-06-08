@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref_dlg.erl,v 1.6 2005/06/04 08:27:56 bjorng Exp $
+%%     $Id: wings_pref_dlg.erl,v 1.7 2005/06/08 21:06:28 bjorng Exp $
 %%
 
 -module(wings_pref_dlg).
@@ -216,7 +216,7 @@ language_name("cs") ->
 language_name("en") -> "English";
 language_name("de") -> "Deutsch";
 language_name("es") -> "Español";
-language_name("fi") -> "Finnish";
+language_name("fi") -> "Suomi";
 language_name("fr") -> "Français";
 language_name("it") -> "Italiano";
 language_name("pl") -> "Polski";
