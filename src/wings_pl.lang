@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pl.lang,v 1.3 2005/04/19 05:06:18 bjorng Exp $
+%%     $Id: wings_pl.lang,v 1.4 2005/06/09 18:37:01 bjorng Exp $
 %%
 %%  Translation:  Andrzej Giniewicz
 %%  Correction:   Małgorzata Napiontek
@@ -110,7 +110,9 @@
     {1,". Pozycja ~s ~s ~s"},
     {2,". Odległość ~s"},
     {3,". Środek ~s ~s ~s. Długość ~s"},
-    {4,". Środek ~s ~s ~s.\nMateriał: ~s"}
+    {4,". Środek ~s ~s ~s.\nMateriał: ~s"},
+    {5,". Odległość ~s  <~s, ~s, ~s>"},
+    {6,". Kąt ~s"}
    ]},
   {object_mode,
    [
@@ -2046,7 +2048,9 @@
     {81,"Przywołaj zaznaczenie"},
     {82,"Odczytuje zaznaczenie z grupy o nazwie \"StoredSelection\""},
     {83,"Nowa grupa..."},
-    {84,"Tworzy nową grupę zaznaczenia"}
+    {84,"Tworzy nową grupę zaznaczenia"},
+    {85,"Krzywizny"},
+    {86,"Zaznacz wszystkie krzywizny"}
    ]},
   {more_help,
    [
@@ -2062,6 +2066,11 @@
   {new_group_name,
    [
     {exists,"już istnieje."}
+   ]},
+  {nonplanar_faces,
+   [
+    {1,"Tolerancja odległości"},
+    {2,"Zaznacz krzywiznę"}
    ]},
   {sel_all_str,
    [
