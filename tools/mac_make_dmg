@@ -4,12 +4,12 @@
 #
 #     Packages the built Wings application into a .dmg file.
 #
-#  Copyright (c) 2002-2004 Bjorn Gustavsson
+#  Copyright (c) 2002-2005 Bjorn Gustavsson
 #
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: mac_make_dmg,v 1.5 2004/06/17 05:09:53 bjorng Exp $
+#     $Id: mac_make_dmg,v 1.6 2005/06/12 10:17:29 bjorng Exp $
 #
 
 cwd=`pwd`
@@ -24,8 +24,7 @@ rm -f $temp_dmg $dmg
 hdiutil create -megabytes 10 -volname "Wings3D" -fs HFS+ -layout NONE $temp_dmg
 hdiutil attach $temp_dmg
 dev=`hdid $temp_dmg | awk '{print $1}'`
-rm macosx/build/Wings3d.app/Contents/pbdevelopment.plist
-cp -r macosx/build/Wings3d.app "/Volumes/Wings3D/Wings3D $1.app"
+cp -r macosx/build/Default/Wings3d.app "/Volumes/Wings3D/Wings3D $1.app"
 hdiutil detach "$dev"
 hdiutil convert "$temp_dmg" -format UDZO -o $dmg -imagekey zlib-level=9
 hdiutil internet-enable -yes "$dmg"
