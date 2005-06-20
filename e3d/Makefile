@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.14 2005/05/03 16:23:06 dgud Exp $
+#     $Id: Makefile,v 1.15 2005/06/20 20:22:01 dgud Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -39,6 +39,7 @@ MODULES= \
 	e3d__meshclean \
 	e3d__bmp \
 	e3d__tga \
+	e3d__png \
 	e3d__tif
 
 TARGET_FILES= $(MODULES:%=$(EBIN)/%.beam)

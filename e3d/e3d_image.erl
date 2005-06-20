@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_image.erl,v 1.17 2004/04/26 21:50:47 dgud Exp $
+%%     $Id: e3d_image.erl,v 1.18 2005/06/20 20:22:01 dgud Exp $
 %%
 
 -module(e3d_image).
@@ -49,6 +49,7 @@ load(FileName, Opts) when list(FileName), list(Opts) ->
 	      tga -> e3d__tga:load(FileName, Opts);
 	      bmp -> e3d__bmp:load(FileName, Opts);
 	      tif -> e3d__tif:load(FileName, Opts);
+	      png -> e3d__png:load(FileName, Opts);
 	      _ -> return_error({not_supported,Extension})
 	  end,
     fix_outtype(Res, Opts).
@@ -68,6 +69,7 @@ save(Image = #e3d_image{}, Filename, Opts) ->
 	tga -> e3d__tga:save(Image, Filename, Opts);
 	bmp -> e3d__bmp:save(Image, Filename, Opts);
 	tif -> e3d__tif:save(Image, Filename, Opts);
+	png -> e3d__png:save(Image, Filename, Opts);
 	_ -> return_error({not_supported,Extension})
     end.
 
@@ -85,6 +87,7 @@ save_bin(#e3d_image{}=Image, Extension, Opts) ->
 	tga -> e3d__tga:save_bin(Image, Opts);
 	bmp -> e3d__bmp:save_bin(Image, Opts);
 	tif -> e3d__tif:save_bin(Image, Opts);
+	png -> e3d__png:save_bin(Image, Opts);
 	_ -> return_error({not_supported,Extension})
     end.
 
@@ -129,6 +132,7 @@ convert(#e3d_image{type=FromType,image=Image,alignment=FromAlm,order=FromOrder}=
 
 ext_to_type(".tga") -> tga;
 ext_to_type(".bmp") -> bmp;
+ext_to_type(".png") -> png;
 ext_to_type(".tif") -> tif;
 ext_to_type(".tiff") -> tif;
 ext_to_type(_) -> unknown.
