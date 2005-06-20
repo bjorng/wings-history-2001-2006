@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp9_dialogs.erl,v 1.42 2004/12/18 19:35:58 bjorng Exp $
+%%     $Id: wp9_dialogs.erl,v 1.43 2005/06/20 21:14:17 dgud Exp $
 %%
 
 -module(wp9_dialogs).
@@ -44,6 +44,7 @@ write_image(Prop) ->
 image_formats(Fs0) ->
     Fs1 = [{".bmp","BMP Bitmap File"},
 	   {".tif","Tiff Bitmap"},
+	   {".png","PNG File"},
 	   {".tga","Targa File"}|Fs0],
     Fs2 = sofs:relation(Fs1),
     Fs3 = sofs:relation_to_family(Fs2),
