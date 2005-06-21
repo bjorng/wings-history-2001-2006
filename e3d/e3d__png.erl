@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__png.erl,v 1.1 2005/06/20 20:22:01 dgud Exp $
+%%     $Id: e3d__png.erl,v 1.2 2005/06/21 21:15:00 dgud Exp $
 %%
 -module(e3d__png).
 
@@ -348,7 +348,7 @@ unfilter(Uncompressed,P = #png{w=W,h=H,interlace=1}) ->
 		   {P5Sl,P5},{P6Sl,P6},{P7Sl,P7}],
 	    Filtered = lists:map(fun({SL,Pass}) ->
 					 ScanBits = SL *8,
-					 Prev = <<0:ScanBits>>,
+					 Prev = binary_to_list(<<0:ScanBits>>),
 					 {SL,unfilter(0,Pass,Prev,Filters,SL,[])}
 				 end,Def),
 	    PSz = trunc(pixelsz(P)*8),
@@ -361,38 +361,45 @@ unfilter(Uncompressed,P) ->
     ScanLen = scanlen(P),
 %    io:format("Scanlen ~p ~p Sz ~p ~n", [ScanLen,P, size(Uncompressed)]),
     Sz = case trunc(pixelsz(P)) of 0 -> 1; PSz -> PSz end,
-    ScanBits = (Sz+ScanLen)*8,
-    Prev = <<0:ScanBits>>,
+    ScanBits = (ScanLen)*8,
+    Prev = binary_to_list(<<0:ScanBits>>),
     unfilter(0,Uncompressed,Prev,{Sz,unfilters(Sz)},ScanLen,[]).
 unfilter(Row,Uncompressed,Prev,I={Sz,Filter},ScanLen,Acc) ->
     Skip = Row*(ScanLen+1),
     case Uncompressed of
-	<<_:Skip/binary,FilterIdx:8,Curr:ScanLen/binary,_/binary>> ->
+	<<_:Skip/binary,FilterIdx:8,Curr0:ScanLen/binary,_/binary>> ->
+	    Curr = binary_to_list(Curr0),
+%%	    io:format("~p: Filter ~p ",[Row,FilterIdx]),
 	    Filtered = 
 		case FilterIdx of
 		    0 -> Curr;
-		    1 -> sub_filter(0,Curr,Sz,element(FilterIdx,Filter),[]);
-		    2 -> up_filter(0,Prev,Curr,[]); 
-		    3 -> average_filter(0,Prev,Curr,Sz,element(FilterIdx,Filter),[]);
-		    4 -> paeth_filter(0,Prev,Curr,Sz,element(FilterIdx,Filter),[])
+		    1 -> sub_filter(Curr,Sz,element(FilterIdx,Filter),[]);
+		    2 -> up_filter(Prev,Curr,[]); 
+		    3 -> average_filter(Prev,Curr,Sz,element(FilterIdx,Filter),[]);
+		    4 -> paeth_filter(Prev,Curr,Sz,element(FilterIdx,Filter),[])
 		end,
-	    unfilter(Row+1,Uncompressed,Filtered,I,ScanLen,[Filtered|Acc]);
+	    unfilter(Row+1,Uncompressed,Filtered,I,ScanLen,
+		     [list_to_binary(Filtered)|Acc]);
 	_ ->
 	    list_to_binary(lists:reverse(Acc))
     end.
 
-unfilters(1) ->{fun sub_filter1/3,up_filter,fun average_filter1/4,fun paeth_filter1/5};
-unfilters(2) ->{fun sub_filter2/3,up_filter,fun average_filter2/4,fun paeth_filter2/5};
-unfilters(3) ->{fun sub_filter3/3,up_filter,fun average_filter3/4,fun paeth_filter3/5};
-unfilters(4) ->{fun sub_filter4/3,up_filter,fun average_filter4/4,fun paeth_filter4/5};
-unfilters(6) ->{fun sub_filter6/3,up_filter,fun average_filter6/4,fun paeth_filter6/5};
-unfilters(8) ->{fun sub_filter8/3,up_filter,fun average_filter8/4,fun paeth_filter8/5}.
-    
-paeth_filter8(Pos,CPos,Prev,Curr,Acc=[A8,A7,A6,A5,A4,A3,A2,A1|_]) 
-  when Pos < size(Curr) ->
-    <<_:Pos/binary,X1:8,X2:8,X3:8,X4:8,X5:8,X6:8,X7:8,X8:8,_/binary>> = Curr,
-    <<_:CPos/binary,C1:8,C2:8,C3:8,C4:8,C5:8,C6:8,C7:8,C8:8,
-     B1:8,B2:8,B3:8,B4:8,B5:8,B6:8,B7:8,B8:8,_/binary>> = Prev,
+unfilters(1) ->{fun sub_filter1/2,up_filter,fun 
+		average_filter1/3,fun paeth_filter1/3};
+unfilters(2) ->{fun sub_filter2/2,up_filter,
+		fun average_filter2/3,fun paeth_filter2/3};
+unfilters(3) ->{fun sub_filter3/2,up_filter,
+		fun average_filter3/3,fun paeth_filter3/3};
+unfilters(4) ->{fun sub_filter4/2,up_filter,
+		fun average_filter4/3,fun paeth_filter4/3};
+unfilters(6) ->{fun sub_filter6/2,up_filter,
+		fun average_filter6/3,fun paeth_filter6/3};
+unfilters(8) ->{fun sub_filter8/2,up_filter,
+		fun average_filter8/3,fun paeth_filter8/3}.
+
+paeth_filter8([C1,C2,C3,C4,C5,C6,C7,C8|Prev = [B1,B2,B3,B4,B5,B6,B7,B8|_]],
+	      [X1,X2,X3,X4,X5,X6,X7,X8|Curr],
+	      Acc=[A8,A7,A6,A5,A4,A3,A2,A1|_])  ->
     RX1 = paeth_filter(A1,B1,C1,X1),
     RX2 = paeth_filter(A2,B2,C2,X2),
     RX3 = paeth_filter(A3,B3,C3,X3),
@@ -401,27 +408,24 @@ paeth_filter8(Pos,CPos,Prev,Curr,Acc=[A8,A7,A6,A5,A4,A3,A2,A1|_])
     RX6 = paeth_filter(A6,B6,C6,X6),
     RX7 = paeth_filter(A7,B7,C7,X7),
     RX8 = paeth_filter(A8,B8,C8,X8),
-    paeth_filter8(Pos+8,CPos+8,Prev,Curr,[RX8,RX7,RX6,RX5,RX4,RX3,RX2,RX1|Acc]);
-paeth_filter8(Pos,_Cpos,Prev,Curr,Acc) ->
-    paeth_filter(Pos,Prev,Curr,8,fun paeth_filter8/5,Acc).
-paeth_filter6(Pos,CPos,Prev,Curr,Acc=[A6,A5,A4,A3,A2,A1|_]) when Pos < size(Curr) ->
-    <<_:Pos/binary,X1:8,X2:8,X3:8,X4:8,X5:8,X6:8,_/binary>> = Curr,
-    <<_:CPos/binary,C1:8,C2:8,C3:8,C4:8,C5:8,C6:8,
-     B1:8,B2:8,B3:8,B4:8,B5:8,B6:8,_/binary>> = Prev,
+    paeth_filter8(Prev,Curr,[RX8,RX7,RX6,RX5,RX4,RX3,RX2,RX1|Acc]);
+paeth_filter8(Prev,Curr,Acc) ->
+    paeth_filter(Prev,Curr,8,fun paeth_filter8/3,Acc).
+paeth_filter6([C1,C2,C3,C4,C5,C6|Prev = [B1,B2,B3,B4,B5,B6|_]],
+	      [X1,X2,X3,X4,X5,X6|Curr],
+	      Acc=[A6,A5,A4,A3,A2,A1|_]) ->
     RX1 = paeth_filter(A1,B1,C1,X1),
     RX2 = paeth_filter(A2,B2,C2,X2),
     RX3 = paeth_filter(A3,B3,C3,X3),
     RX4 = paeth_filter(A4,B4,C4,X4),
     RX5 = paeth_filter(A5,B5,C5,X5),
     RX6 = paeth_filter(A6,B6,C6,X6),
-    paeth_filter6(Pos+6,CPos+6,Prev,Curr,[RX6,RX5,RX4,RX3,RX2,RX1|Acc]);
-paeth_filter6(Pos,_Cpos,Prev,Curr,Acc) ->
-    paeth_filter(Pos,Prev,Curr,6,fun paeth_filter6/5,Acc).
-paeth_filter4(Pos,CPos,Prev,Curr,Acc=[A4,A3,A2,A1,_,_,_,_|_]) 
-  when Pos+4 < size(Curr) ->
-    <<_:Pos/binary,X1:8,X2:8,X3:8,X4:8,X5:8,X6:8,X7:8,X8:8,_/binary>> = Curr,
-    <<_:CPos/binary,C1:8,C2:8,C3:8,C4:8,
-     B1:8,B2:8,B3:8,B4:8,B5:8,B6:8,B7:8,B8:8,_/binary>> = Prev,
+    paeth_filter6(Prev,Curr,[RX6,RX5,RX4,RX3,RX2,RX1|Acc]);
+paeth_filter6(Prev,Curr,Acc) ->
+    paeth_filter(Prev,Curr,6,fun paeth_filter6/3,Acc).
+paeth_filter4([C1,C2,C3,C4,B1,B2,B3,B4|Prev = [B5,B6,B7,B8|_]],
+	      [X1,X2,X3,X4,X5,X6,X7,X8|Curr],
+	      Acc=[A4,A3,A2,A1|_]) ->
     RX1 = paeth_filter(A1,B1,C1,X1),
     RX2 = paeth_filter(A2,B2,C2,X2),
     RX3 = paeth_filter(A3,B3,C3,X3),
@@ -430,25 +434,24 @@ paeth_filter4(Pos,CPos,Prev,Curr,Acc=[A4,A3,A2,A1,_,_,_,_|_])
     RX6 = paeth_filter(RX2,B6,B2,X6),
     RX7 = paeth_filter(RX3,B7,B3,X7),
     RX8 = paeth_filter(RX4,B8,B4,X8),
-    paeth_filter4(Pos+8,CPos+8,Prev,Curr,[RX8,RX7,RX6,RX5,RX4,RX3,RX2,RX1|Acc]);
-paeth_filter4(Pos,_Cpos,Prev,Curr,Acc) ->
-    paeth_filter(Pos,Prev,Curr,4,fun paeth_filter4/5,Acc).
-paeth_filter3(Pos,CPos,Prev,Curr,Acc=[A3,A2,A1,_,_,_|_]) 
-  when Pos+3 < size(Curr) ->
-    <<_:Pos/binary,X1:8,X2:8,X3:8,X4:8,X5:8,X6:8,_/binary>> = Curr,
-    <<_:CPos/binary,C1:8,C2:8,C3:8,B1:8,B2:8,B3:8,B4:8,B5:8,B6:8,_/binary>> = Prev,
+    paeth_filter4(Prev,Curr,[RX8,RX7,RX6,RX5,RX4,RX3,RX2,RX1|Acc]);
+paeth_filter4(Prev,Curr,Acc) ->
+    paeth_filter(Prev,Curr,4,fun paeth_filter4/3,Acc).
+paeth_filter3([C1,C2,C3,B1,B2,B3|Prev = [B4,B5,B6|_]],
+	      [X1,X2,X3,X4,X5,X6|Curr],
+	      Acc=[A3,A2,A1,_,_,_|_]) ->
     RX1 = paeth_filter(A1,B1,C1,X1),
     RX2 = paeth_filter(A2,B2,C2,X2),
     RX3 = paeth_filter(A3,B3,C3,X3),
     RX4 = paeth_filter(RX1,B4,B1,X4),
     RX5 = paeth_filter(RX2,B5,B2,X5),
     RX6 = paeth_filter(RX3,B6,B3,X6),
-    paeth_filter3(Pos+6,CPos+6,Prev,Curr,[RX6,RX5,RX4,RX3,RX2,RX1|Acc]);
-paeth_filter3(Pos,_Cpos,Prev,Curr,Acc) ->
-    paeth_filter(Pos,Prev,Curr,3,fun paeth_filter3/5,Acc).
-paeth_filter2(Pos,CPos,Prev,Curr,Acc=[A2,A1,_,_,_,_,_,_|_]) when Pos+6 < size(Curr) ->
-    <<_:Pos/binary,X1:8,X2:8,X3:8,X4:8,X5:8,X6:8,X7:8,X8:8,_/binary>> = Curr,
-    <<_:CPos/binary,C1:8,C2:8,B1:8,B2:8,B3:8,B4:8,B5:8,B6:8,B7:8,B8:8,_/binary>> = Prev,
+    paeth_filter3(Prev,Curr,[RX6,RX5,RX4,RX3,RX2,RX1|Acc]);
+paeth_filter3(Prev,Curr,Acc) ->
+    paeth_filter(Prev,Curr,3,fun paeth_filter3/3,Acc).
+paeth_filter2([C1,C2,B1,B2,B3,B4,B5,B6|Prev = [B7,B8|_]],
+	      [X1,X2,X3,X4,X5,X6,X7,X8|Curr],
+	      Acc=[A2,A1|_]) ->
     RX1 = paeth_filter(A1,B1,C1,X1),
     RX2 = paeth_filter(A2,B2,C2,X2),
     RX3 = paeth_filter(RX1,B3,B1,X3),
@@ -457,12 +460,12 @@ paeth_filter2(Pos,CPos,Prev,Curr,Acc=[A2,A1,_,_,_,_,_,_|_]) when Pos+6 < size(Cu
     RX6 = paeth_filter(RX4,B6,B4,X6),
     RX7 = paeth_filter(RX5,B7,B5,X7),
     RX8 = paeth_filter(RX6,B8,B6,X8),
-    paeth_filter2(Pos+8,CPos+8,Prev,Curr,[RX8,RX7,RX6,RX5,RX4,RX3,RX2,RX1|Acc]);
-paeth_filter2(Pos,_Cpos,Prev,Curr,Acc) ->
-    paeth_filter(Pos,Prev,Curr,2,fun paeth_filter2/5,Acc).
-paeth_filter1(Pos,CPos,Prev,Curr,Acc=[A1,_,_,_,_,_,_,_,_|_]) when Pos+7 < size(Curr) ->
-    <<_:Pos/binary,X1:8,X2:8,X3:8,X4:8,X5:8,X6:8,X7:8,X8:8,_/binary>> = Curr,
-    <<_:CPos/binary,C1:8,B1:8,B2:8,B3:8,B4:8,B5:8,B6:8,B7:8,B8:8,_/binary>> = Prev,
+    paeth_filter2(Prev,Curr,[RX8,RX7,RX6,RX5,RX4,RX3,RX2,RX1|Acc]);
+paeth_filter2(Prev,Curr,Acc) ->
+    paeth_filter(Prev,Curr,2,fun paeth_filter2/3,Acc).
+paeth_filter1([C1,B1,B2,B3,B4,B5,B6,B7|Prev = [B8|_]],
+	      [X1,X2,X3,X4,X5,X6,X7,X8|Curr],
+	      Acc=[A1|_]) ->
     RX1 = paeth_filter(A1,B1,C1,X1),
     RX2 = paeth_filter(RX1,B2,B1,X2),
     RX3 = paeth_filter(RX2,B3,B2,X3),
@@ -471,25 +474,24 @@ paeth_filter1(Pos,CPos,Prev,Curr,Acc=[A1,_,_,_,_,_,_,_,_|_]) when Pos+7 < size(C
     RX6 = paeth_filter(RX5,B6,B5,X6),
     RX7 = paeth_filter(RX6,B7,B6,X7),
     RX8 = paeth_filter(RX7,B8,B7,X8),
-    paeth_filter1(Pos+8,CPos+8,Prev,Curr,[RX8,RX7,RX6,RX5,RX4,RX3,RX2,RX1|Acc]);
-paeth_filter1(Pos,_Cpos,Prev,Curr,Acc) ->
-    paeth_filter(Pos,Prev,Curr,1,fun paeth_filter1/5,Acc).
+    paeth_filter1(Prev,Curr,[RX8,RX7,RX6,RX5,RX4,RX3,RX2,RX1|Acc]);
+paeth_filter1(Prev,Curr,Acc) ->
+    paeth_filter(Prev,Curr,1,fun paeth_filter1/3,Acc).
 
-paeth_filter(Pos,Prev,Curr,Sz,Fun,Acc) ->
-    case Curr of
-	<<_:Pos/binary,X:8,_/binary>> ->
-	    A = pget(Sz,Acc),
-   	    CPos = Pos - Sz,
-	    SSz = Sz-1,
-     	    case Prev of
- 		<<_:CPos/binary,C:8,_:SSz/binary,B:8,_/binary>> -> ok;
- 		<<_:Pos/binary,B:8,_/binary>> -> C=0
- 	    end,
+paeth_filter(Prev0=[C|Prev],[X|Curr],Sz,Fun,Acc) ->
+    case pget(Sz,Acc) of
+	none -> 
+	    Pos = length(Acc)+1,
+	    B = pget(Pos,Prev0),
+	    RX = paeth_filter(0,B,0,X),
+	    Fun(Prev0,Curr,[RX|Acc]);
+	A ->
+	    B = pget(Sz,Prev),
 	    RX = paeth_filter(A,B,C,X),
- 	    Fun(Pos+1,CPos+1,Prev,Curr,[RX|Acc]);
-	_ ->
-	    list_to_binary(lists:reverse(Acc))
-    end.
+	    Fun(Prev,Curr,[RX|Acc])
+    end;
+paeth_filter(_,[],_Sz,_Fun,Acc) ->
+    lists:reverse(Acc).
 
 paeth_filter(A,B,C,X) ->
     P = A + B - C,
@@ -501,208 +503,156 @@ paeth_filter(A,B,C,X) ->
        true -> (C+X) band 255
     end.
 
-sub_filter8(Pos,Curr,Acc=[A8,A7,A6,A5,A4,A3,A2,A1|_]) when Pos < size(Curr) ->
-    <<_:Pos/binary,X1:8,X2:8,X3:8,X4:8,X5:8,X6:8,X7:8,X8:8,_/binary>> = Curr,
-    RX1 = (X1+A1) band 255,
-    RX2 = (X2+A2) band 255,
-    RX3 = (X3+A3) band 255,
-    RX4 = (X4+A4) band 255,
-    RX5 = (X5+A5) band 255,
-    RX6 = (X6+A6) band 255,
-    RX7 = (X7+A7) band 255,
-    RX8 = (X8+A8) band 255,
-    sub_filter8(Pos+8,Curr,[RX8,RX7,RX6,RX5,RX4,RX3,RX2,RX1|Acc]);
-sub_filter8(Pos,Curr,Acc) ->
-    sub_filter(Pos,Curr,8,fun sub_filter8/3,Acc).
-sub_filter6(Pos,Curr,Acc=[A6,A5,A4,A3,A2,A1|_]) when Pos < size(Curr) ->
-    <<_:Pos/binary,X1:8,X2:8,X3:8,X4:8,X5:8,X6:8,_/binary>> = Curr,
-    RX1 = (X1+A1) band 255,
-    RX2 = (X2+A2) band 255,
-    RX3 = (X3+A3) band 255,
-    RX4 = (X4+A4) band 255,
-    RX5 = (X5+A5) band 255,
-    RX6 = (X6+A6) band 255,
-    sub_filter6(Pos+6,Curr,[RX6,RX5,RX4,RX3,RX2,RX1|Acc]);
-sub_filter6(Pos,Curr,Acc) ->
-    sub_filter(Pos,Curr,6,fun sub_filter6/3,Acc).
-sub_filter4(Pos,Curr,Acc=[A4,A3,A2,A1,_,_,_,_|_]) when Pos+4 < size(Curr) ->
-    <<_:Pos/binary,X1:8,X2:8,X3:8,X4:8,X5:8,X6:8,X7:8,X8:8,_/binary>> = Curr,
-    RX1 = (X1+A1) band 255,
-    RX2 = (X2+A2) band 255,
-    RX3 = (X3+A3) band 255,
-    RX4 = (X4+A4) band 255,
-    RX5 = (X5+RX1) band 255,
-    RX6 = (X6+RX2) band 255,
-    RX7 = (X7+RX3) band 255,
-    RX8 = (X8+RX4) band 255,
-    sub_filter4(Pos+8,Curr,[RX8,RX7,RX6,RX5,RX4,RX3,RX2,RX1|Acc]);
-sub_filter4(Pos,Curr,Acc) ->
-    sub_filter(Pos,Curr,4,fun sub_filter4/3,Acc).
-sub_filter3(Pos,Curr,Acc=[A3,A2,A1,_,_,_|_]) when Pos+3 < size(Curr) ->
-    <<_:Pos/binary,X1:8,X2:8,X3:8,X4:8,X5:8,X6:8,_/binary>> = Curr,
-    RX1 = (X1+A1) band 255,
-    RX2 = (X2+A2) band 255,
-    RX3 = (X3+A3) band 255,
-    RX4 = (X4+RX1) band 255,
-    RX5 = (X5+RX2) band 255,
-    RX6 = (X6+RX3) band 255,
-    sub_filter3(Pos+6,Curr,[RX6,RX5,RX4,RX3,RX2,RX1|Acc]);
-sub_filter3(Pos,Curr,Acc) ->
-    sub_filter(Pos,Curr,3,fun sub_filter3/3,Acc).
-sub_filter2(Pos,Curr,Acc=[A2,A1,_,_,_,_,_,_|_]) when Pos+6 < size(Curr) ->
-    <<_:Pos/binary,X1:8,X2:8,X3:8,X4:8,X5:8,X6:8,X7:8,X8:8,_/binary>> = Curr,
-    RX1 = (X1+A1) band 255,
-    RX2 = (X2+A2) band 255,
-    RX3 = (X3+RX1) band 255,
-    RX4 = (X4+RX2) band 255,
-    RX5 = (X5+RX3) band 255,
-    RX6 = (X6+RX4) band 255,
-    RX7 = (X7+RX5) band 255,
-    RX8 = (X8+RX6) band 255,
-    sub_filter2(Pos+8,Curr,[RX8,RX7,RX6,RX5,RX4,RX3,RX2,RX1|Acc]);
-sub_filter2(Pos,Curr,Acc) ->
-    sub_filter(Pos,Curr,2,fun sub_filter2/3,Acc).
-sub_filter1(Pos,Curr,Acc=[A1,_,_,_,_,_,_,_|_]) when Pos+7 < size(Curr) ->
-    <<_:Pos/binary,X1:8,X2:8,X3:8,X4:8,X5:8,X6:8,X7:8,X8:8,_/binary>> = Curr,
-    RX1 = (X1+A1) band 255,
-    RX2 = (X2+RX1) band 255,
-    RX3 = (X3+RX2) band 255,
-    RX4 = (X4+RX3) band 255,
-    RX5 = (X5+RX4) band 255,
-    RX6 = (X6+RX5) band 255,
-    RX7 = (X7+RX6) band 255,
-    RX8 = (X8+RX7) band 255,
-    sub_filter1(Pos+8,Curr,[RX8,RX7,RX6,RX5,RX4,RX3,RX2,RX1|Acc]);
-sub_filter1(Pos,Curr,Acc) ->
-    sub_filter(Pos,Curr,1,fun sub_filter1/3,Acc).
+sub_filter8([X1,X2,X3,X4,X5,X6,X7,X8|Curr],
+	    Acc=[A8,A7,A6,A5,A4,A3,A2,A1|_]) ->
+    RX1 = (X1+A1) band 255,  RX2 = (X2+A2) band 255,
+    RX3 = (X3+A3) band 255,  RX4 = (X4+A4) band 255,
+    RX5 = (X5+A5) band 255,  RX6 = (X6+A6) band 255,
+    RX7 = (X7+A7) band 255,  RX8 = (X8+A8) band 255,
+    sub_filter8(Curr,[RX8,RX7,RX6,RX5,RX4,RX3,RX2,RX1|Acc]);
+sub_filter8(Curr,Acc) ->
+    sub_filter(Curr,8,fun sub_filter8/2,Acc).
+sub_filter6([X1,X2,X3,X4,X5,X6|Curr],Acc=[A6,A5,A4,A3,A2,A1|_]) ->
+    RX1 = (X1+A1) band 255,  RX2 = (X2+A2) band 255,
+    RX3 = (X3+A3) band 255,  RX4 = (X4+A4) band 255,
+    RX5 = (X5+A5) band 255,  RX6 = (X6+A6) band 255,
+    sub_filter6(Curr,[RX6,RX5,RX4,RX3,RX2,RX1|Acc]);
+sub_filter6(Curr,Acc) ->
+    sub_filter(Curr,6,fun sub_filter6/2,Acc).
+sub_filter4([X1,X2,X3,X4,X5,X6,X7,X8|Curr],Acc=[A4,A3,A2,A1|_]) ->
+    RX1 = (X1+A1) band 255,    RX2 = (X2+A2) band 255,
+    RX3 = (X3+A3) band 255,    RX4 = (X4+A4) band 255,
+    RX5 = (X5+RX1) band 255,   RX6 = (X6+RX2) band 255,
+    RX7 = (X7+RX3) band 255,   RX8 = (X8+RX4) band 255,
+    sub_filter4(Curr,[RX8,RX7,RX6,RX5,RX4,RX3,RX2,RX1|Acc]);
+sub_filter4(Curr,Acc) ->
+    sub_filter(Curr,4,fun sub_filter4/2,Acc).
+sub_filter3([X1,X2,X3,X4,X5,X6|Curr],Acc=[A3,A2,A1|_]) ->
+    RX1 = (X1+A1) band 255,    RX2 = (X2+A2) band 255,
+    RX3 = (X3+A3) band 255,    RX4 = (X4+RX1) band 255,
+    RX5 = (X5+RX2) band 255,   RX6 = (X6+RX3) band 255,
+    sub_filter3(Curr,[RX6,RX5,RX4,RX3,RX2,RX1|Acc]);
+sub_filter3(Curr,Acc) ->
+    sub_filter(Curr,3,fun sub_filter3/2,Acc).
+sub_filter2([X1,X2,X3,X4,X5,X6,X7,X8|Curr],Acc=[A2,A1|_]) ->
+    RX1 = (X1+A1) band 255,    RX2 = (X2+A2) band 255,
+    RX3 = (X3+RX1) band 255,   RX4 = (X4+RX2) band 255,
+    RX5 = (X5+RX3) band 255,   RX6 = (X6+RX4) band 255,
+    RX7 = (X7+RX5) band 255,   RX8 = (X8+RX6) band 255,
+    sub_filter2(Curr,[RX8,RX7,RX6,RX5,RX4,RX3,RX2,RX1|Acc]);
+sub_filter2(Curr,Acc) ->
+    sub_filter(Curr,2,fun sub_filter2/2,Acc).
+sub_filter1([X1,X2,X3,X4,X5,X6,X7,X8|Curr],Acc=[A1|_]) ->
+    RX1 = (X1+A1) band 255,    RX2 = (X2+RX1) band 255,
+    RX3 = (X3+RX2) band 255,   RX4 = (X4+RX3) band 255,
+    RX5 = (X5+RX4) band 255,   RX6 = (X6+RX5) band 255,
+    RX7 = (X7+RX6) band 255,   RX8 = (X8+RX7) band 255,
+    sub_filter1(Curr,[RX8,RX7,RX6,RX5,RX4,RX3,RX2,RX1|Acc]);
+sub_filter1(Curr,Acc) ->
+    sub_filter(Curr,1,fun sub_filter1/2,Acc).
 
-sub_filter(Pos,Curr,Sz,Fun,Acc) ->
-    case Curr of
-	<<_:Pos/binary,X:8,_/binary>> ->
-	    RX = (X+pget(Sz,Acc)) band 255,
-	    Fun(Pos+1,Curr,[RX|Acc]);
-	_ -> 
-	    list_to_binary(lists:reverse(Acc))
-    end.
+sub_filter([X|Curr],Sz,Fun,Acc) ->
+    case pget(Sz,Acc) of
+	none ->
+	    Fun(Curr,[X|Acc]);
+	A ->
+	    RX = (X+A) band 255,
+	    Fun(Curr,[RX|Acc])
+    end;
+sub_filter([],_,_,Acc) ->
+    lists:reverse(Acc).
 
-up_filter(Pos,Prev,Curr,Acc) when Pos+7 < size(Curr) ->
-    <<_:Pos/binary,X1:8,X2:8,X3:8,X4:8,X5:8,X6:8,X7:8,X8:8,_/binary>> = Curr,
-    <<_:Pos/binary,B1:8,B2:8,B3:8,B4:8,B5:8,B6:8,B7:8,B8:8,_/binary>> = Prev,
-    RX1 = (X1+B1) band 255,
-    RX2 = (X2+B2) band 255,
-    RX3 = (X3+B3) band 255,
-    RX4 = (X4+B4) band 255,
-    RX5 = (X5+B5) band 255,
-    RX6 = (X6+B6) band 255,
-    RX7 = (X7+B7) band 255,
-    RX8 = (X8+B8) band 255,
-    up_filter(Pos+8,Prev,Curr,[RX8,RX7,RX6,RX5,RX4,RX3,RX2,RX1|Acc]);
-up_filter(Pos,Prev,Curr,Acc) when Pos < size(Curr) ->
-    <<_:Pos/binary,X1:8,_/binary>> = Curr,
-    <<_:Pos/binary,B1:8,_/binary>> = Prev,
+up_filter([B1,B2,B3,B4,B5,B6,B7,B8|Prev],[X1,X2,X3,X4,X5,X6,X7,X8|Curr],Acc) ->
+    RX1 = (X1+B1) band 255,    RX2 = (X2+B2) band 255,
+    RX3 = (X3+B3) band 255,    RX4 = (X4+B4) band 255,
+    RX5 = (X5+B5) band 255,    RX6 = (X6+B6) band 255,
+    RX7 = (X7+B7) band 255,    RX8 = (X8+B8) band 255,
+    up_filter(Prev,Curr,[RX8,RX7,RX6,RX5,RX4,RX3,RX2,RX1|Acc]);
+up_filter([B1|Prev],[X1|Curr],Acc) ->
     RX = (X1+B1) band 255,
-    up_filter(Pos+1,Prev,Curr,[RX|Acc]);
-up_filter(_Pos,_Prev,_Curr,Acc) ->
-    list_to_binary(lists:reverse(Acc)).
+    up_filter(Prev,Curr,[RX|Acc]);
+up_filter(__Prev,[],Acc) ->
+    lists:reverse(Acc).
 
-average_filter8(Pos,Prev,Curr,Acc=[A8,A7,A6,A5,A4,A3,A2,A1|_]) when Pos < size(Curr) ->
-    <<_:Pos/binary,X1:8,X2:8,X3:8,X4:8,X5:8,X6:8,X7:8,X8:8,_/binary>> = Curr,
-    <<_:Pos/binary,B1:8,B2:8,B3:8,B4:8,B5:8,B6:8,B7:8,B8:8,_/binary>> = Prev,
-    RX1 = (X1+trunc((B1+A1)/2)) band 255,
-    RX2 = (X2+trunc((B2+A2)/2)) band 255,
-    RX3 = (X3+trunc((B3+A3)/2)) band 255,
-    RX4 = (X4+trunc((B4+A4)/2)) band 255,
-    RX5 = (X5+trunc((B5+A5)/2)) band 255,
-    RX6 = (X6+trunc((B6+A6)/2)) band 255,
-    RX7 = (X7+trunc((B7+A7)/2)) band 255,
-    RX8 = (X8+trunc((B8+A8)/2)) band 255,
-    average_filter8(Pos+8,Prev,Curr,[RX8,RX7,RX6,RX5,RX4,RX3,RX2,RX1|Acc]);
-average_filter8(Pos,Prev,Curr,Acc) ->
-    average_filter(Pos,Prev,Curr,8,fun average_filter8/4,Acc).
-average_filter6(Pos,Prev,Curr,Acc=[A6,A5,A4,A3,A2,A1|_]) when Pos < size(Curr) ->
-    <<_:Pos/binary,X1:8,X2:8,X3:8,X4:8,X5:8,X6:8,_/binary>> = Curr,
-    <<_:Pos/binary,B1:8,B2:8,B3:8,B4:8,B5:8,B6:8,_/binary>> = Prev,
-    RX1 = (X1+trunc((B1+A1)/2)) band 255,
-    RX2 = (X2+trunc((B2+A2)/2)) band 255,
-    RX3 = (X3+trunc((B3+A3)/2)) band 255,
-    RX4 = (X4+trunc((B4+A4)/2)) band 255,
-    RX5 = (X5+trunc((B5+A5)/2)) band 255,
-    RX6 = (X6+trunc((B6+A6)/2)) band 255,
-    average_filter6(Pos+6,Prev,Curr,[RX6,RX5,RX4,RX3,RX2,RX1|Acc]);
-average_filter6(Pos,Prev,Curr,Acc) ->
-    average_filter(Pos,Prev,Curr,6,fun average_filter6/4,Acc).
-average_filter4(Pos,Prev,Curr,Acc=[A4,A3,A2,A1,_,_,_,_|_]) when Pos+4 < size(Curr) ->
-    <<_:Pos/binary,X1:8,X2:8,X3:8,X4:8,X5:8,X6:8,X7:8,X8:8,_/binary>> = Curr,
-    <<_:Pos/binary,B1:8,B2:8,B3:8,B4:8,B5:8,B6:8,B7:8,B8:8,_/binary>> = Prev,
-    RX1 = (X1+trunc((B1+A1) /2)) band 255,
-    RX2 = (X2+trunc((B2+A2) /2)) band 255,
-    RX3 = (X3+trunc((B3+A3) /2)) band 255,
-    RX4 = (X4+trunc((B4+A4) /2)) band 255,
-    RX5 = (X5+trunc((B5+RX1)/2)) band 255,
-    RX6 = (X6+trunc((B6+RX2)/2)) band 255,
-    RX7 = (X7+trunc((B7+RX3)/2)) band 255,
-    RX8 = (X8+trunc((B8+RX4)/2)) band 255,
-    average_filter4(Pos+8,Prev,Curr,[RX8,RX7,RX6,RX5,RX4,RX3,RX2,RX1|Acc]);
-average_filter4(Pos,Prev,Curr,Acc) ->
-    average_filter(Pos,Prev,Curr,4,fun average_filter4/4,Acc).
-average_filter3(Pos,Prev,Curr,Acc=[A3,A2,A1,_,_,_|_]) when Pos+3 < size(Curr) ->
-    <<_:Pos/binary,X1:8,X2:8,X3:8,X4:8,X5:8,X6:8,_/binary>> = Curr,
-    <<_:Pos/binary,B1:8,B2:8,B3:8,B4:8,B5:8,B6:8,_/binary>> = Prev,
-    RX1 = (X1+trunc((B1+A1) /2))band 255,
-    RX2 = (X2+trunc((B2+A2) /2))band 255,
-    RX3 = (X3+trunc((B3+A3) /2))band 255,
-    RX4 = (X4+trunc((B4+RX1)/2)) band 255,
-    RX5 = (X5+trunc((B5+RX2)/2)) band 255,
-    RX6 = (X6+trunc((B6+RX3)/2)) band 255,
-    average_filter3(Pos+6,Prev,Curr,[RX6,RX5,RX4,RX3,RX2,RX1|Acc]);
-average_filter3(Pos,Prev,Curr,Acc) ->
-    average_filter(Pos,Prev,Curr,3,fun average_filter3/4,Acc).
-average_filter2(Pos,Prev,Curr,Acc=[A2,A1,_,_,_,_,_,_|_]) when Pos+6 < size(Curr) ->
-    <<_:Pos/binary,X1:8,X2:8,X3:8,X4:8,X5:8,X6:8,X7:8,X8:8,_/binary>> = Curr,
-    <<_:Pos/binary,B1:8,B2:8,B3:8,B4:8,B5:8,B6:8,B7:8,B8:8,_/binary>> = Prev,
-    RX1 = (X1+trunc((B1+A1) /2)) band 255,
-    RX2 = (X2+trunc((B2+A2) /2)) band 255,
-    RX3 = (X3+trunc((B3+RX1)/2)) band 255,
-    RX4 = (X4+trunc((B4+RX2)/2)) band 255,
-    RX5 = (X5+trunc((B5+RX3)/2)) band 255,
-    RX6 = (X6+trunc((B6+RX4)/2)) band 255,
-    RX7 = (X7+trunc((B7+RX5)/2)) band 255,
-    RX8 = (X8+trunc((B8+RX6)/2)) band 255,
-    average_filter2(Pos+8,Prev,Curr,[RX8,RX7,RX6,RX5,RX4,RX3,RX2,RX1|Acc]);
-average_filter2(Pos,Prev,Curr,Acc) ->
-    average_filter(Pos,Prev,Curr,2,fun average_filter2/4,Acc).
-average_filter1(Pos,Prev,Curr,Acc=[A1,_,_,_,_,_,_,_|_]) when Pos+7 < size(Curr) ->
-    <<_:Pos/binary,X1:8,X2:8,X3:8,X4:8,X5:8,X6:8,X7:8,X8:8,_/binary>> = Curr,
-    <<_:Pos/binary,B1:8,B2:8,B3:8,B4:8,B5:8,B6:8,B7:8,B8:8,_/binary>> = Prev,
-    RX1 = (X1+trunc((B1+A1) /2)) band 255,
-    RX2 = (X2+trunc((B2+RX1)/2)) band 255,
-    RX3 = (X3+trunc((B3+RX2)/2)) band 255,
-    RX4 = (X4+trunc((B4+RX3)/2)) band 255,
-    RX5 = (X5+trunc((B5+RX4)/2)) band 255,
-    RX6 = (X6+trunc((B6+RX5)/2)) band 255,
-    RX7 = (X7+trunc((B7+RX6)/2)) band 255,
-    RX8 = (X8+trunc((B8+RX7)/2)) band 255,
-    average_filter1(Pos+8,Prev,Curr,[RX8,RX7,RX6,RX5,RX4,RX3,RX2,RX1|Acc]);
-average_filter1(Pos,Prev,Curr,Acc) ->
-    average_filter(Pos,Prev,Curr,1,fun average_filter1/4,Acc).
+average_filter8([B1,B2,B3,B4,B5,B6,B7,B8|Prev],
+		[X1,X2,X3,X4,X5,X6,X7,X8|Curr],
+		Acc=[A8,A7,A6,A5,A4,A3,A2,A1|_])  ->
+    RX1 = (X1+trunc((B1+A1)/2)) band 255,    RX2 = (X2+trunc((B2+A2)/2)) band 255,
+    RX3 = (X3+trunc((B3+A3)/2)) band 255,    RX4 = (X4+trunc((B4+A4)/2)) band 255,
+    RX5 = (X5+trunc((B5+A5)/2)) band 255,    RX6 = (X6+trunc((B6+A6)/2)) band 255,
+    RX7 = (X7+trunc((B7+A7)/2)) band 255,    RX8 = (X8+trunc((B8+A8)/2)) band 255,
+    average_filter8(Prev,Curr,[RX8,RX7,RX6,RX5,RX4,RX3,RX2,RX1|Acc]);
+average_filter8(Prev,Curr,Acc) ->
+    average_filter(Prev,Curr,8,fun average_filter8/3,Acc).
+average_filter6([B1,B2,B3,B4,B5,B6|Prev],
+		[X1,X2,X3,X4,X5,X6|Curr],
+		Acc=[A6,A5,A4,A3,A2,A1|_])  ->
+    RX1 = (X1+trunc((B1+A1)/2)) band 255, RX2 = (X2+trunc((B2+A2)/2)) band 255,
+    RX3 = (X3+trunc((B3+A3)/2)) band 255, RX4 = (X4+trunc((B4+A4)/2)) band 255,
+    RX5 = (X5+trunc((B5+A5)/2)) band 255, RX6 = (X6+trunc((B6+A6)/2)) band 255,
+    average_filter6(Prev,Curr,[RX6,RX5,RX4,RX3,RX2,RX1|Acc]);
+average_filter6(Prev,Curr,Acc) ->
+    average_filter(Prev,Curr,6,fun average_filter6/3,Acc).
+average_filter4([B1,B2,B3,B4,B5,B6,B7,B8|Prev],
+		[X1,X2,X3,X4,X5,X6,X7,X8|Curr],
+		Acc=[A4,A3,A2,A1|_]) ->
+    RX1 = (X1+trunc((B1+A1) /2)) band 255, RX2 = (X2+trunc((B2+A2) /2)) band 255,
+    RX3 = (X3+trunc((B3+A3) /2)) band 255, RX4 = (X4+trunc((B4+A4) /2)) band 255,
+    RX5 = (X5+trunc((B5+RX1)/2)) band 255, RX6 = (X6+trunc((B6+RX2)/2)) band 255,
+    RX7 = (X7+trunc((B7+RX3)/2)) band 255, RX8 = (X8+trunc((B8+RX4)/2)) band 255,
+    average_filter4(Prev,Curr,[RX8,RX7,RX6,RX5,RX4,RX3,RX2,RX1|Acc]);
+average_filter4(Prev,Curr,Acc) ->
+    average_filter(Prev,Curr,4,fun average_filter4/3,Acc).
+average_filter3([B1,B2,B3,B4,B5,B6|Prev],
+		[X1,X2,X3,X4,X5,X6|Curr],
+		Acc=[A3,A2,A1|_])  ->
+    RX1 = (X1+trunc((B1+A1) /2))band 255, RX2 = (X2+trunc((B2+A2) /2))band 255,
+    RX3 = (X3+trunc((B3+A3) /2))band 255, RX4 = (X4+trunc((B4+RX1)/2)) band 255,
+    RX5 = (X5+trunc((B5+RX2)/2)) band 255,RX6 = (X6+trunc((B6+RX3)/2)) band 255,
+    average_filter3(Prev,Curr,[RX6,RX5,RX4,RX3,RX2,RX1|Acc]);
+average_filter3(Prev,Curr,Acc) ->
+    average_filter(Prev,Curr,3,fun average_filter3/3,Acc).
+average_filter2([B1,B2,B3,B4,B5,B6,B7,B8|Prev],
+		[X1,X2,X3,X4,X5,X6,X7,X8|Curr],
+		Acc=[A2,A1|_])  ->
+    RX1 = (X1+trunc((B1+A1) /2)) band 255, RX2 = (X2+trunc((B2+A2) /2)) band 255,
+    RX3 = (X3+trunc((B3+RX1)/2)) band 255, RX4 = (X4+trunc((B4+RX2)/2)) band 255,
+    RX5 = (X5+trunc((B5+RX3)/2)) band 255, RX6 = (X6+trunc((B6+RX4)/2)) band 255,
+    RX7 = (X7+trunc((B7+RX5)/2)) band 255, RX8 = (X8+trunc((B8+RX6)/2)) band 255,
+    average_filter2(Prev,Curr,[RX8,RX7,RX6,RX5,RX4,RX3,RX2,RX1|Acc]);
+average_filter2(Prev,Curr,Acc) ->
+    average_filter(Prev,Curr,2,fun average_filter2/3,Acc).
+average_filter1([B1,B2,B3,B4,B5,B6,B7,B8|Prev],
+		[X1,X2,X3,X4,X5,X6,X7,X8|Curr],
+		Acc=[A1|_])  ->
+    RX1 = (X1+trunc((B1+A1) /2)) band 255, RX2 = (X2+trunc((B2+RX1)/2)) band 255,
+    RX3 = (X3+trunc((B3+RX2)/2)) band 255, RX4 = (X4+trunc((B4+RX3)/2)) band 255,
+    RX5 = (X5+trunc((B5+RX4)/2)) band 255, RX6 = (X6+trunc((B6+RX5)/2)) band 255,
+    RX7 = (X7+trunc((B7+RX6)/2)) band 255, RX8 = (X8+trunc((B8+RX7)/2)) band 255,
+    average_filter1(Prev,Curr,[RX8,RX7,RX6,RX5,RX4,RX3,RX2,RX1|Acc]);
+average_filter1(Prev,Curr,Acc) ->
+    average_filter(Prev,Curr,1,fun average_filter1/3,Acc).
 
-average_filter(Pos,Prev,Curr,Sz,Fun,Acc) ->
-    case Curr of
-	<<_:Pos/binary,X:8,_/binary>> ->
-	    <<_:Pos/binary,B:8,_/binary>> = Prev,
-	    RX = (X + trunc((pget(Sz,Acc)+B)/2)) band 255,
-	    Fun(Pos+1,Prev,Curr,[RX|Acc]);
-	_-> 
-	    list_to_binary(lists:reverse(Acc))
-    end.
+average_filter([B|Prev],[X|Curr],Sz,Fun,Acc) ->
+    case pget(Sz,Acc) of
+	none ->
+	    RX = (X + trunc(B/2)) band 255;
+	A ->
+	    RX = (X + trunc((A+B)/2)) band 255
+    end,
+    Fun(Prev,Curr,[RX|Acc]);
+average_filter(_,[],_,_,Acc) ->
+    lists:reverse(Acc).
 
-pget(3,[_,_,A|_]) -> A; 
-pget(4,[_,_,_,A|_]) -> A;  
-pget(6,[_,_,_,_,_,A|_]) -> A;  
-pget(8,[_,_,_,_,_,_,_,A|_]) -> A; 
 pget(1,[A|_]) -> A;  
 pget(2,[_,A|_]) -> A; 
-pget(_,_) -> 0.
+pget(3,[_,_,A|_]) -> A; 
+pget(4,[_,_,_,A|_]) -> A;  
+pget(5,[_,_,_,_,A|_]) -> A;
+pget(6,[_,_,_,_,_,A|_]) -> A;  
+pget(7,[_,_,_,_,_,_,A|_]) -> A;  
+pget(8,[_,_,_,_,_,_,_,A|_]) -> A; 
+pget(_,_) -> none.
 
 pixelsz(#png{type=Type,bpc=Bpc}) ->
     PixelBitSz
