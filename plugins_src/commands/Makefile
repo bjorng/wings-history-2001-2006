@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.14 2005/06/11 09:15:21 bjorng Exp $
+#     $Id: Makefile,v 1.15 2005/06/24 13:27:06 trepan Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -30,11 +30,12 @@ endif
 MODULES= \
 	wpc_bend \
 	wpc_connect_tool \
-	wpc_region \
-	wpc_turnedge \
+	wpc_doosabin \
 	wpc_intersect_edge \
 	wpc_intersect_vertex \
-	wpc_doosabin \
+	wpc_region \
+	wpc_shift \
+	wpc_turnedge \
 	wpc_tweak
 
 TARGET_FILES= $(MODULES:%=$(EBIN)/%.beam)
