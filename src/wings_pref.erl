@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.132 2004/12/18 19:36:21 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.133 2005/06/24 13:36:47 trepan Exp $
 %%
 
 -module(wings_pref).
@@ -408,6 +408,7 @@ defaults() ->
      {title_passive_color,{0.325,0.4,0.325,1.0}},
      {title_text_color,{1.0,1.0,1.0}},
      {no_progress_bar,false},
+     {objects_in_outliner,true},
      %% Console
      {console_width,80},
      {console_height,12},

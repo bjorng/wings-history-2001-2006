@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref_dlg.erl,v 1.7 2005/06/08 21:06:28 bjorng Exp $
+%%     $Id: wings_pref_dlg.erl,v 1.8 2005/06/24 13:36:48 trepan Exp $
 %%
 
 -module(wings_pref_dlg).
@@ -186,7 +186,8 @@ ui_prefs() ->
 	    {color,title_passive_color},
 	    {color,title_active_color}]}],
 	 [{title,?__(13,"Colors")}]},
-	{?__(14,"No Progress Bar"),no_progress_bar}
+	{?__(14,"No Progress Bar"),no_progress_bar},
+	{?__(24,"Objects in Outliner"),objects_in_outliner}
        ]},
       {vframe,
        [{vframe,

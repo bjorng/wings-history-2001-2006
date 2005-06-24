@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.57 2004/12/18 19:36:20 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.58 2005/06/24 13:36:47 trepan Exp $
 %%
 
 -module(wings_outliner).
@@ -428,11 +428,16 @@ update_state_1(St, Ost) ->
     update_state_2(St, Ost).
 
 update_state_2(#st{mat=Mat,shapes=Shs0}=St, #ost{os=Objs0,active=Act0}=Ost) ->
-    Objs = [{object,Id,Name} || #we{id=Id,name=Name}=We <- gb_trees:values(Shs0),
-				not ?IS_ANY_LIGHT(We)] ++
-	[{light,Id,Name} || #we{id=Id,name=Name}=We <- gb_trees:values(Shs0),
-			    ?IS_ANY_LIGHT(We)] ++
-	[make_mat(M) || M <- gb_trees:to_list(Mat)] ++ update_images(),
+    Objects =
+      case wings_pref:get_value(objects_in_outliner) of
+        true -> [{object,Id,Name} || #we{id=Id,name=Name}=We <- gb_trees:values(Shs0),
+				     not ?IS_ANY_LIGHT(We)];
+        _ -> []
+      end,
+    Lights = [{light,Id,Name} || #we{id=Id,name=Name}=We <- gb_trees:values(Shs0),
+			         ?IS_ANY_LIGHT(We)],
+    Materials = [make_mat(M) || M <- gb_trees:to_list(Mat)],
+    Objs = Objects ++ Lights ++ Materials ++ update_images(),
     case Objs of
 	Objs0 -> ok;
 	_ -> wings_wm:dirty()
