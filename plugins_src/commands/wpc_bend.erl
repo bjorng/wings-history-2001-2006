@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_bend.erl,v 1.1 2005/06/11 09:15:21 bjorng Exp $
+%%     $Id: wpc_bend.erl,v 1.2 2005/06/24 13:39:19 trepan Exp $
 %%
 
 
@@ -60,7 +60,7 @@ command(_,_) -> next.
 %%
 
 submenu_items(1, Clamped) ->
-    {{normal_bend,Clamped},
+    {{plastic_bend,Clamped},
      {'ASK',{[{point, "Pick rod center"},
 	      {point, "Pick rod top"},
 	      {axis,  "Pick bend normal"}]
@@ -69,7 +69,7 @@ submenu_items(2, Clamped) ->
     {{pivot_bend,Clamped},
      {'ASK',{[{point, "Pick rod center"},
 	      {point, "Pick rod top"},
-	      {axis,  "Pick pivot normal"},
+	      {axis,  "Pick pivot axis"},
 	      {point, "Pick pivot location"}]
               ++ submenu_clamp(Clamped),[],[]}}};
 submenu_items(3, Clamped) ->
@@ -90,14 +90,14 @@ submenu_clamp(Clamped) ->
 
 
 adv_submenu_noclamp(help, _) ->
-    {"Normal Bend",
+    {"Plastic Bend",
      "Pivot Bend",
      "TopRad Bend"};
 adv_submenu_noclamp(Button, NS) ->
     wings_menu:build_command(submenu_items(Button, noclamp), NS).
 
 adv_submenu_clamped(help, _) ->
-    {"Clamped Normal Bend",
+    {"Clamped Plastic Bend",
      "Clamped Pivot Bend",
      "Clamped TopRad Bend"};
 adv_submenu_clamped(Button, NS) ->
@@ -117,7 +117,7 @@ bend_cmd({Mode, {'ASK',Ask}}, St) ->
 %% Unclamped
 %%
 
-bend_ask_callback({{normal_bend,noclamp},
+bend_ask_callback({{plastic_bend,noclamp},
                    {RodCenter, RodTop, BendNormal}}, St) ->
     BD = bend_setup(fixed_length, RodCenter, RodTop, BendNormal),
     bend_verts(BD, St);
@@ -138,7 +138,7 @@ bend_ask_callback({{toprad_bend,noclamp},
 %% Clamped
 %%
 
-bend_ask_callback({{normal_bend,clamped},
+bend_ask_callback({{plastic_bend,clamped},
                    {RodCenter, RodTop, BendNormal,
                     PosClamp, NegClamp}}, St) ->
     BD1 = bend_setup(fixed_length, RodCenter, RodTop, BendNormal),
@@ -249,18 +249,20 @@ bend_setup_clamps(#bend_data{rodCenter=RC, rodNormal=RN}=BD,
 %%
 
 bend_verts(BendData, St) ->
+  case BendData#bend_data.rodLength of
+    0.0 -> wpa:error("Configuration doe not result in bending");
+    _ ->
+      %% FIXME
+      %%   Run a test call. If you don't do this before
+      %%   iterating, and there's an error, it locks up
+      %%   the mouse under linux.
+      bend_vertex({1.0, 1.0, 1.0}, 45.0, BendData),
 
-  %% FIXME
-  %%   Run a test call. If you don't do this before
-  %%   iterating, and there's an error, it locks up
-  %%   the mouse under linux.
-  bend_vertex({1.0, 1.0, 1.0}, 45.0, BendData),
-
-  Tvs = wings_sel:fold(fun(Vs, We, Acc) ->
-                               bend_verts(BendData, Vs, We, Acc)
-                       end, [], St),
-  wings_drag:setup(Tvs, [angle], St).
-
+      Tvs = wings_sel:fold(fun(Vs, We, Acc) ->
+                                   bend_verts(BendData, Vs, We, Acc)
+                           end, [], St),
+      wings_drag:setup(Tvs, [angle], St)
+  end.
 
 bend_verts(BendData, Vs0, #we{id=Id}=We, Acc) ->
   Vs = gb_sets:to_list(Vs0),
@@ -280,9 +282,9 @@ bend_verts(BendData, Vs0, #we{id=Id}=We, Acc) ->
 %%   The return value is the new position. {X,Y,Z}
 %%
 
-bend_vertex(Pos, 0.0, _) ->
-  Pos;
 bend_vertex(Pos, _, #bend_data{rodLength = 0.0}) ->
+  Pos;
+bend_vertex(Pos, 0.0, #bend_data{dragMode = fixed_length}) ->
   Pos;
 bend_vertex(Pos, Angle, #bend_data{dragMode = DragMode,
                                    rodCenter = RC,
