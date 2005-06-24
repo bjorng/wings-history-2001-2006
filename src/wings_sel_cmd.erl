@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.61 2005/06/24 13:36:05 trepan Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.62 2005/06/24 14:09:59 trepan Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -127,8 +127,8 @@ sel_all_str(#st{selmode=face}) -> ?__(3,"All Faces");
 sel_all_str(#st{selmode=body}) -> ?__(4,"All Objects").
 
 oriented_faces_menu(#st{selmode=face}) ->
-  [{?__(1,"Same Orientation"), oriented_faces,
-    ?__(2,"Select all similarly oriented faces"),[option]}];
+  [{?__(1,"Similar Normals"), oriented_faces,
+    ?__(2,"Select faces with normals similar to those of the already selected faces"),[option]}];
 oriented_faces_menu(_) ->
   [].
 
