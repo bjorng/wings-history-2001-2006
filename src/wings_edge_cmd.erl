@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge_cmd.erl,v 1.6 2005/01/30 11:34:02 bjorng Exp $
+%%     $Id: wings_edge_cmd.erl,v 1.7 2005/06/24 13:33:20 trepan Exp $
 %%
 
 -module(wings_edge_cmd).
@@ -86,11 +86,16 @@ cut_entries() ->
      cut_entry(4),
      cut_entry(5),
      separator,
-     cut_entry(10)].
+     cut_entry(10),
+     separator,
+     cut_ask_entry()].
 
 cut_entry(N) ->
     Str = integer_to_list(N),
     {Str,N,?__(1,"Cut into ") ++ Str ++ ?__(2," edges of equal length")}.
+
+cut_ask_entry() ->
+    {?__(2,"Enter Number..."), ask, ?__(1, "Cut into <N> segments")}.
 
 %% Edge commands.
 command(bevel, St) ->
@@ -101,6 +106,10 @@ command(slide, St) ->
     slide(St);
 command(cut_pick, St) ->
     cut_pick(St);
+command({cut,ask}, St) ->
+    wings_ask:ask(?__(2,"Number of Segments?"),
+                  [{?__(1,"Segments"), 2}],
+                  fun([Ret]) -> cut(Ret, St) end);
 command({cut,Num}, St) ->
     {save_state,cut(Num, St)};
 command(connect, St) ->
