@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.60 2005/06/07 17:40:18 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.61 2005/06/24 13:36:05 trepan Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -27,8 +27,9 @@ menu(St) ->
      separator,
      {?__(3,"More"),more,more_help(St)},
      {?__(4,"Less"),less,less_help(St)},
-     {?__(5,"Similar"),similar,similar_help(St)},
-     separator,
+     {?__(5,"Similar"),similar,similar_help(St)}]
+    ++ oriented_faces_menu(St) ++
+    [separator,
      {?__(6,"Edge Loop"),
       {edge_loop,
        [{?__(7,"Edge Loop"),
@@ -124,6 +125,12 @@ sel_all_str(#st{selmode=vertex}) -> ?__(1,"All Vertices");
 sel_all_str(#st{selmode=edge}) -> ?__(2,"All Edges");
 sel_all_str(#st{selmode=face}) -> ?__(3,"All Faces");
 sel_all_str(#st{selmode=body}) -> ?__(4,"All Objects").
+
+oriented_faces_menu(#st{selmode=face}) ->
+  [{?__(1,"Same Orientation"), oriented_faces,
+    ?__(2,"Select all similarly oriented faces"),[option]}];
+oriented_faces_menu(_) ->
+  [].
 
 groups_menu(#st{ssels=Ssels}=St) -> 
     case gb_trees:is_empty(Ssels) of
@@ -229,6 +236,8 @@ command({by,Command}, St) ->
     by_command(Command, St);
 command(similar, St) ->
     {save_state,similar(St)};
+command({oriented_faces,Ask}, St) ->
+    oriented_faces(Ask, St);
 command({select_group,Id}, St) ->
     {save_state,select_group(Id, St)};
 command({union_group, Id}, St) ->
@@ -841,3 +850,34 @@ nonplanar_faces([Tolerance], St) ->
               not wings_face:is_planar(Tolerance,Face,We)
           end,
     {save_state,wings_sel:make(Sel, face, St)}.
+
+%%%
+%%% Select similarly oriented faces
+%%%
+
+oriented_faces(Ask, _St) when is_atom(Ask) ->
+    Qs = [{label,?__(1,"Angle tolerance")},
+	  {text,1.0E-3,[{range,{0.0,180.0}}]}],
+    wings_ask:dialog(Ask, ?__(2,"Select Similarly Oriented Faces"),
+		     [{hframe,Qs}],
+		     fun(Res) -> {select,{oriented_faces,Res}} end);
+oriented_faces([Tolerance], St) ->
+    CosTolerance = math:cos(Tolerance * (math:pi() / 180.0)),
+    Normals = wings_sel:fold(fun(Sel0, We, A) ->
+                                 [wings_face:normal(SelI, We) ||
+			             SelI <- gb_sets:to_list(Sel0)] ++ A
+	                     end, [], St),
+    Sel = fun(Face, We) ->
+              Normal = wings_face:normal(Face,We),
+              any_matching_normal(CosTolerance, Normal, Normals)
+          end,
+    {save_state,wings_sel:make(Sel, face, St)}.
+
+any_matching_normal(_,_,[]) ->
+    false;
+any_matching_normal(CosTolerance, Normal, [N|T]) ->
+    Dot = e3d_vec:dot(N, Normal),
+    if
+      Dot >= CosTolerance -> true;
+      true -> any_matching_normal(CosTolerance, Normal, T)
+    end.
