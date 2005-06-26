@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pt.lang,v 1.6 2005/04/18 18:33:49 bjorng Exp $
+%%     $Id: wings_pt.lang,v 1.7 2005/06/26 04:58:46 trepan Exp $
 %%
 
 {wpa,
@@ -360,10 +360,8 @@
   {check_point,
    [
     {1,"Ponto central da seleção salvo."},
-    {2,"Ponto central da seleção salvo."},
-    {3,"Despreza o espelhamento no cálculo do ponto de referência"},
-    {4,"Ponto central da seleção salvo."},
-    {5,"Inclui o espelhamento no cálculo do ponto de referência"}
+    {2,"Despreza o espelhamento no cálculo do ponto de referência"},
+    {3,"Inclui o espelhamento no cálculo do ponto de referência"}
    ]},
   {check_vector,
    [

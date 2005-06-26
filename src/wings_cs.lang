@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_cs.lang,v 1.5 2005/05/24 20:15:54 bjorng Exp $
+%%     $Id: wings_cs.lang,v 1.6 2005/06/26 04:58:46 trepan Exp $
 %%
 {wings,
  [
@@ -2244,10 +2244,8 @@
   {check_point,
    [
     {1,"Středový bod výběru uložen."},
-    {2,"Středbový bod výběru uložen."},
-    {3,"Nevšímat si zrcadlového obrazu při výpočtu vztažného bodu"},
-    {4,"Středový bod výběru uložen."},
-    {5,"Včetně zrcadlového obrazu při výpočtu vztažného bodu"}
+    {2,"Nevšímat si zrcadlového obrazu při výpočtu vztažného bodu"},
+    {3,"Včetně zrcadlového obrazu při výpočtu vztažného bodu"}
    ]},
   {check_vector,
    [

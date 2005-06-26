@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.113 2005/06/26 02:18:24 trepan Exp $
+%%     $Id: wings_vec.erl,v 1.114 2005/06/26 04:58:46 trepan Exp $
 %%
 
 -module(wings_vec).
@@ -521,17 +521,17 @@ check_point(St) ->
             if UseMirrorPref ->
               [{Center,
                 {?__(1,"Midpoint of selection saved."),
-                 ?__(3,"Disregard virtual mirror in reference point calculation")}},
+                 ?__(2,"Disregard virtual mirror in reference point calculation")}},
                {NoMirrorCenter,
                 {?__(1,"Midpoint of selection saved."),
-                 ?__(2,"Include virtual mirror in reference point calculation")}}];
+                 ?__(3,"Include virtual mirror in reference point calculation")}}];
             true ->
               [{NoMirrorCenter,
                 {?__(1,"Midpoint of selection saved."),
-                 ?__(2,"Include virtual mirror in reference point calculation")}},
+                 ?__(3,"Include virtual mirror in reference point calculation")}},
                {Center,
                 {?__(1,"Midpoint of selection saved."),
-                 ?__(3,"Disregard virtual mirror in reference point calculation")}}]
+                 ?__(2,"Disregard virtual mirror in reference point calculation")}}]
             end
     end.
 

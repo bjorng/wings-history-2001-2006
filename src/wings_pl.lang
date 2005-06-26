@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pl.lang,v 1.4 2005/06/09 18:37:01 bjorng Exp $
+%%     $Id: wings_pl.lang,v 1.5 2005/06/26 04:58:46 trepan Exp $
 %%
 %%  Translation:  Andrzej Giniewicz
 %%  Correction:   Małgorzata Napiontek
@@ -2278,10 +2278,8 @@
   {check_point,
    [
     {1,"Punkt środkowy zaznaczenia zapisany."},
-    {2,"Punkt środkowy zaznaczenia zapisany."},
-    {3,"Ignoruj wirtualne lustro w obliczeniach punktu środkowego"},
-    {4,"Punkt środkowy zaznaczenia zapisany."},
-    {5,"Weź pod uwagę wirtualne lustro w obliczeniach punktu środkowego"}
+    {2,"Ignoruj wirtualne lustro w obliczeniach punktu środkowego"},
+    {3,"Weź pod uwagę wirtualne lustro w obliczeniach punktu środkowego"}
    ]},
   {check_vector,
    [

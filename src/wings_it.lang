@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_it.lang,v 1.36 2005/04/18 18:26:02 bjorng Exp $
+%%     $Id: wings_it.lang,v 1.37 2005/06/26 04:58:46 trepan Exp $
 %%
 
 {wings,
@@ -1570,10 +1570,8 @@
    [{1,"Punto medio della selezione salvato."}]},
   {check_point,
    [{1,"Punto medio della selezione salvato."},
-    {2,"Punto medio della selezione salvato."},
-    {3,"Non considera la simmetria virtuale nel calcolo dei punti di riferimento"},
-    {4,"Punto medio della selezione salvato."},
-    {5,"Includi la simmetria virtuale nel calcolo dei punti di riferimento"}]},
+    {2,"Non considera la simmetria virtuale nel calcolo dei punti di riferimento"},
+    {3,"Includi la simmetria virtuale nel calcolo dei punti di riferimento"}]},
   {check_vector,
    [{1,"Scegli soltanto parti di un oggetto"}]},
   {common_magnet_message,

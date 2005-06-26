@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_fr.lang,v 1.9 2005/04/18 18:29:24 bjorng Exp $
+%%     $Id: wings_fr.lang,v 1.10 2005/06/26 04:58:46 trepan Exp $
 %%
 
 {wings,
@@ -1641,10 +1641,8 @@
    [{1,"Sauvegarde du milieu de la selection."}]},
   {check_point,
    [{1,"Sauvegarde du milieu de la selection."},
-    {2,"Sauvegarde du milieu de la selection."},
-    {3,"Ne pas tenir compte du miroir virtuel en reference au calcul des points"},
-    {4,"Sauvegarde du milieu de la selection."},
-    {5,"Tenir compte du miroir virtuel en reference au calcul des points"}]},
+    {2,"Ne pas tenir compte du miroir virtuel en reference au calcul des points"},
+    {3,"Tenir compte du miroir virtuel en reference au calcul des points"}]},
   {check_vector,
    [{1,"Selectionnez une partie de l'objet seulement"}]},
   {common_magnet_message,
