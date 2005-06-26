@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pl.lang,v 1.5 2005/06/26 04:58:46 trepan Exp $
+%%     $Id: wings_pl.lang,v 1.6 2005/06/26 07:43:53 bjorng Exp $
 %%
 %%  Translation:  Andrzej Giniewicz
 %%  Correction:   Małgorzata Napiontek
@@ -495,6 +495,16 @@
  ]}.
 {wings_edge_cmd,
  [
+  {command,
+   [
+    {1,"Segmenty"},
+    {2,"Tnij krawędź"}
+   ]},
+  {cut_ask_entry,
+   [
+    {1,"Potnij krawędź na dowolną ilość równych części"},
+    {2,"Wpisz ilość..."}
+   ]},
   {cut_entry,
    [
     {1,"Potnij krawędź na "},
@@ -1832,7 +1842,8 @@
     {20,"Tekst"},
     {21,"Kursor"},
     {22,"Konsola"},
-    {23,"Język"}
+    {23,"Język"},
+    {24,"Wyświetlaj obiekty w oknie schematu sceny"}
    ]},
   {workaround_1,
    [
@@ -2072,6 +2083,16 @@
     {1,"Tolerancja odległości"},
     {2,"Zaznacz krzywiznę"}
    ]},
+  {oriented_faces,
+   [
+    {1,"Tolerancja nachylenia"},
+    {2,"Zaznacz płaszczyzny o zbliżonym nachyleniu"}
+   ]},
+  {oriented_faces_menu,
+   [
+    {1,"Podobne wektory normalne"},
+    {2,"Zaznacza płaszczyzny z wektorami normalnymi podobnymi do tych w już zaznaczonych płaszczyznach"}
+   ]},
   {sel_all_str,
    [
     {1,"Wszystkie punkty"},
@@ -2278,8 +2299,8 @@
   {check_point,
    [
     {1,"Punkt środkowy zaznaczenia zapisany."},
-    {2,"Ignoruj wirtualne lustro w obliczeniach punktu środkowego"},
-    {3,"Weź pod uwagę wirtualne lustro w obliczeniach punktu środkowego"}
+    {2,"Punkt środkowy zaznaczenia zapisany."},
+    {3,"Ignoruj wirtualne lustro w obliczeniach punktu środkowego"}
    ]},
   {check_vector,
    [
