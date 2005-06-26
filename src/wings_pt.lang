@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pt.lang,v 1.7 2005/06/26 04:58:46 trepan Exp $
+%%     $Id: wings_pt.lang,v 1.8 2005/06/26 08:25:44 bjorng Exp $
 %%
 
 {wpa,
@@ -2093,6 +2093,10 @@
  ]}.
 {wings_edge_cmd,
  [
+  {cut_command,
+   [
+    {1,"Corta"}
+   ]},
   {cut_entry,
    [
     {1,"Cortar em "},
@@ -2101,8 +2105,7 @@
   {cut_fun,
    [
     {1,"Corta em arestas do mesmo comprimento"},
-    {2,"Corta numa posição arbitrária"},
-    {3,"Corta"}
+    {2,"Corta numa posição arbitrária"}
    ]},
   {cut_pick_error,
    [
@@ -2137,7 +2140,6 @@
    ]},
   {plain_cut_menu,
    [
-    {1,"Cortar"},
     {2,"Divide em arestas de mesmo comprimento"}
    ]},
   {slide_help_mode,

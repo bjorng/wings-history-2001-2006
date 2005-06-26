@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pl.lang,v 1.6 2005/06/26 07:43:53 bjorng Exp $
+%%     $Id: wings_pl.lang,v 1.7 2005/06/26 08:25:44 bjorng Exp $
 %%
 %%  Translation:  Andrzej Giniewicz
 %%  Correction:   Małgorzata Napiontek
@@ -497,13 +497,16 @@
  [
   {command,
    [
-    {1,"Segmenty"},
-    {2,"Tnij krawędź"}
+    {1,"Segmenty"}
    ]},
   {cut_ask_entry,
    [
     {1,"Potnij krawędź na dowolną ilość równych części"},
     {2,"Wpisz ilość..."}
+   ]},
+  {cut_command,
+   [
+    {1,"Tnij"}
    ]},
   {cut_entry,
    [
@@ -513,8 +516,7 @@
   {cut_fun,
    [
     {1,"Tnij na krawędzie równej długości"},
-    {2,"Tnij w wyznaczonym miejscu"},
-    {3,"Tnij"}
+    {2,"Tnij w wyznaczonym miejscu"}
    ]},
   {cut_pick_error,
    [
@@ -549,7 +551,6 @@
    ]},
   {plain_cut_menu,
    [
-    {1,"Tnij"},
     {2,"Tnij na krawędzie równej długości"}
    ]},
   {slide_help_mode,

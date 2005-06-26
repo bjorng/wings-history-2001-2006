@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_fr.lang,v 1.10 2005/06/26 04:58:46 trepan Exp $
+%%     $Id: wings_fr.lang,v 1.11 2005/06/26 08:25:44 bjorng Exp $
 %%
 
 {wings,
@@ -349,13 +349,16 @@
 }.
 {wings_edge_cmd,
  [
+  {cut_command,
+   [
+    {1,"Couper"}
+   ]},
   {cut_entry,
    [{1,"Couper une "},
     {2," arete a une longueur egale"}]},
   {cut_fun,
    [{1,"Couper une arete a une longueur egale"},
-    {2,"Couper a une position arbitraire"},
-    {3,"Couper"}]},
+    {2,"Couper a une position arbitraire"}]},
   {cut_pick_error,
    [{1,"Seulement une seule arete peut etre coupee a une position arbitraire."}]},
   {loop_cut,
@@ -382,8 +385,7 @@
     {19,"Point-couleur"},
     {20,"Applique les points couleur aux aretes selectionnees"}]},
   {plain_cut_menu,
-   [{1,"Couper"},
-    {2,"Couper les aretes a une longueur egale"}]},
+   [{2,"Couper les aretes a une longueur egale"}]},
   {slide_help_mode,
    [{1,"Absolut"},
     {2,"Relatif"},

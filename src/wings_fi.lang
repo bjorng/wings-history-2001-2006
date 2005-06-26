@@ -354,13 +354,17 @@
 }.
 {wings_edge_cmd,
  [
+  {cut_command,
+   [
+    {1,"Katkaise"}
+   ]},
   {cut_entry,
    [{1,"Katkaise "},
     {2,"  reunat tasapituisiksi"}]},
   {cut_fun,
    [{1,"Katkaise tasapituisiksi reunoiksi"},
-    {2,"Katkaise valitusta kohdasta"},
-    {3,"Katkaise"}]},
+    {2,"Katkaise valitusta kohdasta"}
+    ]},
   {cut_pick_error,
    [{1,"Vain yksi reuna voidaan katkaista valitusta kohdasta."}]},
   {loop_cut,
@@ -387,8 +391,7 @@
     {19,"Verteksiväri"},
     {20,"Liitä verteksivärit valittuihin reunoihin"}]},
   {plain_cut_menu,
-   [{1,"Katkaise"},
-    {2,"Katkaise tasapituisiksi reunoiksi"}]},
+   [{2,"Katkaise tasapituisiksi reunoiksi"}]},
   {slide_help_mode,
    [{1,"Absoluuttinen"},
     {2,"Suhteellinen"},

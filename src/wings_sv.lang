@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sv.lang,v 1.57 2005/06/26 04:58:46 trepan Exp $
+%%     $Id: wings_sv.lang,v 1.58 2005/06/26 08:25:44 bjorng Exp $
 %%
 
 {wings,
@@ -362,15 +362,18 @@
 }.
 {wings_edge_cmd,
  [
+  {cut_command,
+   [
+    {1,"Klipp"}
+   ]},
   {cut_entry,
-   [{1,"Splittra i "},
+   [{1,"Klipp i "},
     {2,"  kanter av lika längd"}]},
   {cut_fun,
-   [{1,"Splittra till två kanter av lika längd"},
-    {2,"Splittra på vald position"},
-    {3,"Splittra"}]},
+   [{1,"Klipp till två kanter av lika längd"},
+    {2,"Klipp vid vald position"}]},
   {cut_pick_error,
-   [{1,"Bara en kant kan bli splittrad på vald position."}]},
+   [{1,"Bara en kant kan klippas vid vald position."}]},
   {loop_cut,
    [{1,"Kantslingan delar inte upp ~p i två objekt"}]},
   {menu,
@@ -395,8 +398,7 @@
     {19,"Punktfärg"},
     {20,"Sätt punktfärg på markerade kanter"}]},
   {plain_cut_menu,
-   [{1,"Klipp"},
-    {2,"Klipp kanter till nya kanter av lika längd"}]},
+   [{2,"Klipp kanter till nya kanter av lika längd"}]},
   {slide_help_mode,
    [{1,"Absolut"},
     {2,"Relativ"},

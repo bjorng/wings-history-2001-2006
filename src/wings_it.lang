@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_it.lang,v 1.37 2005/06/26 04:58:46 trepan Exp $
+%%     $Id: wings_it.lang,v 1.38 2005/06/26 08:25:44 bjorng Exp $
 %%
 
 {wings,
@@ -335,13 +335,17 @@
    [{1,"Dissolvere causerebbe la formazione di una faccia malposta."}]}
  ]}.
 {wings_edge_cmd,
- [{cut_entry,
+ [
+  {cut_command,
+   [
+    {1,"Taglia"}
+   ]},
+  {cut_entry,
    [{1,"Taglia in "},
     {2," spigoli di uguale lunghezza"}]},
   {cut_fun,
    [{1,"Taglia in spigoli di uguale lunghezza"},
-    {2,"Taglia ad una posizione arbitraria"},
-    {3,"Taglia"}]},
+    {2,"Taglia ad una posizione arbitraria"}]},
   {cut_pick_error,
    [{1,"Ad una posizione arbitraria puo' essere tagliato solo uno spigolo."}]},
   {loop_cut,
@@ -368,8 +372,7 @@
     {19,"Colore ai vertici"},
     {20,"Applica il colore ai vertici degli spigoli selezionati"}]},
   {plain_cut_menu,
-   [{1,"Taglia"},
-    {2,"Taglia in spigoli di uguale lunghezza"}]},
+   [{2,"Taglia in spigoli di uguale lunghezza"}]},
   {slide_help_mode,
    [{1,"Assoluto"},
     {2,"Relativo"},

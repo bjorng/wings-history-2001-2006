@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge_cmd.erl,v 1.7 2005/06/24 13:33:20 trepan Exp $
+%%     $Id: wings_edge_cmd.erl,v 1.8 2005/06/26 08:25:44 bjorng Exp $
 %%
 
 -module(wings_edge_cmd).
@@ -67,7 +67,7 @@ cut_line(#st{sel=[{_,Es}]}) ->
 cut_line(_) -> plain_cut_menu().
 
 plain_cut_menu() ->
-    {?__(1,"Cut"),{cut,cut_entries()},
+    {cut_command(),{cut,cut_entries()},
      ?__(2,"Cut into edges of equal length")}.
 
 cut_fun() ->
@@ -78,7 +78,10 @@ cut_fun() ->
 	   (2, _) -> ignore;
 	   (3, _) -> {edge,cut_pick}
 	end,
-    {?__(3,"Cut"),{cut,F}}.
+    {cut_command(),{cut,F}}.
+
+cut_command() ->
+    ?__(1,"Cut").
 
 cut_entries() ->
     [cut_entry(2),
@@ -107,7 +110,7 @@ command(slide, St) ->
 command(cut_pick, St) ->
     cut_pick(St);
 command({cut,ask}, St) ->
-    wings_ask:ask(?__(2,"Number of Segments?"),
+    wings_ask:ask(cut_command(),
                   [{?__(1,"Segments"), 2}],
                   fun([Ret]) -> cut(Ret, St) end);
 command({cut,Num}, St) ->

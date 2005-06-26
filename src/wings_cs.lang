@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_cs.lang,v 1.6 2005/06/26 04:58:46 trepan Exp $
+%%     $Id: wings_cs.lang,v 1.7 2005/06/26 08:25:44 bjorng Exp $
 %%
 {wings,
  [
@@ -485,6 +485,10 @@
  ]}.
 {wings_edge_cmd,
  [
+  {cut_command,
+   [
+    {1,"Rozdělit"}
+   ]},
   {cut_entry,
    [
     {1,"Rozdělit na "},
@@ -493,8 +497,7 @@
   {cut_fun,
    [
     {1,"Rozdělit na hrany stejné délky"},
-    {2,"Rozdělit v libovolném místě"},
-    {3,"Rozdělit"}
+    {2,"Rozdělit v libovolném místě"}
    ]},
   {cut_pick_error,
    [
@@ -529,7 +532,6 @@
    ]},
   {plain_cut_menu,
    [
-    {1,"Rozdělit (Cut)"},
     {2,"Rozdělit 2 hrany na stejné díly"}
    ]},
   {slide_help_mode,
