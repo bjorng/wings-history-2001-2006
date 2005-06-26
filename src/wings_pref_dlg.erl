@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref_dlg.erl,v 1.8 2005/06/24 13:36:48 trepan Exp $
+%%     $Id: wings_pref_dlg.erl,v 1.9 2005/06/26 02:18:24 trepan Exp $
 %%
 
 -module(wings_pref_dlg).
@@ -138,6 +138,8 @@ advanced_prefs() ->
       panel,
       {?__(10,"Advanced Menus"),advanced_menus,
        [{info,?__(11,"More commands and more options, such as magnets")}]},
+      {?__(21,"Use Mirror for Selections"),use_mirror_for_sels,
+       [{info,?__(22,"Default to using the virtual mirror for secondary selections")}]},
       {?__(12,"Power-user temporary selections"),use_super_temp_sel,
        [{info,?__(13,"In the secondary selection mode, RMB-clicking always add to the selection")},{hook,SuperDisable}]},
       {vframe,

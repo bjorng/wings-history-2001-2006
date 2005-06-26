@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.133 2005/06/24 13:36:47 trepan Exp $
+%%     $Id: wings_pref.erl,v 1.134 2005/06/26 02:18:24 trepan Exp $
 %%
 
 -module(wings_pref).
@@ -390,6 +390,7 @@ defaults() ->
      {default_commands,false},
      {use_temp_sel,false},
      {use_super_temp_sel,false},
+     {use_mirror_for_sels,true},
 
      %% Proxy preferences.
      {proxy_shaded_edge_style,some},

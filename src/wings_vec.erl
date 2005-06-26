@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.112 2004/12/18 19:36:22 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.113 2005/06/26 02:18:24 trepan Exp $
 %%
 
 -module(wings_vec).
@@ -517,12 +517,22 @@ check_point(St) ->
 	NoMirror ->
 	    Center = e3d_vec:average(wings_sel:bounding_box(St)),
 	    NoMirrorCenter = e3d_vec:average(wings_sel:bounding_box(NoMirror)),
-	    [{Center,
-	      {?__(2,"Midpoint of selection saved."),
-	       ?__(3,"Disregard virtual mirror in reference point calculation")}},
-	     {NoMirrorCenter,
-	      {?__(4,"Midpoint of selection saved."),
-	       ?__(5,"Include virtual mirror in reference point calculation")}}]
+            UseMirrorPref = wings_pref:get_value(use_mirror_for_sels),
+            if UseMirrorPref ->
+              [{Center,
+                {?__(1,"Midpoint of selection saved."),
+                 ?__(3,"Disregard virtual mirror in reference point calculation")}},
+               {NoMirrorCenter,
+                {?__(1,"Midpoint of selection saved."),
+                 ?__(2,"Include virtual mirror in reference point calculation")}}];
+            true ->
+              [{NoMirrorCenter,
+                {?__(1,"Midpoint of selection saved."),
+                 ?__(2,"Include virtual mirror in reference point calculation")}},
+               {Center,
+                {?__(1,"Midpoint of selection saved."),
+                 ?__(3,"Disregard virtual mirror in reference point calculation")}}]
+            end
     end.
 
 check_magnet_point(#st{sel=[]}) -> {none,""};
