@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pl.lang,v 1.7 2005/06/26 08:25:44 bjorng Exp $
+%%     $Id: wings_pl.lang,v 1.8 2005/06/26 18:41:16 bjorng Exp $
 %%
 %%  Translation:  Andrzej Giniewicz
 %%  Correction:   Małgorzata Napiontek
@@ -1727,7 +1727,9 @@
     {17,"Grubość wektorów (w pikselach)"},
     {18,"Kolor"},
     {19,"Kolor wektorów"},
-    {20,"Wyświetlanie wektorów"}
+    {20,"Wyświetlanie wektorów"},
+    {21,"Użyj lustra dla selekcji"},
+    {22,"Włącza wirtualne lustro dla drugorzędnego trybu selekcji"}
    ]},
   {command,
    [
