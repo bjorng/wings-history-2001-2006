@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.131 2004/12/18 19:36:20 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.132 2005/06/27 20:13:06 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -567,8 +567,11 @@ insert_magnet_flags(Action, #mi{flags=[magnet]}) ->
     insert_magnet_flags_0(Action);
 insert_magnet_flags(Action,_) -> Action.
 
-insert_magnet_flags_0({'ASK',{PickList,Done,Flags}}) ->
-    {'ASK',{PickList++[magnet],Done,Flags}};
+insert_magnet_flags_0({'ASK',{PickList,Done,Flags}}=Cmd) ->
+    case have_magnet(Flags) of
+	false -> Cmd;
+	true -> {'ASK',{PickList++[magnet],Done,Flags}}
+    end;
 insert_magnet_flags_0(Tuple0) when is_tuple(Tuple0) ->
     Tuple = [insert_magnet_flags_0(El) || El <- tuple_to_list(Tuple0)],
     list_to_tuple(Tuple);
