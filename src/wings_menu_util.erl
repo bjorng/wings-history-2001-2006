@@ -3,12 +3,12 @@
 %%
 %%     Menu utilities and helpers.
 %%
-%%  Copyright (c) 2002-2004 Bjorn Gustavsson
+%%  Copyright (c) 2002-2005 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu_util.erl,v 1.41 2004/10/15 09:31:57 dgud Exp $
+%%     $Id: wings_menu_util.erl,v 1.42 2005/06/27 06:16:02 bjorng Exp $
 %%
 
 -module(wings_menu_util).
@@ -26,8 +26,12 @@ dirs(2, body, [duplicate|_]) -> {body,duplicate};
 dirs(2, body, [move|_]) -> ignore;
 dirs(2, body, [move_light|_]) -> ignore;
 dirs(2, _Mode, Ns) ->
-    Flags = magnet_props(normal, Ns),
-    wings_menu:build_command({'ASK',{[],[normal],Flags}}, Ns);
+    case magnet_props(normal, Ns) of
+	[] -> 
+	    wings_menu:build_command(normal, Ns);
+	Flags ->
+	    wings_menu:build_command({'ASK',{[],[normal],Flags}}, Ns)
+    end;
 dirs(3, _Mode, Ns) ->
     Flags = magnet_props(some_axis, Ns),
     wings_menu:build_command({'ASK',{[axis],[],Flags}}, Ns);
