@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_lang.erl,v 1.17 2005/03/26 07:30:08 bjorng Exp $
+%%     $Id: wings_lang.erl,v 1.18 2005/06/29 21:56:28 dgud Exp $
 %%
 %%  Totally rewritten but Riccardo is still the one who did the hard work.
 %%
@@ -233,12 +233,17 @@ get_key(Key, List) ->
     get_key(List,Key,[]).
 get_key([{Key,Found}|Rest],Key,Acc) -> 
     case get_key(Rest, Key, Acc) of
+	Res = {Found2, _Rest2} when is_integer(hd(Found)) ->
+	    io:format("%% Warning ~p found twice ~p ~p~n",[Key,Found,Found2]),
+	    Res;
 	{Found2, Rest2} ->
-	    {Found2++Found,lists:reverse(Acc,Rest2)};
+	    {Found2++Found,lists:reverse(Rest2)};
 	_ ->
 	    {Found,lists:reverse(Acc,Rest)}
     end;
-get_key([Miss|Rest],Key,Acc) -> get_key(Rest,Key,[Miss|Acc]);
+
+get_key([Miss|Rest],Key,Acc) -> 
+    get_key(Rest,Key,[Miss|Acc]);
 get_key([],_,Acc) -> lists:reverse(Acc).
 
 generate_template([Dir]) ->
