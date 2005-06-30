@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_cs.lang,v 1.7 2005/06/26 08:25:44 bjorng Exp $
+%%     $Id: wings_cs.lang,v 1.8 2005/06/30 05:36:29 bjorng Exp $
 %%
 {wings,
  [
@@ -1858,8 +1858,8 @@
     {da,"Výchozí souřadnice"},
     {f,"Volně"},
     {la,"poslední osa"},
-    {n,"Normální"},
-    {r,"Radiální"},
+    {n,"Podle normály"},
+    {r,"Radiálně"},
     {the_axis,"osy ~s "},
     {u,"Rovnoměrně"},
     {x,"X"},
@@ -2620,9 +2620,6 @@
    ]}
  ]}.
 
-%%
-%% The following strings have no translation.
-%%
 
 {wings,
  [
@@ -2650,5 +2647,61 @@
     {edge,"Skupinový výběr hran"},
     {face,"Skupinový výběr ploch"},
     {vertex,"Skupinový výběr vrcholů"}
+   ]}
+ ]}.
+
+{wings,
+ [
+  {measure,
+   [
+    {6,". Úhel ~s"},
+    {5,". Vzdálenost ~s  <~s, ~s, ~s>"}
+   ]}
+ ]}.
+{wings_edge_cmd,
+ [
+  {cut_ask_entry,
+   [
+    {1,"Rozdělit na <N> segmentů"},
+    {2,"Vlož číslo..."}
+   ]},
+  {command,
+   [
+    {1,"Segmenty"}
+   ]}
+ ]}.
+{wings_pref_dlg,
+ [
+  {ui_prefs,
+   [
+    {24,"Objekty v Outlineru"}
+   ]},
+  {advanced_prefs,
+   [
+    {22,"Výchozí používání virtuálního zrcadlení pro sekundární výběry"},
+    {21,"Použít zrcadlový obraz pro výběry"}
+   ]}
+ ]}.
+{wings_sel_cmd,
+ [
+  {oriented_faces_menu,
+   [
+    {1,"Shodné normály"},
+    {2,"Vybrat plochy se stejnými normálami, jako mají již vybrané plochy"}
+   ]},
+  {oriented_faces,
+   [
+    {1,"Tolerance úhlu"},
+    {2,"Výběr stejně orientovaných ploch"}
+   ]},
+  {nonplanar_faces,
+   [
+    {1,"Tolerance vzdálenosti"},
+    {2,"Výběr neplanárních ploch"}
+   ]},
+  {menu,
+   [
+    {86,"Výběr všech neplanárních ploch"},
+    {85,"Neplanární plochy"}
    ]}
  ]}.
