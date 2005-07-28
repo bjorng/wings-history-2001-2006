@@ -8,18 +8,18 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge_loop.erl,v 1.18 2005/01/09 09:30:38 bjorng Exp $
+%%     $Id: wings_edge_loop.erl,v 1.19 2005/07/28 17:06:28 dgud Exp $
 %%
 
 -module(wings_edge_loop).
--export([select_next/1,select_prev/1,select_loop/1, 
+-export([select_next/1,select_prev/1,stoppable_sel_loop/1, select_loop/1, 
 	 select_link_decr/1, select_link_incr/1]).
 
 %% Utilities.
 -export([edge_loop_vertices/2,edge_links/2,partition_edges/2]).
 
 -include("wings.hrl").
--import(lists, [sort/1,append/1,reverse/1]).
+-import(lists, [sort/1,append/1,reverse/1,foldl/3]).
 
 %%%
 %%% Select next/previous edge loop.
@@ -120,6 +120,11 @@ add_edge(G, E, Va, Vb) ->
 %%% The Select Edge Loop command.
 %%%
 
+stoppable_sel_loop(#st{selmode=edge}=St) ->
+    Sel = wings_sel:fold(fun stoppable_select_loop/3, [], St),
+    wings_sel:set(Sel, St);
+stoppable_sel_loop(St) -> St.
+
 select_loop(#st{selmode=edge}=St) ->
     Sel = wings_sel:fold(fun select_loop/3, [], St),
     wings_sel:set(Sel, St);
@@ -195,7 +200,7 @@ select_link_decr(#st{selmode=edge}=St) ->
 select_link_decr(St) -> St.
 
 select_link_decr(Edges0, #we{id=Id,es=Etab}, Acc) ->
-    EndPoints = init_expand(Edges0, Etab),
+    EndPoints = lists:append(init_expand(Edges0, Etab)),
     Edges = decrease_edge_link(EndPoints, Edges0),
     [{Id,Edges}|Acc].
 
@@ -203,13 +208,91 @@ decrease_edge_link([{_V,Edge}|R], Edges) ->
     decrease_edge_link(R, gb_sets:delete_any(Edge, Edges));
 decrease_edge_link([], Edges) -> Edges.
 
+stoppable_select_loop(Edges0, #we{id=Id}=We, Acc) ->
+    Edges1 = loop_incr(Edges0, We),
+    Edges2 = add_mirror_edges(Edges1, We),
+    Edges = wings_we:visible_edges(Edges2, We),
+    [{Id,Edges}|Acc].
+
+loop_incr(Edges0, #we{es=Etab}=We) ->
+    %% Setup everything
+    EndPoints0 = init_expand(Edges0,Etab),
+%%    io:format("EndP ~p ~n",[EndPoints0]),
+    {_,EndPoints} = foldl(fun(Link0, {No, Acc}) -> 
+				  Link = [{V,Edge,[]}||{V,Edge}<-Link0],
+				  {No+1, [{No+1,Link}|Acc]} 
+			  end, 
+			  {0,[]}, EndPoints0),
+    %% Could be nicer
+    Edges2Link0 = [[{Edge,LinkNo}|| {_,Edge,_} <- Link] || {LinkNo, Link} <- EndPoints],
+    Edges2Link = gb_trees:from_orddict(lists:usort(lists:append(Edges2Link0))),
+    MEds = gb_sets:from_list(mirror_edges(We)),
+    loop_incr(EndPoints, [], Edges2Link, We, MEds, Edges0).
+
+loop_incr([],[], _Stop, _We, _Meds, Selected) -> 
+    Selected;
+loop_incr([],Prev,Stop,We,Meds,Selected) -> 
+    loop_incr(Prev,[],Stop,We,Meds,Selected);
+loop_incr([{Id,This}|Rest],Prev, Stop, We, Meds, Selected) ->
+    case expand_loop(This,Id,Stop,We,Meds) of
+	{stop, Sel, Link} ->
+	    loop_incr(lists:keydelete(Link,1,Rest),
+		      lists:keydelete(Link,1,Prev),
+		      Stop,We,Meds,gb_sets:union(Sel,Selected));
+	{done,Sel} ->
+	    loop_incr(Rest,Prev,Stop,We,Meds,gb_sets:union(Sel,Selected));
+	{cont, New} ->
+	    loop_incr(Rest,[{Id,New}|Prev],Stop,We,Meds,Selected)
+    end.
+
+expand_loop(Eds,Id,Stop,We,Meds) ->
+    expand_loop(Eds,Id,Stop,We,Meds,done,[]).
+expand_loop([Done={done,_}|R],Id,Stop,We,Meds,Res,Acc) ->
+    expand_loop(R,Id,Stop,We,Meds,Res,[Done|Acc]);
+expand_loop([This|R],Id,Stop,We,Meds,Res,Acc) ->
+    case expand_loop2(This,Stop,We,Meds) of
+	{stop, Sel, Id} ->
+	    expand_loop(R,Id,Stop,We,Meds,Res,[{done,Sel}|Acc]);
+	{stop, _, _} = Stopped ->
+	    Stopped;
+	{done,_} = Done ->
+	    expand_loop(R,Id,Stop,We,Meds,Res,[Done|Acc]);
+	{cont,Updated} ->
+	    expand_loop(R,Id,Stop,We,Meds,cont,[Updated|Acc])
+    end;
+expand_loop([],_,_,_,_,done,Res) ->
+    {done, foldl(fun({done,Sel},All) -> gb_sets:union(Sel,All) end,
+		 gb_sets:empty(), Res)};
+expand_loop([],_,_,_,_,cont,Res) -> {cont,Res}.
+
+expand_loop2({V,OrigEdge,Sel},Stop,#we{es=Etab}=We,_MirrorEdges) ->
+    Eds0 = wings_vertex:fold(fun(E,_,_,Acc) -> [E|Acc] end, 
+			     [], V, We),
+    NumEdges = length(Eds0),
+    case NumEdges rem 2 of
+	0 ->
+	    Eds = reorder(Eds0, OrigEdge, []),
+	    Edge = lists:nth(NumEdges div 2, Eds),
+	    case gb_trees:lookup(Edge,Stop) of
+		{value, Link} ->
+		    {stop, gb_sets:from_list([OrigEdge|Sel]), Link};
+		none ->		    
+		    Rec = gb_trees:get(Edge,Etab),
+		    {cont,{wings_vertex:other(V,Rec),Edge,[OrigEdge|Sel]}}
+	    end;
+	1 -> %% BUGBUG MIRROR EDGES??????
+	    %% We are done unless OrigEdge is an mirror edge.
+	    %% In that case add all mirror edges surrounding the vertex.
+	    {done, gb_sets:from_list([OrigEdge|Sel])}
+    end.
+
 select_link_incr(#st{selmode=edge}=St) ->
     Sel = wings_sel:fold(fun select_link_incr/3, [], St),
     wings_sel:set(Sel, St);
 select_link_incr(St) -> St.
 
 select_link_incr(Edges0, #we{id=Id,es=Etab}=We, Acc) ->
-    EndPoints = init_expand(Edges0, Etab),
+    EndPoints = lists:append(init_expand(Edges0, Etab)),
     MirrorEdges = gb_sets:from_list(mirror_edges(We)),
     Edges1 = expand_edge_link(EndPoints, We, MirrorEdges, Edges0),
     Edges = wings_we:visible_edges(Edges1, We),
@@ -249,8 +332,9 @@ reorder([E|R], Edge, Acc) ->
 %% Returns start and end tuple {vertex, edge} for each link
 init_expand(Edges, Etab) ->
     G = digraph:new(),
-    init_expand(gb_sets:to_list(Edges), Etab, G),    
-    Expand = find_end_vs(digraph:vertices(G), G, []),
+    init_expand(gb_sets:to_list(Edges), Etab, G), 
+    Cs = digraph_utils:components(G),
+    Expand = [find_end_vs(C, G, [])||C <- Cs],
     digraph:delete(G),
     Expand.
 
