@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.100 2005/08/02 23:10:03 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.101 2005/08/03 22:30:50 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -41,11 +41,13 @@ key(Key) -> {key,?KEY(Key)}.
 -define(DEF_OPTIONS, "").
 -define(DEF_LOAD_IMAGE, true).
 -define(DEF_SUBDIVISIONS, 0).
+-define(DEF_KEEP_XML, false).
 -define(DEF_SAVE_ALPHA, false).
 -define(DEF_GAMMA, 1.0).
 -define(DEF_EXPOSURE, 1.41421356237).
 -define(DEF_FOG_DENSITY, 0.0).
 -define(DEF_FOG_COLOR, {1.0,1.0,1.0,1.0}).
+-define(DEF_RENDER_FORMAT, tga).
 
 %% Shader
 -define(DEF_SHADER_TYPE, generic).
@@ -362,12 +364,14 @@ command_file(render, Attr, St) when is_list(Attr) ->
     set_prefs(Attr),
     case get_var(rendering) of
 	false ->
-	    do_export(export, props(render), [{?TAG_RENDER,true}|Attr], St);
+	    do_export(export, 
+		      props(render, Attr), 
+		      [{?TAG_RENDER,true}|Attr], St);
        _RenderFile ->
 	    wpa:error("Already rendering.")
     end;
 command_file(render=Op, Ask, _St) when is_atom(Ask) ->
-    export_dialog(Ask, "YafRay Render Options",
+    export_dialog(Op, Ask, "YafRay Render Options",
 		  fun(Attr) -> {file,{Op,{?TAG,Attr}}} end);
 command_file(?TAG_RENDER, Result, _St) ->
     Rendering = set_var(rendering, false),
@@ -390,9 +394,9 @@ command_file(?TAG_RENDER, Result, _St) ->
 command_file(Op, Attr, St) when is_list(Attr) ->
     %% when Op =:= export; Op =:= export_selected
     set_prefs(Attr),
-    do_export(Op, props(Op), Attr, St);
+    do_export(Op, props(Op, Attr), Attr, St);
 command_file(Op, Ask, _St) when is_atom(Ask) ->
-    export_dialog(Ask, "YafRay Export Options",
+    export_dialog(Op, Ask, "YafRay Export Options",
 	       fun(Attr) -> {file,{Op,{?TAG,Attr}}} end).
 
 -record(camera_info, {pos,dir,up,fov}).
@@ -419,11 +423,15 @@ do_export(Op, Props0, Attr0, St0) ->
     St = St0#st{shapes=gb_trees:from_orddict(Shapes)},
     wpa:Op(Props, ExportFun, St).
 
-props(render) ->
-    [{title,"Render"},{ext,".tga"},{ext_desc,"Targa File"}];
-props(export) ->
+props(render, Attr) ->
+    [{title,"Render"}]++
+	case proplists:get_value(render_format, Attr, ?DEF_RENDER_FORMAT) of
+	    hdr -> [{ext,".hdr"},{ext_desc,"High Dynamic Range image"}];
+	    _ -> [{ext,".tga"},{ext_desc,"Targa File"}]
+	end;
+props(export, _Attr) ->
     [{title,"Export"},{ext,".xml"},{ext_desc,"YafRay File"}];
-props(export_selected) ->
+props(export_selected, _Attr) ->
     [{title,"Export Selected"},{ext,".xml"},{ext_desc,"YafRay File"}].
 
 load_image(Filename) ->
@@ -2121,17 +2129,19 @@ pref_result(Attr, St) ->
 
 
 
-export_dialog(Ask, Title, Fun) ->
+export_dialog(Op, Ask, Title, Fun) ->
+    Keep = {Op,Fun},
     wpa:dialog(Ask, Title, 
-	       export_dialog_qs(get_prefs(export_prefs())
+	       export_dialog_qs(Op, get_prefs(export_prefs())
 				++[save,load,reset]),
-	       export_dialog_fun(Fun)).
+	       export_dialog_fun(Keep)).
 
-export_dialog_fun(Fun) ->
-    fun (Attr) -> export_dialog_loop(Fun, Attr) end.
+export_dialog_fun(Keep) ->
+    fun (Attr) -> export_dialog_loop(Keep, Attr) end.
 
 export_prefs() ->
     [{subdivisions,?DEF_SUBDIVISIONS},
+     {keep_xml,?DEF_KEEP_XML},
      {aa_passes,?DEF_AA_PASSES},
      {aa_minsamples,?DEF_AA_MINSAMPLES},
      {raydepth,?DEF_RAYDEPTH},
@@ -2141,6 +2151,7 @@ export_prefs() ->
      {bias,?DEF_BIAS},
      {exposure,?DEF_EXPOSURE},
      {save_alpha,?DEF_SAVE_ALPHA},
+     {render_format,?DEF_RENDER_FORMAT},
      {background_color,?DEF_BACKGROUND_COLOR},
      {width,?DEF_WIDTH},
      {height,?DEF_HEIGHT},
@@ -2155,7 +2166,9 @@ export_prefs() ->
      {antinoise_max_delta,?DEF_ANTINOISE_MAX_DELTA},
      {far_blur,?DEF_FAR_BLUR}].
 
-export_dialog_qs([{subdivisions,SubDiv},
+export_dialog_qs(Op,
+		 [{subdivisions,SubDiv},
+		  {keep_xml,KeepXML},
 		  {aa_passes,AA_passes},
 		  {aa_minsamples,AA_minsamples},
 		  {raydepth,Raydepth},
@@ -2165,6 +2178,7 @@ export_dialog_qs([{subdivisions,SubDiv},
 		  {bias,Bias},
 		  {exposure,Exposure},
 		  {save_alpha,SaveAlpha},
+		  {render_format,RenderFormat},
 		  {background_color,BgColor},
 		  {width,Width},
 		  {height,Height},
@@ -2183,30 +2197,43 @@ export_dialog_qs([{subdivisions,SubDiv},
     AA_pixelwidthFlags = [range(aa_pixelwidth),{key,aa_pixelwidth}],
     BiasFlags = [range(bias),{key,bias}],
     [{hframe,[{label,"Sub-division Steps"},
-	      {text,SubDiv,[{key,subdivisions},range(subdivisions)]}],
+	      {text,SubDiv,[{key,subdivisions},range(subdivisions)]},
+	      case Op of
+		  render ->
+		      {"Write and keep .xml file",KeepXML,[{key,keep_xml}]};
+		  _ ->
+		      {value,KeepXML,[{key,keep_xml}]}
+	      end],
       [{title,"Pre-rendering"}]},
-     {hframe,
-      [{vframe,[{label,"AA_passes"},
-		{label,"AA_minsamples"},
-		{label,"Raydepth"},
-		{label,"Gamma"}]},
-       {vframe,[{text,AA_passes,[range(aa_passes),{key,aa_passes}]},
-		{text,AA_minsamples,[range(aa_minsamples),
-				     {key,aa_minsamples}]},
-		{text,Raydepth,[range(raydepth),{key,raydepth}]},
-		{text,Gamma,[range(gamma),{key,gamma}]}]},
-       {vframe,[{label,"AA_threshold"},
-		{label,"AA_pixelwidth"},
-		{label,"Bias"},
-		{label,"Exposure"}]},
-       {vframe,[{text,AA_threshold,AA_thresholdFlags},
-		{text,AA_pixelwidth,AA_pixelwidthFlags},
-		{text,Bias,BiasFlags},
-		{text,Exposure,[range(exposure),{key,exposure}]}]},
-       {vframe,[{slider,AA_thresholdFlags},
-		{slider,AA_pixelwidthFlags},
-		{slider,BiasFlags},
-		{"Alpha Channel",SaveAlpha,[{key,save_alpha}]}]}],
+     {vframe,
+      [{hframe,
+	[{vframe,[{label,"AA_passes"},
+		  {label,"AA_minsamples"},
+		  {label,"Raydepth"},
+		  {label,"Gamma"}]},
+	 {vframe,[{text,AA_passes,[range(aa_passes),{key,aa_passes}]},
+		  {text,AA_minsamples,[range(aa_minsamples),
+				       {key,aa_minsamples}]},
+		  {text,Raydepth,[range(raydepth),{key,raydepth}]},
+		  {text,Gamma,[range(gamma),{key,gamma}]}]},
+	 {vframe,[{label,"AA_threshold"},
+		  {label,"AA_pixelwidth"},
+		  {label,"Bias"},
+		  {label,"Exposure"}]},
+	 {vframe,[{text,AA_threshold,AA_thresholdFlags},
+		  {text,AA_pixelwidth,AA_pixelwidthFlags},
+		  {text,Bias,BiasFlags},
+		  {text,Exposure,[range(exposure),{key,exposure}]}]},
+	 {vframe,[{slider,AA_thresholdFlags},
+		  {slider,AA_pixelwidthFlags},
+		  {slider,BiasFlags},
+		  {"Alpha Channel",SaveAlpha,[{key,save_alpha}]}]}]},
+       {hframe,
+	[{menu,[{".tga (Targa File)",tga},
+		{".hdr (High Dynamic Range image)",hdr}],
+	  RenderFormat,
+	  [{key,render_format}]},
+	 panel]}],
       [{title,"Render"}]},
      {hframe,
       [{vframe,[{label,"Default Color"}]},
@@ -2251,24 +2278,25 @@ export_dialog_qs([{subdivisions,SubDiv},
 	      {button,"Load",done,[{info,"Load from user preferences"}]},
 	      {button,"Reset",done,[{info,"Reset to default values"}]}]}].
 
-export_dialog_loop(Fun, Attr) ->
-    {Prefs,Buttons} = split_list(Attr, 23),
+export_dialog_loop({Op,Fun}=Keep, Attr) ->
+    {Prefs,Buttons} = split_list(Attr, 25),
     case Buttons of
 	[true,false,false] -> % Save
 	    set_user_prefs(Prefs),
 	    {dialog,
-	     export_dialog_qs(Attr),
-	     export_dialog_fun(Fun)};
+	     export_dialog_qs(Op, Attr),
+	     export_dialog_fun(Keep)};
 	[false,true,false] -> % Load
 	    {dialog,
-	     export_dialog_qs(get_user_prefs(export_prefs())
+	     export_dialog_qs(Op, 
+			      get_user_prefs(export_prefs())
 			      ++[save,load,reset]),
-	     export_dialog_fun(Fun)};
+	     export_dialog_fun(Keep)};
 	[false,false,true] -> % Reset
 	    {dialog,
-	     export_dialog_qs(export_prefs()
-			      ++[save,load,reset]),
-	     export_dialog_fun(Fun)};
+	     export_dialog_qs(Op,
+			      export_prefs()++[save,load,reset]),
+	     export_dialog_fun(Keep)};
 	[false,false,false] -> % Ok
 	    Fun(Prefs)
     end.
@@ -2333,20 +2361,31 @@ export(Attr, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
     wpa:popup_console(),
     ExportTS = erlang:now(),
     Render = proplists:get_value(?TAG_RENDER, Attr, false),
+    KeepXML = proplists:get_value(keep_xml, Attr, ?DEF_KEEP_XML),
+    RenderFormat = 
+	proplists:get_value(render_format, Attr, ?DEF_RENDER_FORMAT),
     ExportDir = filename:dirname(Filename),
     {ExportFile,RenderFile} =
-	case Render of
-	    true ->
+	case {Render,KeepXML} of
+	    {true,true} ->
+		{filename:rootname(Filename)++".xml",
+		 Filename};
+	    {true,false} ->
 		{filename:join(ExportDir, 
 			       ?MODULE_STRING++"-"
 			       ++wings_job:uniqstr()++".xml"),
 		 Filename};
-	    false ->
+	    {false,_} ->
 		{Filename,
-		 filename:rootname(Filename)++".tga"}
+		 filename:rootname(Filename)++
+		 case RenderFormat of
+		     hdr -> ".hdr";
+		     _ -> ".tga"
+		 end}
 	end,
     F = open(ExportFile, export),
-    io:format("Exporting to ~s~n", [ExportFile]),
+    io:format("Exporting  to: ~s~n"
+	      "for render to: ~s~n", [ExportFile,RenderFile]),
     CameraName = "x_Camera",
     ConstBgName = "x_ConstBackground",
     Lights = proplists:get_value(lights, Attr, []),
@@ -2420,16 +2459,20 @@ export(Attr, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
     println(F, "</scene>"),
     close(F),
     %%
-    [{options,Options},{load_image,LoadImage}] =
+    [{options,Options},{load_image,LoadImage0}] =
 	get_user_prefs([{options,?DEF_OPTIONS},{load_image,?DEF_LOAD_IMAGE}]),
+    LoadImage = LoadImage0 and (RenderFormat == tga),
     case {get_var(renderer),Render} of
 	{_,false} ->
-	    wings_job:export_done(ExportTS);
+	    wings_job:export_done(ExportTS),
+	    io:nl();
 	{false,true} ->
 	    %% Should not happen since the file->render dialog
 	    %% must have been disabled
-	    file:delete(ExportFile),
+	    if KeepXML -> ok; true -> file:delete(ExportFile) end,
 	    no_renderer;
+	{_,true} when ExportFile == RenderFile ->
+	    export_file_is_render_file;
 	{Renderer,true} ->
 	    ArgStr = Options++case Options of
 				  [] -> [];
@@ -2439,7 +2482,7 @@ export(Attr, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
 	    PortOpts = [{cd,filename:dirname(ExportFile)}],
 	    Handler =
 		fun (Status) ->
-			file:delete(ExportFile),
+			if KeepXML -> ok; true -> file:delete(ExportFile) end,
 			Result =
 			    case {Status,LoadImage} of
 				{ok,true}  -> load_image;
@@ -3259,11 +3302,16 @@ export_render(F, CameraName, BackgroundName, Outfile, Attr) ->
     Exposure = proplists:get_value(exposure, Attr),
     FogColor = proplists:get_value(fog_color, Attr),
     FogDensity = proplists:get_value(fog_density, Attr),
+    RenderFormat = proplists:get_value(render_format, Attr),
     println(F, "<render camera_name=\"~s\" "
 	    "AA_passes=\"~w\" raydepth=\"~w\"~n"
 	    "        bias=\"~.10f\" AA_threshold=\"~.10f\"~n"
 	    "        AA_minsamples=\"~w\" AA_pixelwidth=\"~.10f\">~n"
-	    "    <background_name value=\"~s\"/>~n"
+	    "    <background_name value=\"~s\"/>~n"++
+	    case RenderFormat of
+		tga -> "";
+		_   -> "    <output_type value=\"~s\"/>~n"
+	    end++
 	    "    <outfile value=\"~s\"/>~n"
 	    "    <indirect_samples value=\"0\"/>~n"
 	    "    <indirect_power value=\"1.0\"/>~n"
@@ -3272,7 +3320,12 @@ export_render(F, CameraName, BackgroundName, Outfile, Attr) ->
 	    "    <gamma value=\"~.10f\"/>~n"
 	    "    <fog_density value=\"~.10f\"/>",
 	    [CameraName,AA_passes,Raydepth,Bias,AA_threshold,
-	     AA_minsamples,AA_pixelwidth,BackgroundName,Outfile,Exposure,
+	     AA_minsamples,AA_pixelwidth,BackgroundName]++
+	    case RenderFormat of
+		tga -> [];
+		_   -> [format(RenderFormat)]
+	    end++
+	    [Outfile,Exposure,
 	     format(SaveAlpha),Gamma,FogDensity]),
     export_rgb(F, fog_color, FogColor),
     println(F, "</render>").

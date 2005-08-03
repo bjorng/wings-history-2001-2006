@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_toxic.erl,v 1.17 2005/08/02 23:10:03 raimo_niskanen Exp $
+%%     $Id: wpc_toxic.erl,v 1.18 2005/08/03 22:30:50 raimo_niskanen Exp $
 %%
 
 -module(wpc_toxic).
@@ -729,7 +729,8 @@ export(Attr, Filename, E3DExport0) ->
     
     case {get_var(renderer),Render} of
 	{_,false} ->
-	    wings_job:export_done(ExportTS);
+	    wings_job:export_done(ExportTS),
+	    io:nl();
 	{false,true} ->
 	    %% Should not happen since the file->render dialog
 	    %% must have been disabled
