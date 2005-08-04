@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_job.erl,v 1.1 2005/08/02 23:10:16 raimo_niskanen Exp $
+%%     $Id: wings_job.erl,v 1.2 2005/08/04 23:36:43 raimo_niskanen Exp $
 %%
 
 -module(wings_job).
@@ -145,7 +145,7 @@ export_done(ExportTS) ->
 %%
 render(ExportTS, Renderer, ArgStr, PortOpts, Handler) ->
     RenderTS = erlang:now(),
-       case wings_job:altname(Renderer) of
+       case altname(Renderer) of
 	   {error,_}=Error ->
 	       io:format("~nRenderer ~p not found: ~p~n", 
 			 [Renderer,Error]),
@@ -251,7 +251,7 @@ job(Port) ->
 altname(Path) when is_list(Path) ->
     try altname_1(filename:split(Path))
     catch 
-	error:notsup -> Path;
+	error:enotsup -> Path;
 	throw:Error -> Error
     end.
 
