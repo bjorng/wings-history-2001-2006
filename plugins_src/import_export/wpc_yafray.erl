@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.102 2005/08/04 23:03:26 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.103 2005/08/04 23:20:52 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -2283,7 +2283,10 @@ export_dialog_qs(Op,
        {vframe,[{text,Width,[range(pixels),{key,width}]}]},
        {vframe,[{label,"Height"}]},
        {vframe,[{text,Height,[range(pixels),{key,height}]}]},
-       {"Ortho",Ortho,[{key,ortho}]}],
+       {menu,[{"Perspective",false},
+	      {"Orthographic",true},
+	      {"Spherical",spherical},
+	      {"Lightprobe",lightprobe}],Ortho,[{key,ortho}]}],
       [{title,"Camera"}]},
      {hframe,
       [{vframe,[panel,
@@ -3237,9 +3240,17 @@ export_camera(F, Name, Attr) ->
     FocalDist = 0.5 / ((Width/Height) * math:tan(limit_fov(Fov)*0.5*Ro)),
     println(F, "<camera name=\"~s\" "++
 	    "resx=\"~w\" resy=\"~w\" focal=\"~.10f\""++
-	    if Ortho -> "~n        type=\"ortho\">";
-	       true  -> ">" end,
-	    [Name,Width,Height,FocalDist]),
+	    case Ortho of
+		false -> ">";
+		true  -> "~n        type=\"ortho\">";
+		_     -> "~n        type=\"~s\">"
+	    end,
+	    [Name,Width,Height,FocalDist]++
+	    case Ortho of
+	       false -> [];
+	       true  -> [];
+	       _     -> [format(Ortho)]
+	    end),
     export_pos(F, from, Pos),
     export_pos(F, to, e3d_vec:add(Pos, Dir)),
     export_pos(F, up, e3d_vec:add(Pos, Up)),
