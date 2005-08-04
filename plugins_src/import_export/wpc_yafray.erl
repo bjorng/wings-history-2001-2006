@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.101 2005/08/03 22:30:50 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.102 2005/08/04 23:03:26 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -33,6 +33,8 @@
 -define(TAG_RENDER, yafray_render).
 
 key(Key) -> {key,?KEY(Key)}.
+
+-define(NONZERO, 1.0e-10).
 
 %%% Default values
 
@@ -186,6 +188,9 @@ key(Key) -> {key,?KEY(Key)}.
 -define(DEF_BS_CONE_COLOR, {1.0,1.0,1.0}).
 -define(DEF_BS_GOBO_HARD, true).
 -define(DEF_BS_GOBO_EDGE, 0.5).
+-define(DEF_BS_SSS_COLOR, {0.0,0.0,0.0}).
+-define(DEF_BS_SSS_RADIUS, 0.1).
+-define(DEF_BS_SSS_SAMPLES, 32).
 
 range(T) -> {range,range_1(T)}.
 
@@ -195,8 +200,8 @@ range_1(ior)			-> {0.0,infinity};
 range_1(min_refle)		-> {0.0,1.0};
 range_1(size)			-> {0.0,infinity};
 range_1(modulation)		-> {0.0,1.0};
-range_1(turbulence)		-> {1.0e-6,infinity};
-range_1(scale)			-> {1.0e-6,infinity};
+range_1(turbulence)		-> {?NONZERO,infinity};
+range_1(scale)			-> {?NONZERO,infinity};
 range_1(sharpness)		-> {1.0,infinity};
 range_1(noise_depth)		-> {1,infinity};
 %% Light ranges
@@ -237,7 +242,9 @@ range_1(dof_blur)		-> {0.0,infinity};
 %% Block Shader ranges
 range_1(shininess)		-> {0.0,1.0};
 range_1(hsv)			-> {0.0,1.0};
-range_1(cone_angle)		-> {0.0,90.0}.
+range_1(cone_angle)		-> {0.0,90.0};
+range_1(sss_radius)             -> {?NONZERO,infinity};
+range_1(sss_samples)            -> {1,infinity}.
 
 
 
@@ -1006,6 +1013,7 @@ bs_dispatch(Type, Op) ->
 	%% Color output block shaders
 	float2color  -> bs_float2color(Op);
 	rgb          -> bs_rgb(Op);
+	sss          -> bs_sss(Op);
 	hsv          -> bs_hsv(Op);
 	image        -> bs_image(Op);
 	mix          -> bs_mix(Op);
@@ -1029,6 +1037,7 @@ bs_menu(color, L) ->
     [{"(color)",float2color},
      {"RGB",rgb},
      {"HSV",hsv},
+     {"SSS",sss},
      {"Image",image},
      {"Mix",mix},
      {"Fresnel",fresnel},
@@ -1185,6 +1194,36 @@ bs_rgb(#bs_export{ps=Ps,dest=F,name=Name}=Op0) ->
     export_rgb(F, color, Color),
     println(F, "    </attributes>~n"++
 	    "</shader>~n", []),
+    Op#bs_export{name=Name}.
+
+bs_sss(#bs_dialog{ps=Ps}) ->
+%%%     io:format(?MODULE_STRING":~w bs_sss::dialog~n~p~n", 
+%%% 	      [?LINE,Ps]),
+    Color = proplists:get_value(color, Ps, ?DEF_BS_SSS_COLOR),
+    Radius = proplists:get_value(sss_radius, Ps, ?DEF_BS_SSS_RADIUS),
+    Samples = proplists:get_value(sss_samples, Ps, ?DEF_BS_SSS_SAMPLES),
+    {vframe,
+     [{label_column,
+       [{"Color",{color,Color}},
+	{"Radius",{text,Radius,[range(sss_radius)]}},
+	{"Samples",{text,Samples,[range(sss_samples)]}}]}]};
+bs_sss(#bs_result{result=[Color,Radius,Samples|Rest],ps=Ps}=Op) ->
+    Op#bs_result{
+      result=Rest,
+      ps=[{color,Color},{sss_radius,Radius},{sss_samples,Samples}|Ps]};
+bs_sss(#bs_export{ps=Ps,dest=F,name=Name}=Op) ->
+    Color = proplists:get_value(color, Ps, ?DEF_BS_SSS_COLOR),
+    Radius = proplists:get_value(sss_radius, Ps, ?DEF_BS_SSS_RADIUS),
+    Samples = proplists:get_value(sss_samples, Ps, ?DEF_BS_SSS_SAMPLES),
+    println(F, 
+	    "<shader type=\"sss\" name=\"~s\">~n"
+	    "    <attributes>", [Name]),
+    export_rgb(F, color, Color),
+    println(F, 
+	    "        <radius value=\"~.10f\"/>~n"
+	    "        <samples value=\"~w\"/>~n"
+	    "    </attributes>~n"
+	    "</shader>~n", [Radius,Samples]),
     Op#bs_export{name=Name}.
 
 bs_hsv(#bs_dialog{ps=Ps}=Op) ->
