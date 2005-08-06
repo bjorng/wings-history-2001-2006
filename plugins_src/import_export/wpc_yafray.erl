@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.103 2005/08/04 23:20:52 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.104 2005/08/06 23:38:07 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -37,7 +37,6 @@ key(Key) -> {key,?KEY(Key)}.
 -define(NONZERO, 1.0e-10).
 
 %%% Default values
-
 -define(DEF_DIALOGS, auto).
 -define(DEF_RENDERER, "yafray").
 -define(DEF_OPTIONS, "").
@@ -50,6 +49,7 @@ key(Key) -> {key,?KEY(Key)}.
 -define(DEF_FOG_DENSITY, 0.0).
 -define(DEF_FOG_COLOR, {1.0,1.0,1.0,1.0}).
 -define(DEF_RENDER_FORMAT, tga).
+-define(DEF_EXR_FLAG_COMPRESSION, compression_zip).
 
 %% Shader
 -define(DEF_SHADER_TYPE, generic).
@@ -434,7 +434,8 @@ props(render, Attr) ->
     [{title,"Render"}]++
 	case proplists:get_value(render_format, Attr, ?DEF_RENDER_FORMAT) of
 	    hdr -> [{ext,".hdr"},{ext_desc,"High Dynamic Range image"}];
-	    _ -> [{ext,".tga"},{ext_desc,"Targa File"}]
+	    exr -> [{ext,".exr"},{ext_desc,"OpenEXR"}];
+	    _   -> [{ext,".tga"},{ext_desc,"Targa File"}]
 	end;
 props(export, _Attr) ->
     [{title,"Export"},{ext,".xml"},{ext_desc,"YafRay File"}];
@@ -1934,7 +1935,7 @@ light_dialog(_Name, ambient, Ps) ->
     BgFnameHDRI = proplists:get_value(background_filename_HDRI, Ps, 
 				      ?DEF_BACKGROUND_FILENAME),
     BrowsePropsHDRI = [{dialog_type,open_dialog},
-		       {extensions,[{".hdr","High Dynamic Range Image"}]}],
+		       {extensions,[{".hdr","High Dynamic Range image"}]}],
     BgExpAdj = proplists:get_value(background_exposure_adjust, Ps, 
 				   ?DEF_BACKGROUND_EXPOSURE_ADJUST),
     BgMapping = proplists:get_value(background_mapping, Ps, 
@@ -2191,6 +2192,9 @@ export_prefs() ->
      {exposure,?DEF_EXPOSURE},
      {save_alpha,?DEF_SAVE_ALPHA},
      {render_format,?DEF_RENDER_FORMAT},
+     {exr_flag_float,false},
+     {exr_flag_zbuf,false},
+     {exr_flag_compression,?DEF_EXR_FLAG_COMPRESSION},
      {background_color,?DEF_BACKGROUND_COLOR},
      {width,?DEF_WIDTH},
      {height,?DEF_HEIGHT},
@@ -2218,6 +2222,9 @@ export_dialog_qs(Op,
 		  {exposure,Exposure},
 		  {save_alpha,SaveAlpha},
 		  {render_format,RenderFormat},
+		  {exr_flag_float,ExrFlagFloat},
+		  {exr_flag_zbuf,ExrFlagZbuf},
+		  {exr_flag_compression,ExrFlagCompression},
 		  {background_color,BgColor},
 		  {width,Width},
 		  {height,Height},
@@ -2269,9 +2276,23 @@ export_dialog_qs(Op,
 		  {"Alpha Channel",SaveAlpha,[{key,save_alpha}]}]}]},
        {hframe,
 	[{menu,[{".tga (Targa File)",tga},
-		{".hdr (High Dynamic Range image)",hdr}],
+		{".hdr (High Dynamic Range image)",hdr},
+		{".exr (OpenEXR)",exr}],
 	  RenderFormat,
-	  [{key,render_format}]},
+	  [{key,render_format},layout]},
+	 {hframe,
+	  [{"Float",ExrFlagFloat,[{key,exr_flag_float}]},
+	   {"Zbuf",ExrFlagZbuf,[{key,exr_flag_zbuf}]},
+	   {label," Compression:"},
+	   {menu,
+	    [{"none",compression_none},
+	     {"piz",compression_piz},
+	     {"rle",compression_rle},
+	     {"pxr24",compression_pxr24},
+	     {"zip",compression_zip}],
+	    ExrFlagCompression,
+	    [{key,exr_flag_compression}]}],
+	  [hook(open, [member,render_format,exr])]},
 	 panel]}],
       [{title,"Render"}]},
      {hframe,
@@ -2321,7 +2342,7 @@ export_dialog_qs(Op,
 	      {button,"Reset",done,[{info,"Reset to default values"}]}]}].
 
 export_dialog_loop({Op,Fun}=Keep, Attr) ->
-    {Prefs,Buttons} = split_list(Attr, 25),
+    {Prefs,Buttons} = split_list(Attr, 28),
     case Buttons of
 	[true,false,false] -> % Save
 	    set_user_prefs(Prefs),
@@ -3353,6 +3374,18 @@ export_render(F, CameraName, BackgroundName, Outfile, Attr) ->
     FogColor = proplists:get_value(fog_color, Attr),
     FogDensity = proplists:get_value(fog_density, Attr),
     RenderFormat = proplists:get_value(render_format, Attr),
+    ExrFlags =
+	case RenderFormat of
+	    exr ->
+		ExrFlagFloat = proplists:get_value(exr_flag_float, Attr),
+		ExrFlagZbuf = proplists:get_value(exr_flag_zbuf, Attr),
+		ExrFlagCompression =
+		    proplists:get_value(exr_flag_compression, Attr),
+		[if ExrFlagFloat -> "float "; true -> "" end,
+		 if ExrFlagZbuf -> "zbuf "; true -> "" end,
+		 format(ExrFlagCompression)];
+	    _ -> ""
+	end,
     println(F, "<render camera_name=\"~s\" "
 	    "AA_passes=\"~w\" raydepth=\"~w\"~n"
 	    "        bias=\"~.10f\" AA_threshold=\"~.10f\"~n"
@@ -3361,6 +3394,10 @@ export_render(F, CameraName, BackgroundName, Outfile, Attr) ->
 	    case RenderFormat of
 		tga -> "";
 		_   -> "    <output_type value=\"~s\"/>~n"
+	    end++
+	    case RenderFormat of
+		exr -> "    <exr_flags value=\"~s\"/>~n";
+		_   -> ""
 	    end++
 	    "    <outfile value=\"~s\"/>~n"
 	    "    <indirect_samples value=\"0\"/>~n"
@@ -3374,6 +3411,10 @@ export_render(F, CameraName, BackgroundName, Outfile, Attr) ->
 	    case RenderFormat of
 		tga -> [];
 		_   -> [format(RenderFormat)]
+	    end++
+	    case RenderFormat of
+		exr -> [ExrFlags];
+		_   -> []
 	    end++
 	    [Outfile,Exposure,
 	     format(SaveAlpha),Gamma,FogDensity]),
