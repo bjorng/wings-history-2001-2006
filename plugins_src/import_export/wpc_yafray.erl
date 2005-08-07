@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.104 2005/08/06 23:38:07 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.105 2005/08/07 00:54:05 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -64,6 +64,8 @@ key(Key) -> {key,?KEY(Key)}.
 -define(DEF_EMIT_RAD,true).
 -define(DEF_RECV_RAD,true).
 -define(DEF_FAST_FRESNEL,false).
+-define(DEF_ABSORPTION_COLOR, {1.0,1.0,1.0}).
+-define(DEF_ABSORPTION_DIST, 1.0).
 %% Arealight
 -define(DEF_AREALIGHT, false).
 -define(DEF_AREALIGHT_SAMPLES, 50).
@@ -204,6 +206,7 @@ range_1(turbulence)		-> {?NONZERO,infinity};
 range_1(scale)			-> {?NONZERO,infinity};
 range_1(sharpness)		-> {1.0,infinity};
 range_1(noise_depth)		-> {1,infinity};
+range_1(absorption_dist)	-> {?NONZERO,infinity};
 %% Light ranges
 range_1(power)			-> {0.0,infinity};
 range_1(bias)			-> {0.0,1.0};
@@ -490,6 +493,10 @@ material_dialog(_Name, Mat) ->
     Reflected2 = proplists:get_value(reflected2, YafRay, DefReflected),
     Transmitted2 = 
 	proplists:get_value(transmitted2, YafRay, DefTransmitted),
+    AbsorptionColor = 
+	proplists:get_value(absorption_color, YafRay, ?DEF_ABSORPTION_COLOR),
+    AbsorptionDist =
+	proplists:get_value(absorption_dist, YafRay, ?DEF_ABSORPTION_DIST),
     Modulators = proplists:get_value(modulators, YafRay, def_modulators(Maps)),
     ObjectFrame = 
 	{vframe,
@@ -566,7 +573,13 @@ material_dialog(_Name, Mat) ->
 			    {button,"Set Default",keep,
 			     [transmitted_hook(?KEY(transmitted2))]}]}],
 	   [hook([{open,?KEY(fresnel2)},
-		  {enable,[member,?KEY(shader_type),generic]}])]}],
+		  {enable,[member,?KEY(shader_type),generic]}])]},
+	  {hframe,[{label,"Absorption:"},
+		   {color,AbsorptionColor,[key(absorption_color)]},
+		   {label,"@"},
+		   {text,AbsorptionDist,[key(absorption_dist),
+					 range(absorption_dist)]}],
+	   [hook(enable, [member,?KEY(shader_type),generic])]}],
 	 [{title,"Fresnel Parameters"},{minimized,FresnelMinimized},
 	  key(fresnel_minimized)]},
     %%
@@ -611,7 +624,7 @@ def_modulators([_|Maps]) ->
     def_modulators(Maps).
 
 material_result(_Name, Mat0, [{?KEY(minimized),_}|_]=Res0) ->
-    {Ps1,Res1} = split_list(Res0, 21),
+    {Ps1,Res1} = split_list(Res0, 23),
     Ps2 = [{Key,Val} || {?KEY(Key),Val} <- Ps1],
     {Ps,Res} = modulator_result(Ps2, Res1),
     Mat = [?KEY(Ps)|keydelete(?TAG, 1, Mat0)],
@@ -2639,6 +2652,18 @@ export_generic_shader(F, Name, Mat, ExportDir, YafRay) ->
     TIR = proplists:get_value(tir, YafRay, ?DEF_TIR),
     FastFresnel = proplists:get_value(fast_fresnel, YafRay, ?DEF_FAST_FRESNEL),
     MinRefle = proplists:get_value(min_refle, YafRay, ?DEF_MIN_REFLE),
+    AbsorptionColor = 
+	proplists:get_value(absorption_color, YafRay, ?DEF_ABSORPTION_COLOR),
+    case AbsorptionColor of
+	?DEF_ABSORPTION_COLOR -> ok;
+	{AbsR,AbsG,AbsB} ->
+	    AbsD =
+		proplists:get_value(absorption_dist, YafRay, 
+				    ?DEF_ABSORPTION_DIST),
+	    export_rgb(F, absorption, {-math:log(max(AbsR, ?NONZERO))/AbsD,
+				       -math:log(max(AbsG, ?NONZERO))/AbsD,
+				       -math:log(max(AbsB, ?NONZERO))/AbsD})
+    end,
     println(F, "        <IOR value=\"~.10f\"/>~n"
 	    "        <tir value=\"~s\"/>~n"
 	    "        <fast_fresnel value=\"~s\"/>~n"
@@ -3638,6 +3663,9 @@ zip_lists([H1|T1], [H2|T2]) -> [{H1,H2}|zip_lists(T1, T2)].
 %%% 	false -> filter2_1(Pred, T, True, [H|False])
 %%%     end.
 
+max(X, Y) when X > Y -> X;
+max(_, Y) -> Y.
+
 
 
 -ifdef(print_mesh_1).
@@ -3695,7 +3723,9 @@ help(text, {material_dialog,fresnel}) ->
      <<"Grazing Angle Colors -> Use the secondary Reflected and Transmitted "
       "colors following that show from grazing angles of the material. "
       "For a glass with green edges set Transmitted to white and "
-      "Grazing Angle Transmitted to green.">>];
+      "Grazing Angle Transmitted to green.">>,
+     <<"Absorption -> Sets the desired color for white light travelling "
+      "the given distance through the material.">>];
 %%
 help(title, light_dialog) ->
     "YafRay Light Properties";
