@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge_loop.erl,v 1.19 2005/07/28 17:06:28 dgud Exp $
+%%     $Id: wings_edge_loop.erl,v 1.20 2005/08/08 21:03:57 dgud Exp $
 %%
 
 -module(wings_edge_loop).
@@ -217,7 +217,7 @@ stoppable_select_loop(Edges0, #we{id=Id}=We, Acc) ->
 loop_incr(Edges0, #we{es=Etab}=We) ->
     %% Setup everything
     EndPoints0 = init_expand(Edges0,Etab),
-%%    io:format("EndP ~p ~n",[EndPoints0]),
+%    io:format("EndP ~p ~n",[EndPoints0]),
     {_,EndPoints} = foldl(fun(Link0, {No, Acc}) -> 
 				  Link = [{V,Edge,[]}||{V,Edge}<-Link0],
 				  {No+1, [{No+1,Link}|Acc]} 
@@ -274,9 +274,10 @@ expand_loop2({V,OrigEdge,Sel},Stop,#we{es=Etab}=We,_MirrorEdges) ->
 	    Eds = reorder(Eds0, OrigEdge, []),
 	    Edge = lists:nth(NumEdges div 2, Eds),
 	    case gb_trees:lookup(Edge,Stop) of
-		{value, Link} ->
+		{value, Link} ->		    
 		    {stop, gb_sets:from_list([OrigEdge|Sel]), Link};
-		none ->		    
+		none ->	
+%		    io:format("Adding Edge ~p to ~p ~n",[Edge,OrigEdge]),
 		    Rec = gb_trees:get(Edge,Etab),
 		    {cont,{wings_vertex:other(V,Rec),Edge,[OrigEdge|Sel]}}
 	    end;
