@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.335 2005/06/07 17:38:28 bjorng Exp $
+%%     $Id: wings.erl,v 1.336 2005/08/15 07:15:54 dgud Exp $
 %%
 
 -module(wings).
@@ -378,6 +378,9 @@ handle_event_3(language_changed, _) ->
     This = wings_wm:this(),
     wings_wm:toplevel_title(This, geom_title(This)),
     wings_wm:menubar(This, get(wings_menu_template)),
+    keep;
+handle_event_3({external,Op}, St) ->
+    wpa:handle_external(Op,St),
     keep;
 handle_event_3(ignore, _St) -> keep.
 

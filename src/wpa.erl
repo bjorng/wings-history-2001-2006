@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.70 2005/03/02 13:00:05 dgud Exp $
+%%     $Id: wpa.erl,v 1.71 2005/08/15 07:15:55 dgud Exp $
 %%
 %% Note: To keep the call graph clean, wpa MUST NOT be called
 %%       from the wings core modules.
@@ -44,6 +44,9 @@
 	 popup_console/0
 	]).
 
+%% Commands from other processes
+-export([get_state/0]).
+-export([handle_external/2]).
 -export([format_error/1]).
 
 -include("wings.hrl").
@@ -557,3 +560,22 @@ quadrangulate(Faces, We) ->
 
 popup_console() ->
     wings_console:popup_window().
+
+
+%%% 
+%%% External commands
+%%%
+
+get_state() ->
+    wings ! {external, {get_state, self()}},
+    receive {state,St} -> St end.
+
+handle_external({get_state,Pid},#st{shapes=Sh,file=File,
+				    selmode=SelMode,sel=Sel,
+				    mat=Mat,pal=Pal}) ->
+    %% Copy only relevant information
+    Pid ! {state,#st{shapes=Sh,file=File,
+		     selmode=SelMode,sel=Sel,
+		     mat=Mat,pal=Pal}};
+handle_external(_, _St) ->
+    ignore.

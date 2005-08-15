@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.139 2005/05/15 16:45:34 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.140 2005/08/15 07:15:54 dgud Exp $
 %%
 
 -module(wings_io).
@@ -575,7 +575,9 @@ wait_for_event(Eq) ->
 	   end,
     receive
         {timeout,Ref,{event,Event}} when is_reference(Ref) ->
-            {Event,Eq}
+            {Event,Eq};
+	External = {external, _} ->
+	    read_events(enter_events([External], Eq))
     after Time ->
             case sdl_events:peepEvents() of
                 [] -> wait_for_event(Eq);
