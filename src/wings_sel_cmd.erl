@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.62 2005/06/24 14:09:59 trepan Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.63 2005/08/15 22:36:34 dgud Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -205,7 +205,7 @@ similar_help(_) -> [].
 command({edge_loop,edge_loop}, #st{selmode=face}=St) ->
     {save_state,face_region_to_edge_loop(St)};
 command({edge_loop,edge_loop}, St) ->
-    {save_state,wings_edge_loop:select_loop(St)};
+    {save_state,wings_edge_loop:stoppable_sel_loop(St)};
 command({edge_loop,edge_link_decr}, St) ->
     {save_state,wings_edge_loop:select_link_decr(St)};
 command({edge_loop,edge_link_incr}, St) ->
