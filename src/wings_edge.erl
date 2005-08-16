@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.118 2005/01/20 07:52:24 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.119 2005/08/16 18:04:34 dgud Exp $
 %%
 
 -module(wings_edge).
@@ -106,9 +106,13 @@ fast_cut(Edge, Pos0, We0) ->
 		 true ->
 		     ADist = e3d_vec:dist(Pos0, VstartPos),
 		     BDist = e3d_vec:dist(Pos0, VendPos),
-		     try ADist/(ADist+BDist)
-		     catch
-			 error:badarith -> 0.5
+%% 		     try ADist/(ADist+BDist)
+%% 		     catch
+%% 			 error:badarith -> 0.5
+%% 		     end
+		     case catch ADist/(ADist+BDist) of
+			 {'EXIT',_} -> 0.5;
+			 Else -> Else
 		     end
 	     end,
     NewColA = wings_color:mix(Weight, AColOther, ACol),
@@ -559,21 +563,111 @@ select_edge_ring_decr(#st{selmode=edge}=St) ->
     wings_sel:set(Sel, St);
 select_edge_ring_decr(St) -> St.
 
-build_selection(Edges, #we{id=Id}=We, ObjAcc) ->
-    [{Id,foldl(fun(Edge, EdgeAcc) ->
-		       Es = grow_from_edge(Edge, We, EdgeAcc),
-		       wings_we:visible_edges(Es, We)
-	       end, gb_sets:empty(), gb_sets:to_list(Edges))}|ObjAcc].
+-record(r,{id,l,r,
+	   ls=gb_sets:empty(),
+	   rs=gb_sets:empty()}).
 
-grow_from_edge(unknown, _We, Selected) -> Selected;
-grow_from_edge(Edge, We, Selected0) ->
-    case gb_sets:is_member(Edge, Selected0) of
-        true ->
-	    Selected0;
-        false ->
-	    Selected = gb_sets:add(Edge, Selected0),
-	    LeftSet = grow_from_edge(opposing_edge(Edge, We, left), We, Selected),
-	    grow_from_edge(opposing_edge(Edge, We, right), We, LeftSet)
+build_selection(Edges, #we{id=Id}=We, ObjAcc) ->
+    Init = init_edge_ring([],unknown,Edges,We,0,[]),
+    Stops0 = lists:foldl(fun(#r{id=MyId,ls=O},S0) ->
+				 foldl(fun(E,S) -> [{E,MyId} | S] end,
+				       S0, gb_sets:to_list(O))
+			 end,[],Init),
+    Stop = gb_trees:from_orddict(lists:sort(Stops0)),
+    Sel = grow_rings(Init,[],Stop,We,gb_sets:empty()),
+    [{Id,gb_sets:union(Sel,Edges)}|ObjAcc].
+
+grow_rings([First = #r{id=This}|R0],Rest0,Stop,We,Acc) ->
+    case grow_ring2(First,Stop,We) of
+	{stop, This, Edges} ->
+	    grow_rings(R0,Rest0,Stop,We,gb_sets:union(Edges,Acc));
+	{stop, Id, Edges} ->
+	    R = lists:keydelete(Id,2,R0),
+	    Rest = lists:keydelete(Id,2,Rest0),
+	    grow_rings(R,Rest,Stop,We,gb_sets:union(Edges,Acc));
+	{cont,New} ->
+	    grow_rings(R0,[New|Rest0],Stop,We,Acc)
+    end;
+grow_rings([],[],_,_,Acc) -> Acc;
+grow_rings([],Rest,Stop,We,Acc) ->
+    grow_rings(Rest, [], Stop, We, Acc).
+
+grow_ring2(#r{id=Id,l=unknown,r=unknown,ls=LS,rs=RS},_Stop,_We) ->
+    {stop, Id, gb_sets:union(LS,RS)};
+grow_ring2(R = #r{id=ID,l=L0,ls=LS0,r=R0,rs=RS0},Stop,We) ->
+    case grow_ring3(L0,LS0,Stop,We) of
+	{stop, SE, Edges} when ID /= SE -> 
+	    {stop,SE,Edges};
+	Else -> 
+	    {Left,LS} = case Else of 
+			    {stop, ID, Eds} -> {unknown,Eds};
+			    _ -> Else
+			end,
+	    case grow_ring3(R0,RS0,Stop,We) of
+		{stop,SE,Edges} -> 
+		    {stop,SE,Edges};
+		{Right,RS} ->
+		    {cont,R#r{l=Left,ls=LS,r=Right,rs=RS}}
+	    end
+    end.
+
+grow_ring3(unknown,Edges,_Stop,_We) ->
+    {unknown,Edges};
+grow_ring3(Edge,Edges,Stop,We) ->
+    case gb_trees:lookup(Edge,Stop) of
+	{value,Id} -> {stop,Id,Edges};
+	none -> 
+	    Left = opposing_edge(Edge, We, left),
+	    case gb_sets:is_member(Left,Edges) of
+		false ->
+		    {Left,gb_sets:add(Edge,Edges)};
+		true ->
+		    Right = opposing_edge(Edge, We, right),
+		    case gb_sets:is_member(Right,Edges) of
+			true -> {unknown, Edges};
+			false -> 
+			    {Right,gb_sets:add(Edge,Edges)}
+		    end
+	    end
+    end.
+
+init_edge_ring([],unknown,Edges0,We,Id,Acc) -> 
+    case gb_sets:is_empty(Edges0) of
+	true -> Acc;
+	false ->
+	    {Edge,Edges} = gb_sets:take_smallest(Edges0),
+	    Left = opposing_edge(Edge, We, left),
+	    Right = opposing_edge(Edge, We, right),
+	    init_edge_ring([Left,Right],#r{id=Id,l=Edge,r=Edge},Edges,We,Id+1,Acc)
+    end;
+init_edge_ring([],EI = #r{ls=LS},Edges0,We,Id,Acc) ->
+    init_edge_ring([],unknown,Edges0,We,Id,[EI#r{rs=LS}|Acc]);
+init_edge_ring([unknown|Rest],EI,Edges0,We,Id,Acc) ->
+    init_edge_ring(Rest,EI,Edges0,We,Id,Acc);
+init_edge_ring([Edge|Rest],EI0,Edges0,We,Id,Acc) ->
+    case gb_sets:is_member(Edge,Edges0) of
+	true -> 
+	    {Next,EI}=replace_edge(Edge,EI0,We),
+	    init_edge_ring([Next|Rest],EI,gb_sets:delete(Edge,Edges0),We,Id,Acc);
+	false ->
+	    {_Next,EI}=replace_edge(Edge,EI0,We),
+	    init_edge_ring(Rest,EI,Edges0,We,Id,Acc)
+    end.
+
+replace_edge(Edge,#r{l=L,r=R,ls=O} = EI,We) ->
+    case opposing_edge(Edge,We,left) of
+	L -> {opposing_edge(Edge,We,right),EI#r{l=Edge,ls=gb_sets:add(L,O)}};
+	R -> {opposing_edge(Edge,We,right),EI#r{r=Edge,ls=gb_sets:add(R,O)}};
+	unknown ->
+	    case opposing_edge(Edge,We,right) of
+		L -> {unknown, EI#r{l=Edge,ls=gb_sets:add(L,O)}};
+		R -> {unknown, EI#r{r=Edge,ls=gb_sets:add(R,O)}}
+	    end;
+	Other -> 
+	    case opposing_edge(Edge,We,right) of
+		L -> {Other, EI#r{l=Edge,ls=gb_sets:add(L,O)}};
+		R -> {Other, EI#r{r=Edge,ls=gb_sets:add(R,O)}}
+	    end
     end.
 
 opposing_edge(Edge, #we{es=Es}=We, Side) ->
