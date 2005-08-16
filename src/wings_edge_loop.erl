@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge_loop.erl,v 1.20 2005/08/08 21:03:57 dgud Exp $
+%%     $Id: wings_edge_loop.erl,v 1.21 2005/08/16 11:13:46 dgud Exp $
 %%
 
 -module(wings_edge_loop).
@@ -210,14 +210,12 @@ decrease_edge_link([], Edges) -> Edges.
 
 stoppable_select_loop(Edges0, #we{id=Id}=We, Acc) ->
     Edges1 = loop_incr(Edges0, We),
-    Edges2 = add_mirror_edges(Edges1, We),
-    Edges = wings_we:visible_edges(Edges2, We),
+    Edges = wings_we:visible_edges(Edges1, We),
     [{Id,Edges}|Acc].
 
 loop_incr(Edges0, #we{es=Etab}=We) ->
     %% Setup everything
     EndPoints0 = init_expand(Edges0,Etab),
-%    io:format("EndP ~p ~n",[EndPoints0]),
     {_,EndPoints} = foldl(fun(Link0, {No, Acc}) -> 
 				  Link = [{V,Edge,[]}||{V,Edge}<-Link0],
 				  {No+1, [{No+1,Link}|Acc]} 
@@ -265,27 +263,42 @@ expand_loop([],_,_,_,_,done,Res) ->
 		 gb_sets:empty(), Res)};
 expand_loop([],_,_,_,_,cont,Res) -> {cont,Res}.
 
-expand_loop2({V,OrigEdge,Sel},Stop,#we{es=Etab}=We,_MirrorEdges) ->
-    Eds0 = wings_vertex:fold(fun(E,_,_,Acc) -> [E|Acc] end, 
-			     [], V, We),
-    NumEdges = length(Eds0),
+expand_loop2({V,OrigEdge,Sel},Stop,#we{es=Etab}=We,MirrorEdges) ->
+    Eds = get_edges(V,OrigEdge,We,MirrorEdges),
+    NumEdges = length(Eds),
     case NumEdges rem 2 of
 	0 ->
-	    Eds = reorder(Eds0, OrigEdge, []),
-	    Edge = lists:nth(NumEdges div 2, Eds),
+	    Edge = lists:nth(1+(NumEdges div 2), Eds),
 	    case gb_trees:lookup(Edge,Stop) of
-		{value, Link} ->		    
+		{value, Link} ->
 		    {stop, gb_sets:from_list([OrigEdge|Sel]), Link};
 		none ->	
 %		    io:format("Adding Edge ~p to ~p ~n",[Edge,OrigEdge]),
 		    Rec = gb_trees:get(Edge,Etab),
 		    {cont,{wings_vertex:other(V,Rec),Edge,[OrigEdge|Sel]}}
 	    end;
-	1 -> %% BUGBUG MIRROR EDGES??????
-	    %% We are done unless OrigEdge is an mirror edge.
-	    %% In that case add all mirror edges surrounding the vertex.
+	1 -> 
 	    {done, gb_sets:from_list([OrigEdge|Sel])}
     end.
+
+get_edges(V,OrigEdge,We,MirrorEdges) ->
+    {Eds0,Eds1} = wings_vertex:fold(fun(E,_,_,{Acc,false}) -> 
+					    case gb_sets:is_member(E,MirrorEdges) of
+						true -> {[],[E|Acc]};
+						false ->{[E|Acc],false}
+					    end;
+				       (E,_,_,{Acc,Mirror}) -> 
+					    case gb_sets:is_member(E,MirrorEdges) of
+						true -> {reverse([E|Acc]),Mirror};
+						false ->{[E|Acc],Mirror}
+					    end
+				    end,
+				    {[],false}, V, We),
+    Eds = if Eds1 == false -> Eds0;
+	     true -> %% Add mirror edges
+		  reverse(Eds1) ++ Eds1 ++ Eds0 ++ reverse(Eds0)
+	  end,
+    reorder(Eds, OrigEdge, []).
 
 select_link_incr(#st{selmode=edge}=St) ->
     Sel = wings_sel:fold(fun select_link_incr/3, [], St),
@@ -300,33 +313,20 @@ select_link_incr(Edges0, #we{id=Id,es=Etab}=We, Acc) ->
     [{Id,Edges}|Acc].
 
 expand_edge_link([{V,OrigEdge}|R], We, MirrorEdges, Sel0) ->
-    Eds0 = wings_vertex:fold(fun(E,_,_,Acc) ->
-				     [E|Acc]
-			     end, [], V, We),
-    NumEdges = length(Eds0),
+    Eds = get_edges(V,OrigEdge,We,MirrorEdges),
+    NumEdges = length(Eds),
     case NumEdges rem 2 of	
 	0 ->
-	    Eds = reorder(Eds0, OrigEdge, []),
-	    NewEd = lists:nth(NumEdges div 2, Eds),
+	    NewEd = lists:nth(1+(NumEdges div 2), Eds),
 	    Sel = gb_sets:add(NewEd, Sel0),
 	    expand_edge_link(R, We, MirrorEdges, Sel);
 	1 ->
-	    %% We are done unless OrigEdge is an mirror edge.
-	    %% In that case add all mirror edges surrounding the vertex.
-	    case gb_sets:is_member(OrigEdge, MirrorEdges) of
-		false ->
-		    expand_edge_link(R, We, MirrorEdges, Sel0);
-		true ->
-		    Me = gb_sets:intersection(MirrorEdges,
-					      gb_sets:from_list(Eds0)),
-		    Sel = gb_sets:union(Me, Sel0),
-		    expand_edge_link(R, We, MirrorEdges, Sel)
-	    end
+	    expand_edge_link(R, We, MirrorEdges, Sel0)
     end;
 expand_edge_link([], _, _, Sel) -> Sel.
 
 reorder([Edge|R], Edge, Acc) ->
-    Acc ++ reverse(R);
+    [Edge|Acc ++ reverse(R)];
 reorder([E|R], Edge, Acc) ->
     reorder(R, Edge, [E|Acc]).
 
