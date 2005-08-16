@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.153 2005/04/23 16:52:18 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.154 2005/08/16 09:10:16 dgud Exp $
 %%
 
 -module(wings_wm).
@@ -550,9 +550,12 @@ dispatch_event(quit) ->
 	    end, gb_trees:keys(get(wm_windows)));
 dispatch_event({wm,WmEvent}) ->
     wm_event(WmEvent);
+dispatch_event(Ev = {external,_}) ->
+    send(geom,Ev);
 dispatch_event(Event) ->
     case find_active(Event) of
 	none ->
+%	    io:format("~p:~p: Dropped Event ~p~n",[?MODULE,?LINE,Event]),
 	    update_focus(none);
 	Active ->
 	    update_focus(Active),
@@ -590,7 +593,9 @@ resize_windows(W, H) ->
 
 do_dispatch(Active, Ev) ->
     case gb_trees:lookup(Active, get(wm_windows)) of
-	none -> ok;
+	none -> 
+%	    io:format("~p:~p: Dropped Event ~p~n",[?MODULE,?LINE,Ev]),
+	    ok;
 	{value,Win0} ->
 	    case send_event(Win0, Ev) of
 		#win{name=Name,stk=delete} ->
