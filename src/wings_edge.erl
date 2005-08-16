@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.119 2005/08/16 18:04:34 dgud Exp $
+%%     $Id: wings_edge.erl,v 1.120 2005/08/16 21:16:48 dgud Exp $
 %%
 
 -module(wings_edge).
@@ -578,7 +578,7 @@ build_selection(Edges, #we{id=Id}=We, ObjAcc) ->
     [{Id,gb_sets:union(Sel,Edges)}|ObjAcc].
 
 grow_rings([First = #r{id=This}|R0],Rest0,Stop,We,Acc) ->
-    case grow_ring2(First,Stop,We) of
+    case grow_ring1(First,Stop,We) of
 	{stop, This, Edges} ->
 	    grow_rings(R0,Rest0,Stop,We,gb_sets:union(Edges,Acc));
 	{stop, Id, Edges} ->
@@ -592,30 +592,30 @@ grow_rings([],[],_,_,Acc) -> Acc;
 grow_rings([],Rest,Stop,We,Acc) ->
     grow_rings(Rest, [], Stop, We, Acc).
 
-grow_ring2(#r{id=Id,l=unknown,r=unknown,ls=LS,rs=RS},_Stop,_We) ->
+grow_ring1(#r{id=Id,l=unknown,r=unknown,ls=LS,rs=RS},_Stop,_We) ->
     {stop, Id, gb_sets:union(LS,RS)};
-grow_ring2(R = #r{id=ID,l=L0,ls=LS0,r=R0,rs=RS0},Stop,We) ->
-    case grow_ring3(L0,LS0,Stop,We) of
-	{stop, SE, Edges} when ID /= SE -> 
-	    {stop,SE,Edges};
-	Else -> 
-	    {Left,LS} = case Else of 
-			    {stop, ID, Eds} -> {unknown,Eds};
-			    _ -> Else
-			end,
-	    case grow_ring3(R0,RS0,Stop,We) of
-		{stop,SE,Edges} -> 
-		    {stop,SE,Edges};
-		{Right,RS} ->
-		    {cont,R#r{l=Left,ls=LS,r=Right,rs=RS}}
-	    end
+grow_ring1(This = #r{id=ID,l=L0,ls=LS0,r=R0,rs=RS0},Stop,We) ->
+    case grow_ring2(ID,L0,LS0,Stop,We) of
+	{L,LS} ->
+	    case grow_ring2(ID,R0,RS0,Stop,We) of
+		{R,RS} -> {cont,This#r{l=L,ls=LS,r=R,rs=RS}};
+		Break ->  Break
+	    end;
+	Break -> Break
+    end.
+
+grow_ring2(ID,Edge,Edges,Stop,We) ->
+    case grow_ring3(Edge,Edges,Stop,We) of
+	{stop, ID, Edges} ->  {unknown,Edges};
+	Else ->   Else
     end.
 
 grow_ring3(unknown,Edges,_Stop,_We) ->
     {unknown,Edges};
 grow_ring3(Edge,Edges,Stop,We) ->
     case gb_trees:lookup(Edge,Stop) of
-	{value,Id} -> {stop,Id,Edges};
+	{value,Id} -> 
+	    {stop,Id,Edges};
 	none -> 
 	    Left = opposing_edge(Edge, We, left),
 	    case gb_sets:is_member(Left,Edges) of
@@ -624,9 +624,8 @@ grow_ring3(Edge,Edges,Stop,We) ->
 		true ->
 		    Right = opposing_edge(Edge, We, right),
 		    case gb_sets:is_member(Right,Edges) of
-			true -> {unknown, Edges};
-			false -> 
-			    {Right,gb_sets:add(Edge,Edges)}
+			true ->  {unknown, Edges};
+			false -> {Right,gb_sets:add(Edge,Edges)}
 		    end
 	    end
     end.
