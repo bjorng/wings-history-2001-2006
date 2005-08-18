@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.46 2005/01/31 12:53:42 dgud Exp $
+%%     $Id: wings_image.erl,v 1.47 2005/08/18 09:25:22 dgud Exp $
 %%
 
 -module(wings_image).
@@ -354,8 +354,15 @@ init_texture(Image0, TxId) ->
     gl:pushAttrib(?GL_TEXTURE_BIT),
     gl:enable(?GL_TEXTURE_2D),
     gl:bindTexture(?GL_TEXTURE_2D, TxId),
+    case wings_gl:is_ext({1,4},'GL_SGIS_generate_mipmap') of
+	true -> 
+	    gl:texParameteri(?GL_TEXTURE_2D, ?GL_GENERATE_MIPMAP, ?GL_TRUE),
+	    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_MIN_FILTER, 
+			     ?GL_LINEAR_MIPMAP_LINEAR);
+	false ->
+	    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_MIN_FILTER, ?GL_LINEAR)
+    end,
     gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_MAG_FILTER, ?GL_LINEAR),
-    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_MIN_FILTER, ?GL_LINEAR),
     gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_S, ?GL_REPEAT),
     gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_T, ?GL_REPEAT),
     Format = texture_format(Image),
@@ -366,15 +373,21 @@ init_texture(Image0, TxId) ->
 
 maybe_scale(#e3d_image{width=W0,height=H0,bytes_pp=BytesPerPixel,
 		       image=Bits0}=Image) ->
-    case {nearest_power_two(W0),nearest_power_two(H0)} of
-	{W0,H0} -> Image;
-	{W,H} ->
-	    Out = sdl_util:alloc(BytesPerPixel*W*H, ?GL_UNSIGNED_BYTE),
-	    Format = texture_format(Image),
-	    glu:scaleImage(Format, W0, H0, ?GL_UNSIGNED_BYTE,
-			   Bits0, W, H, ?GL_UNSIGNED_BYTE, Out),
-	    Bits = sdl_util:getBin(Out),
-	    Image#e3d_image{width=W,height=H,image=Bits}
+%%    case wings_gl:is_ext({2,0}, 'GL_ARB_texture_non_power_of_two') of
+%%  Aarg ATI doesn't support ARB_NPOT textures, though it report GL_VER >= 2.0
+    case wings_gl:is_ext('GL_ARB_texture_non_power_of_two') of
+	true -> Image;
+	false ->
+	    case {nearest_power_two(W0),nearest_power_two(H0)} of
+		{W0,H0} -> Image;
+		{W,H} ->
+		    Out = sdl_util:alloc(BytesPerPixel*W*H, ?GL_UNSIGNED_BYTE),
+		    Format = texture_format(Image),
+		    glu:scaleImage(Format, W0, H0, ?GL_UNSIGNED_BYTE,
+				   Bits0, W, H, ?GL_UNSIGNED_BYTE, Out),
+		    Bits = sdl_util:getBin(Out),
+		    Image#e3d_image{width=W,height=H,image=Bits}
+	    end
     end.
 
 nearest_power_two(N) when (N band -N) =:= N -> N;
@@ -447,9 +460,12 @@ delete_bump(Id) ->
 	    gl:deleteTextures(1, [Bid])
     end.
 
-do_update(Id, In = #e3d_image{width=W,height=H,type=Type}, 
+do_update(Id, In = #e3d_image{width=W,height=H,type=Type,name=NewName}, 
 	  #ist{images=Images0}=S) ->
-    Im0 = #e3d_image{filename=File,name=Name} = gb_trees:get(Id, Images0),
+    Im0 = #e3d_image{filename=File,name=OldName} = gb_trees:get(Id, Images0),
+    Name = if is_list(NewName), length(NewName) > 2 -> NewName;
+	      true -> OldName
+	   end,	       
     Im   = maybe_convert(In#e3d_image{filename=File, name=Name}),
     TxId = get(Id),
     Images = gb_trees:update(Id, Im, Images0),
