@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_gl.erl,v 1.2 2005/01/02 11:13:29 bjorng Exp $
+%%     $Id: wings_gl.erl,v 1.3 2005/08/18 09:29:11 dgud Exp $
 %%
 
 -module(wings_gl).
@@ -71,6 +71,9 @@ is_ext_1([Name|R]) ->
 is_ext_1(Name) ->
     ets:member(wings_gl_ext, Name).
 
+version_match({Ma1,_}, {Ma2,_,_})
+  when Ma1 < Ma2 -> 
+    true;
 version_match({Ma1,Mi1}, {Ma2,Mi2,_}) 
   when Ma1 =< Ma2, Mi1 =< Mi2 -> true;
 version_match({Ma1,Mi1,P1}, {Ma2,Mi2,P2}) 
