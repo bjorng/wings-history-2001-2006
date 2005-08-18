@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.105 2005/08/07 00:54:05 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.106 2005/08/18 23:15:54 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -66,11 +66,16 @@ key(Key) -> {key,?KEY(Key)}.
 -define(DEF_FAST_FRESNEL,false).
 -define(DEF_ABSORPTION_COLOR, {1.0,1.0,1.0}).
 -define(DEF_ABSORPTION_DIST, 1.0).
+-define(DEF_DISPERSION_POWER, 0.0).
+-define(DEF_DISPERSION_SAMPLES, 10).
+-define(DEF_DISPERSION_JITTER, false).
 %% Arealight
 -define(DEF_AREALIGHT, false).
 -define(DEF_AREALIGHT_SAMPLES, 50).
 -define(DEF_AREALIGHT_PSAMPLES, 0).
 -define(DEF_DUMMY, false).
+-define(DEF_QMC_METHOD, 0).
+-define(DEF_AREALIGHT_RADIUS, 1.0).
 
 %% Render
 -define(DEF_AA_PASSES, 0).
@@ -95,6 +100,9 @@ key(Key) -> {key,?KEY(Key)}.
 -define(DEF_POINT_TYPE, pointlight).
 -define(DEF_CAST_SHADOWS, true).
 -define(DEF_USE_QMC, false).
+-define(DEF_GLOW_INTENSITY, 0.0).
+-define(DEF_GLOW_OFFSET, 0.0).
+-define(DEF_GLOW_TYPE, 0).
 %% Spotlight
 -define(DEF_SPOT_TYPE, spotlight).
 -define(DEF_CONE_ANGLE, 45.0).
@@ -207,6 +215,8 @@ range_1(scale)			-> {?NONZERO,infinity};
 range_1(sharpness)		-> {1.0,infinity};
 range_1(noise_depth)		-> {1,infinity};
 range_1(absorption_dist)	-> {?NONZERO,infinity};
+range_1(dispersion_power)	-> {0.0,1.0};
+range_1(dispersion_samples)	-> {1,infinity};
 %% Light ranges
 range_1(power)			-> {0.0,infinity};
 range_1(bias)			-> {0.0,1.0};
@@ -215,6 +225,8 @@ range_1(radius)			-> {0,infinity};
 range_1(blur)			-> {0.0,1.0};
 range_1(samples)		-> {1,infinity};
 range_1(halo_fog_density)	-> {0.0,infinity};
+range_1(glow_intensity)		-> {0.0,1.0};
+range_1(glow_offset)		-> {0.0,infinity};
 range_1(blend)			-> {0.0,infinity};
 range_1(photons)		-> {0,infinity};
 range_1(depth)			-> {0,infinity};
@@ -229,6 +241,7 @@ range_1(shadow_threshold)	-> {0.0,infinity};
 range_1(cache_search)		-> {3,infinity};
 range_1(exposure_adjust)	-> {-128,127};
 range_1(psamples)		-> {0,infinity};
+range_1(arealight_radius)	-> {0.0,infinity};
 %% Render ranges
 range_1(subdivisions)		-> {0,infinity};
 range_1(aa_pixelwidth)		-> {1.0,2.0};
@@ -390,15 +403,30 @@ command_file(?TAG_RENDER, Result, _St) ->
 	    keep;
 	RenderFile ->
 	    case Result of
-		load_image ->
-		    io:format("Loading rendered image~n~n"),
-		    load_image(RenderFile);
-		ok ->
-		    io:format("Rendering Job ready~n~n"),
-		    keep;
 		{error,Error} ->
 		    io:format("Rendering error: ~p~n~n", [Error]),
-		    wpa:error("Rendering error")
+		    wpa:error("Rendering error");
+		_ ->
+		    [{load_image,LoadImage},
+		     {viewer,Viewer},
+		     {viewer_preopts,ViewerPreopts},
+		     {viewer_postopts,ViewerPostopts}] =
+			get_user_prefs([{load_image,?DEF_LOAD_IMAGE},
+					{viewer,""},
+					{viewer_preopts,""},
+					{viewer_postopts,""}]),
+		    case {LoadImage,Result,Viewer} of
+			{true,tga,_} ->
+			    io:format("Loading rendered image~n~n"),
+			    load_image(RenderFile);
+			{_,_,""} ->
+			    io:format("Rendering Job ready~n~n"),
+			    keep;
+			{_,_,_} ->
+			    io:format("Rendering Job ready~n~n"),
+			    view_image(RenderFile, Viewer,
+				       ViewerPreopts, ViewerPostopts)
+		    end
 	    end
     end;
 command_file(Op, Attr, St) when is_list(Attr) ->
@@ -433,9 +461,11 @@ do_export(Op, Props0, Attr0, St0) ->
     St = St0#st{shapes=gb_trees:from_orddict(Shapes)},
     wpa:Op(Props, ExportFun, St).
 
-props(render, Attr) ->
+props(render, _Attr) ->
+    [{render_format,RenderFormat}] = 
+	get_user_prefs([{render_format,?DEF_RENDER_FORMAT}]),
     [{title,"Render"}]++
-	case proplists:get_value(render_format, Attr, ?DEF_RENDER_FORMAT) of
+	case RenderFormat of
 	    hdr -> [{ext,".hdr"},{ext_desc,"High Dynamic Range image"}];
 	    exr -> [{ext,".exr"},{ext_desc,"OpenEXR"}];
 	    _   -> [{ext,".tga"},{ext_desc,"Targa File"}]
@@ -455,6 +485,45 @@ load_image(Filename) ->
 	_ ->
 	    wpa:error("No image rendered")
     end.
+
+view_image(Filename, Viewer, ViewerPreopts, ViewerPostopts) ->
+    case filename:pathtype(Viewer) of
+	absolute ->
+	    case wings_job:altname(Viewer) of
+		{error,Reason} ->
+		    io:format("Viewing error: ~p~n~n", [Reason]),
+		    wpa:error("Viewing error");
+		Altname ->
+		    view_image_1(Filename, Altname, 
+				 ViewerPreopts, ViewerPostopts)
+	    end;
+	_ ->
+	    view_image_1(Filename, Viewer,
+			 ViewerPreopts, ViewerPostopts)
+    end.
+
+view_image_1(Filename, Viewer, ViewerPreopts, ViewerPostopts) ->
+    Dirname = filename:dirname(Filename),
+    Basename = filename:basename(Filename),
+    Cmd = wings_job:quote(Viewer)++" "
+	++ViewerPreopts++" "
+	++wings_job:quote(Basename)++" "
+	++ViewerPostopts,
+    Handler = 
+	fun (Port) ->
+		if is_port(Port) ->
+			io:format("Viewer started ~p:~n"
+				  "> ~s~n", [self(),Cmd]);
+		   true ->
+			io:format("Viewer start failed:~n"
+				  "> ~s~n", [Cmd])
+		end,
+		fun (ExitStatus) ->
+			io:format("Viewer returned: ~p~n", [ExitStatus])
+		end
+	end,
+    wings_job:run(Cmd, Handler, [{cd,Dirname}]),
+    keep.
 
 
 
@@ -497,6 +566,14 @@ material_dialog(_Name, Mat) ->
 	proplists:get_value(absorption_color, YafRay, ?DEF_ABSORPTION_COLOR),
     AbsorptionDist =
 	proplists:get_value(absorption_dist, YafRay, ?DEF_ABSORPTION_DIST),
+    DispersionPower =
+	proplists:get_value(dispersion_power, YafRay, ?DEF_DISPERSION_POWER),
+    DispersionSamples =
+	proplists:get_value(dispersion_samples, YafRay, 
+			    ?DEF_DISPERSION_SAMPLES),
+    DispersionJitter = 
+	proplists:get_value(dispersion_jitter, YafRay, 
+			    ?DEF_DISPERSION_JITTER),
     Modulators = proplists:get_value(modulators, YafRay, def_modulators(Maps)),
     ObjectFrame = 
 	{vframe,
@@ -559,26 +636,38 @@ material_dialog(_Name, Mat) ->
 		   {vframe,[panel,
 			    {button,"Set Default",keep,
 			     [transmitted_hook(?KEY(transmitted))]}]}]},
-	  {"Grazing Angle Colors",
-	   Fresnel2,
-	   [key(fresnel2),layout,
-	    hook(enable, [member,?KEY(shader_type),generic])]},
-	  {hframe,[{vframe,[{label,"Reflected"},
-			    {label,"Transmitted"}]},
-		   {vframe,[{slider,{color,Reflected2,
-				     [key(reflected2)]}},
-			    {slider,{color,Transmitted2,
-				     [key(transmitted2)]}}]},
-		   {vframe,[panel,
-			    {button,"Set Default",keep,
-			     [transmitted_hook(?KEY(transmitted2))]}]}],
-	   [hook([{open,?KEY(fresnel2)},
-		  {enable,[member,?KEY(shader_type),generic]}])]},
-	  {hframe,[{label,"Absorption:"},
-		   {color,AbsorptionColor,[key(absorption_color)]},
-		   {label,"@"},
-		   {text,AbsorptionDist,[key(absorption_dist),
-					 range(absorption_dist)]}],
+	  {vframe,
+	   [{"Grazing Angle Colors",Fresnel2,[key(fresnel2),layout]},
+	    {hframe,[{vframe,[{label,"Reflected"},
+			      {label,"Transmitted"}]},
+		     {vframe,[{slider,{color,Reflected2,
+				       [key(reflected2)]}},
+			      {slider,{color,Transmitted2,
+				       [key(transmitted2)]}}]},
+		     {vframe,[panel,
+			      {button,"Set Default",keep,
+			       [transmitted_hook(?KEY(transmitted2))]}]}],
+	     [hook(open, ?KEY(fresnel2))]},
+	    {hframe,[{label,"Absorption:"},
+		     {color,AbsorptionColor,[key(absorption_color)]},
+		     {label,"@"},
+		     {text,AbsorptionDist,
+		      [key(absorption_dist),
+		       range(absorption_dist),
+		       hook(enable, ['not',[member,?KEY(absorption_color),
+					    ?DEF_ABSORPTION_COLOR]])]}]},
+	    {vframe,[{hframe,[{label,"Dispersion: Power"},
+			      {slider,{text,DispersionPower,
+				       [key(dispersion_power),
+					range(dispersion_power)]}}]},
+		     {hframe,[{label," Samples"},
+			      {text,DispersionSamples,
+			       [key(dispersion_samples),
+				range(dispersion_samples)]},
+			      {"Jitter",DispersionJitter,
+			       [key(dispersion_jitter)]}],
+		      [hook(enable, 
+			    ['not',[member,?KEY(dispersion_power),0.0]])]}]}],
 	   [hook(enable, [member,?KEY(shader_type),generic])]}],
 	 [{title,"Fresnel Parameters"},{minimized,FresnelMinimized},
 	  key(fresnel_minimized)]},
@@ -624,7 +713,7 @@ def_modulators([_|Maps]) ->
     def_modulators(Maps).
 
 material_result(_Name, Mat0, [{?KEY(minimized),_}|_]=Res0) ->
-    {Ps1,Res1} = split_list(Res0, 23),
+    {Ps1,Res1} = split_list(Res0, 26),
     Ps2 = [{Key,Val} || {?KEY(Key),Val} <- Ps1],
     {Ps,Res} = modulator_result(Ps2, Res1),
     Mat = [?KEY(Ps)|keydelete(?TAG, 1, Mat0)],
@@ -1791,20 +1880,63 @@ light_dialog(_Name, point, Ps) ->
     Bias = proplists:get_value(bias, Ps, ?DEF_BIAS),
     Res = proplists:get_value(res, Ps, ?DEF_RES),
     Radius = proplists:get_value(radius, Ps, ?DEF_RADIUS),
-    [{hframe,
-      [{vradio,[{"Pointlight",pointlight},{"Softlight",softlight}],
-	Type,[key(type),layout]},
+    ArealightRadius = proplists:get_value(arealight_radius, Ps, 
+					   ?DEF_AREALIGHT_RADIUS),
+    ArealightSamples = proplists:get_value(arealight_samples, Ps, 
+					   ?DEF_AREALIGHT_SAMPLES),
+    ArealightPsamples = proplists:get_value(arealight_psamples, Ps, 
+					    ?DEF_AREALIGHT_PSAMPLES),
+    QmcMethod = proplists:get_value(qmc_method, Ps, ?DEF_QMC_METHOD),
+    Dummy = proplists:get_value(dummy, Ps, ?DEF_DUMMY),
+    MinimizedGlow = proplists:get_value(minimized_glow, Ps, true),
+    GlowIntensity =
+	proplists:get_value(glow_intensity, Ps, ?DEF_GLOW_INTENSITY),
+    GlowIntensityOpts = [key(glow_intensity),range(glow_intensity)],
+    GlowOffset = proplists:get_value(glow_offset, Ps, ?DEF_GLOW_OFFSET),
+    GlowType = proplists:get_value(glow_type, Ps, ?DEF_GLOW_TYPE),
+    [{vframe,
+      [{hradio,[{"Pointlight",pointlight},
+		{"Softlight",softlight},
+		{"Spherelight",spherelight}],Type,[key(type),layout]},
+       {hframe,
+	[{vframe,[{label,"Intensity"},
+		  {label,"Offset"}]},
+	 {vframe,[{text,GlowIntensity,GlowIntensityOpts},
+		  {text,GlowOffset,
+		   [key(glow_offset),
+		    range(glow_offset),
+		    hook(enable, 
+			 ['not',[member,?KEY(glow_intensity),0.0]])]}]},
+	 {vframe,[{slider,GlowIntensityOpts},
+		  {menu,[{"Ad-hoc type",0},
+			 {"Han-Wen Nienhuys",1}],GlowType,
+		   [key(glow_type),
+		    hook(enable, 
+			 ['not',[member,?KEY(glow_intensity),0.0]])]}]}],
+	[{title,"Glow"},key(minimized_glow),{minimized,MinimizedGlow}]},
        {"Cast Shadows",CastShadows,
 	[key(cast_shadows),
 	 hook(open, [member,?KEY(type),pointlight])]},
        {hframe,
-	[{vframe,[{label,"Bias"},
-		  {label,"Res"},
-		  {label,"Radius"}]},
-	 {vframe,[{text,Bias,[range(bias),key(bias)]},
-		  {text,Res,[range(res),key(res)]},
-		  {text,Radius,[range(radius),key(radius)]}]}],
-	[hook(open, [member,?KEY(type),softlight])]}]}];
+	[{label,"Bias"},{text,Bias,[range(bias),key(bias)]},
+	 {label,"Res"},{text,Res,[range(res),key(res)]},
+	 {label,"Radius"},{text,Radius,[range(radius),key(radius)]}],
+	[hook(open, [member,?KEY(type),softlight])]},
+       {vframe,
+	[{hframe,[{label,"Radius"},
+		  {text,ArealightRadius,[range(arealight_radius),
+					 key(arealight_radius)]},
+		  {"Global Photonlight Dummy",Dummy,[key(dummy)]}]},
+	 {hframe,[{label,"Samples"},
+		  {text,ArealightSamples,[range(samples),
+					  key(arealight_samples)]},
+		  {label,"Penumbra Samples"},
+		  {text,ArealightPsamples,[range(psamples),
+					   key(arealight_psamples)]},
+		  {menu,[{"QMC 0",0},{"QMC 1",1}],QmcMethod,
+		   [key(qmc_method)]}],
+	  [hook(enable, ['not',?KEY(dummy)])]}],
+	[hook(open, [member,?KEY(type),spherelight])]}]}];
 light_dialog(_Name, spot, Ps) ->
     Type = proplists:get_value(type, Ps, ?DEF_SPOT_TYPE),
     CastShadows = proplists:get_value(cast_shadows, Ps, ?DEF_CAST_SHADOWS),
@@ -2116,9 +2248,11 @@ light_result(_Name, Ps0,
 
 %% Point
 light_result([{?KEY(type),pointlight}|_]=Ps) ->
-    split_list(Ps, 5);
+    split_list(Ps, 14);
 light_result([{?KEY(type),softlight}|_]=Ps) ->
-    split_list(Ps, 5);
+    split_list(Ps, 14);
+light_result([{?KEY(type),spherelight}|_]=Ps) ->
+    split_list(Ps, 14);
 %% Spot
 light_result([{?KEY(type),spotlight}|_]=Ps) ->
     split_list(Ps, 20);
@@ -2145,9 +2279,21 @@ light_result(Ps) ->
 
 pref_dialog(St) ->
     [{dialogs,Dialogs},{renderer,Renderer},
-     {options,Options},{load_image,LoadImage}] = 
+     {options,Options},{load_image,LoadImage},
+     {render_format,RenderFormat},
+     {exr_flag_float,ExrFlagFloat},
+     {exr_flag_zbuf,ExrFlagZbuf},
+     {exr_flag_compression,ExrFlagCompression},
+     {viewer,Viewer},
+     {viewer_preopts,ViewerPreopts},{viewer_postopts,ViewerPostopts}] = 
 	get_user_prefs([{dialogs,?DEF_DIALOGS},{renderer,?DEF_RENDERER},
-			{options,?DEF_OPTIONS},{load_image,?DEF_LOAD_IMAGE}]),
+			{options,?DEF_OPTIONS},{load_image,?DEF_LOAD_IMAGE},
+			{render_format,?DEF_RENDER_FORMAT},
+			{exr_flag_float,false},
+			{exr_flag_zbuf,false},
+			{exr_flag_compression,?DEF_EXR_FLAG_COMPRESSION},
+			{viewer,""},
+			{viewer_preopts,""},{viewer_postopts,""}]),
     BrowseProps = [{dialog_type,open_dialog},{directory,"/"},
 		   case os:type() of
 		       {win32,_} -> 
@@ -2165,13 +2311,55 @@ pref_dialog(St) ->
 	     help_button(pref_dialog)]},
 	   {vframe,
 	    [{hframe,
-	      [{vframe,[{label,"Executable"},
-			{label,"Options"}]},
-	       {vframe,[{button,{text,Renderer,
-				 [{key,renderer},{props,BrowseProps}]}},
-			{text,Options,[{key,options}]}]}]},
-	     {"Auto Load Image",LoadImage,[{key,load_image}]}],
-	    [{title,"Rendering"}]}]}],
+	      [{vframe,
+		[{label,"Executable"},
+		 {label,"Options"},
+		 {label,"Format"}]},
+	       {vframe,
+		[{button,{text,Renderer,
+			  [{key,renderer},{props,BrowseProps}]}},
+		 {text,Options,[{key,options}]},
+		 {vframe,
+		  [{menu,[{".tga (Targa File)",tga},
+			  {".hdr (High Dynamic Range image)",hdr},
+			  {".exr (OpenEXR)",exr}],
+		    RenderFormat,
+		    [{key,render_format},layout]},
+		   {hframe,
+		    [{"Float",ExrFlagFloat,[{key,exr_flag_float}]},
+		     {"Zbuf",ExrFlagZbuf,[{key,exr_flag_zbuf}]},
+		     {label," Compression:"},
+		     {menu,
+		      [{"none",compression_none},
+		       {"piz",compression_piz},
+		       {"rle",compression_rle},
+		       {"pxr24",compression_pxr24},
+		       {"zip",compression_zip}],
+		      ExrFlagCompression,
+		      [{key,exr_flag_compression}]}],
+		    [hook(open, [member,render_format,exr])]}]}]}]}],
+	    [{title,"Rendering"}]}]},
+	 {vframe,
+	  [{"Load Image",LoadImage,
+	    [{key,load_image},
+	     hook(enable, [member,render_format,tga])]},
+	   {vframe,
+	    [{hframe,
+	      [{vframe,
+		[{label,"Viewer"},
+		 {label,"Options"}]},
+	       {vframe,
+		[{button,{text,Viewer,[{key,viewer},{props,BrowseProps}]}},
+		 {hframe,
+		  [{text,ViewerPreopts,[{key,viewer_preopts},
+					{width,10}]},
+		   {label,"..filename.."},
+		   {text,ViewerPostopts,[{key,viewer_postopts},
+					 {width,10}]}]}]}]}],
+	   [hook(enable, ['not',['and',
+				 load_image,
+				 [member,render_format,tga]]])]}],
+	  [{title,"Viewing"}]}],
     wpa:dialog("YafRay Options", Dialog, 
 	       fun (Attr) -> pref_result(Attr,St) end).
 
@@ -2204,10 +2392,6 @@ export_prefs() ->
      {bias,?DEF_BIAS},
      {exposure,?DEF_EXPOSURE},
      {save_alpha,?DEF_SAVE_ALPHA},
-     {render_format,?DEF_RENDER_FORMAT},
-     {exr_flag_float,false},
-     {exr_flag_zbuf,false},
-     {exr_flag_compression,?DEF_EXR_FLAG_COMPRESSION},
      {background_color,?DEF_BACKGROUND_COLOR},
      {width,?DEF_WIDTH},
      {height,?DEF_HEIGHT},
@@ -2234,10 +2418,6 @@ export_dialog_qs(Op,
 		  {bias,Bias},
 		  {exposure,Exposure},
 		  {save_alpha,SaveAlpha},
-		  {render_format,RenderFormat},
-		  {exr_flag_float,ExrFlagFloat},
-		  {exr_flag_zbuf,ExrFlagZbuf},
-		  {exr_flag_compression,ExrFlagCompression},
 		  {background_color,BgColor},
 		  {width,Width},
 		  {height,Height},
@@ -2286,27 +2466,7 @@ export_dialog_qs(Op,
 	 {vframe,[{slider,AA_thresholdFlags},
 		  {slider,AA_pixelwidthFlags},
 		  {slider,BiasFlags},
-		  {"Alpha Channel",SaveAlpha,[{key,save_alpha}]}]}]},
-       {hframe,
-	[{menu,[{".tga (Targa File)",tga},
-		{".hdr (High Dynamic Range image)",hdr},
-		{".exr (OpenEXR)",exr}],
-	  RenderFormat,
-	  [{key,render_format},layout]},
-	 {hframe,
-	  [{"Float",ExrFlagFloat,[{key,exr_flag_float}]},
-	   {"Zbuf",ExrFlagZbuf,[{key,exr_flag_zbuf}]},
-	   {label," Compression:"},
-	   {menu,
-	    [{"none",compression_none},
-	     {"piz",compression_piz},
-	     {"rle",compression_rle},
-	     {"pxr24",compression_pxr24},
-	     {"zip",compression_zip}],
-	    ExrFlagCompression,
-	    [{key,exr_flag_compression}]}],
-	  [hook(open, [member,render_format,exr])]},
-	 panel]}],
+		  {"Alpha Channel",SaveAlpha,[{key,save_alpha}]}]}]}],
       [{title,"Render"}]},
      {hframe,
       [{vframe,[{label,"Default Color"}]},
@@ -2355,7 +2515,7 @@ export_dialog_qs(Op,
 	      {button,"Reset",done,[{info,"Reset to default values"}]}]}].
 
 export_dialog_loop({Op,Fun}=Keep, Attr) ->
-    {Prefs,Buttons} = split_list(Attr, 28),
+    {Prefs,Buttons} = split_list(Attr, 24),
     case Buttons of
 	[true,false,false] -> % Save
 	    set_user_prefs(Prefs),
@@ -2438,8 +2598,8 @@ export(Attr, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
     ExportTS = erlang:now(),
     Render = proplists:get_value(?TAG_RENDER, Attr, false),
     KeepXML = proplists:get_value(keep_xml, Attr, ?DEF_KEEP_XML),
-    RenderFormat = 
-	proplists:get_value(render_format, Attr, ?DEF_RENDER_FORMAT),
+    [{render_format,RenderFormat}] = 
+	get_user_prefs([{render_format,?DEF_RENDER_FORMAT}]),
     ExportDir = filename:dirname(Filename),
     {ExportFile,RenderFile} =
 	case {Render,KeepXML} of
@@ -2456,6 +2616,7 @@ export(Attr, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
 		 filename:rootname(Filename)++
 		 case RenderFormat of
 		     hdr -> ".hdr";
+		     exr -> ".exr";
 		     _ -> ".tga"
 		 end}
 	end,
@@ -2535,9 +2696,8 @@ export(Attr, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
     println(F, "</scene>"),
     close(F),
     %%
-    [{options,Options},{load_image,LoadImage0}] =
-	get_user_prefs([{options,?DEF_OPTIONS},{load_image,?DEF_LOAD_IMAGE}]),
-    LoadImage = LoadImage0 and (RenderFormat == tga),
+    [{options,Options}] =
+	get_user_prefs([{options,?DEF_OPTIONS}]),
     case {get_var(renderer),Render} of
 	{_,false} ->
 	    wings_job:export_done(ExportTS),
@@ -2560,10 +2720,9 @@ export(Attr, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
 		fun (Status) ->
 			if KeepXML -> ok; true -> file:delete(ExportFile) end,
 			Result =
-			    case {Status,LoadImage} of
-				{ok,true}  -> load_image;
-				{ok,false} -> ok;
-				_          -> Status
+			    case Status of
+				ok -> RenderFormat;
+				_  -> Status
 			    end,
 			wpa:send_command({file,{?TAG_RENDER,Result}})
 		end,
@@ -2663,6 +2822,25 @@ export_generic_shader(F, Name, Mat, ExportDir, YafRay) ->
 	    export_rgb(F, absorption, {-math:log(max(AbsR, ?NONZERO))/AbsD,
 				       -math:log(max(AbsG, ?NONZERO))/AbsD,
 				       -math:log(max(AbsB, ?NONZERO))/AbsD})
+    end,
+    DispersionPower =
+	proplists:get_value(dispersion_power, YafRay, ?DEF_DISPERSION_POWER),
+    case DispersionPower of
+	0.0 -> ok;
+	_   ->
+	    DispersionSamples =
+		proplists:get_value(dispersion_samples, YafRay, 
+				    ?DEF_DISPERSION_SAMPLES),
+	    DispersionJitter = 
+		proplists:get_value(dispersion_jitter, YafRay, 
+			    ?DEF_DISPERSION_JITTER),
+	    println(F, "        <dispersion_power value=\"~.10f\"/>~n"
+		    "        <dispersion_samples value=\"~w\"/>~n"
+		    "        <dispersion_jitter value=\"~s\"/>",
+		    [DispersionPower,DispersionSamples,
+		     format(DispersionJitter)])
+	    
+	    
     end,
     println(F, "        <IOR value=\"~.10f\"/>~n"
 	    "        <tir value=\"~s\"/>~n"
@@ -3005,10 +3183,48 @@ export_light(F, Name, point, OpenGL, YafRay) ->
 	    Res = proplists:get_value(res, YafRay, ?DEF_RES),
 	    Radius = proplists:get_value(radius, YafRay, ?DEF_RADIUS),
 	    println(F,"       bias=\"~.6f\" res=\"~w\" radius=\"~w\">", 
-		    [Bias,Res,Radius])
+		    [Bias,Res,Radius]);
+	spherelight ->
+	    ArealightRadius = 
+		proplists:get_value(arealight_radius, YafRay, 
+				    ?DEF_AREALIGHT_RADIUS),
+	    ArealightSamples = 
+		proplists:get_value(arealight_samples, YafRay, 
+				    ?DEF_AREALIGHT_SAMPLES),
+	    ArealightPsamples = 
+		proplists:get_value(arealight_psamples, YafRay, 
+				    ?DEF_AREALIGHT_PSAMPLES),
+	    QmcMethod = 
+		proplists:get_value(qmc_method, YafRay, ?DEF_QMC_METHOD),
+	    Dummy = proplists:get_value(dummy, YafRay, ?DEF_DUMMY),
+	    println(F,"       radius=\"~.10f\" dummy=\"~s\""++
+		    if Dummy -> "";
+		       true ->
+			    "~n       samples=\"~w\" psamples=\"~w\" "
+				"qmc_method=\"~w\""
+		    end++">", 
+		    [ArealightRadius,format(Dummy)]++
+		    if Dummy -> [];
+		       true -> [ArealightSamples,ArealightPsamples,
+				QmcMethod]
+		    end)
     end,
     export_pos(F, from, Position),
     export_rgb(F, color, Diffuse),
+    GlowIntensity = 
+	proplists:get_value(glow_intensity, YafRay, ?DEF_GLOW_INTENSITY),
+    case GlowIntensity of
+	0.0 -> ok;
+	_ ->
+	    GlowOffset = 
+		proplists:get_value(glow_offset, YafRay, ?DEF_GLOW_OFFSET),
+	    GlowType = 
+		proplists:get_value(glow_type, YafRay, ?DEF_GLOW_TYPE),
+	    println(F, "    <glow_intensity value=\"~.10f\"/>~n"
+		    "    <glow_offset value=\"~.10f\"/>~n"
+		    "    <glow_type value=\"~w\"/>",
+		    [GlowIntensity,GlowOffset,GlowType])
+    end,
     println(F, "</light>"),
     undefined;
 export_light(F, Name, infinite, OpenGL, YafRay) ->
@@ -3233,9 +3449,15 @@ export_light(F, Name, area, OpenGL, YafRay) ->
 		      [A,B,C,D] = quadrangle_vertices(VsF, VsT),
 		      println(F, "<light type=\"arealight\" "
 			      "name=\"~s\" power=\"~.3f\"~n"
-			      "       samples=\"~w\" "
-			      "psamples=\"~w\" dummy=\"~s\">", 
-			      [NameI,Pwr,Samples,Psamples,format(Dummy)]),
+			      "       dummy=\"~s\""++
+			      if Dummy -> ok;
+				 true ->
+				      " samples=\"~w\" psamples=\"~w\""
+			      end++">", 
+			      [NameI,Pwr,format(Dummy)]++
+			      if Dummy -> [];
+				 true -> [Samples,Psamples]
+			      end),
 		      export_rgb(F, color, Color),
 		      export_pos(F, a, A),
 		      export_pos(F, b, B),
@@ -3398,14 +3620,17 @@ export_render(F, CameraName, BackgroundName, Outfile, Attr) ->
     Exposure = proplists:get_value(exposure, Attr),
     FogColor = proplists:get_value(fog_color, Attr),
     FogDensity = proplists:get_value(fog_density, Attr),
-    RenderFormat = proplists:get_value(render_format, Attr),
+    [{render_format,RenderFormat},
+     {exr_flag_float,ExrFlagFloat},
+     {exr_flag_zbuf,ExrFlagZbuf},
+     {exr_flag_compression,ExrFlagCompression}] =
+	get_user_prefs([{render_format,?DEF_RENDER_FORMAT},
+			{exr_flag_float,false},
+			{exr_flag_zbuf,false},
+			{exr_flag_compression,?DEF_EXR_FLAG_COMPRESSION}]),
     ExrFlags =
 	case RenderFormat of
 	    exr ->
-		ExrFlagFloat = proplists:get_value(exr_flag_float, Attr),
-		ExrFlagZbuf = proplists:get_value(exr_flag_zbuf, Attr),
-		ExrFlagCompression =
-		    proplists:get_value(exr_flag_compression, Attr),
 		[if ExrFlagFloat -> "float "; true -> "" end,
 		 if ExrFlagZbuf -> "zbuf "; true -> "" end,
 		 format(ExrFlagCompression)];
@@ -3772,5 +3997,9 @@ help(text, pref_dialog) ->
       "or, the absolute path of that executable.">>,
      <<"Rendering; Options: Rendering command line options to be inserted "
       "between the executable and the .xml filename.">>,
-     <<"Auto Load Image: Whether to load the rendered image when "
-      "rendering is done.">>].
+     <<"Rendering; Format: Image file format (and options)">>,
+     <<"Viewing; Load Image: Whether to load the rendered image into Wings "
+      "when the rendering is done.">>,
+     <<"Viewing: Viewer: The command to use for viewing the rendered image">>,
+     <<"Viewing: Options: Viewing command line options to insert "
+      "before and after the image filename.">>].
