@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.106 2005/08/18 23:15:54 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.107 2005/08/18 23:59:41 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -505,10 +505,10 @@ view_image(Filename, Viewer, ViewerPreopts, ViewerPostopts) ->
 view_image_1(Filename, Viewer, ViewerPreopts, ViewerPostopts) ->
     Dirname = filename:dirname(Filename),
     Basename = filename:basename(Filename),
-    Cmd = wings_job:quote(Viewer)++" "
-	++ViewerPreopts++" "
-	++wings_job:quote(Basename)++" "
-	++ViewerPostopts,
+    Cmd = wings_job:quote(Viewer)
+	++case ViewerPreopts of "" -> ""; _ -> " " end++ViewerPreopts
+	++" "++wings_job:quote(Basename)
+	++case ViewerPostopts of "" -> ""; _ -> " " end++ViewerPostopts,
     Handler = 
 	fun (Port) ->
 		if is_port(Port) ->
