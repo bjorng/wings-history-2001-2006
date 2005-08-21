@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.107 2005/08/18 23:59:41 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.108 2005/08/21 22:53:46 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -408,24 +408,16 @@ command_file(?TAG_RENDER, Result, _St) ->
 		    wpa:error("Rendering error");
 		_ ->
 		    [{load_image,LoadImage},
-		     {viewer,Viewer},
-		     {viewer_preopts,ViewerPreopts},
-		     {viewer_postopts,ViewerPostopts}] =
+		     {viewer,Viewer}] =
 			get_user_prefs([{load_image,?DEF_LOAD_IMAGE},
-					{viewer,""},
-					{viewer_preopts,""},
-					{viewer_postopts,""}]),
+					{viewer,""}]),
 		    case {LoadImage,Result,Viewer} of
-			{true,tga,_} ->
+			{true,tga,""} ->
 			    io:format("Loading rendered image~n~n"),
 			    load_image(RenderFile);
-			{_,_,""} ->
-			    io:format("Rendering Job ready~n~n"),
-			    keep;
 			{_,_,_} ->
 			    io:format("Rendering Job ready~n~n"),
-			    view_image(RenderFile, Viewer,
-				       ViewerPreopts, ViewerPostopts)
+			    view_image(RenderFile, Result, Viewer)
 		    end
 	    end
     end;
@@ -461,9 +453,9 @@ do_export(Op, Props0, Attr0, St0) ->
     St = St0#st{shapes=gb_trees:from_orddict(Shapes)},
     wpa:Op(Props, ExportFun, St).
 
-props(render, _Attr) ->
-    [{render_format,RenderFormat}] = 
-	get_user_prefs([{render_format,?DEF_RENDER_FORMAT}]),
+props(render, Attr) ->
+    RenderFormat = 
+	proplists:get_value(render_format, Attr, ?DEF_RENDER_FORMAT),
     [{title,"Render"}]++
 	case RenderFormat of
 	    hdr -> [{ext,".hdr"},{ext_desc,"High Dynamic Range image"}];
@@ -486,7 +478,33 @@ load_image(Filename) ->
 	    wpa:error("No image rendered")
     end.
 
-view_image(Filename, Viewer, ViewerPreopts, ViewerPostopts) ->
+view_image(Filename, tga, Viewer) ->
+    [{viewer_preopts,ViewerPreopts},
+     {viewer_postopts,ViewerPostopts}] =
+	get_user_prefs([{viewer_preopts,""},
+			{viewer_postopts,""}]),
+    view_image_1(Filename, Viewer, ViewerPreopts, ViewerPostopts);
+view_image(Filename, hdr, _) ->
+    [{viewer_hdr,Viewer},
+     {viewer_hdr_preopts,ViewerPreopts},
+     {viewer_hdr_postopts,ViewerPostopts}] =
+	get_user_prefs([{viewer_hdr,""},
+			{viewer_hdr_preopts,""},
+			{viewer_hdr_postopts,""}]),
+    view_image_1(Filename, Viewer, ViewerPreopts, ViewerPostopts);
+view_image(Filename, exr, _) ->
+    [{viewer_exr,Viewer},
+     {viewer_exr_preopts,ViewerPreopts},
+     {viewer_exr_postopts,ViewerPostopts}] =
+	get_user_prefs([{viewer_exr,""},
+			{viewer_exr_preopts,""},
+			{viewer_exr_postopts,""}]),
+    view_image_1(Filename, Viewer, ViewerPreopts, ViewerPostopts).
+
+view_image_1(_Filename, "", _ViewerPreopts, _ViewerPostopts) ->
+    io:format("Viewing error: no viewer configured~n~n"),
+    wpa:error("Viewing error");
+view_image_1(Filename, Viewer, ViewerPreopts, ViewerPostopts) ->
     case filename:pathtype(Viewer) of
 	absolute ->
 	    case wings_job:altname(Viewer) of
@@ -494,15 +512,15 @@ view_image(Filename, Viewer, ViewerPreopts, ViewerPostopts) ->
 		    io:format("Viewing error: ~p~n~n", [Reason]),
 		    wpa:error("Viewing error");
 		Altname ->
-		    view_image_1(Filename, Altname, 
+		    view_image_2(Filename, Altname, 
 				 ViewerPreopts, ViewerPostopts)
 	    end;
 	_ ->
-	    view_image_1(Filename, Viewer,
+	    view_image_2(Filename, Viewer,
 			 ViewerPreopts, ViewerPostopts)
     end.
 
-view_image_1(Filename, Viewer, ViewerPreopts, ViewerPostopts) ->
+view_image_2(Filename, Viewer, ViewerPreopts, ViewerPostopts) ->
     Dirname = filename:dirname(Filename),
     Basename = filename:basename(Filename),
     Cmd = wings_job:quote(Viewer)
@@ -2276,30 +2294,33 @@ light_result(Ps) ->
     {[],Ps}.
 
 
+browse_props() ->
+    {props,[{dialog_type,open_dialog},{directory,"/"},
+	    case os:type() of
+		{win32,_} -> 
+		    {extensions,[{".exe","Windows Executable"}]};
+		_-> {extensions,[]}
+	    end]}.
 
 pref_dialog(St) ->
     [{dialogs,Dialogs},{renderer,Renderer},
      {options,Options},{load_image,LoadImage},
-     {render_format,RenderFormat},
-     {exr_flag_float,ExrFlagFloat},
-     {exr_flag_zbuf,ExrFlagZbuf},
-     {exr_flag_compression,ExrFlagCompression},
-     {viewer,Viewer},
-     {viewer_preopts,ViewerPreopts},{viewer_postopts,ViewerPostopts}] = 
+     {viewer_frame,ViewerFrame},
+     {viewer,Viewer},{viewer_preopts,ViewerPreopts},
+     {viewer_postopts,ViewerPostopts},
+     {viewer_hdr,ViewerHdr},{viewer_hdr_preopts,ViewerHdrPreopts},
+     {viewer_hdr_postopts,ViewerHdrPostopts},
+     {viewer_exr,ViewerExr},{viewer_exr_preopts,ViewerExrPreopts},
+     {viewer_exr_postopts,ViewerExrPostopts}] = 
 	get_user_prefs([{dialogs,?DEF_DIALOGS},{renderer,?DEF_RENDERER},
 			{options,?DEF_OPTIONS},{load_image,?DEF_LOAD_IMAGE},
-			{render_format,?DEF_RENDER_FORMAT},
-			{exr_flag_float,false},
-			{exr_flag_zbuf,false},
-			{exr_flag_compression,?DEF_EXR_FLAG_COMPRESSION},
+			{viewer_frame,1},
 			{viewer,""},
-			{viewer_preopts,""},{viewer_postopts,""}]),
-    BrowseProps = [{dialog_type,open_dialog},{directory,"/"},
-		   case os:type() of
-		       {win32,_} -> 
-			   {extensions,[{".exe","Windows Executable"}]};
-		       _-> {extensions,[]}
-		   end],
+			{viewer_preopts,""},{viewer_postopts,""},
+			{viewer_hdr,""},
+			{viewer_hdr_preopts,""},{viewer_hdr_postopts,""},
+			{viewer_exr,""},
+			{viewer_exr_preopts,""},{viewer_exr_postopts,""}]),
     Dialog =
 	[{vframe,
 	  [{hframe,
@@ -2309,59 +2330,45 @@ pref_dialog(St) ->
 	      Dialogs,[{key,dialogs}]},
 	     panel,
 	     help_button(pref_dialog)]},
-	   {vframe,
-	    [{hframe,
-	      [{vframe,
-		[{label,"Executable"},
-		 {label,"Options"},
-		 {label,"Format"}]},
-	       {vframe,
-		[{button,{text,Renderer,
-			  [{key,renderer},{props,BrowseProps}]}},
-		 {text,Options,[{key,options}]},
-		 {vframe,
-		  [{menu,[{".tga (Targa File)",tga},
-			  {".hdr (High Dynamic Range image)",hdr},
-			  {".exr (OpenEXR)",exr}],
-		    RenderFormat,
-		    [{key,render_format},layout]},
-		   {hframe,
-		    [{"Float",ExrFlagFloat,[{key,exr_flag_float}]},
-		     {"Zbuf",ExrFlagZbuf,[{key,exr_flag_zbuf}]},
-		     {label," Compression:"},
-		     {menu,
-		      [{"none",compression_none},
-		       {"piz",compression_piz},
-		       {"rle",compression_rle},
-		       {"pxr24",compression_pxr24},
-		       {"zip",compression_zip}],
-		      ExrFlagCompression,
-		      [{key,exr_flag_compression}]}],
-		    [hook(open, [member,render_format,exr])]}]}]}]}],
-	    [{title,"Rendering"}]}]},
-	 {vframe,
-	  [{"Load Image",LoadImage,
-	    [{key,load_image},
-	     hook(enable, [member,render_format,tga])]},
-	   {vframe,
-	    [{hframe,
-	      [{vframe,
-		[{label,"Viewer"},
-		 {label,"Options"}]},
-	       {vframe,
-		[{button,{text,Viewer,[{key,viewer},{props,BrowseProps}]}},
-		 {hframe,
-		  [{text,ViewerPreopts,[{key,viewer_preopts},
-					{width,10}]},
-		   {label,"..filename.."},
-		   {text,ViewerPostopts,[{key,viewer_postopts},
-					 {width,10}]}]}]}]}],
-	   [hook(enable, ['not',['and',
-				 load_image,
-				 [member,render_format,tga]]])]}],
-	  [{title,"Viewing"}]}],
+	   {hframe,
+	    [{vframe,
+	      [{label,"Executable"},
+	       {label,"Options"}]},
+	     {vframe,
+	      [{button,{text,Renderer,[{key,renderer},browse_props()]}},
+	       {text,Options,[{key,options}]}]}]},
+	   {"View image after rendering",LoadImage,[{key,load_image}]},
+	   {oframe,
+	    [{"TGA",
+	      pref_dialog_viewer(Viewer,viewer,
+				 ViewerPreopts,viewer_preopts,
+				 ViewerPostopts,viewer_postopts)},
+	     {"HDR",
+	      pref_dialog_viewer(ViewerHdr,viewer_hdr,
+				 ViewerHdrPreopts,viewer_hdr_preopts,
+				 ViewerHdrPostopts,viewer_hdr_postopts)},
+	     {"OpenEXR",
+	      pref_dialog_viewer(ViewerExr,viewer_exr,
+				 ViewerExrPreopts,viewer_exr_preopts,
+				 ViewerExrPostopts,viewer_exr_postopts)}],
+	    ViewerFrame,
+	    [{style,buttons},{key,viewer_frame}]}]}],
     wpa:dialog("YafRay Options", Dialog, 
 	       fun (Attr) -> pref_result(Attr,St) end).
+
+pref_dialog_viewer(Viewer, ViewerKey,
+		   ViewerPreopts, ViewerPreoptsKey,
+		   ViewerPostopts, ViewerPostoptsKey) ->
+    {label_column,
+     [{"Viewer",
+       {button,{text,Viewer,[{key,ViewerKey},browse_props()]}}},
+      {"Options",
+       {hframe,
+	[{text,ViewerPreopts,[{key,ViewerPreoptsKey},
+			      {width,10}]},
+	 {label,"..filename.."},
+	 {text,ViewerPostopts,[{key,ViewerPostoptsKey},
+			       {width,10}]}]}}]}.
 
 pref_result(Attr, St) ->
     set_user_prefs(Attr),
@@ -2392,6 +2399,10 @@ export_prefs() ->
      {bias,?DEF_BIAS},
      {exposure,?DEF_EXPOSURE},
      {save_alpha,?DEF_SAVE_ALPHA},
+     {render_format,?DEF_RENDER_FORMAT},
+     {exr_flag_float,false},
+     {exr_flag_zbuf,false},
+     {exr_flag_compression,?DEF_EXR_FLAG_COMPRESSION},
      {background_color,?DEF_BACKGROUND_COLOR},
      {width,?DEF_WIDTH},
      {height,?DEF_HEIGHT},
@@ -2418,6 +2429,10 @@ export_dialog_qs(Op,
 		  {bias,Bias},
 		  {exposure,Exposure},
 		  {save_alpha,SaveAlpha},
+		  {render_format,RenderFormat},
+		  {exr_flag_float,ExrFlagFloat},
+		  {exr_flag_zbuf,ExrFlagZbuf},
+		  {exr_flag_compression,ExrFlagCompression},
 		  {background_color,BgColor},
 		  {width,Width},
 		  {height,Height},
@@ -2466,7 +2481,26 @@ export_dialog_qs(Op,
 	 {vframe,[{slider,AA_thresholdFlags},
 		  {slider,AA_pixelwidthFlags},
 		  {slider,BiasFlags},
-		  {"Alpha Channel",SaveAlpha,[{key,save_alpha}]}]}]}],
+		  {"Alpha Channel",SaveAlpha,[{key,save_alpha}]}]}]},
+       {hframe,
+	[{menu,[{".tga (Targa File)",tga},
+		{".hdr (High Dynamic Range image)",hdr},
+		{".exr (OpenEXR)",exr}],
+	  RenderFormat,
+	  [{key,render_format},layout]},
+	 {hframe,
+	  [{"Float",ExrFlagFloat,[{key,exr_flag_float}]},
+	   {"Zbuf",ExrFlagZbuf,[{key,exr_flag_zbuf}]},
+	   {label," Compression:"},
+	   {menu,
+	    [{"none",compression_none},
+	     {"piz",compression_piz},
+	     {"rle",compression_rle},
+	     {"pxr24",compression_pxr24},
+	     {"zip",compression_zip}],
+	    ExrFlagCompression,
+	    [{key,exr_flag_compression}]}],
+	  [hook(open, [member,render_format,exr])]}]}],
       [{title,"Render"}]},
      {hframe,
       [{vframe,[{label,"Default Color"}]},
@@ -2515,7 +2549,7 @@ export_dialog_qs(Op,
 	      {button,"Reset",done,[{info,"Reset to default values"}]}]}].
 
 export_dialog_loop({Op,Fun}=Keep, Attr) ->
-    {Prefs,Buttons} = split_list(Attr, 24),
+    {Prefs,Buttons} = split_list(Attr, 28),
     case Buttons of
 	[true,false,false] -> % Save
 	    set_user_prefs(Prefs),
@@ -2598,8 +2632,8 @@ export(Attr, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
     ExportTS = erlang:now(),
     Render = proplists:get_value(?TAG_RENDER, Attr, false),
     KeepXML = proplists:get_value(keep_xml, Attr, ?DEF_KEEP_XML),
-    [{render_format,RenderFormat}] = 
-	get_user_prefs([{render_format,?DEF_RENDER_FORMAT}]),
+    RenderFormat = 
+	proplists:get_value(render_format, Attr, ?DEF_RENDER_FORMAT),
     ExportDir = filename:dirname(Filename),
     {ExportFile,RenderFile} =
 	case {Render,KeepXML} of
@@ -3620,14 +3654,10 @@ export_render(F, CameraName, BackgroundName, Outfile, Attr) ->
     Exposure = proplists:get_value(exposure, Attr),
     FogColor = proplists:get_value(fog_color, Attr),
     FogDensity = proplists:get_value(fog_density, Attr),
-    [{render_format,RenderFormat},
-     {exr_flag_float,ExrFlagFloat},
-     {exr_flag_zbuf,ExrFlagZbuf},
-     {exr_flag_compression,ExrFlagCompression}] =
-	get_user_prefs([{render_format,?DEF_RENDER_FORMAT},
-			{exr_flag_float,false},
-			{exr_flag_zbuf,false},
-			{exr_flag_compression,?DEF_EXR_FLAG_COMPRESSION}]),
+    RenderFormat = proplists:get_value(render_format, Attr),
+    ExrFlagFloat = proplists:get_value(exr_flag_float, Attr),
+    ExrFlagZbuf = proplists:get_value(exr_flag_zbuf, Attr),
+    ExrFlagCompression = proplists:get_value(exr_flag_compression, Attr),
     ExrFlags =
 	case RenderFormat of
 	    exr ->
@@ -3991,15 +4021,14 @@ help(text, pref_dialog) ->
      ++wings_help:cmd(["File","Render","YafRay"])++" "
      "is still as for \"Automatic Dialogs\".",
      %%
-     <<"Rendering; Executable: The rendering command for the YafRay "
+     <<"Executable: The rendering command for the YafRay "
       "raytrace renderer (normally 'yafray') that is supposed to be found "
       "in the executables search path; "
       "or, the absolute path of that executable.">>,
-     <<"Rendering; Options: Rendering command line options to be inserted "
+     <<"Options: Rendering command line options to be inserted "
       "between the executable and the .xml filename.">>,
-     <<"Rendering; Format: Image file format (and options)">>,
-     <<"Viewing; Load Image: Whether to load the rendered image into Wings "
-      "when the rendering is done.">>,
-     <<"Viewing: Viewer: The command to use for viewing the rendered image">>,
-     <<"Viewing: Options: Viewing command line options to insert "
-      "before and after the image filename.">>].
+     <<"Viewer and Options: The command and options to insert before "
+      "and after the image filename for viewing the rendered image. "
+      "One set ofr command and options per possible output format.">>,
+     <<"If viewing is enabled and the TGA viewer command is left blank, "
+      "the image is loaded using the internal image loader.">>].
