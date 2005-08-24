@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_seg_ui.erl,v 1.37 2005/04/21 20:25:19 dgud Exp $
+%%     $Id: auv_seg_ui.erl,v 1.38 2005/08/24 14:01:06 dgud Exp $
 %%
 
 -module(auv_seg_ui).
@@ -128,7 +128,7 @@ mappers() ->
      {"Projection Normal",project},
      {"Projection Camera",camera},
      {"Sphere Map",sphere}
-%%     ,{"Cylindrical Map",cyl}
+    ,{"Cylindrical Map",cyl}
     ].
 -else.
 seg_debug(Tail) ->
@@ -262,7 +262,6 @@ seg_command(ignore_faces,#seg{st=St0,fs=Mode0}=Ss) ->
 			{Vis,wings_we:hide_faces(HiddenFs, We0)}
 		end,
     St = St0#st{shapes=gb_trees:update(Id,We,Shs0),sel=[]},
-    io:format("Hide ~p ~n", [gb_sets:to_list(HiddenFs)]), 
     get_seg_event(Ss#seg{st=St,fs=Mode});
 seg_command(Cmd, #seg{st=#st{mat=Mat}=St0}=Ss) ->
     case gb_trees:is_defined(Cmd, Mat) of

@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_placement.erl,v 1.27 2005/04/12 23:36:32 dgud Exp $
+%%     $Id: auv_placement.erl,v 1.28 2005/08/24 14:01:06 dgud Exp $
 
 -module(auv_placement).
 
@@ -143,22 +143,28 @@ rotate_area(Fs, #we{vp=VTab}=We) ->
 			          
 %% Group edgeloops and return a list sorted by total dist.
 %% [{TotDist, [{V1,V2,Edge,Dist},...]}, ...]
-group_edge_loops(Fs, We) ->
+group_edge_loops(Fs, We = #we{name=#ch{emap=Emap}}) ->
     case auv_util:outer_edges(Fs, We, false) of
 	[] -> [];
 	Eds1 ->
-	    Map = fun({Edge,Face}) ->
-			  case gb_trees:get(Edge, We#we.es) of
-			      #edge{vs=V1,ve=V2,lf=Face} ->
+	    Info = fun({Edge,Face},Tree) ->
+			   Cut = gb_trees:is_defined(Edge,Emap),
+			   case gb_trees:get(Edge, We#we.es) of
+			       #edge{vs=V1,ve=V2,lf=Face} ->
 				  Dist = dist(V1,V2,We#we.vp),
-				  #be{vs=V1,ve=V2,edge=Edge,face=Face,dist=Dist};
+				  Be = #be{vs=V1,ve=V2,edge=Edge,face=Face,
+					   cut=Cut,dist=Dist},
+				  gb_trees:insert(V1,Be,Tree);
 			      #edge{vs=V2,ve=V1,rf=Face} ->
 				  Dist = dist(V1,V2,We#we.vp),
-				  #be{vs=V1,ve=V2,edge=Edge,face=Face,dist=Dist}
+				  Be = #be{vs=V1,ve=V2,edge=Edge,face=Face,
+					   cut=Cut,dist=Dist},
+				   gb_trees:insert(V1,Be,Tree)
 			  end
-		  end,
-	    Eds2  = map(Map, Eds1),
-	    Loops = sort_edges(Eds2),
+		   end,
+	    Eds  = lists:foldl(Info, gb_trees:empty(), Eds1),
+	    Loops = sort_edges(Eds),
+%%	    io:format("Cuts ~p ~n",[Loops]),
 	    Add = fun(#be{dist=Dist}, Acc) ->  Acc + Dist end,
 	    SumLoops = [{lists:foldl(Add, 0, Loop), Loop} 
 			|| Loop <- Loops],
@@ -216,10 +222,7 @@ dist(V1, V2, Vs) ->
 
 %% Returns a list of loops 
 sort_edges(Eds) ->
-    EdsT = lists:foldl(fun(BE=#be{vs=V1}, Tree) ->
-			       gb_trees:insert(V1,BE, Tree)
-		       end, gb_trees:empty(), Eds),
-    {_V1, BE=#be{ve=V2}, EdsT0} = gb_trees:take_smallest(EdsT),
+    {_V1, BE=#be{ve=V2}, EdsT0} = gb_trees:take_smallest(Eds),
     sort_edges(V2, EdsT0, [[BE]]).
 
 sort_edges(V21, EdsT0, All = [Current|Acc]) ->

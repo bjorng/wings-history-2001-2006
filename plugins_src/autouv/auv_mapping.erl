@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_mapping.erl,v 1.72 2005/04/21 20:25:19 dgud Exp $
+%%     $Id: auv_mapping.erl,v 1.73 2005/08/24 14:01:06 dgud Exp $
 %%
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
@@ -54,7 +54,7 @@
 
 map_chart(Type, We, Options) ->
     Faces = wings_we:visible(We),
-    case auv_placement:group_edge_loops(Faces, We) of
+    case catch auv_placement:group_edge_loops(Faces, We) of
 	[] ->
 	    {error,"A closed surface cannot be mapped. "
 	     "(Either divide it into into two or more charts, "
@@ -64,7 +64,10 @@ map_chart(Type, We, Options) ->
 	_ when Type == lsqcm, is_list(Options), length(Options) < 2 ->
 	    {error,"At least 2 vertices (per chart) must be selected"};
 	[Best|_] ->
-	    map_chart_1(Type, Faces, Best, Options, We)
+	    map_chart_1(Type, Faces, Best, Options, We);
+	Err ->
+	    io:format("Error: ~p~n", [Err]),
+	    {error, "Internal Error"}
     end.
 
 map_chart_1(Type, Chart, Loop, Options, We) ->
@@ -82,88 +85,248 @@ map_chart_1(Type, Chart, Loop, Options, We) ->
 
 map_chart_2(project, C, _, _, We) ->    projectFromChartNormal(C, We);
 map_chart_2(camera, C, _, Dir, We) ->   projectFromCamera(C, Dir, We);
-map_chart_2(sphere,C, Loop, Pinned, We) -> spheremap(sphere,C, Pinned, Loop,We);
-map_chart_2(cyl,C, Loop, Pinned, We) -> spheremap(cyl,C, Pinned, Loop,We);
-map_chart_2(lsqcm, C, Loop, Pinned, We) -> lsqcm(C, Pinned, Loop, We).
+map_chart_2(lsqcm, C, Loop, Pinned, We) -> lsqcm(C, Pinned, Loop, We);
+map_chart_2(Op,C, Loop, Pinned, We) ->  volproject(Op,C, Pinned, Loop,We).
 
-spheremap(Type,Chart, Pinned, Loop ={_,BEdges}, We) ->
-    %% Rotates to +Z axis
-    ChartNormal = chart_normal(Chart,We),
+volproject(Type,Chart,_Pinned,{_,BEdges},We) ->
+    {Center,Axes,LoopInfo} = find_axes(Chart,BEdges,We),
+%%    io:format("Res: ~p ~n",[{Center,Axes}]),
+    Rot = rot_mat(Axes),
+    CalcUV = case Type of 
+		 cyl -> fun cyl/1; 
+		 sphere -> fun sphere/1
+	     end,    
     Vs0 = wings_face:to_vertices(Chart, We),
-    StoT = e3d_mat:rotate_s_to_t(ChartNormal,{0.0,0.0,1.0}),
-    Vs1 = lists:sort([{V,e3d_mat:mul_point(StoT, wings_vertex:pos(V, We))} || V <- Vs0]),
-    Vtab0 = gb_trees:from_orddict(Vs1),
-    %% Get poles.
-    {{V1,_},{V2,_}} = case Pinned of 
-			  none -> find_pinned_from_edges(Loop,We#we{vp=Vtab0}); 
-			  [P1,P2] -> {P1,P2}
-		      end,
-    V1p = gb_trees:get(V1,Vtab0),
-    V2p = gb_trees:get(V2,Vtab0),
-    {NPolePos,SPolePos,North,South} = 
-	if element(2,V1p) > element(2,V2p) -> {V1p,V2p,V1,V2};
-	   true -> {V2p,V1p,V2,V1}
-	end,
-    %% Center and rotate chart so poles are at Y=1.0 and -1.0,
-    Center = e3d_vec:average(NPolePos,SPolePos),
-    Dist   = e3d_vec:dist(NPolePos,SPolePos),
-    {UpX,UpY,UpZ} = e3d_vec:norm(e3d_vec:sub(NPolePos,Center)),
-    %%    ZAngle = math:acos(e3d_vec:dot(e3d_vec:norm({UpX,UpY,0.0}),{0.0,1.0,0.0})),
-    ZAngle = math:atan2(UpX,UpY),
-    Rot0   = e3d_mat:rotate(ZAngle*180/math:pi(), {0.0,0.0,1.0}),
-    XAngle = math:atan2(UpZ,UpY),
-    Rot1   = e3d_mat:rotate(XAngle*180/math:pi(), {1.0,0.0,0.0}),
-%%     io:format("Center ~p is of ~p~n  ~p~n",[Center,{V1,V2},{NPolePos,SPolePos}]),
-%%     io:format("Angle is ~p @Z ~p @X degrees and CN ~p ~n",
-%%  	      [ZAngle*180/math:pi(),XAngle*180/math:pi(),ChartNormal]),
-    CenterPos = case Type of
-		    sphere -> Center;
-		    cyl -> wings_vertex:center(We#we{vp=Vtab0})
+    Transform = fun(V) ->
+			Pos = wings_vertex:pos(V, We),
+			Vec = e3d_vec:sub(Pos,Center),
+			e3d_mat:mul_vector(Rot,Vec)
 		end,
-    Transl = e3d_mat:translate(e3d_vec:neg(CenterPos)),
-    Transf = e3d_mat:mul(Rot1,e3d_mat:mul(Rot0, Transl)),
-    Vs = [{V,e3d_mat:mul_point(Transf,Pos)} || {V,Pos} <- Vs1],
+    Vs1 = lists:sort([{V,Transform(V)} || V <- Vs0]),
+    Tagged = leftOrRight(LoopInfo, Chart, We#we{vp=gb_trees:from_orddict(Vs1)}),
+    [{V,fix_positions(V,Pos,CalcUV(Pos),Tagged)} || {V,Pos} <- Vs1].
 
-%%     io:format("Npole ~p~n", [e3d_vec:norm(e3d_mat:mul_point(Transf,NPolePos))]),
-%%     io:format("Spole ~p~n", [e3d_vec:norm(e3d_mat:mul_point(Transf,SPolePos))]),
-    %% Check the border vertices positions should they be mapped on X= -1 or X=1
-    Vtab1 = gb_trees:from_orddict(Vs), 
-    TempWe = We#we{vp=Vtab1},
-    BorderVs0 = 
-	lists:map(fun(#be{vs=VS,ve=VE,face=Face}) -> 
-			  {X0,_,Z} = e3d_vec:norm(gb_trees:get(VS,Vtab1)),
-			  {X1,_,_} = e3d_vec:norm(gb_trees:get(VE,Vtab1)),
-			  X = (X0+X1)/2,
-			  {FX,_,_} = wings_face:center(Face,TempWe),
-			  R=if  Z < 0.0, FX < 0, X > -0.0005 -> {VS,{x,-1.0}};
-				Z < 0.0, FX > 0, X < 0.0005 -> {VS,{x,1.0}};
-				true -> {VS,calc}
-			    end,
- 			  %%io:format("X = ~p FX=~p => ~p ~n",[X,FX,R]),
-			  R
-		  end, BEdges),
-    BorderVs = gb_trees:from_orddict(lists:sort(BorderVs0)),
-    Proj =
-	fun({V,_}) when V == North -> {V,{0.0,0.5,0.0}};
-	   ({V,_}) when V == South -> {V,{0.0,-0.5,0.0}};
-	   ({V,Pos = {_,YC,_}}) ->
-		{X0,Y0,Z0} = e3d_vec:norm(Pos),
-		T = case Type of 
-			sphere -> math:acos(-Y0)/math:pi()-0.5;
-			cyl -> 
-			    %%io:format("~p ~p ~p~n", [V,YC,YC/Dist]),
-			    YC/Dist
+sphere({X,Y,Z}) ->    
+     S = catchy(catch math:atan2(X,Z)/math:pi()),	
+     T = math:acos(clamp(-Y))/math:pi()-0.5,
+     {S,T,0.0}.
+%%     {X,Y,0.0}.
+
+cyl({X,Y,Z}) ->
+    S = catchy(catch math:atan2(X,Z)/math:pi()),
+    T = Y,
+    {S,T,0.0}.
+
+catchy({'EXIT', _}) -> math:pi()/4;
+catchy(X) -> X.    
+
+clamp(X) when X > 1.0 -> 1.0;
+clamp(X) when X < -1.0 -> -1.0;
+clamp(X) -> X.
+
+fix_positions(_V,{_,_,Z},Proj,_) when Z > 0.0 -> Proj;
+fix_positions(_V,_,Proj,undefined) -> Proj;
+fix_positions(V,_,Proj = {X,Y,Z},Tags) ->
+    case gb_sets:is_member(V,Tags) of
+	true when X > 0.0 -> 
+	    {X-2.0,Y,Z};
+	false when X < 0.0 ->
+	    {X+2.0,Y,Z};
+	_ ->
+	    Proj
+    end.
+
+leftOrRight(undefined, _, _We) -> undefined;
+leftOrRight({LL,LR}, Free0, We) ->
+    Del = fun(#be{face=F},{Fs,Ch}) -> {[F|Fs],gb_sets:delete_any(F,Ch)} end,
+    {F1,Free1} = foldl(Del,{[],gb_sets:from_list(Free0)},LL),
+    {F2,Free}  = foldl(Del,{[],Free1},LR),
+    [Fs1,Fs2] = expand_faces([F1,F2],Free,[],[F1,F2],[],We),
+    Set1 = wings_vertex:from_faces(Fs1,We),
+    Set2 = wings_vertex:from_faces(Fs2,We),
+    case wings_vertex:center(Set1,We) > wings_vertex:center(Set2,We) of
+	true  -> gb_sets:from_ordset(Set2);
+	false -> gb_sets:from_ordset(Set1)
+    end.
+
+expand_faces([Fs0|Rest],Free0,New,[Set|Acc1],Tot,We) ->
+    {NewFs,Free} = foldl(fun(Face, A) ->
+				 do_face_more(Face, We, A)
+			 end, {[],Free0}, Fs0),
+    expand_faces(Rest,Free,[NewFs|New],Acc1,[NewFs++Set|Tot],We);
+expand_faces([],Free,New,[],Tot,We) ->
+    case gb_sets:is_empty(Free) of
+	true -> Tot;
+	false -> expand_faces(reverse(New),Free,[],reverse(Tot),[],We)
+    end.
+
+do_face_more(Face, We, Acc) ->
+    wings_face:fold(fun(_,_,#edge{lf=LF,rf=RF},P={A1,Free}) ->
+			    AFace = if LF == Face -> RF; true -> LF end,
+			    case gb_sets:is_member(AFace,Free) of
+				true -> 
+				    {[AFace|A1],
+				     gb_sets:delete(AFace,Free)};
+				false ->
+				    P
+			    end
+		    end, Acc, Face,We).
+
+rot_mat({{Ux,Uy,Uz},{Vx,Vy,Vz},{Wx,Wy,Wz}}) ->
+    {Ux,Vx,Wx,
+     Uy,Vy,Wy,
+     Uz,Vz,Wz,
+     0.0,0.0,0.0}.
+
+find_axes(Fs,BEdges,We) ->
+    ChartNormal = chart_normal(Fs,We),
+    case forms_closed_object(BEdges,ChartNormal,We) of
+	undefined ->
+	    find_axes_from_eigenv(Fs,ChartNormal,BEdges,We);
+	Nice -> 
+	    Nice
+    end.
+
+forms_closed_object(BEdges0,ChartNormal,We=#we{name=#ch{emap=Emap}}) ->
+    BEdges = [{auv_segment:map_edge(Edge,Emap),BE} || BE = #be{edge=Edge} <- BEdges0],
+    case is_an_8(BEdges) of
+	false -> undefined;
+	Edge -> 
+	    {L1,L2,Link,LinkR} = split_edges(Edge,BEdges),
+	    North = case L1 of 
+			[] -> wings_vertex:pos((hd(Link))#be.vs,We);
+			_ -> center(L1,We)
 		    end,
-		case gb_trees:lookup(V,BorderVs) of
-		    {value, {x, S}} when Type == sphere -> 
-			%%io:format("Border ~p ~n", [V]),
-			{V,{S,T,0.0}};
-		    _ ->
-			{V,{math:atan2(X0,Z0)/math:pi(),T,0.0}}
-		end
-	end,
-    lists:map(Proj, Vs).
+	    South = case L2 of 
+			[] -> wings_vertex:pos((lists:last(Link))#be.ve,We);
+			_ -> center(L2,We)
+		    end,
+	    NorthSouth = e3d_vec:sub(North,South),
+	    Center = e3d_vec:average(North,South),
+%%	    io:format("Temp: ~p ~n",[{North,South,Center}]),
+	    LC = center(Link,We),
+	    LCdir0 = e3d_vec:sub(LC,Center),
+	    LCdir = case e3d_vec:len(LCdir0) > 0.0005 of
+			true -> LCdir0;
+			false -> e3d_vec:neg(ChartNormal)
+		    end,
+	    {Center,calc_axis(NorthSouth,LCdir),{Link,LinkR}}
+    end.
 
+center(Bes,We) ->
+    Eds = lists:map(fun(#be{edge=E}) -> E end, Bes),
+    Vs = wings_vertex:from_edges(Eds,We),
+    wings_vertex:center(Vs,We).
+
+calc_axis(Y0,Z0) ->
+    Y = e3d_vec:norm(Y0),
+    X = e3d_vec:norm(e3d_vec:cross(e3d_vec:norm(Z0),Y)),
+    Z = e3d_vec:norm(e3d_vec:cross(X,Y)),
+    {X,Y,Z}.
+
+is_an_8([]) -> false;
+is_an_8([{E,_}|R]) -> %% Hmm we must take them in order
+    case lists:keysearch(E,1,R) of %% O(N2) I know..
+	false -> is_an_8(R);
+	_ -> E
+    end.
+
+%%  Split edges splits into three parts two loops 
+%%  and a link between them.
+%%    bc  
+%%    _ defg 
+%%  a/ \____h
+%%   \_/--\_|     => 2 loops: mnoabc fghijk
+%%   onmdekji     =>    link: def
+%% 
+%d(L) -> %% DBG BUGBUG remove
+%    lists:map(fun({E,_BE}) -> E end,L).
+    
+split_edges(Edge,Bes) ->
+    {Loop1,Loop2,Link} = split_edges_1(Edge,Bes),
+    Get = fun(L) -> lists:map(fun({_,BE}) -> BE end,L) end,
+    LinkR = (((Bes -- Loop1) -- Loop2) -- Link),
+    {Get(Loop1),Get(Loop2),Get(Link),Get(LinkR)}.
+
+split_edges_1(Edge,Bes) ->
+%    io:format("Split: ~w ~w~n",[Edge,d(Bes)]),
+    {P1r,Pr1} = find_split(Edge,Bes,[]),
+    {P2r,Pr2} = find_split(Edge,Pr1,[]),
+    {Loop1,Link1} = find_link(Pr1,tl(P2r),[hd(P2r)]),
+    {Loop2,Link2} = find_link(tl(P1r),Pr2++reverse(tl(P1r)),reverse(Link1)),
+%    io:format("L1:~w~nLink1:~w~n",[d(Loop1),d(Link1)]),
+%    io:format("L2:~w~nLink2:~w~n",[d(Loop2),d(Link2)]),
+    {Loop1,Loop2,Link2}.
+
+find_split(Edge,[G={Edge,_Be}|Bes],Rest) -> {[G|Rest],Bes};
+find_split(Edge,[This|Bes],Rest) ->
+    find_split(Edge,Bes,[This|Rest]).
+    
+find_link([{E,_}|C1],[G={E,_}|C2],Acc) ->
+    find_link(C1,remove_last(C2,E),[G|Acc]);
+find_link(_C1,C2,Acc) -> 
+    case is_an_8(C2) of 
+	false -> {C2,Acc};
+	Edge ->
+	    [{SE,_Be}|_] = C2,
+	    {L1,L2,Li} = split_edges_1(Edge,reverse(C2)),
+	    RealLoop = 
+		case lists:keysearch(SE,1,L1) of
+		    false -> L1;
+		    _ -> L2
+		end,
+	    Res = get_until(C2,Li,[]),
+	    {RealLoop,Res ++ Acc}
+    end.
+
+get_until(_, [], Acc) -> Acc;     
+get_until([L={E,_}|R1],[{E,_}|R2],Acc) ->
+    get_until(R1,R2,[L|Acc]);
+get_until([L|R1],R2,Acc) ->
+    get_until(R1,R2,[L|Acc]).
+
+remove_last([],_) -> [];
+remove_last(C,Edge) ->
+    case reverse(C) of
+	[{Edge,_}|R] -> reverse(R);
+	_ -> C
+    end.
+
+%%%% Uncomplete fixme.. BUGBUG
+%%% I can't get this to work satisfactory..aarg.
+find_axes_from_eigenv(Fs,CNormal,BEdges,We) ->
+    Vs0 = wings_face:to_vertices(Fs, We),
+    BVs = [Ver || #be{vs=Ver} <- BEdges],
+    Center = wings_vertex:center(BVs,We),
+    Vpos = lists:usort([wings_vertex:pos(V, We) || V <- Vs0]),
+    {{Ev1,Ev2,Ev3},{Bv1,Bv2,Bv3}} = e3d_bv:eigen_vecs(Vpos),
+    Vecs = [{Bv1,Ev1},{Bv2,Ev2},{Bv3,Ev3}],
+%%    io:format("EIG ~p~n",[Vecs]),
+    [{_Z0,C},{V1,A},{V2,B}] = find_closest(Vecs,CNormal,0.0,[]),
+    case A/C > B/C of
+	true ->  Y0=V1,_X0=V2;
+	false -> _X0=V1,Y0=V2
+    end,
+    {X,Z,Y} = calc_axis(CNormal,Y0),
+%%    io:format("Res ~p~n ~p~n ~p~n",[X,Y,Z]),
+    {Center,{X,Y,Z},undefined}.
+
+find_closest([H = {V,_}|R],N,Best,All=[B|Which]) ->
+    Dot = e3d_vec:dot(V,N),
+    case abs(Dot) > abs(Best) of
+	true -> find_closest(R,N,Dot,[H|All]);
+	false -> find_closest(R,N,Best,[B,H|Which])
+    end;
+find_closest([H = {V,_}|R],N,_,[]) ->
+    Dot = e3d_vec:dot(V,N),
+    find_closest(R,N,Dot,[H]);
+find_closest([],_,Best,All) ->
+    case Best > 0.0 of
+	true ->All;
+	false -> [{e3d_vec:neg(V),Ev}|| {V,Ev} <- All]
+    end.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 projectFromChartNormal(Chart, We) ->
     Normal = chart_normal(Chart,We),
     Vs0 = wings_face:to_vertices(Chart, We),
@@ -180,13 +343,7 @@ projectFromCamera(Chart,{matrices,{MM,PM,VP}},We) ->
 
 chart_normal([],_We) -> throw("Can not calculate normal for chart.");
 chart_normal(Fs,We = #we{es=Etab}) ->
-    CalcNormal = 
-	fun(Face, Sum) ->
-		Normal = wings_face:normal(Face, We),
-		Vs0 = wpa:face_vertices(Face, We),
-		Area = calc_area(Vs0,Normal, We),
-		e3d_vec:add(Sum, e3d_vec:mul(Normal, Area))
-	end,
+    CalcNormal = fun(Face,Area) -> face_normal(Face,Area,We) end,
     N0 = foldl(CalcNormal, e3d_vec:zero(), Fs),
     case e3d_vec:norm(N0) of
 	{0.0,0.0,0.0} -> %% Bad normal Fallback1
@@ -206,7 +363,13 @@ chart_normal(Fs,We = #we{es=Etab}) ->
 	    end;
 	N -> N
     end.
-	    
+
+face_normal(Face,Sum,We) ->
+    Normal = wings_face:normal(Face, We),
+    Vs0 = wpa:face_vertices(Face, We),
+    Area = calc_area(Vs0,Normal, We),
+    e3d_vec:add(Sum, e3d_vec:mul(Normal, Area)).
+
 decrease_chart(Fs0,BE) ->
     Fs1 = gb_sets:from_list(Fs0),
     Del = fun({_E,Face},FSin) ->
@@ -353,15 +516,8 @@ calc_vp(_VI1={_Id1,V1},_VI2={_Id2,V2},Left,Right) ->
 	Vec2 = e3d_vec:sub(V2,RightPos),
 	A1   = abs(math:acos(e3d_vec:dot(e3d_vec:norm(Vec1),Axis))),
 	A2   = abs(math:acos(e3d_vec:dot(e3d_vec:norm(Vec2),Axis))),
-	Val  = abs((A1 + 10*e3d_vec:len(Vec1)/AxisLen) - (A2 + 10*e3d_vec:len(Vec2)/AxisLen)),
-%	Val = abs(A1 - A2),
-%	io:format("~p ~p => ~p~n",[_Id1,_Id2,Val]),
-%	io:format("Angles ~p ~p ~n",[A1,A2]),	
-%	io:format("Dist ~p(~p) ~p(~p) ~n",[LeftPos,Left#link.no,RightPos,Right#link.no]),
-	Val
+	abs((A1 + 10*e3d_vec:len(Vec1)/AxisLen) - (A2 + 10*e3d_vec:len(Vec2)/AxisLen))
     catch _:_What ->
-	    io:format("~p:~p: Badarg ~p ~p~n", 
-		      [?MODULE,?LINE,_What,erlang:get_stacktrace()]),
 	    9999999999.99
     end.
 
