@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.15 2005/06/24 13:27:06 trepan Exp $
+#     $Id: Makefile,v 1.16 2005/08/24 19:16:28 trepan Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -36,7 +36,8 @@ MODULES= \
 	wpc_region \
 	wpc_shift \
 	wpc_turnedge \
-	wpc_tweak
+	wpc_tweak \
+	wpc_untriangulate
 
 TARGET_FILES= $(MODULES:%=$(EBIN)/%.beam)
 
