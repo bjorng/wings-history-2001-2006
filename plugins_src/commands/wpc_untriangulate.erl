@@ -1,20 +1,14 @@
 %%
 %%  wpc_untriangulate.erl --
 %%
-%%
-%%    TODO
-%%    - forget all that DOF crap, doesn't appear to be needed
-%%    - check for pinched neighbours
-%%    - factor in the neighbours' scores
-%%
-%%     Plug-in for untriangulating meshes
+%%    Plug-in to untriangulate (make quads from a triangle soup).
 %%
 %%  Copyright (c) 2005 Dave Rodgers
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_untriangulate.erl,v 1.1 2005/08/24 19:16:28 trepan Exp $
+%%     $Id: wpc_untriangulate.erl,v 1.2 2005/08/24 19:36:32 trepan Exp $
 %%
 
 -module(wpc_untriangulate).
