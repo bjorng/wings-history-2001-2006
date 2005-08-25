@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_mapping.erl,v 1.73 2005/08/24 14:01:06 dgud Exp $
+%%     $Id: auv_mapping.erl,v 1.74 2005/08/25 18:59:44 dgud Exp $
 %%
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
@@ -64,7 +64,7 @@ map_chart(Type, We, Options) ->
 	_ when Type == lsqcm, is_list(Options), length(Options) < 2 ->
 	    {error,"At least 2 vertices (per chart) must be selected"};
 	[Best|_] ->
-	    map_chart_1(Type, Faces, Best, Options, We);
+	    map_chart_1(Type, Faces, Best, Options, We);	
 	Err ->
 	    io:format("Error: ~p~n", [Err]),
 	    {error, "Internal Error"}
@@ -182,7 +182,12 @@ find_axes(Fs,BEdges,We) ->
     ChartNormal = chart_normal(Fs,We),
     case forms_closed_object(BEdges,ChartNormal,We) of
 	undefined ->
-	    find_axes_from_eigenv(Fs,ChartNormal,BEdges,We);
+	    throw(
+	      "I currently can't sphere/cylinder map this type of chart/cuts,\n"
+	      "I can't figure out which axes you want as X,Y, and Z,\n"
+	      "please use unfolding or one of the projection mappings.");
+
+%%	    find_axes_from_eigenv(Fs,ChartNormal,BEdges,We);
 	Nice -> 
 	    Nice
     end.
@@ -294,37 +299,37 @@ remove_last(C,Edge) ->
 
 %%%% Uncomplete fixme.. BUGBUG
 %%% I can't get this to work satisfactory..aarg.
-find_axes_from_eigenv(Fs,CNormal,BEdges,We) ->
-    Vs0 = wings_face:to_vertices(Fs, We),
-    BVs = [Ver || #be{vs=Ver} <- BEdges],
-    Center = wings_vertex:center(BVs,We),
-    Vpos = lists:usort([wings_vertex:pos(V, We) || V <- Vs0]),
-    {{Ev1,Ev2,Ev3},{Bv1,Bv2,Bv3}} = e3d_bv:eigen_vecs(Vpos),
-    Vecs = [{Bv1,Ev1},{Bv2,Ev2},{Bv3,Ev3}],
-%%    io:format("EIG ~p~n",[Vecs]),
-    [{_Z0,C},{V1,A},{V2,B}] = find_closest(Vecs,CNormal,0.0,[]),
-    case A/C > B/C of
-	true ->  Y0=V1,_X0=V2;
-	false -> _X0=V1,Y0=V2
-    end,
-    {X,Z,Y} = calc_axis(CNormal,Y0),
-%%    io:format("Res ~p~n ~p~n ~p~n",[X,Y,Z]),
-    {Center,{X,Y,Z},undefined}.
+%% find_axes_from_eigenv(Fs,CNormal,BEdges,We) ->
+%%     Vs0 = wings_face:to_vertices(Fs, We),
+%%     BVs = [Ver || #be{vs=Ver} <- BEdges],
+%%     Center = wings_vertex:center(BVs,We),
+%%     Vpos = lists:usort([wings_vertex:pos(V, We) || V <- Vs0]),
+%%     {{Ev1,Ev2,Ev3},{Bv1,Bv2,Bv3}} = e3d_bv:eigen_vecs(Vpos),
+%%     Vecs = [{Bv1,Ev1},{Bv2,Ev2},{Bv3,Ev3}],
+%% %%    io:format("EIG ~p~n",[Vecs]),
+%%     [{_Z0,C},{V1,A},{V2,B}] = find_closest(Vecs,CNormal,0.0,[]),
+%%     case A/C > B/C of
+%% 	true ->  Y0=V1,_X0=V2;
+%% 	false -> _X0=V1,Y0=V2
+%%     end,
+%%     {X,Z,Y} = calc_axis(CNormal,Y0),
+%% %%    io:format("Res ~p~n ~p~n ~p~n",[X,Y,Z]),
+%%     {Center,{X,Y,Z},undefined}.
 
-find_closest([H = {V,_}|R],N,Best,All=[B|Which]) ->
-    Dot = e3d_vec:dot(V,N),
-    case abs(Dot) > abs(Best) of
-	true -> find_closest(R,N,Dot,[H|All]);
-	false -> find_closest(R,N,Best,[B,H|Which])
-    end;
-find_closest([H = {V,_}|R],N,_,[]) ->
-    Dot = e3d_vec:dot(V,N),
-    find_closest(R,N,Dot,[H]);
-find_closest([],_,Best,All) ->
-    case Best > 0.0 of
-	true ->All;
-	false -> [{e3d_vec:neg(V),Ev}|| {V,Ev} <- All]
-    end.
+%% find_closest([H = {V,_}|R],N,Best,All=[B|Which]) ->
+%%     Dot = e3d_vec:dot(V,N),
+%%     case abs(Dot) > abs(Best) of
+%% 	true -> find_closest(R,N,Dot,[H|All]);
+%% 	false -> find_closest(R,N,Best,[B,H|Which])
+%%     end;
+%% find_closest([H = {V,_}|R],N,_,[]) ->
+%%     Dot = e3d_vec:dot(V,N),
+%%     find_closest(R,N,Dot,[H]);
+%% find_closest([],_,Best,All) ->
+%%     case Best > 0.0 of
+%% 	true ->All;
+%% 	false -> [{e3d_vec:neg(V),Ev}|| {V,Ev} <- All]
+%%     end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 projectFromChartNormal(Chart, We) ->
