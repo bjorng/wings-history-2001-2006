@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_proxy.erl,v 1.1 2004/12/16 16:20:33 bjorng Exp $
+%%     $Id: wings_proxy.erl,v 1.2 2005/08/25 22:26:42 dgud Exp $
 %%
 
 -module(wings_proxy).
@@ -140,7 +140,7 @@ draw_1(D, Dl, Wire, Key, EdgeStyleKey) ->
     gl:shadeModel(?GL_SMOOTH),
     gl:enable(?GL_LIGHTING),
     gl:enable(?GL_POLYGON_OFFSET_FILL),
-    gl:polygonOffset(2, 2),
+    wings_render:polygonOffset(2),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
     case wings_gl:is_ext('GL_ARB_imaging') of
 	false -> ok;
@@ -170,7 +170,7 @@ draw_edges_1(#dlo{edges=Edges}, cage) ->
     gl:lineWidth(1),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
     gl:enable(?GL_POLYGON_OFFSET_LINE),
-    gl:polygonOffset(1, 1),
+    wings_render:polygonOffset(1),
     gl:disable(?GL_CULL_FACE),
     wings_dl:call(Edges),
     gl:enable(?GL_CULL_FACE);

@@ -9,11 +9,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_render.erl,v 1.8 2005/01/15 09:45:19 bjorng Exp $
+%%     $Id: wings_render.erl,v 1.9 2005/08/25 22:26:42 dgud Exp $
 %%
 
 -module(wings_render).
--export([render/1]).
+-export([render/1,polygonOffset/1]).
 
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
@@ -44,6 +44,18 @@ render(#st{selmode=Mode}=St) ->
     gl:rectf(W-0.5, 0.5, 0.5, H-0.5),
     gl:popAttrib().
 
+
+%%%
+polygonOffset(M) ->
+    case get(polygon_offset) of
+	undefined ->
+	    F = wings_pref:get_value(polygon_offset_f,1.0),
+	    R = wings_pref:get_value(polygon_offset_r,1.0),
+	    put(polygon_offset, {F,R}),
+	    gl:polygonOffset(M*F, M*R);
+	{F,R} ->
+	    gl:polygonOffset(M*F, M*R)
+    end.
 %%%
 %%% Internal functions follow.
 %%%
@@ -110,7 +122,7 @@ render_plain(#dlo{work=Faces,edges=Edges,open=Open,
 	false ->
 	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
 	    gl:enable(?GL_POLYGON_OFFSET_FILL),
-	    gl:polygonOffset(2, 2),
+	    polygonOffset(2),
 	    gl:shadeModel(?GL_SMOOTH),
 	    gl:enable(?GL_LIGHTING),
 	    case Open of
@@ -139,7 +151,7 @@ render_plain(#dlo{work=Faces,edges=Edges,open=Open,
 	    gl:lineWidth(edge_width(SelMode)),
 	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
 	    gl:enable(?GL_POLYGON_OFFSET_LINE),
-	    gl:polygonOffset(1, 1),
+	    polygonOffset(1),
 	    case Wire andalso wings_wm:get_prop(show_wire_backfaces) of
 		true ->
 		    gl:disable(?GL_CULL_FACE),

@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref_dlg.erl,v 1.9 2005/06/26 02:18:24 trepan Exp $
+%%     $Id: wings_pref_dlg.erl,v 1.10 2005/08/25 22:26:42 dgud Exp $
 %%
 
 -module(wings_pref_dlg).
@@ -269,20 +269,26 @@ misc_prefs() ->
 	   [{slider,{text,proxy_static_opacity,[{range,{0.0,1.0}}|Flags]}},
 	    {slider,{text,proxy_moving_opacity,[{range,{0.0,1.0}}|Flags]}}]}]}],
        [{title,?__(14,"Proxy Mode")}]},
-      {hframe,
-       %% Note: text_display_lists is specially handled
-       %% in make_query/1 and smart_set_value/3 to have its value inverted
-       %% to keep preference files backward compatible.
-       workaround([{text_display_lists,
-		    ?__(15,"Text in menus and dialogs disappear"),
-		    ?__(16,"Problem occurs on some Matrox cards")},
-		   {dummy_axis_letter,
-		    ?__(17,"Wings crashes if axes are turned off"),
-		    ?__(18,"Problem occurs on some Matrox cards")},
-		   {jumpy_camera,
-		    ?__(19,"Camera moves and interactive commands are jumpy"),
-		    ?__(20,"Problem occurs on Mac OS X 10.3 (Panther)")}
-		  ]),
+      {vframe,
+       [{hframe,
+	 %% Note: text_display_lists is specially handled
+	 %% in make_query/1 and smart_set_value/3 to have its value inverted
+	 %% to keep preference files backward compatible.
+	 workaround([{text_display_lists,
+		      ?__(15,"Text in menus and dialogs disappear"),
+		      ?__(16,"Problem occurs on some Matrox cards")},
+		     {dummy_axis_letter,
+		      ?__(17,"Wings crashes if axes are turned off"),
+		      ?__(18,"Problem occurs on some Matrox cards")},
+		     {jumpy_camera,
+		     ?__(19,"Camera moves and interactive commands are jumpy"),
+		      ?__(20,"Problem occurs on Mac OS X 10.3 (Panther)")}
+		    ])},
+	separator,
+	{hframe,[{label,?__(23,"Edge offsets:")},
+		 {text,polygon_offset_f,[{range,{1.0,100.0}}]},
+		 {text,polygon_offset_r,[{range,{1.0,100.0}}]}],
+	 [{title,?__(22,"Edge display problems?")}]}],
        [{title,?__(21,"Workarounds")}]}
      ]}.
 
@@ -334,6 +340,10 @@ smart_set_value_1(Key, Val, St) ->
 		    wings_pb:init();
  		language ->
 		    wings_lang:load_language(Val);
+		polygon_offset_f -> 
+		    erase(polygon_offset);
+		polygon_offset_r -> 
+		    erase(polygon_offset);
         	_Other -> ok
 	    end
     end.

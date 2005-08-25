@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.134 2005/06/26 02:18:24 trepan Exp $
+%%     $Id: wings_pref.erl,v 1.135 2005/08/25 22:26:42 dgud Exp $
 %%
 
 -module(wings_pref).
@@ -384,6 +384,8 @@ defaults() ->
 		       when Maj >= 7, Min >= 3 -> true;
 		       _ -> false
 		   end},
+     {polygon_offset_f,1.0},
+     {polygon_offset_r,1.0},
 
      %% Advanced features.
      {advanced_menus,false},
