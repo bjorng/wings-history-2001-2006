@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_mapping.erl,v 1.74 2005/08/25 18:59:44 dgud Exp $
+%%     $Id: auv_mapping.erl,v 1.75 2005/08/29 19:14:38 dgud Exp $
 %%
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
@@ -39,12 +39,15 @@
 
 -module(auv_mapping).
 
--export([lsq/2, lsq/3, find_pinned/2]). % Debug entry points
 -export([stretch_opt/2, area2d2/3,area3d/3]).
 -export([map_chart/3]).
 
 %% Internal exports.
 -export([model_l2/5]).
+
+-export([lsq/2, lsq/3,  % Debug entry points
+	 find_pinned/2,
+	 find_pinned_from_edges/2]). 
 
 -include("wings.hrl").
 -include("auv.hrl").
@@ -425,12 +428,16 @@ lsqcm(Fs, Pinned0, Loop, We) ->
     {Vs1,Area} = project_faces(TriFs,TriWe,-1,[],0.0),
     Pinned = case Pinned0 of
 		 none -> 
-		     {V1, V2} = find_pinned_from_edges(Loop,We),
-		     [V1,V2];
+%		     {V1, V2} = find_pinned_from_edges(Loop,We),
+		     {V3, V4} = find_pinned(Loop,We),
+%%		     io:format("New ~p ~p~n",[V1,V2]),
+%%		     io:format("Old ~p ~p~n",[V3,V4]),
+%%		     [V1,V2];  % the new stuff picks different pinned 
+		     [V3,V4];  % from same input depening on starting point
 		 _ -> 
 		     Pinned0
 	     end,
-    ?DBG("LSQ ~p~n", [Pinned]),
+    %%io:format("LSQ ~p~n", [Pinned]),
     case lsq(Vs1, Pinned) of
 	{error, What} ->
 	    ?DBG("TXMAP error ~p~n", [What]),
@@ -477,12 +484,12 @@ find_pinned_from_edges({Circumference, BorderEdges}, #we{vp=Vtab}) ->
     Best = {Vert1,VertN,calc_vp(Vert1,VertN,Left,Right)},
     HCC = Circumference/2, %% - Circumference/100,
     Dist = First#be.dist + Second#be.dist,
-%    io:format("S ~p(~p) ~p~n",[Dist,HCC,Best]),
+%    io:format("Pinned ~p ~n", [Best]),
 %    io:format(" L ~p R ~p~n",[Left,Right]),
     find_pinned_from_edges2(First,[Second],Third,RestOfEdges,First,Dist,HCC,Left,Right,POS,Best).
 
 find_pinned_from_edges2(_S,_LVs,Start,_,Start,_Dist,_HCC,_Left0,_Right0,_POS,{{V1,_},{V2,_},_Best}) ->
-    %%io:format("Pinned ~p ~p ~p~n", [V1,V2,_Best]),
+%%    io:format("Pinned ~p ~p ~p~n", [V1,V2,_Best]),
     {{V1,{0.0,0.0}},{V2,{1.0,1.0}}};
 find_pinned_from_edges2(S,LVs,E,[Next|RVs],Start,Dist,HCC,Left0,Right0,POS,Best0)
   when Dist < HCC ->
