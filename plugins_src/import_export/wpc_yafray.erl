@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.109 2005/09/06 22:51:46 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.110 2005/09/06 23:21:52 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -288,8 +288,6 @@ command({file,{export_selected,{?TAG,A}}}, St) ->
     command_file(export_selected, A, St);
 command({file,{render,{?TAG,A}}}, St) ->
     command_file(render, A, St);
-command({file,{?TAG_RENDER,Data}}, St) ->
-    command_file(?TAG_RENDER, Data, St);
 command({edit,{plugin_preferences,?TAG}}, St) ->
     pref_dialog(St);
 command(_Spec, _St) ->

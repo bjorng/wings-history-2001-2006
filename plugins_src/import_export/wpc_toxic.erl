@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_toxic.erl,v 1.18 2005/08/03 22:30:50 raimo_niskanen Exp $
+%%     $Id: wpc_toxic.erl,v 1.19 2005/09/06 23:21:52 raimo_niskanen Exp $
 %%
 
 -module(wpc_toxic).
@@ -34,7 +34,6 @@
 -define(DEF_DIALOGS, auto).
 -define(DEF_RENDERER, "toxic").
 -define(DEF_OPTIONS, "").
--define(DEF_LOAD_IMAGE, true).
 -define(DEF_EXPORT_MESH, true).
 
 -define(DEF_SUBDIVISIONS, 0).
@@ -114,8 +113,6 @@ command({file,{export_selected,{?TAG,A}}}, St) ->
     command_file(export_selected, A, St);
 command({file,{render,{?TAG,A}}}, St) ->
     command_file(render, A, St);
-command({file,{?TAG_RENDER,Data}}, St) ->
-    command_file(?TAG_RENDER, Data, St);
 command({edit,{plugin_preferences,?TAG}}, St) ->
     pref_edit(St);
 command(_Spec, _St) ->
@@ -184,7 +181,9 @@ is_plugin_active(Condition) ->
 	_ ->     false
     end.
 
-menu_entry(render) ->    [{"Toxic (.tga)",?TAG,[option]}];
+menu_entry(render) ->
+    {value,{tga,Ext,_}} = lists:keysearch(tga, 1, wings_job:render_formats()),
+    [{"Toxic ("++Ext++")",?TAG,[option]}];
 menu_entry(export) ->    [{"Toxic (.xml)",?TAG,[option]}];
 menu_entry(pref) ->      [{"Toxic",?TAG}].
 
@@ -193,30 +192,12 @@ command_file(render, Attr, St) when is_list(Attr) ->
     case get_var(rendering) of
 	false ->
 	    do_export(export, props(render), [{?TAG_RENDER,true}|Attr], St);
-	_RenderFile ->
+	true ->
 	    wpa:error("Already rendering.")
     end;
 command_file(render, Ask, _St) when is_atom(Ask) ->
     wpa:dialog(Ask, "Toxic Render Options", export_dialog(render),
 	       fun(Attr) -> {file,{render,{?TAG,Attr}}} end);
-command_file(?TAG_RENDER, Result, _St) ->
-    Rendering = set_var(rendering, false),
-    case Rendering of
-	false ->
-	    keep;
-	RenderFile ->
-	    case Result of
-		load_image ->
-		    io:format("Loading rendered image~n~n"),
-		    load_image(RenderFile);
-		ok ->
-		    io:format("Rendering Job ready~n~n"),
-		    keep;
-		{error,Error} ->
-		    io:format("Rendering error: ~p~n~n", [Error]),
-		    wpa:error("Rendering error")
-	    end
-    end;
 command_file(Op, Attr, St) when is_list(Attr) ->
     set_pref(Attr),
     do_export(Op, props(Op), Attr, St);
@@ -225,7 +206,9 @@ command_file(Op, Ask, _St) when is_atom(Ask) ->
 	       fun(Attr) -> {file,{Op,{?TAG,Attr}}} end).
 
 props(render) ->
-    [{title,"Render"},{ext,".tga"},{ext_desc,"Targa File"}];
+    {value,{tga,Ext,Desc}} =
+	lists:keysearch(tga, 1, wings_job:render_formats()),
+    [{title,"Render"},{ext,Ext},{ext_desc,Desc}];
 props(export) ->
     [{title,"Export"},{ext,".xml"},{ext_desc,"Toxic File"}];
 props(export_selected) ->
@@ -269,16 +252,7 @@ fun_export_2(Attr) ->
 	    end
     end.
 
-load_image(Filename) ->
-    case wpa:image_read([{filename,Filename},
-			 {alignment,1}]) of
-	#e3d_image{}=Image ->
-	    Id = wings_image:new_temp("<<Rendered>>", Image),
-	    wings_image:window(Id),
-	    keep;
-	_ ->
-	    wpa:error("No image rendered")
-    end.
+
 
 %%% Dialogues and results
 %%%
@@ -394,12 +368,6 @@ light_result(_Name, Ps0, Res0) ->
 pref_edit(St) ->
     Dialogs = get_pref(dialogs, ?DEF_DIALOGS),
     Renderer = get_pref(renderer, ?DEF_RENDERER),
-    BrowseProps = [{dialog_type,open_dialog},{directory,"/"},
-		   case os:type() of
-		       {win32,_} ->
-			   {extensions,[{".exe","Windows Executable"}]};
-		       _-> {extensions,[]}
-		   end],
     Dialog =
 	[{vframe,[{menu,[{"Disabled Dialogs",disabled},
 			 {"Automatic Dialogs",auto},
@@ -407,7 +375,7 @@ pref_edit(St) ->
 		   Dialogs,[{key,dialogs}]},
 		  {label,"Rendering Command:"},
 		  {button,{text,Renderer,
-			   [{key,renderer},{props,BrowseProps}]}}]}],
+			   [{key,renderer},wings_job:browse_props()]}}]}],
     wpa:dialog("Toxic Options", Dialog,
 	       fun (Attr) -> pref_result(Attr,St) end).
 
@@ -432,7 +400,6 @@ export_dialog(Operation) ->
     Width      = get_pref(width, ?DEF_WIDTH),
     Height     = get_pref(height, ?DEF_HEIGHT),
     BG         = get_pref(background, {0.0,0.0,0.0}),
-    LoadImage  = get_pref(load_image, ?DEF_LOAD_IMAGE),
 
     ExportMesh = get_pref(export_mesh, ?DEF_EXPORT_MESH),
     %% Lighting
@@ -633,8 +600,9 @@ export_dialog(Operation) ->
      case Operation of
 	 render ->
 	     [{hframe,[{label,"Options"},
-		       {text,Options,[{key,{?TAG,options}}]},
-		       {"Load Image",LoadImage,[{key,load_image}]}],
+		       {text,Options,[{key,{?TAG,options}}]}
+%%		       {"Load Image",LoadImage,[{key,load_image}]}
+		      ],
 	       [{title,"Rendering Job"}]}];
 	 export ->
 	     [];
@@ -699,9 +667,11 @@ files(Render, Filename) ->
 			     Err  -> exit(Err)
 			 end
 		 end,
+    {value,{tga,Ext,_}} =
+	lists:keysearch(tga, 1, wings_job:render_formats()),
     Image = case Render of
 		true ->  Filename;
-		false -> RootName ++".tga"
+		false -> RootName ++ Ext
 	    end,
     Scene    = filename:join(ExportDir, SceneName ++ ".xml"),
     Settings = filename:join(ExportDir, SceneName ++ ".settings.xml"),
@@ -737,7 +707,7 @@ export(Attr, Filename, E3DExport0) ->
 	    no_renderer;
 	{Renderer,true} ->
 	    Options = pget(options,Attr,?DEF_OPTIONS),
-	    LoadImage = pget(load_image,Attr,?DEF_LOAD_IMAGE),
+%%	    LoadImage = pget(load_image,Attr,?DEF_LOAD_IMAGE),
 	    Width = pget(width,Attr),
 	    Height = pget(height,Attr),
 	    ArgStr =wings_job:quote(filename:basename(Scene))
@@ -751,15 +721,13 @@ export(Attr, Filename, E3DExport0) ->
 	    PortOpts = [{cd,Dir}],
 	    Handler =
 		fun (Status) ->
-			Result =
-			    case {Status,LoadImage} of
-				{ok,true}  -> load_image;
-				{ok,false} -> ok;
-				_          -> Status
-			    end,
-			wpa:send_command({file,{?TAG_RENDER,Result}})
+			set_var(rendering, false),
+			case Status of
+			    ok  -> {tga,Files#files.image};
+			    _   -> Status
+			end
 		end,
-	    set_var(rendering, Files#files.image),
+	    set_var(rendering, true),
 	    wings_job:render(ExportTS, Renderer, ArgStr, PortOpts, Handler)
     end.
 
@@ -1220,85 +1188,7 @@ quadrangle_vertices([V1,V2,V3,V4], VsT) ->
 % zip([], []) -> [];
 % zip([H1|T1], [H2|T2]) -> [{H1,H2}|zip(T1, T2)].
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Render
 
-%% render(Renderer, Attr, #files{dir=Dir, image=Image, scene=Scene}) ->
-%%     process_flag(trap_exit, true),
-%%     Options = pget(options,Attr,?DEF_OPTIONS),
-%%     LoadImage = pget(load_image,Attr,?DEF_LOAD_IMAGE),
-%%     Width = pget(width,Attr),
-%%     Height = pget(height,Attr),
-
-%%     Cmd = uquote(Renderer)++" "++ uquote(filename:basename(Scene)) ++ 
-%% 	" -o " ++ uquote(Image) ++ " -w " ++ format(Width) ++ 
-%% 	" -h " ++ format(Height) ++ " " ++ Options,
-%%     PortOpts = [{cd,Dir},eof,exit_status,stderr_to_stdout],
-%% %%%     PortOpts = [{line,1},{cd,Dirname},eof,exit_status,stderr_to_stdout],
-%%     io:format("Rendering Job started ~p:~n>~s~n", [self(),Cmd]),
-%%     case catch open_port({spawn,Cmd}, PortOpts) of
-%% 	Port when port(Port) ->
-%% 	    Result = render_job(Port),
-%% 	    render_done(Result, LoadImage);
-%% 	{'EXIT',Reason} ->
-%% 	    render_done({error,Reason}, LoadImage)
-%%     end.
-
-%% render_done(ExitStatus, LoadImage) ->
-%%     io:format("~nRendering Job returned: ~p~n", [ExitStatus]),
-%%     ExportTS = get_var(export_ts),
-%%     RenderTS = get_var(render_ts),
-%%     FinishTS = erlang:now(),
-%%     io:format("Export time:     ~s~n"++
-%% 	      "Render time:     ~s~n"++
-%% 	      "Total time:      ~s~n",
-%% 	      [now_diff(RenderTS, ExportTS),
-%% 	       now_diff(FinishTS, RenderTS),
-%% 	       now_diff(FinishTS, ExportTS)]),
-%%     Status =
-%% 	case ExitStatus of
-%% 	    0         -> ok;
-%% 	    undefined -> ok;
-%% 	    {error,_} -> ExitStatus;
-%% 	    _         -> {error,ExitStatus}
-%% 	end,
-%%     Result =
-%% 	case {Status,LoadImage} of
-%% 	    {ok,true}  -> load_image;
-%% 	    {ok,false} -> ok;
-%% 	    _          -> Status
-%% 	end,
-%%     wpa:send_command({file,{?TAG_RENDER,Result}}),
-%%     ok.
-
-%% render_job(Port) ->
-%%     receive
-%% 	{Port,eof} ->
-%% 	    receive
-%% 		{Port,{exit_status,ExitStatus}} ->
-%% 		    ExitStatus
-%% 	    after 1 ->
-%% 		    undefined
-%% 	    end;
-%% 	{Port,{exit_status,ExitStatus}} ->
-%% 	    receive
-%% 		{Port,eof} ->
-%% 		    ok after 1 -> ok end,
-%% 	    ExitStatus;
-%% 	{Port,{data,{Tag,Data}}} ->
-%% 	    io:put_chars(Data),
-%% 	    case Tag of eol -> io:nl(); noeol -> ok end,
-%% 	    render_job(Port);
-%% 	{Port,{data,Data}} ->
-%% 	    io:put_chars(Data),
-%% 	    render_job(Port);
-%% 	{'EXIT',Port,Reason} ->
-%% 	    {error,Reason};
-%% 	Other ->
-%% 	    io:format("WARNING: Unexpected at ~s:~p: ~p~n",
-%% 		      [?MODULE_STRING,?LINE,Other]),
-%% 	    render_job(Port)
-%%     end.
 
 %%% Noisy file output functions. Fail if anything goes wrong.
 %%%
@@ -1438,144 +1328,6 @@ get_var(Name) ->
 erase_var(Name) ->
     erase({?MODULE,{?TAG,Name}}).
 
-%% %% A bit like os:find_executable, but if the found executable is a .bat file
-%% %% on windows; scan the .bat file for a real executable file, and return the
-%% %% looked up executable name instead of the full path (except for .bat files).
-%% %%
-%% find_executable(Name) ->
-%%     case os:find_executable(Name) of
-%% 	false ->
-%% 	    false;
-%% 	Filename ->
-%% 	    case os:type() of
-%% 		{win32,_} ->
-%% 		    case lowercase(filename:extension(Filename)) of
-%% 			".bat" ->
-%% 			    find_in_bat(Filename);
-%% 			_ ->
-%% 			    Name
-%% 		    end;
-%% 		_ ->
-%% 		    Name
-%% 	    end
-%%     end.
-
-%% %% Search .bat file for an executable file
-%% find_in_bat(Filename) ->
-%%     case file:open(Filename, [read]) of
-%% 	{ok,F} ->
-%% 	    R = scan_bat(F),
-%% 	    file:close(F),
-%% 	    R;
-%% 	_ ->
-%% 	    false
-%%     end.
-
-%% %% Scan each line of the .bat file
-%% scan_bat(F) ->
-%%     case rskip_warg(skip_walpha(io:get_line(F, ""))) of
-%% 	"" ->
-%% 	    scan_bat(F);
-%% 	"echo"++[C|_] when C==$ ; C==$\t; C==$\n ->
-%% 	    scan_bat(F);
-%% 	"set"++[C|_] when C==$ ; C==$\t; C==$\n ->
-%% 	    scan_bat(F);
-%% 	Line when list(Line) ->
-%% 	    %% Check if this is the name of an executable file
-%% 	    File = [C || C <- Line, C =/= $"], % Remove doublequotes
-%% 	    Filename = filename:nativename(File),
-%% 	    case file:read_file_info(Filename) of
-%% 		{ok,#file_info{type=regular,access=A,mode=M}} ->
-%% 		    case A of
-%% 			read when (M band 8#500) == 8#500 ->
-%% 			    Filename;
-%% 			read_write when (M band 8#500) == 8#500 ->
-%% 			    Filename;
-%% 			_ ->
-%% 			    scan_bat(F)
-%% 		    end;
-%% 		_ ->
-%% 		    scan_bat(F)
-%% 	    end;
-%% 	_ ->
-%% 	    false
-%%     end.
-
-%% %% Skip whitespace and one '@' from beginning of line
-%% %%
-%% skip_walpha([$ |T]) ->
-%%     skip_walpha(T);
-%% skip_walpha([$\t|T]) ->
-%%     skip_walpha(T);
-%% skip_walpha([$\n|T]) ->
-%%     skip_walpha(T);
-%% skip_walpha([$@|T]) ->
-%%     skip_walpha1(T);
-%% skip_walpha(L) ->
-%%     L.
-%% %%
-%% skip_walpha1([$ |T]) ->
-%%     skip_walpha(T);
-%% skip_walpha1([$\t|T]) ->
-%%     skip_walpha(T);
-%% skip_walpha1([$\n|T]) ->
-%%     skip_walpha(T);
-%% skip_walpha1(L) ->
-%%     L.
-
-%% %% Skip whitespace and '%d' .bat file arguments from end of line
-%% %%
-%% rskip_warg(L) ->
-%%     rskip_warg1(lists:reverse(L)).
-%% %%
-%% rskip_warg1([$ |T]) ->
-%%     rskip_warg1(T);
-%% rskip_warg1([$\t|T]) ->
-%%     rskip_warg1(T);
-%% rskip_warg1([$\n|T]) ->
-%%     rskip_warg1(T);
-%% rskip_warg1([D,$%|T]) when D >= $0, D =< $9 ->
-%%     rskip_warg1(T);
-%% rskip_warg1(L) ->
-%%     lists:reverse(L).
-
-%% %% Convert all A-Z in string to lowercase
-%% %%
-%% lowercase([]) ->
-%%     [];
-%% lowercase([C|T]) when C >= $A, C =< $Z ->
-%%     [(C + $a - $A)|lowercase(T)];
-%% lowercase([C|T]) ->
-%%     [C|lowercase(T)].
-
-%% %% Universal quoting
-%% %%
-%% %% If the string contains singlequote, doublequote or whitespace
-%% %% - doublequote the string and singlequote embedded doublequotes.
-%% %% God may forbid doublequotes. They do not work in Windows filenames,
-%% %% nor in Toxic result .tga filenames. They might only work in
-%% %% Unix executable pathname being very weird even there.
-%% %%
-%% uquote(Cs) ->
-%%     case uquote_needed(Cs) of
-%% 	true -> [$"|uquote_1(Cs)];
-%% 	false -> Cs
-%%     end.
-
-%% uquote_1([]) -> [$"];
-%% uquote_1([$"]) -> [$",$',$",$'];
-%% uquote_1([$"|Cs]) -> [$",$',$",$',$"|uquote_1(Cs)];
-%% uquote_1([C|Cs]) -> [C|uquote_1(Cs)].
-
-%% uquote_needed([]) -> false;
-%% uquote_needed([$"|_]) -> true;
-%% uquote_needed([$'|_]) -> true;
-%% uquote_needed([$\s|_]) -> true;
-%% uquote_needed([$\t|_]) -> true;
-%% uquote_needed([$\r|_]) -> true;
-%% uquote_needed([$\n|_]) -> true;
-%% uquote_needed([_|Cs]) -> uquote_needed(Cs).
-
 %% Split a list into a list of length Pos, and the tail
 %%
 
@@ -1597,36 +1349,6 @@ split_list1(R,Toxic) ->
 %%%  true -> filter2_1(Pred, T, [H|True], False);
 %%%  false -> filter2_1(Pred, T, True, [H|False])
 %%%     end.
-
-%% %% Returns the time difference as a deep string in
-%% %% S.sss, M:S.sss, or H:M:S.sss deep string format,
-%% %% with trailing format description.
-%% now_diff({A1,B1,C1}, {A2,B2,C2}) ->
-%%     now_diff_1(((A1-A2)*1000000 + B1 - B2)*1000000 + C1 - C2).
-
-%% now_diff_1(T) when T < 0 ->
-%%     [$-|now_diff_2(-T)];
-%% now_diff_1(T) -> now_diff_2(T).
-
-%% now_diff_2(T0) ->
-%%     Us = T0 rem 60000000,
-%%     T1 = T0 div 60000000,
-%%     M = T1 rem 60,
-%%     H = T1 div 60,
-%%     case {H,M} of
-%% 	{0,0} -> now_diff_us(Us);
-%% 	{0,_} -> now_diff_m(M, Us);
-%% 	{_,_} -> now_diff_h(H, M, Us)
-%%     end.
-
-%% now_diff_h(H, M, Us) ->
-%%     [integer_to_list(H),$:|now_diff_m(M, Us)].
-
-%% now_diff_m(M, Us) ->
-%%     [integer_to_list(M),$'|now_diff_us(Us)].
-
-%% now_diff_us(Us) ->
-%%     io_lib:format("~.3f\"", [Us/1000000.0]).
 
 -ifdef(print_mesh_1).
 print_mesh(#e3d_mesh{type=T,vs=Vs,vc=Vc,tx=Tx,ns=Ns,fs=Fs,he=He,matrix=M}) ->
