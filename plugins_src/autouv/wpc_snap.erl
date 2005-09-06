@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_snap.erl,v 1.8 2004/12/29 09:58:18 bjorng Exp $
+%%     $Id: wpc_snap.erl,v 1.9 2005/09/06 19:05:59 dgud Exp $
 
 -module(wpc_snap).
 
@@ -143,7 +143,7 @@ scale(Op, St) ->
 	       end,
     Tvs   = {general, [{find_a_id(St), ScaleFun}]},
     Units = [{dx, {0.0,?HUGE}},{dy, {0.0,?HUGE}}],
-    Flags = [{initial, [Ix]}, {initial, [Iy]}],
+    Flags = [{initial, [Ix,Iy]}],
     wings_drag:setup(Tvs,Units,Flags,St).
 
 move(Op, St) ->
@@ -161,7 +161,7 @@ move(Op, St) ->
     
     Tvs   = {general, [{find_a_id(St), MoveFun}]},
     Units = [{dx, {-?HUGE,?HUGE}},{dy,{-?HUGE,?HUGE}}],
-    Flags = [{initial, [Ix]}, {initial, [Iy]}],
+    Flags = [{initial, [-Ix,-Iy]}],
     wings_drag:setup(Tvs,Units,Flags,St).
 
 find_a_id(#st{shapes=Shs}) ->
