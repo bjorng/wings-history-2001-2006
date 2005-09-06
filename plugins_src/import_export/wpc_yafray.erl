@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.108 2005/08/21 22:53:46 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.109 2005/09/06 22:51:46 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -40,7 +40,6 @@ key(Key) -> {key,?KEY(Key)}.
 -define(DEF_DIALOGS, auto).
 -define(DEF_RENDERER, "yafray").
 -define(DEF_OPTIONS, "").
--define(DEF_LOAD_IMAGE, true).
 -define(DEF_SUBDIVISIONS, 0).
 -define(DEF_KEEP_XML, false).
 -define(DEF_SAVE_ALPHA, false).
@@ -375,7 +374,7 @@ is_plugin_active(Condition) ->
     end.
 
 menu_entry(render) ->
-    [{"YafRay (.tga)",?TAG,[option]}];
+    [{"YafRay",?TAG,[option]}];
 menu_entry(export) ->
     [{"YafRay (.xml)",?TAG,[option]}];
 menu_entry(pref) ->
@@ -390,37 +389,12 @@ command_file(render, Attr, St) when is_list(Attr) ->
 	    do_export(export, 
 		      props(render, Attr), 
 		      [{?TAG_RENDER,true}|Attr], St);
-       _RenderFile ->
+	true ->
 	    wpa:error("Already rendering.")
     end;
 command_file(render=Op, Ask, _St) when is_atom(Ask) ->
     export_dialog(Op, Ask, "YafRay Render Options",
 		  fun(Attr) -> {file,{Op,{?TAG,Attr}}} end);
-command_file(?TAG_RENDER, Result, _St) ->
-    Rendering = set_var(rendering, false),
-    case Rendering of
-	false ->
-	    keep;
-	RenderFile ->
-	    case Result of
-		{error,Error} ->
-		    io:format("Rendering error: ~p~n~n", [Error]),
-		    wpa:error("Rendering error");
-		_ ->
-		    [{load_image,LoadImage},
-		     {viewer,Viewer}] =
-			get_user_prefs([{load_image,?DEF_LOAD_IMAGE},
-					{viewer,""}]),
-		    case {LoadImage,Result,Viewer} of
-			{true,tga,""} ->
-			    io:format("Loading rendered image~n~n"),
-			    load_image(RenderFile);
-			{_,_,_} ->
-			    io:format("Rendering Job ready~n~n"),
-			    view_image(RenderFile, Result, Viewer)
-		    end
-	    end
-    end;
 command_file(Op, Attr, St) when is_list(Attr) ->
     %% when Op =:= export; Op =:= export_selected
     set_prefs(Attr),
@@ -456,92 +430,13 @@ do_export(Op, Props0, Attr0, St0) ->
 props(render, Attr) ->
     RenderFormat = 
 	proplists:get_value(render_format, Attr, ?DEF_RENDER_FORMAT),
-    [{title,"Render"}]++
-	case RenderFormat of
-	    hdr -> [{ext,".hdr"},{ext_desc,"High Dynamic Range image"}];
-	    exr -> [{ext,".exr"},{ext_desc,"OpenEXR"}];
-	    _   -> [{ext,".tga"},{ext_desc,"Targa File"}]
-	end;
+    {value,{RenderFormat,Ext,Desc}} =
+	lists:keysearch(RenderFormat, 1, wings_job:render_formats()),
+    [{title,"Render"},{ext,Ext},{ext_desc,Desc}];
 props(export, _Attr) ->
     [{title,"Export"},{ext,".xml"},{ext_desc,"YafRay File"}];
 props(export_selected, _Attr) ->
     [{title,"Export Selected"},{ext,".xml"},{ext_desc,"YafRay File"}].
-
-load_image(Filename) ->
-    case wpa:image_read([{filename,Filename},
-			 {alignment,1}]) of
-	#e3d_image{}=Image ->
-	    Id = wings_image:new_temp("<<Rendered>>", Image),
-	    wings_image:window(Id),
-	    keep;
-	_ ->
-	    wpa:error("No image rendered")
-    end.
-
-view_image(Filename, tga, Viewer) ->
-    [{viewer_preopts,ViewerPreopts},
-     {viewer_postopts,ViewerPostopts}] =
-	get_user_prefs([{viewer_preopts,""},
-			{viewer_postopts,""}]),
-    view_image_1(Filename, Viewer, ViewerPreopts, ViewerPostopts);
-view_image(Filename, hdr, _) ->
-    [{viewer_hdr,Viewer},
-     {viewer_hdr_preopts,ViewerPreopts},
-     {viewer_hdr_postopts,ViewerPostopts}] =
-	get_user_prefs([{viewer_hdr,""},
-			{viewer_hdr_preopts,""},
-			{viewer_hdr_postopts,""}]),
-    view_image_1(Filename, Viewer, ViewerPreopts, ViewerPostopts);
-view_image(Filename, exr, _) ->
-    [{viewer_exr,Viewer},
-     {viewer_exr_preopts,ViewerPreopts},
-     {viewer_exr_postopts,ViewerPostopts}] =
-	get_user_prefs([{viewer_exr,""},
-			{viewer_exr_preopts,""},
-			{viewer_exr_postopts,""}]),
-    view_image_1(Filename, Viewer, ViewerPreopts, ViewerPostopts).
-
-view_image_1(_Filename, "", _ViewerPreopts, _ViewerPostopts) ->
-    io:format("Viewing error: no viewer configured~n~n"),
-    wpa:error("Viewing error");
-view_image_1(Filename, Viewer, ViewerPreopts, ViewerPostopts) ->
-    case filename:pathtype(Viewer) of
-	absolute ->
-	    case wings_job:altname(Viewer) of
-		{error,Reason} ->
-		    io:format("Viewing error: ~p~n~n", [Reason]),
-		    wpa:error("Viewing error");
-		Altname ->
-		    view_image_2(Filename, Altname, 
-				 ViewerPreopts, ViewerPostopts)
-	    end;
-	_ ->
-	    view_image_2(Filename, Viewer,
-			 ViewerPreopts, ViewerPostopts)
-    end.
-
-view_image_2(Filename, Viewer, ViewerPreopts, ViewerPostopts) ->
-    Dirname = filename:dirname(Filename),
-    Basename = filename:basename(Filename),
-    Cmd = wings_job:quote(Viewer)
-	++case ViewerPreopts of "" -> ""; _ -> " " end++ViewerPreopts
-	++" "++wings_job:quote(Basename)
-	++case ViewerPostopts of "" -> ""; _ -> " " end++ViewerPostopts,
-    Handler = 
-	fun (Port) ->
-		if is_port(Port) ->
-			io:format("Viewer started ~p:~n"
-				  "> ~s~n", [self(),Cmd]);
-		   true ->
-			io:format("Viewer start failed:~n"
-				  "> ~s~n", [Cmd])
-		end,
-		fun (ExitStatus) ->
-			io:format("Viewer returned: ~p~n", [ExitStatus])
-		end
-	end,
-    wings_job:run(Cmd, Handler, [{cd,Dirname}]),
-    keep.
 
 
 
@@ -2294,33 +2189,11 @@ light_result(Ps) ->
     {[],Ps}.
 
 
-browse_props() ->
-    {props,[{dialog_type,open_dialog},{directory,"/"},
-	    case os:type() of
-		{win32,_} -> 
-		    {extensions,[{".exe","Windows Executable"}]};
-		_-> {extensions,[]}
-	    end]}.
-
 pref_dialog(St) ->
     [{dialogs,Dialogs},{renderer,Renderer},
-     {options,Options},{load_image,LoadImage},
-     {viewer_frame,ViewerFrame},
-     {viewer,Viewer},{viewer_preopts,ViewerPreopts},
-     {viewer_postopts,ViewerPostopts},
-     {viewer_hdr,ViewerHdr},{viewer_hdr_preopts,ViewerHdrPreopts},
-     {viewer_hdr_postopts,ViewerHdrPostopts},
-     {viewer_exr,ViewerExr},{viewer_exr_preopts,ViewerExrPreopts},
-     {viewer_exr_postopts,ViewerExrPostopts}] = 
+     {options,Options}] = 
 	get_user_prefs([{dialogs,?DEF_DIALOGS},{renderer,?DEF_RENDERER},
-			{options,?DEF_OPTIONS},{load_image,?DEF_LOAD_IMAGE},
-			{viewer_frame,1},
-			{viewer,""},
-			{viewer_preopts,""},{viewer_postopts,""},
-			{viewer_hdr,""},
-			{viewer_hdr_preopts,""},{viewer_hdr_postopts,""},
-			{viewer_exr,""},
-			{viewer_exr_preopts,""},{viewer_exr_postopts,""}]),
+			{options,?DEF_OPTIONS}]),
     Dialog =
 	[{vframe,
 	  [{hframe,
@@ -2335,40 +2208,11 @@ pref_dialog(St) ->
 	      [{label,"Executable"},
 	       {label,"Options"}]},
 	     {vframe,
-	      [{button,{text,Renderer,[{key,renderer},browse_props()]}},
-	       {text,Options,[{key,options}]}]}]},
-	   {"View image after rendering",LoadImage,[{key,load_image}]},
-	   {oframe,
-	    [{"TGA",
-	      pref_dialog_viewer(Viewer,viewer,
-				 ViewerPreopts,viewer_preopts,
-				 ViewerPostopts,viewer_postopts)},
-	     {"HDR",
-	      pref_dialog_viewer(ViewerHdr,viewer_hdr,
-				 ViewerHdrPreopts,viewer_hdr_preopts,
-				 ViewerHdrPostopts,viewer_hdr_postopts)},
-	     {"OpenEXR",
-	      pref_dialog_viewer(ViewerExr,viewer_exr,
-				 ViewerExrPreopts,viewer_exr_preopts,
-				 ViewerExrPostopts,viewer_exr_postopts)}],
-	    ViewerFrame,
-	    [{style,buttons},{key,viewer_frame}]}]}],
+	      [{button,{text,Renderer,[{key,renderer},
+				       wings_job:browse_props()]}},
+	       {text,Options,[{key,options}]}]}]}]}],
     wpa:dialog("YafRay Options", Dialog, 
 	       fun (Attr) -> pref_result(Attr,St) end).
-
-pref_dialog_viewer(Viewer, ViewerKey,
-		   ViewerPreopts, ViewerPreoptsKey,
-		   ViewerPostopts, ViewerPostoptsKey) ->
-    {label_column,
-     [{"Viewer",
-       {button,{text,Viewer,[{key,ViewerKey},browse_props()]}}},
-      {"Options",
-       {hframe,
-	[{text,ViewerPreopts,[{key,ViewerPreoptsKey},
-			      {width,10}]},
-	 {label,"..filename.."},
-	 {text,ViewerPostopts,[{key,ViewerPostoptsKey},
-			       {width,10}]}]}}]}.
 
 pref_result(Attr, St) ->
     set_user_prefs(Attr),
@@ -2483,9 +2327,9 @@ export_dialog_qs(Op,
 		  {slider,BiasFlags},
 		  {"Alpha Channel",SaveAlpha,[{key,save_alpha}]}]}]},
        {hframe,
-	[{menu,[{".tga (Targa File)",tga},
-		{".hdr (High Dynamic Range image)",hdr},
-		{".exr (OpenEXR)",exr}],
+	[{menu,[{Ext++" ("++Desc++")",Format}
+		|| {Format,Ext,Desc} <- wings_job:render_formats(),
+		   (Format == tga) or (Format == hdr) or (Format == exr)],
 	  RenderFormat,
 	  [{key,render_format},layout]},
 	 {hframe,
@@ -2646,13 +2490,10 @@ export(Attr, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
 			       ++wings_job:uniqstr()++".xml"),
 		 Filename};
 	    {false,_} ->
-		{Filename,
-		 filename:rootname(Filename)++
-		 case RenderFormat of
-		     hdr -> ".hdr";
-		     exr -> ".exr";
-		     _ -> ".tga"
-		 end}
+		{value,{RenderFormat,Ext,_}} =
+		    lists:keysearch(RenderFormat, 1, 
+				    wings_job:render_formats()),
+		{Filename,filename:rootname(Filename)++Ext}
 	end,
     F = open(ExportFile, export),
     io:format("Exporting  to: ~s~n"
@@ -2753,15 +2594,14 @@ export(Attr, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
 	    Handler =
 		fun (Status) ->
 			if KeepXML -> ok; true -> file:delete(ExportFile) end,
-			Result =
-			    case Status of
-				ok -> RenderFormat;
-				_  -> Status
-			    end,
-			wpa:send_command({file,{?TAG_RENDER,Result}})
+			set_var(rendering, false),
+			case Status of
+			    ok -> {RenderFormat,RenderFile};
+			    _  -> Status
+			end
 		end,
 	    file:delete(RenderFile),
-	    set_var(rendering, RenderFile),
+	    set_var(rendering, true),
 	    wings_job:render(ExportTS, Renderer, ArgStr, PortOpts, Handler)
     end.
 
@@ -4026,9 +3866,4 @@ help(text, pref_dialog) ->
       "in the executables search path; "
       "or, the absolute path of that executable.">>,
      <<"Options: Rendering command line options to be inserted "
-      "between the executable and the .xml filename.">>,
-     <<"Viewer and Options: The command and options to insert before "
-      "and after the image filename for viewing the rendered image. "
-      "One set ofr command and options per possible output format.">>,
-     <<"If viewing is enabled and the TGA viewer command is left blank, "
-      "the image is loaded using the internal image loader.">>].
+      "between the executable and the .xml filename.">>].

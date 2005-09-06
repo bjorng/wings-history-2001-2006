@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref_dlg.erl,v 1.10 2005/08/25 22:26:42 dgud Exp $
+%%     $Id: wings_pref_dlg.erl,v 1.11 2005/09/06 22:51:47 raimo_niskanen Exp $
 %%
 
 -module(wings_pref_dlg).
@@ -157,61 +157,83 @@ ui_prefs() ->
     Fonts = wings_text:fonts(),
     Langs0 = wings_lang:available_languages(),
     Langs = [{language_name(L),L} || L <- Langs0],
+    {vframe,
+     [{hframe,
+       [{vframe,
+	 [{vframe,
+	   [{menu,Fonts,new_system_font}],
+	   [{title,?__(1,"System Font")}]},
+	  {hframe,
+	   [{vframe,
+	     [{label,?__(2,"Desktop/Geometry Background")},
+	      {label,?__(3,"Menu Text")},
+	      {label,?__(4,"Menu Highlight")},
+	      {label,?__(5,"Menu Highlighted Text")},
+	      {label,?__(6,"Menu Background")},
+	      {label,?__(7,"Dialog Text")},
+	      {label,?__(8,"Dialog (Disabled) Text")},
+	      {label,?__(9,"Dialog Background")},
+	      {label,?__(10,"Title Text")},
+	      {label,?__(11,"Title (Passive) Background")},
+	      {label,?__(12,"Title (Active) Background")}]},
+	    {vframe,
+	     [{color,background_color},
+	      {color,menu_text},
+	      {color,menu_hilite},
+	      {color,menu_hilited_text},
+	      {color,menu_color},
+	      {color,dialog_text},
+	      {color,dialog_disabled},
+	      {color,dialog_color},
+	      {color,title_text_color},
+	      {color,title_passive_color},
+	      {color,title_active_color}]}],
+	   [{title,?__(13,"Colors")}]}
+	 ]},
+	{vframe,
+	 [{vframe,
+	   [{menu,Langs,language}],
+	   [{title,?__(23,"Language")}]},
+	  {vframe,
+	   [{menu,Fonts,new_console_font}],
+	   [{title,?__(15,"Console Font")}]},
+	  {hframe,[{vframe,[{label,?__(16,"Width")},
+			    {label,?__(17,"Height")},
+			    {label,?__(18,"Save Lines")},
+			    {label,?__(19,"Background")},
+			    {label,?__(20,"Text")},
+			    {label,?__(21,"Cursor")}]},
+		   {vframe,[{text,console_width,[{range,{12,120}}]},
+			    {text,console_height,[{range,{3,72}}]},
+			    {text,console_save_lines,[{range,{0,10000}}]},
+			    {color,console_color},
+			    {color,console_text_color},
+			    {color,console_cursor_color}]}],
+	   [{title,?__(22,"Console")}]}]}
+       ]},
+      {?__(14,"No Progress Bar"),no_progress_bar},
+      {?__(24,"Objects in Outliner"),objects_in_outliner},
+      {?__(25,"View image after rendering"),render_load_image},
+      {oframe,
+       [{atom_to_list(Format),viewer_prefs(Format)}
+	|| {Format,_,_} <- wings_job:render_formats()],
+       viewer_frame,
+       [{style,buttons}]}
+     ]}.
+
+viewer_prefs(Format) ->
     {hframe,
      [{vframe,
-       [{vframe,
-	 [{menu,Fonts,new_system_font}],
-	 [{title,?__(1,"System Font")}]},
-	{hframe,
-	 [{vframe,
-	   [{label,?__(2,"Desktop/Geometry Background")},
-	    {label,?__(3,"Menu Text")},
-	    {label,?__(4,"Menu Highlight")},
-	    {label,?__(5,"Menu Highlighted Text")},
-	    {label,?__(6,"Menu Background")},
-	    {label,?__(7,"Dialog Text")},
-	    {label,?__(8,"Dialog (Disabled) Text")},
-	    {label,?__(9,"Dialog Background")},
-	    {label,?__(10,"Title Text")},
-	    {label,?__(11,"Title (Passive) Background")},
-	    {label,?__(12,"Title (Active) Background")}]},
-	  {vframe,
-	   [{color,background_color},
-	    {color,menu_text},
-	    {color,menu_hilite},
-	    {color,menu_hilited_text},
-	    {color,menu_color},
-	    {color,dialog_text},
-	    {color,dialog_disabled},
-	    {color,dialog_color},
-	    {color,title_text_color},
-	    {color,title_passive_color},
-	    {color,title_active_color}]}],
-	 [{title,?__(13,"Colors")}]},
-	{?__(14,"No Progress Bar"),no_progress_bar},
-	{?__(24,"Objects in Outliner"),objects_in_outliner}
-       ]},
+       [{label,?__(1,"Viewer")},
+	{label,?__(2,"Options")}]},
       {vframe,
-       [{vframe,
-	 [{menu,Langs,language}],
-	 [{title,?__(23,"Language")}]},
-	{vframe,
-	 [{menu,Fonts,new_console_font}],
-	 [{title,?__(15,"Console Font")}]},
-	{hframe,[{vframe,[{label,?__(16,"Width")},
-			  {label,?__(17,"Height")},
-			  {label,?__(18,"Save Lines")},
-			  {label,?__(19,"Background")},
-			  {label,?__(20,"Text")},
-			  {label,?__(21,"Cursor")}]},
-		 {vframe,[{text,console_width,[{range,{12,120}}]},
-			  {text,console_height,[{range,{3,72}}]},
-			  {text,console_save_lines,[{range,{0,10000}}]},
-			  {color,console_color},
-			  {color,console_text_color},
-			  {color,console_cursor_color}]}],
-	[{title,?__(22,"Console")}]}]}
-     ]}.
+       [{button,{text,{viewer,Format},[wings_job:browse_props()]}},
+	{hframe,
+	 [{text,{viewer_preopts,Format},[{width,10}]},
+	  {label,?__(3,"..filename..")},
+	  {text,{viewer_postopts,Format},[{width,10}]}]}]}]}.
+
+
 
 language_name("cs") ->
     %% "Czech" in Czech as Unicode:
@@ -413,6 +435,12 @@ make_query({text,Key,Flags}) ->
 make_query({text,Key}) ->
     Def = get_value(Key),
     {text,Def,[{key,Key}]};
+make_query({oframe,Frames,Key,Flags}) ->
+    Def = get_value(Key),
+    {oframe,
+     [{Tag,make_query(Field)} || {Tag,Field} <- Frames],
+     Def,
+     [{key,Key}|Flags]};
 make_query(Tuple) when is_tuple(Tuple) ->
     list_to_tuple([make_query(El) || El <- tuple_to_list(Tuple)]);
 make_query(Other) -> Other.

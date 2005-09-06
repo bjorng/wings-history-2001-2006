@@ -8,16 +8,137 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_job.erl,v 1.3 2005/08/05 23:35:59 raimo_niskanen Exp $
+%%     $Id: wings_job.erl,v 1.4 2005/09/06 22:51:47 raimo_niskanen Exp $
 %%
 
 -module(wings_job).
 
--export([find_executable/1,export_done/1,render/5,
+-export([browse_props/0,render_formats/0,init/0,command/2,
+	 find_executable/1,export_done/1,render/5,
 	 run/3,altname/1,quote/1,
 	 timestr/1,timestr/2,uniqstr/0]).
 
 -include_lib("kernel/include/file.hrl").
+-include("e3d.hrl").
+-include("e3d_image.hrl").
+-include("wings.hrl").
+
+
+
+%% {button,{text,...}} props flag
+%%
+browse_props() ->
+    {props,[{dialog_type,open_dialog},{directory,"/"},
+	    case os:type() of
+		{win32,_} -> 
+		    {extensions,[{".exe","Windows Executable"}]};
+		_-> {extensions,[]}
+	    end]}.
+
+%% Render formats that may be handled
+%%
+render_formats() ->
+    [{tga,".tga","Targa bitmap"},
+     {bmp,".bmp","Bitmap"},
+     {jpg,".jpg","JPeg compressed bitmap"},
+     {hdr,".hdr","High Dynamic Range image"},
+     {exr,".exr","OpenEXR"}].
+    
+%%
+%%
+init() ->
+    wings_pref:set_default(render_load_image, false),
+    wings_pref:set_default(viewer_frame, 1),
+    lists:foreach(
+      fun({Format,_,_}) ->
+	      wings_pref:set_default({viewer,Format}, ""),
+	      wings_pref:set_default({viewer_preopts,Format}, ""),
+	      wings_pref:set_default({viewer_postopts,Format}, "")
+      end, render_formats()),
+    ok.
+
+    
+
+%% Generic handling of rendering followup.
+%%
+command({render_done,Handler,Status}, St) ->
+    render_done(Handler(Status), St).
+
+render_done({error,Error}, _St) ->
+    io:format("Rendering error: ~p~n~n", [Error]),
+    wpa:error("Rendering error");
+render_done({Format,Filename}, _St) ->
+    io:format("Rendering Job ready~n~n"),
+    LoadImage = 
+	wings_pref:get_value(render_load_image),
+    Viewer = wings_pref:get_value({viewer,Format}, ""),
+    case {LoadImage,Viewer} of
+	{true,""} when Format == tga; Format == bmp; Format == jpg ->
+	    io:format("Loading rendered image~n~n"),
+	    load_image(Filename);
+	{true,""} ->
+	    io:format("Viewing error: no viewer configured~n~n"),
+	    wpa:error("Viewing error");
+	{true,_} ->
+	    io:format("Viewing rendered image~n~n"),
+	    view_image(Filename, Format, Viewer);
+	{false,_} ->
+	    keep
+    end.
+
+load_image(Filename) ->
+    case wpa:image_read([{filename,Filename},
+			 {alignment,1}]) of
+	#e3d_image{}=Image ->
+	    Id = wings_image:new_temp("<<Rendered>>", Image),
+	    wings_image:window(Id),
+	    keep;
+	_ ->
+	    wpa:error("No image rendered")
+    end.
+
+view_image(Filename, Format, Viewer) ->
+    ViewerPreopts = wings_pref:get_value({viewer_preopts,Format}, ""),
+    ViewerPostopts = wings_pref:get_value({viewer_postopts,Format}, ""),
+    case filename:pathtype(Viewer) of
+	absolute ->
+	    case altname(Viewer) of
+		{error,Reason} ->
+		    io:format("Viewing error: ~p~n~n", [Reason]),
+		    wpa:error("Viewing error");
+		Altname ->
+		    view_image_1(Filename, Altname, 
+				 ViewerPreopts, ViewerPostopts)
+	    end;
+	_ ->
+	    view_image_1(Filename, Viewer,
+			 ViewerPreopts, ViewerPostopts)
+    end.
+
+view_image_1(Filename, Viewer, ViewerPreopts, ViewerPostopts) ->
+    Dirname = filename:dirname(Filename),
+    Basename = filename:basename(Filename),
+    Cmd = quote(Viewer)
+	++case ViewerPreopts of "" -> ""; _ -> " " end++ViewerPreopts
+	++" "++quote(Basename)
+	++case ViewerPostopts of "" -> ""; _ -> " " end++ViewerPostopts,
+    Handler = 
+	fun (Port) ->
+		if is_port(Port) ->
+			io:format("Viewer started ~p:~n"
+				  "> ~s~n", [self(),Cmd]);
+		   true ->
+			io:format("Viewer start failed:~n"
+				  "> ~s~n", [Cmd])
+		end,
+		fun (ExitStatus) ->
+			io:format("Viewer returned: ~p~n", [ExitStatus])
+		end
+	end,
+    run(Cmd, Handler, [{cd,Dirname}]),
+    keep.
+
+
 
 %% Quite like os:find_executable, but if the found executable is a .bat file
 %% on windows; scan the .bat file for a real executable file.
@@ -142,6 +263,8 @@ export_done(ExportTS) ->
     ok.
 
 %% High level render function. Handler is always called.
+%%   Handler(ok)    -> {Format,Filename};
+%%   Handler(Error) -> Error.
 %%
 render(ExportTS, Renderer, ArgStr, PortOpts, Handler) ->
     RenderTS = erlang:now(),
@@ -173,7 +296,8 @@ render(ExportTS, Renderer, ArgStr, PortOpts, Handler) ->
 				   undefined            -> ok;
 				   _                    -> ExitStatus
 			       end,
-			   Handler(Status)
+			   wpa:send_command(
+			     {?MODULE,{render_done,Handler,Status}})
 		   end,
 	       RenderFun = 
 		   fun (Port) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.336 2005/08/15 07:15:54 dgud Exp $
+%%     $Id: wings.erl,v 1.337 2005/09/06 22:51:47 raimo_niskanen Exp $
 %%
 
 -module(wings).
@@ -120,6 +120,7 @@ init(File) ->
     init_menubar(),
     wings_pb:init(),
     wings_ask:init(),
+    wings_job:init(),
 
     Op = main_loop_noredraw(St),		%Replace crash handler
 						%with this handler.
@@ -646,7 +647,12 @@ command({tools,{virtual_mirror,Cmd}}, St) ->
     wings_view:virtual_mirror(Cmd, St);
 command({tools, screenshot}, St) ->
     wings_image:screenshot(),
-    St.
+    St;
+
+%% wings_job action events.
+command({wings_job,Command}, St) ->
+    wings_job:command(Command, St).
+
 
 popup_menu(X, Y, #st{sel=[]}=St) ->
     wings_shapes:menu(X, Y, St);
