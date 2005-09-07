@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.110 2005/09/06 23:21:52 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.111 2005/09/07 11:43:37 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -135,12 +135,15 @@ key(Key) -> {key,?KEY(Key)}.
 -define(DEF_SUNSKY_VAR, 1.0).
 %% Hemilight and Pathlight
 -define(DEF_AMBIENT_TYPE, hemilight).
+-define(DEF_USE_MAXDISTANCE, false).
+-define(DEF_MAXDISTANCE, 1.0).
 -define(DEF_BACKGROUND_FILENAME, "").
 -define(DEF_BACKGROUND_EXPOSURE_ADJUST, 0).
 -define(DEF_BACKGROUND_MAPPING, probe).
 -define(DEF_BACKGROUND_POWER, 1.0).
 -define(DEF_SAMPLES, 256).
 %% Pathlight
+-define(DEF_PATHLIGHT_MODE, undefined).
 -define(DEF_CACHE, false).
 -define(DEF_CACHE_SIZE, 0.01).
 -define(DEF_ANGLE_THRESHOLD, 0.2).
@@ -241,6 +244,7 @@ range_1(cache_search)		-> {3,infinity};
 range_1(exposure_adjust)	-> {-128,127};
 range_1(psamples)		-> {0,infinity};
 range_1(arealight_radius)	-> {0.0,infinity};
+range_1(maxdistance)		-> {0.0,infinity};
 %% Render ranges
 range_1(subdivisions)		-> {0,infinity};
 range_1(aa_pixelwidth)		-> {1.0,2.0};
@@ -2007,6 +2011,13 @@ light_dialog(_Name, ambient, Ps) ->
     Direct = proplists:get_value(direct, Ps, ?DEF_DIRECT),
     UseQMC = proplists:get_value(use_QMC, Ps, ?DEF_USE_QMC),
     %%
+    PathlightMode = 
+	proplists:get_value(pathlight_mode, Ps, ?DEF_PATHLIGHT_MODE),
+    UseMaxdistance = 
+	proplists:get_value(use_maxdistance, Ps, ?DEF_USE_MAXDISTANCE),
+    Maxdistance = 
+	proplists:get_value(maxdistance, Ps, ?DEF_MAXDISTANCE),
+    %%
     CacheMinimized = proplists:get_value(cache_minimized, Ps, true),
     Cache = proplists:get_value(cache, Ps, ?DEF_CACHE),
     CacheSize = proplists:get_value(cache_size, Ps, ?DEF_CACHE_SIZE),
@@ -2049,6 +2060,15 @@ light_dialog(_Name, ambient, Ps) ->
        {vframe,[panel,
 		{text,CausDepth,[range(raydepth),key(caus_depth)]}],
 	[hook(open, [member,?KEY(type),pathlight])]}],
+      [hook(open, [member,?KEY(type),hemilight,pathlight])]},
+     {menu,[{"default mode",undefined},{"Occlusion mode",occlusion}],
+      PathlightMode,
+      [key(pathlight_mode),hook(open, [member,?KEY(type),pathlight])]},
+     {hframe,
+      [{"Maxdistance",UseMaxdistance,[key(use_maxdistance)]},
+       {text,Maxdistance,[key(maxdistance),
+			  range(maxdistance),
+			  hook(enable, ?KEY(use_maxdistance))]}],
       [hook(open, [member,?KEY(type),hemilight,pathlight])]},
      %% Pathlight
      {vframe,
@@ -2177,11 +2197,11 @@ light_result([_,{?KEY(arealight_samples),_}|_]=Ps) ->
     split_list(Ps, 3);
 %% Ambient
 light_result([{?KEY(type),hemilight}|_]=Ps) ->
-    split_list(Ps, 26);
+    split_list(Ps, 29);
 light_result([{?KEY(type),pathlight}|_]=Ps) ->
-    split_list(Ps, 26);
+    split_list(Ps, 29);
 light_result([{?KEY(type),globalphotonlight}|_]=Ps) ->
-    split_list(Ps, 26);
+    split_list(Ps, 29);
 light_result(Ps) ->
 %    erlang:display({?MODULE,?LINE,Ps}),
     {[],Ps}.
@@ -3216,8 +3236,17 @@ export_light(F, Name, ambient, OpenGL, YafRay) ->
 	    Samples = proplists:get_value(samples, YafRay, 
 					  ?DEF_SAMPLES),
 	    BgEnlight = proplists:get_value(background_enlight, YafRay, false),
-	    println(F,"       use_QMC=\"~s\" samples=\"~w\">", 
+	    println(F, "       use_QMC=\"~s\" samples=\"~w\">", 
 		    [format(UseQMC),Samples]),
+	    case proplists:get_value(use_maxdistance, YafRay, 
+				     ?DEF_USE_MAXDISTANCE) of
+		true ->
+		    Maxdistance = proplists:get_value(maxdistance, YafRay,
+						      ?DEF_MAXDISTANCE),
+		    println(F, "    <maxdistance value=\"~.10f\"/>",
+			    [Maxdistance]);
+		false -> ok
+	    end,
 	    if BgEnlight, Bg == 'HDRI';
 	       BgEnlight, Bg == image -> ok; % Skip color tag
 	       true -> export_rgb(F, color, Ambient)
@@ -3273,7 +3302,26 @@ export_light(F, Name, ambient, OpenGL, YafRay) ->
 			false -> ok
 		    end
 	    end,
-	    println(F, ">~n</light>", []),
+	    println(F, ">"),
+	    PathlightMode = proplists:get_value(pathlight_mode, YafRay,
+						?DEF_PATHLIGHT_MODE),
+	    case PathlightMode of
+		undefined ->
+		    ok;
+		_ ->
+		    println(F, "    <mode value=\"~s\"/>", 
+			    [format(PathlightMode)])
+	    end,
+	    case proplists:get_value(use_maxdistance, YafRay, 
+				     ?DEF_USE_MAXDISTANCE) of
+		true ->
+		    Maxdistance = proplists:get_value(maxdistance, YafRay,
+						      ?DEF_MAXDISTANCE),
+		    println(F, "    <maxdistance value=\"~.10f\"/>",
+			    [Maxdistance]);
+		false -> ok
+	    end,
+	    println(F, "</light>"),
 	    Bg;
 	pathlight -> Bg;
 	globalphotonlight ->
