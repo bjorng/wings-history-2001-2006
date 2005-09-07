@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.111 2005/09/07 11:43:37 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.112 2005/09/07 21:22:45 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -86,13 +86,10 @@ key(Key) -> {key,?KEY(Key)}.
 -define(DEF_WIDTH, 100).
 -define(DEF_HEIGHT, 100).
 -define(DEF_ORTHO, false).
--define(DEF_DOF_FILTER, false).
--define(DEF_NEAR_BLUR, 1.0).
--define(DEF_FAR_BLUR, 1.0).
--define(DEF_DOF_SCALE, 1.0).
--define(DEF_ANTINOISE_FILTER, false).
--define(DEF_ANTINOISE_RADIUS, 1.0).
--define(DEF_ANTINOISE_MAX_DELTA, 1.0).
+-define(DEF_APERTURE, 0.0).
+-define(DEF_BOKEH_TYPE, disk1).
+-define(DEF_BOKEH_BIAS, uniform).
+-define(DEF_BOKEH_ROTATION, 0.0).
 
 %% Light
 -define(DEF_ATTN_POWER, 10.0).
@@ -255,9 +252,8 @@ range_1(gamma)			-> {0.0,infinity};
 range_1(exposure)		-> {0.0,infinity};
 range_1(pixels)			-> {1,infinity};
 range_1(fog_density)		-> {0.0,infinity};
-range_1(antinoise_radius)	-> {0.0,infinity};
-range_1(antinoise_max_delta)	-> {0.0,infinity};
-range_1(dof_blur)		-> {0.0,infinity};
+range_1(aperture)		-> {0.0,infinity};
+range_1(bokeh_rotation)		-> {-180.0,180.0};
 %% Block Shader ranges
 range_1(shininess)		-> {0.0,1.0};
 range_1(hsv)			-> {0.0,1.0};
@@ -2137,16 +2133,7 @@ light_dialog(_Name, ambient, Ps) ->
 		  {text,BgPower,[key(background_power),range(power)]}],
 	  [hook(open, [member,?KEY(background),image])]},
 	 {"Enlight",BgEnlight,[key(background_enlight)]}],
-       [hook(open, [member,?KEY(background),'HDRI',image])]},
-%%        {hframe,[{label,"Exposure Adjust"},
-%% 		{text,BgExpAdj,[key(background_exposure_adjust),
-%% 				range(exposure_adjust)]},
-%% 		{menu,[{"Angular Map",probe},{"Spherical Map",spherical}],
-%% 		 BgMapping,[key(background_mapping)]}],
-%% 	[hook(open, [member,?KEY(background),'HDRI'])]},
-%%        {hframe,[{label,"Power"},
-%% 		{text,BgPower,[key(background_power),range(power)]}],
-%% 	[hook(open, [member,?KEY(background),image])]},
+	[hook(open, [member,?KEY(background),'HDRI',image])]},
        {hframe,[{label,"Color"},
 		{color,BgColor,[key(background_color)]}],
 	[hook(open, [member,?KEY(background),constant])]}],
@@ -2269,15 +2256,13 @@ export_prefs() ->
      {width,?DEF_WIDTH},
      {height,?DEF_HEIGHT},
      {ortho,?DEF_ORTHO},
-     {antinoise_filter,?DEF_ANTINOISE_FILTER},
-     {dof_filter,?DEF_DOF_FILTER},
+     {aperture,?DEF_APERTURE},
+     {bokeh_type,?DEF_BOKEH_TYPE},
+     {bokeh_bias,?DEF_BOKEH_BIAS},
+     {bokeh_rotation,?DEF_BOKEH_ROTATION},
+     {bokeh_use_QMC,?DEF_USE_QMC},
      {fog_density,?DEF_FOG_DENSITY},
-     {antinoise_radius,?DEF_ANTINOISE_RADIUS},
-     {near_blur,?DEF_NEAR_BLUR},
-     {dof_scale,?DEF_DOF_SCALE},
-     {fog_color,?DEF_FOG_COLOR},
-     {antinoise_max_delta,?DEF_ANTINOISE_MAX_DELTA},
-     {far_blur,?DEF_FAR_BLUR}].
+     {fog_color,?DEF_FOG_COLOR}].
 
 export_dialog_qs(Op,
 		 [{subdivisions,SubDiv},
@@ -2299,15 +2284,13 @@ export_dialog_qs(Op,
 		  {width,Width},
 		  {height,Height},
 		  {ortho,Ortho},
-		  {antinoise_filter,AntinoiseFilter},
-		  {dof_filter,DofFilter},
+		  {aperture,Aperture},
+		  {bokeh_type,BokehType},
+		  {bokeh_bias,BokehBias},
+		  {bokeh_rotation,BokehRotation},
+		  {bokeh_use_QMC,BokehUseQMC},
 		  {fog_density,FogDensity},
-		  {antinoise_radius,AntinoiseRadius},
-		  {near_blur,NearBlur},
-		  {dof_scale,DofScale},
 		  {fog_color,FogColor},
-		  {antinoise_max_delta,AntinoiseMaxDelta},
-		  {far_blur,FarBlur},
 		  _Save,_Load,_Reset]) ->
     AA_thresholdFlags = [range(aa_threshold),{key,aa_threshold}],
     AA_pixelwidthFlags = [range(aa_pixelwidth),{key,aa_pixelwidth}],
@@ -2369,49 +2352,67 @@ export_dialog_qs(Op,
        {vframe,[{color,BgColor,[{key,background_color}]}]}],
       [{title,"Background"}]},
      {hframe,
-      [{vframe,[{label,"Width"}]},
-       {vframe,[{text,Width,[range(pixels),{key,width}]}]},
-       {vframe,[{label,"Height"}]},
-       {vframe,[{text,Height,[range(pixels),{key,height}]}]},
-       {menu,[{"Perspective",false},
-	      {"Orthographic",true},
-	      {"Spherical",spherical},
-	      {"Lightprobe",lightprobe}],Ortho,[{key,ortho}]}],
-      [{title,"Camera"}]},
-     {hframe,
-      [{vframe,[panel,
-		{"Antinoise",AntinoiseFilter,[{key,antinoise_filter}]},
-		{"DOF",DofFilter,[{key,dof_filter}]}]},
+      [{vframe,
+	[{menu,[{"Perspective",false},
+		{"Orthographic",true},
+		{"Spherical",spherical},
+		{"Lightprobe",lightprobe}],Ortho,[{key,ortho}]},
+	 {label,"Depth Of Field:"},
+	 {hframe,[panel,{"Use QMC",BokehUseQMC,
+			 [{key,bokeh_use_QMC},
+			  hook(enable, 
+			       ['not',[member,aperture,0.0]])]}]},
+	 panel]},
+       {vframe,
+	[{label,"Width"},
+	 {label,"Aperture"},
+	 {label,"Type"},
+	 {label,"Rotation"}]},
        {vframe,
 	[{hframe,
-	  [{vframe,[{label,"Fog Density"},
-		    {label,"Radius"},
-		    {label,"Near Blur"},
-		    {label,"Scale"}]},
-	   {vframe,[{text,FogDensity,[range(fog_density),{key,fog_density}]},
-		    {text,AntinoiseRadius,[range(antinoise_radius),
-					   {key,antinoise_radius},
-					   hook(enable, antinoise_filter)]},
-		    {text,NearBlur,[range(dof_blur),{key,near_blur},
-				    hook(enable, dof_filter)]},
-		    {text,DofScale,[range(scale),{key,dof_scale},
-				    hook(enable, dof_filter)]}]}]}]},
-       {vframe,[{label,"Fog Color"},
-		{label,"Max Delta"},
-		{label,"Far Blur"}]},
-       {vframe,[{color,FogColor,[{key,fog_color}]},
-		{text,AntinoiseMaxDelta,[range(antinoise_max_delta),
-					 {key,antinoise_max_delta},
-					 hook(enable, antinoise_filter)]},
-		{text,FarBlur,[range(dof_blur),{key,far_blur},
-			       hook(enable, dof_filter)]}]}],
-      [{title,"Filters"}]},
+	  [{vframe,[{text,Width,[range(pixels),{key,width},{width,6}]},
+		    {text,Aperture,[range(aperture),{key,aperture},{width,6}]},
+		    {menu,[{"Disk1",disk1},{"Disk2",disk2},
+			   {"Triangle",triangle},
+			   {"Square",square},{"Pentagon",pentagon},
+			   {"Hexagon",hexagon},{"Ring",ring}],
+		     BokehType,[{key,bokeh_type},
+				hook(enable, 
+				     ['not',[member,aperture,0.0]])]}]},
+	   {vframe,[{label,"Height"},
+		    {label,"f-stop"},
+		    {label,"Bias"}]},
+	   {vframe,[{text,Height,[range(pixels),{key,height},{width,6}]},
+		    {menu,[{F,math:sqrt(A)}
+			   || {F,A} <- [{"1.0",1/1},{"1.4",1/2},{"2",1/4},
+					{"2.8",1/8},{"4",1/16},{"5.6",1/32},
+					{"8",1/64},{"11",1/128},{"16",256},
+					{"22",1/512},{"32",1/1024},
+					{"pinhole",0.0}]],
+		     Aperture,[{key,aperture}]},
+		    {menu,[{"Uniform",uniform},{"Center",center},
+			   {"Edge",edge}],
+		     BokehBias,[{key,bokeh_bias},
+				hook(enable, 
+				     ['not',[member,aperture,0.0]])]}]}]},
+	 {slider,{text,BokehRotation,
+		  [range(bokeh_rotation),
+		   {key,bokeh_rotation},
+		   hook(enable, 
+			['not',[member,aperture,0.0]])]}}]}],
+      [{title,"Camera"}]},
+     {hframe,
+      [{label,"Density"},
+       {text,FogDensity,[range(fog_density),{key,fog_density}]},
+       {label,"Color"},
+       {color,FogColor,[{key,fog_color}]}],
+      [{title,"Fog"}]},
      {hframe,[{button,"Save",done,[{info,"Save to user preferences"}]},
 	      {button,"Load",done,[{info,"Load from user preferences"}]},
 	      {button,"Reset",done,[{info,"Reset to default values"}]}]}].
 
 export_dialog_loop({Op,Fun}=Keep, Attr) ->
-    {Prefs,Buttons} = split_list(Attr, 28),
+    {Prefs,Buttons} = split_list(Attr, 27),
     case Buttons of
 	[true,false,false] -> % Save
 	    set_user_prefs(Prefs),
@@ -2569,20 +2570,6 @@ export(Attr, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
     println(F),
     export_camera(F, CameraName, Attr),
     println(F),
-    case proplists:get_value(dof_filter, Attr, ?DEF_DOF_FILTER) of
-	true ->
-	    export_filter(F, "x_Dof", dof, Attr),
-	    println(F);
-	false ->
-	    ok
-    end,
-    case proplists:get_value(antinoise_filter, Attr, ?DEF_ANTINOISE_FILTER) of
-	true ->
-	    export_filter(F, "x_Antinoise", antinoise, Attr),
-	    println(F);
-	false ->
-	    ok
-    end,
     export_render(F, CameraName, BgName, filename:basename(RenderFile), Attr),
     %%
     println(F),
@@ -3426,14 +3413,30 @@ export_camera(F, Name, Attr) ->
     %% Fov is vertical angle from lower to upper border.
     %% YafRay focal plane is 1 unit wide.
     FocalDist = 0.5 / ((Width/Height) * math:tan(limit_fov(Fov)*0.5*Ro)),
+    Aperture = proplists:get_value(aperture, Attr),
     println(F, "<camera name=\"~s\" "++
 	    "resx=\"~w\" resy=\"~w\" focal=\"~.10f\""++
+	    if Aperture > 0.0 ->
+		    "~n        dof_distance=\"~.10f\" aperture=\"~.10f\""
+			"~n        use_qmc=\"~s\" bokeh_type=\"~s\""
+			"~n        bokeh_bias=\"~s\" bokeh_rotation=\"~.10f\"";
+	       true -> ""
+	    end++
 	    case Ortho of
 		false -> ">";
 		true  -> "~n        type=\"ortho\">";
 		_     -> "~n        type=\"~s\">"
 	    end,
 	    [Name,Width,Height,FocalDist]++
+	    if Aperture > 0.0 ->
+		    [e3d_vec:len(Dir),
+		     Aperture,
+		     format(proplists:get_value(bokeh_use_QMC, Attr)),
+		     format(proplists:get_value(bokeh_type, Attr)),
+		     format(proplists:get_value(bokeh_bias, Attr)),
+		     proplists:get_value(bokeh_rotation, Attr)];
+	       true -> []
+	    end++
 	    case Ortho of
 	       false -> [];
 	       true  -> [];
@@ -3505,28 +3508,6 @@ export_background(F, Name, Ps) ->
     println(F, "</background>").
 
 
-export_filter(F, Name, dof, Attr) ->
-    #camera_info{dir=Dir} = proplists:lookup(camera_info, Attr),
-    Focus = e3d_vec:len(Dir),
-    NearBlur = proplists:get_value(near_blur, Attr),
-    FarBlur = proplists:get_value(far_blur, Attr),
-    Scale = proplists:get_value(dof_scale, Attr),
-    println(F, "<filter name=\"~s\" type=\"dof\" focus=\"~s\"", 
-	    [Name,format(Focus)]),
-    println(F, "        near_blur=\"~.3f\" far_blur=\"~.3f\" scale=\"~.3f\">",
-	    [NearBlur,FarBlur,Scale]),
-    println(F, "</filter>");
-export_filter(F, Name, antinoise, Attr) ->
-    Radius = proplists:get_value(antinoise_radius, Attr),
-    MaxDelta = proplists:get_value(antinoise_max_delta, Attr),
-    println(F, "<filter name=\"~s\" type=\"antinoise\"", [Name]),
-    println(F, "        radius=\"~.3f\" max_delta=\"~.3f\">",
-	    [Radius,MaxDelta]),
-    println(F, "</filter>");
-export_filter(_F, Name, Type, _Attr) ->
-    io:format("WARNING: Ignoring unknown filter \"~s\" type: ~w~n", 
-	      [Name, Type]),
-    ok.
 
 export_render(F, CameraName, BackgroundName, Outfile, Attr) ->
     AA_passes = proplists:get_value(aa_passes, Attr),
