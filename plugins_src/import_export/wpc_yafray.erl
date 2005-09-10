@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.112 2005/09/07 21:22:45 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.113 2005/09/10 10:05:30 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -81,6 +81,8 @@ key(Key) -> {key,?KEY(Key)}.
 -define(DEF_AA_MINSAMPLES, 1).
 -define(DEF_AA_PIXELWIDTH, 1.0).
 -define(DEF_AA_THRESHOLD, 0.125).
+-define(DEF_AA_JITTERFIRST, false).
+-define(DEF_CLAMP_RGB, false).
 -define(DEF_RAYDEPTH, 3).
 -define(DEF_BIAS, 0.1).
 -define(DEF_WIDTH, 100).
@@ -2245,6 +2247,8 @@ export_prefs() ->
      {gamma,?DEF_GAMMA},
      {aa_threshold,?DEF_AA_THRESHOLD},
      {aa_pixelwidth,?DEF_AA_PIXELWIDTH},
+     {aa_jitterfirst,?DEF_AA_JITTERFIRST},
+     {clamp_rgb,?DEF_CLAMP_RGB},
      {bias,?DEF_BIAS},
      {exposure,?DEF_EXPOSURE},
      {save_alpha,?DEF_SAVE_ALPHA},
@@ -2273,6 +2277,8 @@ export_dialog_qs(Op,
 		  {gamma,Gamma},
 		  {aa_threshold,AA_threshold},
 		  {aa_pixelwidth,AA_pixelwidth},
+		  {aa_jitterfirst,AA_jitterfirst},
+		  {clamp_rgb,ClampRGB},
 		  {bias,Bias},
 		  {exposure,Exposure},
 		  {save_alpha,SaveAlpha},
@@ -2304,30 +2310,24 @@ export_dialog_qs(Op,
 		      {value,KeepXML,[{key,keep_xml}]}
 	      end],
       [{title,"Pre-rendering"}]},
-     {vframe,
-      [{hframe,
-	[{vframe,[{label,"AA_passes"},
-		  {label,"AA_minsamples"},
-		  {label,"Raydepth"},
-		  {label,"Gamma"}]},
-	 {vframe,[{text,AA_passes,[range(aa_passes),{key,aa_passes}]},
-		  {text,AA_minsamples,[range(aa_minsamples),
-				       {key,aa_minsamples}]},
-		  {text,Raydepth,[range(raydepth),{key,raydepth}]},
-		  {text,Gamma,[range(gamma),{key,gamma}]}]},
-	 {vframe,[{label,"AA_threshold"},
-		  {label,"AA_pixelwidth"},
-		  {label,"Bias"},
-		  {label,"Exposure"}]},
-	 {vframe,[{text,AA_threshold,AA_thresholdFlags},
-		  {text,AA_pixelwidth,AA_pixelwidthFlags},
-		  {text,Bias,BiasFlags},
-		  {text,Exposure,[range(exposure),{key,exposure}]}]},
-	 {vframe,[{slider,AA_thresholdFlags},
-		  {slider,AA_pixelwidthFlags},
-		  {slider,BiasFlags},
-		  {"Alpha Channel",SaveAlpha,[{key,save_alpha}]}]}]},
-       {hframe,
+     {hframe,
+      [{vframe,
+	[{label,"Raydepth"},
+	 {label,"Gamma"}]},
+       {vframe,
+	[{text,Raydepth,[range(raydepth),{key,raydepth}]},
+	 {text,Gamma,[range(gamma),{key,gamma}]}]},
+       {vframe,
+	[{label,"Bias"},
+	 {label,"Exposure"}]},
+       {vframe,
+	[{text,Bias,BiasFlags},
+	 {text,Exposure,[range(exposure),{key,exposure}]}]},
+       {vframe,
+	[{slider,BiasFlags},
+	 panel]}],
+      [{title,"Render"}]},
+     {hframe,
 	[{menu,[{Ext++" ("++Desc++")",Format}
 		|| {Format,Ext,Desc} <- wings_job:render_formats(),
 		   (Format == tga) or (Format == hdr) or (Format == exr)],
@@ -2345,11 +2345,40 @@ export_dialog_qs(Op,
 	     {"zip",compression_zip}],
 	    ExrFlagCompression,
 	    [{key,exr_flag_compression}]}],
-	  [hook(open, [member,render_format,exr])]}]}],
-      [{title,"Render"}]},
+	  [hook(open, [member,render_format,exr])]}],
+      [{title,"Output"}]},
      {hframe,
-      [{vframe,[{label,"Default Color"}]},
-       {vframe,[{color,BgColor,[{key,background_color}]}]}],
+      [{vframe,
+	[{hframe,
+	  [{vframe,
+	    [{label,"AA_passes"},
+	     {label,"AA_minsamples"}]},
+	   {vframe,
+	    [{text,AA_passes,[range(aa_passes),{key,aa_passes}]},
+	     {text,AA_minsamples,[range(aa_minsamples),
+				  {key,aa_minsamples}]}]}]},
+	 {"AA_jitterfirst",AA_jitterfirst,[{key,aa_jitterfirst}]}]},
+       {vframe,
+	[{hframe,
+	  [{vframe,
+	    [{label,"AA_threshold"},
+	     {label,"AA_pixelwidth"}]},
+	   {vframe,
+	    [{text,AA_threshold,AA_thresholdFlags},
+	     {text,AA_pixelwidth,AA_pixelwidthFlags}]}]},
+	 {"Clamp RGB",ClampRGB,[{key,clamp_rgb}]}]},
+       {vframe,
+	[{slider,AA_thresholdFlags},
+	 {slider,AA_pixelwidthFlags}]}],
+      [{title,"Anti-Aliasing"}]},
+     {hframe,
+      [{label,"Default Color"},
+       {color,BgColor,[{key,background_color}]},
+       {label,"Alpha Channel:"},
+       {menu,[{"Off",false},{"On",true},
+	      {"Premultiply",premultiply},{"Backgroundmask",backgroundmask}],
+	SaveAlpha,
+	[{key,save_alpha}]}],
       [{title,"Background"}]},
      {hframe,
       [{vframe,
@@ -2412,7 +2441,7 @@ export_dialog_qs(Op,
 	      {button,"Reset",done,[{info,"Reset to default values"}]}]}].
 
 export_dialog_loop({Op,Fun}=Keep, Attr) ->
-    {Prefs,Buttons} = split_list(Attr, 27),
+    {Prefs,Buttons} = split_list(Attr, 29),
     case Buttons of
 	[true,false,false] -> % Save
 	    set_user_prefs(Prefs),
@@ -3514,6 +3543,8 @@ export_render(F, CameraName, BackgroundName, Outfile, Attr) ->
     AA_minsamples = proplists:get_value(aa_minsamples, Attr),
     AA_pixelwidth = proplists:get_value(aa_pixelwidth, Attr),
     AA_threshold = proplists:get_value(aa_threshold, Attr),
+    AA_jitterfirst = proplists:get_value(aa_jitterfirst, Attr),
+    ClampRGB = proplists:get_value(clamp_rgb, Attr),
     Raydepth = proplists:get_value(raydepth, Attr),
     Bias = proplists:get_value(bias, Attr),
     SaveAlpha = proplists:get_value(save_alpha, Attr),
@@ -3536,7 +3567,15 @@ export_render(F, CameraName, BackgroundName, Outfile, Attr) ->
     println(F, "<render camera_name=\"~s\" "
 	    "AA_passes=\"~w\" raydepth=\"~w\"~n"
 	    "        bias=\"~.10f\" AA_threshold=\"~.10f\"~n"
-	    "        AA_minsamples=\"~w\" AA_pixelwidth=\"~.10f\">~n"
+	    "        AA_minsamples=\"~w\" AA_pixelwidth=\"~.10f\"~n"++
+	    case SaveAlpha of
+		premultiply -> 
+		    "        alpha_premultiply=\"on\"~n";
+		backgroundmask -> 
+		    "        alpha_backgroundmask=\"on\"~n";
+		_ -> ""
+	    end++
+	    "        AA_jitterfirst=\"~s\" clamp_rgb=\"~s\">~n"
 	    "    <background_name value=\"~s\"/>~n"++
 	    case RenderFormat of
 		tga -> "";
@@ -3549,12 +3588,17 @@ export_render(F, CameraName, BackgroundName, Outfile, Attr) ->
 	    "    <outfile value=\"~s\"/>~n"
 	    "    <indirect_samples value=\"0\"/>~n"
 	    "    <indirect_power value=\"1.0\"/>~n"
-	    "    <exposure value=\"~.10f\"/>~n"
-	    "    <save_alpha value=\"~s\"/>~n"
+	    "    <exposure value=\"~.10f\"/>~n"++
+	    case SaveAlpha of
+		false -> "";
+		_ ->
+		    "    <save_alpha value=\"on\"/>~n"
+	    end++
 	    "    <gamma value=\"~.10f\"/>~n"
 	    "    <fog_density value=\"~.10f\"/>",
 	    [CameraName,AA_passes,Raydepth,Bias,AA_threshold,
-	     AA_minsamples,AA_pixelwidth,BackgroundName]++
+	     AA_minsamples,AA_pixelwidth,format(AA_jitterfirst),
+	     format(ClampRGB),BackgroundName]++
 	    case RenderFormat of
 		tga -> [];
 		_   -> [format(RenderFormat)]
@@ -3563,8 +3607,7 @@ export_render(F, CameraName, BackgroundName, Outfile, Attr) ->
 		exr -> [ExrFlags];
 		_   -> []
 	    end++
-	    [Outfile,Exposure,
-	     format(SaveAlpha),Gamma,FogDensity]),
+	    [Outfile,Exposure,Gamma,FogDensity]),
     export_rgb(F, fog_color, FogColor),
     println(F, "</render>").
 
