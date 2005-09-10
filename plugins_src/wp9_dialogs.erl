@@ -8,21 +8,23 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp9_dialogs.erl,v 1.43 2005/06/20 21:14:17 dgud Exp $
+%%     $Id: wp9_dialogs.erl,v 1.44 2005/09/10 08:02:02 bjorng Exp $
 %%
 
 -module(wp9_dialogs).
 -export([init/1]).
 -import(lists, [reverse/1,reverse/2,sort/1]).
 
+-include("../src/wings.hrl").
+
 init(Next) ->
     fun(What) -> ui(What, Next) end.
 
 ui({file,open_dialog,Prop,Cont}, _Next) ->
-    Title = proplists:get_value(title, Prop, "Open"),
+    Title = proplists:get_value(title, Prop, ?__(1,"Open")),
     open_dialog(Title, Prop, Cont);
 ui({file,save_dialog,Prop,Cont}, _Next) ->
-    Title = proplists:get_value(title, Prop, "Save"),
+    Title = proplists:get_value(title, Prop, ?__(2,"Save")),
     save_dialog(Title, Prop, Cont);
 ui({image,formats,Formats}, _Next) ->
     image_formats(Formats);
@@ -42,10 +44,10 @@ write_image(Prop) ->
     e3d_image:save(Image, Name, Prop).
 
 image_formats(Fs0) ->
-    Fs1 = [{".bmp","BMP Bitmap File"},
-	   {".tif","Tiff Bitmap"},
-	   {".png","PNG File"},
-	   {".tga","Targa File"}|Fs0],
+    Fs1 = [{".bmp",?__(1,"BMP Bitmap File")},
+	   {".tif",?__(2,"Tiff Bitmap")},
+	   {".png",?__(3,"PNG File")},
+	   {".tga",?__(4,"Targa File")}|Fs0],
     Fs2 = sofs:relation(Fs1),
     Fs3 = sofs:relation_to_family(Fs2),
     Fs = sofs:to_external(Fs3),
@@ -78,16 +80,16 @@ dialog_1(DlgType, Types, Title, Cont, Ps) ->
     DirMenu = dir_menu(Dir, []),
     OkHook = fun(Op, Arg) -> ok_hook(Op, Arg, DlgType) end,
     Qs = {vframe,
-	  [{hframe,[{label,"Look in"},
+	  [{hframe,[{label,?__(1,"Look in")},
 		    {menu,DirMenu,Dir,[{key,directory},{hook,fun menu_hook/2}]},
-		    {button,"Up",fun(_) -> ignore end,[{key,up},{hook,fun up_button/2}]}]},
+		    {button,?__(2,"Up"),fun(_) -> ignore end,[{key,up},{hook,fun up_button/2}]}]},
 	   panel,
 	   FileList,
 	   panel,
 	   {hframe,
 	    [{vframe,
-	      [{label,"File name"},
-	       {label,"File format"}]},
+	      [{label,?__(3,"File name")},
+	       {label,?__(4,"File format")}]},
 	     {vframe,
 	      [{text,Filename,[{key,filename},{hook,fun filename_hook/2}]},
 	       {menu,Types,DefType,[{key,filetype},{hook,fun menu_hook/2}]}]},
@@ -99,7 +101,7 @@ dialog_1(DlgType, Types, Title, Cont, Ps) ->
 		       fun(Res) ->
 			       ok_action(Cont, Res)
 		       end,[ok,{hook,OkHook}]},
-		      {button,"Cancel",cancel,[cancel]}]}]}]},
+		      {button,?__(5,"Cancel"),cancel,[cancel]}]}]}]},
     Ask = fun(Res0) ->
 		  %% This callback is mainly used for restarting the dialog.
 		  case proplists:get_value(filename, Res0) of
@@ -108,14 +110,14 @@ dialog_1(DlgType, Types, Title, Cont, Ps) ->
 			  %% file should be overwritten.
 			  Res = [{filename,NewFilename}|Res0],
 			  YesNoQs = {vframe,
-				     [{label,NewFilename ++ " exists; overwrite?",
+				     [{label,NewFilename ++ ?__(6," exists; overwrite?"),
 				       [{break,45}]},
 				      {hframe,
-				       [{button,"Yes",
+				       [{button,?__(7,"Yes"),
 					 fun(_) ->
 						 ok_action(Cont, Res)
 					 end},
-					{button,"No",done,[cancel]}]}]},
+					{button,?__(8,"No"),done,[cancel]}]}]},
 			  {dialog,YesNoQs,
 			   fun(_) ->
 				   %% Will be called if the answer is No.
@@ -188,7 +190,7 @@ check_filename(Store, DlgType) ->
 	open ->
 	    case filelib:is_file(Name) of
 		false ->
-		    wings_u:message(Name0 ++ " does not exist"),
+		    wings_u:message(Name0 ++ ?__(1," does not exist")),
 		    done;
 		true ->
 		    {store,gb_trees:update(filename, Name1, Store)}
@@ -230,11 +232,11 @@ file_filters(Prop) ->
     Exts = case proplists:get_value(extensions, Prop, none) of
 	       none ->
 		   Ext = proplists:get_value(ext, Prop, ".wings"),
-		   ExtDesc = proplists:get_value(ext_desc, Prop,  "Wings File"),
+		   ExtDesc = proplists:get_value(ext_desc, Prop,  ?__(1,"Wings File")),
 		   [{Ext,ExtDesc}];
 	       Other -> Other
 	   end,
-    [file_filter(Es) || Es <- Exts] ++ [{"All Files (*)",''}].
+    [file_filter(Es) || Es <- Exts] ++ [{?__(2,"All Files (*)"),''}].
 
 file_filter({"."++Ext0,Desc0}) ->
     Ext = list_to_atom(Ext0),
@@ -246,7 +248,7 @@ file_list(Dir, Wc) ->
     {Folders,Files} = file_list_filter(Files0, Dir, Wc),
     All0 = sort(Folders) ++ sort(Files),
     All = [{F} || F <- All0],
-    {table,[{"Filename"}|All],[{key,file_list},{hook,fun choose_file/2}]}.
+    {table,[{?__(1,"Filename")}|All],[{key,file_list},{hook,fun choose_file/2}]}.
 
 file_list_filter(Files0, Dir, Wc) ->
     {Folders,Files} = file_list_folders(Files0, Dir, [], []),

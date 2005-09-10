@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.19 2005/04/08 08:17:57 dgud Exp $
+#     $Id: Makefile,v 1.20 2005/09/10 08:02:01 bjorng Exp $
 #
 include vsn.mk
 
@@ -35,6 +35,7 @@ clean:
 
 lang:
 	(cd src; $(MAKE) lang)
+	(cd plugins_src; $(MAKE) lang)
 
 #
 # Build installer for Windows.

@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_lang.erl,v 1.18 2005/06/29 21:56:28 dgud Exp $
+%%     $Id: wings_lang.erl,v 1.19 2005/09/10 08:02:02 bjorng Exp $
 %%
 %%  Totally rewritten but Riccardo is still the one who did the hard work.
 %%
@@ -21,7 +21,7 @@
 	 available_languages/0,load_language/1]).
 
 %% Translation support tools.
--export([generate_template/1,diff/1,diff/2]).
+-export([generate_template/1,generate_template_file/1,diff/1,diff/2]).
 
 %% Parse transform ASPI (called by compiler).
 -export([parse_transform/2,format_error/1]).
@@ -30,7 +30,7 @@
 
 -define(DEF_LANG_STR, "en").			% English
 -define(DEF_LANG_ATOM, en).			% English
--define(LANG_DIRS, ["ebin","src","plugins"]).
+-define(LANG_DIRS, ["ebin","src","plugins","plugins_src"]).
 
 str({_,_,_}=Key, DefStr) ->
     case get(?MODULE) of
@@ -259,6 +259,14 @@ generate_template([Dir]) ->
 	after
 	    file:close(Out)
 	end.
+
+generate_template_file([Dir, File]) ->
+	OutFile = filename:join(Dir, File ++ "_en.lang"),
+	io:format("Writing: ~p\n", [filename:absname(OutFile)]),
+	{ok,Out} = file:open(OutFile, [write]),
+	io:put_chars(Out, "%% -*- mode:erlang; erlang-indent-level: 2 -*-\n"),
+	scan_file(filename:join(Dir, File ++ ".beam"), Out),
+	file:close(Out).
 
 scan_file(Filename, Out) ->
     case beam_lib:chunks(Filename, [abstract_code]) of

@@ -8,13 +8,14 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.11 2005/04/08 08:18:28 dgud Exp $
+#     $Id: Makefile,v 1.12 2005/09/10 08:02:02 bjorng Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
 	.fig .dvi .tex .class .java .pdf .psframe .pscrop
 
 ESRC=.
+WINGS_LANG=../ebin
 EBIN=../plugins/default
 ERLC=erlc
 
@@ -34,7 +35,7 @@ TARGET_FILES= $(MODULES:%=$(EBIN)/%.beam)
 # FLAGS
 # ----------------------------------------------------
 ERL_FLAGS += 
-ERL_COMPILE_FLAGS += -W $(TYPE_FLAGS) +warn_unused_vars +debug_info
+ERL_COMPILE_FLAGS += -W $(TYPE_FLAGS) +warn_unused_vars +debug_info -pa ../ebin
 
 # ----------------------------------------------------
 # Targets
@@ -45,6 +46,23 @@ opt debug:
 
 common: $(TARGET_FILES) subdirs
 
+template: opt
+	@for FILE in $(MODULES); do \
+		erl -pa $(WINGS_LANG) -noinput -run wings_lang generate_template_file $(EBIN) $$FILE -run erlang halt ; \
+	done
+
+lang: template
+	@cp *.lang $(EBIN)
+	@for FILE in $(MODULES); do \
+		for LANG_FILE in $(EBIN)/$$FILE\_*.lang; do \
+			case $$LANG_FILE  in \
+				$(EBIN)/$$FILE\_en.lang) ;; \
+				*) echo "Processing: $$LANG_FILE"; \
+	erl -pa $(WINGS_LANG) -noinput -eval "wings_lang:diff(\"$$LANG_FILE\")" -run erlang halt >> $$LANG_FILE ;; \
+			esac \
+		done;\
+	done
+		
 subdirs:
 	(cd accel; $(MAKE))
 	(cd import_export; $(MAKE))

@@ -1,0 +1,40 @@
+%% -*- mode:erlang; erlang-indent-level: 2 -*-
+{wp9_dialogs,
+ [
+  {check_filename,
+   [
+    {1," nie istnieje"}
+   ]},
+  {dialog_1,
+   [
+    {1,"Rozpocznij w"},
+    {2,"W górę"},
+    {3,"Nazwa pliku"},
+    {4,"Typ pliku"},
+    {5,"Anuluj"},
+    {6," istnieje, nadpisać?"},
+    {7,"Tak"},
+    {8,"Nie"}
+   ]},
+  {file_filters,
+   [
+    {1,"Pliki Wings"},
+    {2,"Wszystkie pliki (*)"}
+   ]},
+  {file_list,
+   [
+    {1,"Nazwa pliku"}
+   ]},
+  {image_formats,
+   [
+    {1,"Plik BMP"},
+    {2,"Plik Tiff"},
+    {3,"Plik PNG"},
+    {4,"Plik Targa"}
+   ]},
+  {ui,
+   [
+    {1,"Otwórz"},
+    {2,"Zapisz"}
+   ]}
+ ]}.
