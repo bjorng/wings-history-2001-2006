@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.194 2005/09/12 05:39:45 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.195 2005/09/12 18:37:57 dgud Exp $
 %%
 
 -module(wings_drag).
@@ -376,6 +376,18 @@ handle_drag_event(#mousebutton{button=3,state=?SDL_RELEASED,mod=Mod}=Ev,
 handle_drag_event(Event, Drag = #drag{st=St}) ->
     case wings_camera:event(Event, St, fun() -> redraw(Drag) end) of
 	next -> handle_drag_event_0(Event, Drag);
+	keep -> 
+	    %% Clear any potential marker for an edge about to be
+	    %% cut (Cut RMB).
+	    wings_dl:map(fun(#dlo{hilite=none}=D, _) -> D;
+			    (D, _) -> D#dlo{hilite=none}
+			 end, []),
+	    %% Recalc unit_scales since zoom can have changed.
+	    #drag{xs=Xs0,ys=Ys0,zs=Zs0,unit=Unit,unit_sc=[US0|_]} = Drag,
+	    US = [US1|_] = unit_scales(Unit),
+	    Adjust = US0/US1,	    
+	    get_drag_event(Drag#drag{xs=Xs0*Adjust,ys=Ys0*Adjust,zs=Zs0*Adjust,
+				     unit_sc=US});
 	Other ->
 	    %% Clear any potential marker for an edge about to be
 	    %% cut (Cut RMB).
@@ -570,7 +582,7 @@ motion(Event, Drag0) ->
 mouse_translate(Event0, Drag0) ->
     Mode = wings_pref:get_value(camera_mode),
     {Event,Mod} = mouse_pre_translate(Mode, Event0),
-    {Ds0,Drag} = mouse_range(Event, Drag0),
+    {Ds0,Drag} = mouse_range(Event, Drag0, Mod),
     Ds = add_offset(Ds0, Drag),
     Move = constrain(Ds, Mod, Drag),
     {Move,Drag}.
@@ -594,7 +606,8 @@ mouse_pre_translate(_, #mousemotion{state=Mask,mod=Mod}=Ev) ->
 mouse_range(#mousemotion{x=X0,y=Y0,state=Mask},
 	    #drag{x=OX,y=OY,xs=Xs0,ys=Ys0,zs=Zs0,
 		  xt=Xt0,yt=Yt0,mmb_count=Count0,
-		  unit_sc=UnitScales}=Drag) ->
+		  unit_sc=UnitScales,unit=Unit}=Drag,
+	    Mod) ->
     %%io:format("Mouse Range ~p ~p~n", [{X0,Y0}, {OX,OY,Xs0,Ys0}]),
     {X,Y} = wings_wm:local2global(X0, Y0),
     case wings_pref:lowpass(X- OX, Y-OY) of
@@ -602,8 +615,9 @@ mouse_range(#mousemotion{x=X0,y=Y0,state=Mask},
 	    {mouse_scale([Xs0,-Ys0,-Zs0], UnitScales),
 	     Drag#drag{xt=0,yt=0}};
 	{XD0,YD0} ->
-	    XD = XD0 + Xt0,
-	    YD = YD0 + Yt0,
+	    CS = constraints_scale(Unit,Mod,UnitScales),
+	    XD = CS*(XD0 + Xt0),
+	    YD = CS*(YD0 + Yt0),
 	    if
 		Mask band ?SDL_BUTTON_MMASK =/= 0 ->
 		    Xs = Xs0,
@@ -628,6 +642,12 @@ mouse_scale([D|Ds], [S|Ss]) ->
     [D*S|mouse_scale(Ds, Ss)];
 mouse_scale(Ds, _) -> Ds.
 
+constraints_scale([U0|_],Mod,[UnitScales|_]) ->
+    case constraint_factor(clean_unit(U0),Mod) of
+	none -> 1.0;
+	{_,What} -> What*0.05/UnitScales
+    end.
+
 constrain(Ds0, Mod, #drag{unit=Unit}=Drag) ->
     Ds = constrain_0(Unit, Ds0, Mod, []),
     constrain_1(Unit, Ds, Drag).
@@ -636,7 +656,8 @@ constrain_0([U0|Us], [D0|Ds], Mod, Acc) ->
     U = clean_unit(U0),
     D = case constraint_factor(U, Mod) of
 	    none -> D0;
-	    {F1,F2} -> trunc(D0*F1)*F2
+	    {F1,F2} -> 
+		round(D0*F1)*F2
 	end,
     constrain_0(Us, Ds, Mod, [D|Acc]);
 constrain_0([_|_], [], _, Acc) -> reverse(Acc);
@@ -655,10 +676,11 @@ clamp(_, D) -> D.
 constraint_factor(angle, Mod) ->
     if
 	Mod band ?SHIFT_BITS =/= 0,
-	Mod band ?CTRL_BITS =/= 0 -> {150,1/15};
-	Mod band ?CTRL_BITS =/= 0 -> {15,1.0};
-	Mod band ?SHIFT_BITS =/= 0 -> {1,15.0};
-	true -> {15.0E5,1.0E-5}
+	Mod band ?CTRL_BITS =/= 0 -> {15,1/15};%{150,1/15};
+	Mod band ?CTRL_BITS =/= 0 -> {1,1.0};%{15,1.0};
+	Mod band ?SHIFT_BITS =/= 0 ->{1/15,15.0};%{1,15.0};
+	%%true -> {1.0E5,1.0E-5}
+	true -> none
     end;
 constraint_factor(_, Mod) ->
     if
