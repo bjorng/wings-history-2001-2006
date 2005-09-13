@@ -8,13 +8,14 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.16 2005/08/24 19:16:28 trepan Exp $
+#     $Id: Makefile,v 1.17 2005/09/13 09:15:58 giniu Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
 	.fig .dvi .tex .class .java .pdf .psframe .pscrop
 
 ESRC=.
+WINGS_INTL=../../intl_tools
 EBIN=../../plugins/commands
 ERLC=erlc
 WINGS_SRC=../../src
@@ -44,7 +45,7 @@ TARGET_FILES= $(MODULES:%=$(EBIN)/%.beam)
 # ----------------------------------------------------
 # FLAGS
 # ----------------------------------------------------
-ERL_FLAGS += -pa $(WINGS_EBIN) -I $(WINGS_SRC) -I $(WINGS_E3D) -pa $(ESDL_PATH)/ebin
+ERL_FLAGS += -pa $(WINGS_EBIN) -pa $(WINGS_INTL) -I $(WINGS_SRC) -I $(WINGS_E3D) -pa $(ESDL_PATH)/ebin
 ERL_COMPILE_FLAGS += -W $(TYPE_FLAGS) +warn_unused_vars +debug_info
 
 # ----------------------------------------------------

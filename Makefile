@@ -8,11 +8,12 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.20 2005/09/10 08:02:01 bjorng Exp $
+#     $Id: Makefile,v 1.21 2005/09/13 09:15:58 giniu Exp $
 #
 include vsn.mk
 
 all:
+	(cd intl_tools; $(MAKE))
 	(cd src; $(MAKE))
 	(cd fonts_src; $(MAKE))
 	(cd e3d; $(MAKE))
@@ -20,6 +21,7 @@ all:
 	(cd icons; $(MAKE))
 
 debug:
+	(cd intl_tools; $(MAKE) debug)
 	(cd src; $(MAKE) debug)
 	(cd fonts_src; $(MAKE) debug)
 	(cd e3d; $(MAKE) debug)
@@ -27,6 +29,7 @@ debug:
 	(cd icons; $(MAKE) debug)
 
 clean:
+	(cd intl_tools; $(MAKE) clean)
 	(cd src; $(MAKE) clean)
 	(cd fonts_src; $(MAKE) clean)
 	(cd e3d; $(MAKE) clean)
@@ -34,6 +37,7 @@ clean:
 	(cd icons; $(MAKE) clean)
 
 lang:
+	(cd intl_tools; $(MAKE))
 	(cd src; $(MAKE) lang)
 	(cd plugins_src; $(MAKE) lang)
 

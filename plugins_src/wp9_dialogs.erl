@@ -8,14 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp9_dialogs.erl,v 1.44 2005/09/10 08:02:02 bjorng Exp $
+%%     $Id: wp9_dialogs.erl,v 1.45 2005/09/13 09:15:58 giniu Exp $
 %%
 
 -module(wp9_dialogs).
 -export([init/1]).
 -import(lists, [reverse/1,reverse/2,sort/1]).
 
--include("../src/wings.hrl").
+-include("../intl_tools/wings_intl.hrl").
 
 init(Next) ->
     fun(What) -> ui(What, Next) end.

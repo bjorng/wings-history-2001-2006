@@ -1,53 +1,40 @@
 #
 #  Makefile --
 #
-#     Makefile for building the plug-ins.
+#     Makefile for building Wings 3D.
 #
-#  Copyright (c) 2001-2004 Bjorn Gustavsson
+#  Copyright (c) 2001-2005 Bjorn Gustavsson
 #
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.21 2005/09/13 09:15:58 giniu Exp $
+#     $Id: Makefile,v 1.1 2005/09/13 09:15:58 giniu Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
 	.fig .dvi .tex .class .java .pdf .psframe .pscrop
 
+include ../vsn.mk
+
 ESRC=.
-WINGS_INTL=../../intl_tools
-EBIN=../../plugins/import_export
+EBIN=.
 ERLC=erlc
-WINGS_SRC=../../src
-WINGS_EBIN=../../ebin
-WINGS_E3D=../../e3d
-ESDL=$(ESDL_PATH)
 
 ifeq ($(TYPE),debug)
-TYPE_FLAGS=-DDEBUG
+TYPE_FLAGS=-DDEBUG +debug_info
 else
-TYPE_FLAGS=
+TYPE_FLAGS=+debug_info
 endif
 
-MODULES= \
-	wpc_ai \
-	wpc_3ds \
-	wpc_obj \
-	wpc_opengl \
-	wpc_opengl_sl \
-	wpc_rwx \
-	wpc_wrl \
-	wpc_hlines \
-	wpc_toxic \
-	wpc_yafray
+MODULES= tools
 
 TARGET_FILES= $(MODULES:%=$(EBIN)/%.beam)
 
 # ----------------------------------------------------
 # FLAGS
 # ----------------------------------------------------
-ERL_FLAGS += -pa $(WINGS_EBIN) -pa $(WINGS_INTL) -I $(WINGS_SRC) -I $(WINGS_E3D) -I $(ESDL_PATH)/include
-ERL_COMPILE_FLAGS += -W $(TYPE_FLAGS) -pa $(ESDL_PATH)/ebin +warn_unused_vars +debug_info
+ERL_FLAGS += 
+ERL_COMPILE_FLAGS += -W $(TYPE_FLAGS) +warn_unused_vars +debug_info
 
 # ----------------------------------------------------
 # Targets
