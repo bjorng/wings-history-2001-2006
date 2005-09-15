@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.195 2005/09/12 18:37:57 dgud Exp $
+%%     $Id: wings_drag.erl,v 1.196 2005/09/15 05:23:06 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -645,7 +645,7 @@ mouse_scale(Ds, _) -> Ds.
 constraints_scale([U0|_],Mod,[UnitScales|_]) ->
     case constraint_factor(clean_unit(U0),Mod) of
 	none -> 1.0;
-	{_,What} -> What*0.05/UnitScales
+	{_,What} -> What*0.01/UnitScales
     end.
 
 constrain(Ds0, Mod, #drag{unit=Unit}=Drag) ->
