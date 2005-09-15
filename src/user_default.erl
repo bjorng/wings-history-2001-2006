@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: user_default.erl,v 1.25 2004/12/18 10:24:06 bjorng Exp $
+%%     $Id: user_default.erl,v 1.26 2005/09/15 05:28:13 bjorng Exp $
 %% 
 
 -module(user_default).
@@ -173,7 +173,7 @@ wldiff(Lang) when is_atom(Lang) ->
 
 wldiff_1([F|Fs]) ->
     io:format("Diffing ~p (with English)\n", [F]),
-    wings_lang:diff(F),
+    tools:diff(F),
     wldiff_1(Fs);
 wldiff_1([]) -> ok.
 
