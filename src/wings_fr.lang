@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_fr.lang,v 1.11 2005/06/26 08:25:44 bjorng Exp $
+%%     $Id: wings_fr.lang,v 1.12 2005/09/15 05:27:44 bjorng Exp $
 %%
 
 {wings,
@@ -1433,12 +1433,12 @@
     {23,"Agrandir une arete selectionnee en direction d'un anneau d'aretes"},
     {24,"Retrecir l'anneau d'aretes"},
     {25,"Retrecir une arete selectionnee en direction d'un anneau d'aretes"},
-    {26,"Adjacent"},
+    {26,"Adjacent/ par proximite"},
     {27,"Points"},
     {28,"Aretes"},
     {29,"Facettes"},
     {30,"Objets"},
-    {31,"A cote"},
+    {31,"Par categorie"},
     {32,"Aretes dures"},
     {33,"Selectionne toutes les aretes dures"},
     {34,"Points isoles"},
@@ -1919,3 +1919,146 @@
    [{1,"lecture fichier"}]},
   {import_scale_s,
    [{1,"Importer echelle"}]}]}.
+
+%%
+%% The following strings have no translation.
+%%
+
+{wings,
+ [
+  {object_mode,
+   [
+    {material,"materiel"},
+    {vertex,"couleur de point"}
+   ]},
+  {measure,
+   [
+    {6,". Angle ~s"},
+    {5,". Distance ~s  <~s, ~s, ~s>"}
+   ]}
+ ]}.
+{wings_body,
+ [
+  {menu,
+   [
+    {32,"Choisir toutes les facettes pour cet objet"},
+    {31,"Tout choisir"}
+   ]}
+ ]}.
+{wings_edge_cmd,
+ [
+  {cut_ask_entry,
+   [
+    {1,"coupe dans <N> segments"},
+    {2,"entrer un nombre..."}
+   ]},
+  {command,
+   [
+    {1,"Segments"}
+   ]}
+ ]}.
+{wings_extrude_edge,
+ [
+  {extrude_problem,
+   [
+    {1,"Impossible de chanfreiner ou d'extruder; deux ou plusieurs sont probablement trop proche les uns des autres.\nessayez la commande de nettoyage."}
+   ]}
+ ]}.
+{wings_face_cmd,
+ [
+  {menu,
+   [
+    {33,"Cacher les facettes selectionnees"},
+    {32,"Cacher"}
+   ]}
+ ]}.
+{wings_file,
+ [
+  {recent_files,
+   [
+    {1,"Ouvrir ce fichier recent"}
+   ]},
+  {menu,
+   [
+    {28,"quitter wings3d"},
+    {27,"Installer un plug-in"},
+    {26,"Generer un nouveau nom de dossier et sauvegarder"}
+   ]}
+ ]}.
+{wings_magnet,
+ [
+  {magnet_shape_str,
+   [
+    {bell,"Cloche"},
+    {dome,"Dome"},
+    {spike,"Pointe"},
+    {straight,"Raide"}
+   ]}
+ ]}.
+{wings_pref_dlg,
+ [
+  {viewer_prefs,
+   [
+    {1,"Visionneuse"},
+    {2,"Options"},
+    {3,"..nom de fichier.."}
+   ]},
+  {ui_prefs,
+   [
+    {25,"Voir l'image apres le rendu"},
+    {24,"Objets dans le profil de scene"}
+   ]},
+  {misc_prefs,
+   [
+    {23,"Excentrage d'arretes:"},
+    {22,"Problemes d'arretes a l'ecran?"}
+   ]},
+  {advanced_prefs,
+   [
+    {22,"probleme dans l'utilisation du miroir virtuel pour les selections secondaires"},
+    {21,"Utiliser Miroir pour les selections"}
+   ]}
+ ]}.
+{wings_sel_cmd,
+ [
+  {oriented_faces_menu,
+   [
+    {1,"Normales identiques"},
+    {2,"Selectionner les facettes identiques ˆ celles qui sont deja selectionnees"}
+   ]},
+  {oriented_faces,
+   [
+    {1,"La tolerance de l'angle"},
+    {2,"Selectionne les facettes oriente de facon similaires"}
+   ]},
+  {nonplanar_faces,
+   [
+    {1,"Tolerance de distance"},
+    {2,"Choisir les facettes non-planaires"}
+   ]},
+  {menu,
+   [
+    {86,"Selectionner les facettes non-planaires"},
+    {85,"Facettes non-planaires"}
+   ]},
+  {group_mode_string,
+   [
+    {body,"Selection par group d'objets"},
+    {edge,"Selection par groupe d'aretes"},
+    {face,"Selection par groupe de facettes"},
+    {vertex,"Selection par groupe de points"}
+   ]}
+ ]}.
+{wpa,
+ [
+  {dialog_template,
+   [
+    {uv,"Exporter les coordonnees uv"},
+    {tess4,"Quadrangulation"},
+    {tess3,"Triangulation"},
+    {tess0,"Sans"},
+    {tess,"Mosaique"},
+    {norms,"Exporter les normales/en lissant les groupes"},
+    {color,"Exporter la couleur des points"}
+   ]}
+ ]}.
