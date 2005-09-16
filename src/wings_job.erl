@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_job.erl,v 1.4 2005/09/06 22:51:47 raimo_niskanen Exp $
+%%     $Id: wings_job.erl,v 1.5 2005/09/16 18:59:41 raimo_niskanen Exp $
 %%
 
 -module(wings_job).
@@ -40,10 +40,14 @@ browse_props() ->
 render_formats() ->
     [{tga,".tga","Targa bitmap"},
      {bmp,".bmp","Bitmap"},
+     {png,".png","Portable Network Graphics"},
      {jpg,".jpg","JPeg compressed bitmap"},
      {hdr,".hdr","High Dynamic Range image"},
      {exr,".exr","OpenEXR"}].
-    
+%% Formats that internal image loader can handle
+%%
+-define(INTERNAL_VIEWER_FORMATS, [tga,bmp,png,jpg]).
+
 %%
 %%
 init() ->
@@ -72,17 +76,17 @@ render_done({Format,Filename}, _St) ->
     LoadImage = 
 	wings_pref:get_value(render_load_image),
     Viewer = wings_pref:get_value({viewer,Format}, ""),
-    case {LoadImage,Viewer} of
-	{true,""} when Format == tga; Format == bmp; Format == jpg ->
+    case {LoadImage,Viewer,lists:member(Format, ?INTERNAL_VIEWER_FORMATS)} of
+	{true,"",true} ->
 	    io:format("Loading rendered image~n~n"),
 	    load_image(Filename);
-	{true,""} ->
+	{true,"",_} ->
 	    io:format("Viewing error: no viewer configured~n~n"),
 	    wpa:error("Viewing error");
-	{true,_} ->
+	{true,_,_} ->
 	    io:format("Viewing rendered image~n~n"),
 	    view_image(Filename, Format, Viewer);
-	{false,_} ->
+	{false,_,_} ->
 	    keep
     end.
 
