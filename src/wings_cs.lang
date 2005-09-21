@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_cs.lang,v 1.8 2005/06/30 05:36:29 bjorng Exp $
+%%     $Id: wings_cs.lang,v 1.9 2005/09/21 06:04:18 bjorng Exp $
 %%
 {wings,
  [
@@ -2703,5 +2703,25 @@
    [
     {86,"Výběr všech neplanárních ploch"},
     {85,"Neplanární plochy"}
+   ]}
+ ]}.
+
+
+{wings_pref_dlg,
+ [
+  {viewer_prefs,
+   [
+    {1,"Prohlížeč"},
+    {2,"Nastavení"},
+    {3,"..jméno souboru.."}
+   ]},
+  {ui_prefs,
+   [
+    {25,"Zobrazit obrázek po vykreslení"}
+   ]},
+  {misc_prefs,
+   [
+    {23,"Vyrovnání hran:"},
+    {22,"Zobrazit problémy s hranami?"}
    ]}
  ]}.
