@@ -8,10 +8,11 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.12 2005/04/06 17:52:35 bjorng Exp $
+#     $Id: Makefile,v 1.13 2005/09/21 18:55:53 bjorng Exp $
 #
 LIBDIR = ../../plugins/mac_file
 WINGS_EBIN = ../../ebin
+WINGS_INTL=../../intl_tools
 
 ERL_DIR := $(shell echo 'io:format("~s~n",[code:root_dir()]),halt().' | erl | sed 's,^[0-9]*> *,,g' | tail +2)
 
@@ -20,7 +21,7 @@ BEAM = $(LIBDIR)/wp8_mac_file.beam \
        $(LIBDIR)/wpc_mac_misc.beam
 
 ERLC = erlc
-ERLC_FLAGS = -W +debug_info -o $(LIBDIR) -I ../../e3d -I ../../src -I $(ESDL_PATH)/include -pa $(ESDL_PATH) -pa $(WINGS_EBIN)
+ERLC_FLAGS = -W +debug_info -o $(LIBDIR) -I ../../e3d -I ../../src -I $(ESDL_PATH)/include -pa $(ESDL_PATH) -pa $(WINGS_EBIN) -pa $(WINGS_INTL) 
 
 DRV = $(LIBDIR)/mac_wings_file_drv.so $(LIBDIR)/mac_wings_image_drv.so
 
