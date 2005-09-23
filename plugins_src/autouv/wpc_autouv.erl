@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.314 2005/06/04 08:11:22 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.315 2005/09/23 19:37:58 giniu Exp $
 %%
 
 -module(wpc_autouv).
@@ -53,24 +53,24 @@ menu({face}, Menu) ->
     end;
 menu({window}, Menu) ->
     Menu ++ [separator,
-	     {"UV Editor Window",uv_editor_window,
-	      "Open a UV Editor window for each selected object"}];
+	     {?__(1,"UV Editor Window"),uv_editor_window,
+	      ?__(2,"Open a UV Editor window for each selected object")}];
 menu(_Dbg, Menu) ->
     Menu.
 
 auv_menu() ->
-    {"UV Mapping", {?MODULE, fun auv_menu/2}}.
+    {?__(1,"UV Mapping"), {?MODULE, fun auv_menu/2}}.
 auv_menu(help,_) ->
-    {"Generate UV mapping or texture",
+    {?__(2,"Generate UV mapping or texture"),
      "",
-     "Force to segmenting mode"};
+     ?__(3,"Force to segmenting mode")};
 auv_menu(1,_What) -> 
     case wings_pref:get_value(advanced_menus) of
 	false -> 
-	    [{"Direct", segment,
-	      "Open UV-window directly if selection already contains uv-coords"},
-	     {"Force Segment", force_seg,
-	      "Delete old UV-coords and start over with segmenting"}];
+	    [{?__(4,"Direct"), segment,
+	      ?__(5,"Open UV-window directly if selection already contains uv-coords")},
+	     {?__(6,"Force Segment"), force_seg,
+	      ?__(7,"Delete old UV-coords and start over with segmenting")}];
 	true -> 
 	    {?MODULE, segment}
     end;
@@ -88,7 +88,7 @@ command({window,uv_editor_window}, St) ->
 command(_Cmd, _) -> 
     next.
 
-start_uvmap(edit, #st{sel=[]}) -> wings_u:error("Nothing selected");
+start_uvmap(edit, #st{sel=[]}) -> wings_u:error(?__(1,"Nothing selected"));
 start_uvmap(Action, #st{sel=Sel}=St) ->
     start_uvmap_1(Sel, Action, St).
 
@@ -137,7 +137,7 @@ segment_or_edit(force_seg,_Id,_) ->
 create_window(Action, Name, Id, #st{shapes=Shs}=St) ->
     #we{name=ObjName} = We = gb_trees:get(Id, Shs),
     Op = {replace,fun(Ev) -> auv_event(Ev, St) end},
-    Segment = if element(1,Action) == edit -> ""; true -> "Segmenting" end,
+    Segment = if element(1,Action) == edit -> ""; true -> ?__(1,"Segmenting") end,
     Title = "AutoUV "++ Segment ++": " ++ ObjName,
     {X,Y,W,H} = init_drawarea(),
     Props = [{display_lists,Name}|wings_view:initial_properties()],
@@ -259,18 +259,18 @@ create_uv_state(Charts, MatName, Fs, We, GeomSt) ->
     St.
 
 menubar() ->
-    [{"Edit",edit,
+    [{?__(1,"Edit"),edit,
       fun(_) ->
-	      [{"Undo/Redo",undo_toggle,"Undo or redo the last command"},
-	       {"Redo",redo,"Redo the last command that was undone"},
-	       {"Undo",undo,"Undo the last command"}]
+	      [{?__(2,"Undo/Redo"),undo_toggle,?__(3,"Undo or redo the last command")},
+	       {?__(4,"Redo"),redo,?__(5,"Redo the last command that was undone")},
+	       {?__(6,"Undo"),undo,?__(7,"Undo the last command")}]
       end},
-     {"View",view,
+     {?__(8,"View"),view,
       fun(_) ->
-	      [{"Show/Hide Background Image",toggle_background,
-		"Toggle display of the background texture image"}]
+	      [{?__(9,"Show/Hide Background Image"),toggle_background,
+		?__(10,"Toggle display of the background texture image")}]
       end},
-     {"Select",select,
+     {?__(11,"Select"),select,
       fun(St) ->
 	      Menu0 = wings_sel_cmd:menu(St),
 	      Menu = [I || I <- Menu0,
@@ -399,97 +399,97 @@ add_material(Im = #e3d_image{}, _, MatName,St) ->
 %%%% Menus.
 
 command_menu(body, X, Y) ->
-    Menu = [{basic,{"Chart operations",ignore}},
+    Menu = [{basic,{?__(1,"Chart operations"),ignore}},
 	    {basic,separator},
-	    {"Move", move, "Move selected charts"},
-	    {"Scale", {scale, scale_directions()++ stretch_directions()}, 
-	     "Scale selected charts"},
-	    {"Rotate", rotate, "Rotate selected charts"},
+	    {?__(2,"Move"), move, ?__(3,"Move selected charts")},
+	    {?__(4,"Scale"), {scale, scale_directions()++ stretch_directions()}, 
+	     ?__(5,"Scale selected charts")},
+	    {?__(6,"Rotate"), rotate, ?__(7,"Rotate selected charts")},
 	    separator,
-	    {"Move to", 
+	    {?__(8,"Move to"), 
 	     {move_to, 
-	      [{"Center", center, "Move to Center"},
-	       {"Center X", center_x, "Move to horizontal center"},
-	       {"Center Y", center_y, "Move to vertical center"},
-	       {"Bottom", bottom, "Move to bottom border"},
-	       {"Top", top, "Move to top border"},
-	       {"Left", left, "Move to left border"},
-	       {"Right", right, "Move to right border"}
-	      ]}, "Move charts to position"},
-	    {"Flip",{flip,
-		     [{"Horizontal",horizontal,"Flip selection horizontally"},
-		      {"Vertical",vertical,"Flip selection vertically"}]},
-	     "Flip selected charts"},
+	      [{?__(9,"Center"), center, ?__(10,"Move to Center")},
+	       {?__(11,"Center X"), center_x, ?__(12,"Move to horizontal center")},
+	       {?__(13,"Center Y"), center_y, ?__(14,"Move to vertical center")},
+	       {?__(15,"Bottom"), bottom, ?__(16,"Move to bottom border")},
+	       {?__(17,"Top"), top, ?__(18,"Move to top border")},
+	       {?__(19,"Left"), left, ?__(20,"Move to left border")},
+	       {?__(21,"Right"), right, ?__(22,"Move to right border")}
+	      ]}, ?__(23,"Move charts to position")},
+	    {?__(24,"Flip"),{flip,
+		     [{?__(25,"Horizontal"),horizontal,?__(26,"Flip selection horizontally")},
+		      {?__(27,"Vertical"),vertical,?__(28,"Flip selection vertically")}]},
+	     ?__(29,"Flip selected charts")},
 	    separator,
-	    {"Tighten",tighten,
-	     "Move UV coordinates towards average midpoint"},
+	    {?__(30,"Tighten"),tighten,
+	     ?__(31,"Move UV coordinates towards average midpoint")},
 	    separator,
-	    {"Hide",hide,"Hide selected charts but keep UV-coordinates"},
-	    {"Delete",delete,"Remove UV-coordinates for the selected charts"},
+	    {?__(32,"Hide"),hide,?__(33,"Hide selected charts but keep UV-coordinates")},
+	    {?__(34,"Delete"),delete,?__(35,"Remove UV-coordinates for the selected charts")},
 	    separator,
-	    {"ReMap UV", {remap, [{"Stretch optimization", stretch_opt, 
-				   "Optimize the chart stretch"},
+	    {?__(36,"ReMap UV"), {remap, [{?__(37,"Stretch optimization"), stretch_opt, 
+				   ?__(38,"Optimize the chart stretch")},
 				  separator,
-				  {"Unfold", lsqcm, "Unfold the chart"},
-				  {"Project Normal", project, 
-				   "Project UVs from chart normal"},
-				  {"Spherical", sphere, 
-				   "Spherical mapping"}
+				  {?__(39,"Unfold"), lsqcm, ?__(40,"Unfold the chart")},
+				  {?__(41,"Project Normal"), project, 
+				   ?__(42,"Project UVs from chart normal")},
+				  {?__(43,"Spherical"), sphere, 
+				   ?__(44,"Spherical mapping")}
 				 ]}, 
-	     "Calculate new UVs with chosen algorithm"}
+	     ?__(45,"Calculate new UVs with chosen algorithm")}
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu);
 command_menu(face, X, Y) ->
     Scale = scale_directions(),
-    Menu = [{basic,{"Face operations",ignore}},
+    Menu = [{basic,{?__(46,"Face operations"),ignore}},
 	    {basic,separator},
-	    {"Move",move,"Move selected faces",[magnet]},
-	    {"Scale",{scale,Scale},"Scale selected faces"},
-	    {"Rotate",rotate,"Rotate selected faces"}
+	    {?__(47,"Move"),move,?__(48,"Move selected faces"),[magnet]},
+	    {?__(49,"Scale"),{scale,Scale},?__(50,"Scale selected faces")},
+	    {?__(51,"Rotate"),rotate,?__(52,"Rotate selected faces")}
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu);
 command_menu(edge, X, Y) ->
     Scale = scale_directions(),
     Align = 	    
-	[{"Free",free,"Rotate selection freely"},
-	 {"Chart to X", align_x, "Rotate chart to align selected edge to X-axis"},
-	 {"Chart to Y", align_y, "Rotate chart to align selected edge to Y-axis"}],
-    Menu = [{basic,{"Edge operations",ignore}},
+	[{?__(53,"Free"),free,?__(54,"Rotate selection freely")},
+	 {?__(55,"Chart to X"), align_x, ?__(56,"Rotate chart to align selected edge to X-axis")},
+	 {?__(57,"Chart to Y"), align_y, ?__(58,"Rotate chart to align selected edge to Y-axis")}],
+    Menu = [{basic,{?__(59,"Edge operations"),ignore}},
 	    {basic,separator},
-	    {"Move",move,"Move selected edges",[magnet]},
-	    {"Scale",{scale,Scale},"Scale selected edges"},
-	    {"Rotate",{rotate,Align},"Rotate commands"},
+	    {?__(60,"Move"),move,?__(61,"Move selected edges"),[magnet]},
+	    {?__(62,"Scale"),{scale,Scale},?__(63,"Scale selected edges")},
+	    {?__(64,"Rotate"),{rotate,Align},?__(65,"Rotate commands")},
 	    separator,
-	    {"Stitch", stitch, "Stitch edges/charts"},
-	    {"Cut", cut_edges, "Cut selected edges"}
+	    {?__(66,"Stitch"), stitch, ?__(67,"Stitch edges/charts")},
+	    {?__(68,"Cut"), cut_edges, ?__(69,"Cut selected edges")}
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu);
 command_menu(vertex, X, Y) ->
     Scale = scale_directions(),
     Align = 	    
-	[{"Free",free,"Rotate selection freely"},
-	 {"Chart to X", align_x, 
-	  "Rotate chart to align (imaginary) edge joining selected verts to X-axis"},
-	 {"Chart to Y", align_y, 
-	  "Rotate chart to align (imaginary) edge joining selected verts to Y-axis"}],
+	[{?__(70,"Free"),free,?__(71,"Rotate selection freely")},
+	 {?__(72,"Chart to X"), align_x, 
+	  ?__(73,"Rotate chart to align (imaginary) edge joining selected verts to X-axis")},
+	 {?__(74,"Chart to Y"), align_y, 
+	  ?__(75,"Rotate chart to align (imaginary) edge joining selected verts to Y-axis")}],
 
-    Menu = [{basic,{"Vertex operations",ignore}},
+    Menu = [{basic,{?__(76,"Vertex operations"),ignore}},
 	    {basic,separator},
-	    {"Move",move,"Move selected vertices",[magnet]},
-	    {"Scale",{scale,Scale},"Scale selected vertices"},
-	    {"Rotate",{rotate,Align},"Rotation commands"},
+	    {?__(77,"Move"),move,?__(78,"Move selected vertices"),[magnet]},
+	    {?__(79,"Scale"),{scale,Scale},?__(80,"Scale selected vertices")},
+	    {?__(81,"Rotate"),{rotate,Align},?__(82,"Rotation commands")},
 	    separator,
-	    {"Flatten",{flatten,
-			[{"X", x, "Flatten horizontally"},
-			 {"Y", y, "Flatten vertically"}]}, 
-	     "Flatten selected vertices"},
-	    {"Tighten",tighten,
-	     "Move UV coordinates towards average midpoint",
+	    {?__(83,"Flatten"),{flatten,
+			[{"X", x, ?__(84,"Flatten horizontally")},
+			 {"Y", y, ?__(85,"Flatten vertically")}]}, 
+	     ?__(86,"Flatten selected vertices")},
+	    {?__(87,"Tighten"),tighten,
+	     ?__(88,"Move UV coordinates towards average midpoint"),
 	     [magnet]},
 	    separator, 
-	    {"Unfold",lsqcm,"Unfold the chart (without moving the selected vertices)"},
-	    {"SphereMap",sphere,"Create a spherical mapping with "
-	     "selected vertices being North/South pole"}
+	    {?__(89,"Unfold"),lsqcm,?__(90,"Unfold the chart (without moving the selected vertices)")},
+	    {?__(91,"SphereMap"),sphere,?__(92,"Create a spherical mapping with "
+	     "selected vertices being North/South pole")}
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu);
 command_menu(_, X, Y) ->
@@ -497,18 +497,18 @@ command_menu(_, X, Y) ->
     wings_menu:popup_menu(X,Y, auv, Menu).
 
 stretch_directions() ->
-    [{"Max Uniform",    max_uniform, "Maximize either horizontally or vertically"},
-     {"Max Horizontal", max_x, "Maximize horizontally (X dir)"},
-     {"Max Vertical",   max_y, "Maximize vertically (Y dir)"}].
+    [{?__(1,"Max Uniform"),    max_uniform, ?__(2,"Maximize either horizontally or vertically")},
+     {?__(3,"Max Horizontal"), max_x, ?__(4,"Maximize horizontally (X dir)")},
+     {?__(5,"Max Vertical"),   max_y, ?__(6,"Maximize vertically (Y dir)")}].
 
 scale_directions() ->
-    [{"Uniform",    scale_uniform, "Scale in both directions"},
-     {"Horizontal", scale_x, "Scale horizontally (X dir)"},
-     {"Vertical",   scale_y, "Scale vertically (Y dir)"}].
+    [{?__(1,"Uniform"),    scale_uniform, ?__(2,"Scale in both directions")},
+     {?__(3,"Horizontal"), scale_x, ?__(4,"Scale horizontally (X dir)")},
+     {?__(5,"Vertical"),   scale_y, ?__(6,"Scale vertically (Y dir)")}].
 
 option_menu() ->
     [separator,
-     {"Create Texture",create_texture,"Make and Attach a texture to the model"}].
+     {?__(1,"Create Texture"),create_texture,?__(2,"Make and Attach a texture to the model")}].
 
 %%% Event handling
 
@@ -708,9 +708,9 @@ handle_event_3({action,Ev}, St) ->
 	    keep
     end;
 handle_event_3(got_focus, _) ->
-    Msg1 = wings_msg:button_format("Select"),
+    Msg1 = wings_msg:button_format(?__(1,"Select")),
     Msg2 = wings_camera:help(),
-    Msg3 = wings_msg:button_format([], [], "Show menu"),
+    Msg3 = wings_msg:button_format([], [], ?__(2,"Show menu")),
     Message = wings_msg:join([Msg1,Msg2,Msg3]),
     wings_wm:message(Message, ""),
     wings_wm:dirty();
@@ -1002,7 +1002,7 @@ stitch_charts([ChartStitches|Other],Moved,St0=#st{shapes=Sh0}) ->
 		 We1 = wings_we:transform_vs(T, We1_1),
 		 gb_trees:update(Id1, We1, Sh0);
 	     _ ->
-		 wings_u:error("Hmm, I can't stitch so many charts at the same time")
+		 wings_u:error(?__(1,"Hmm, I can't stitch so many charts at the same time"))
 	 end,
     St = foldl(fun stitch_charts2/2, St0#st{shapes=Sh}, ChartStitches),
     stitch_charts(Other, gb_sets:add(Id2,gb_sets:add(Id1,Moved)), St).
@@ -1193,7 +1193,7 @@ map_edges(WingsEs,#st{shapes=Sh}) ->
 	      
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 drag_filter({image,_,_}) ->
-    {yes,"Drop: Change the texture image"};
+    {yes,?__(1,"Drop: Change the texture image")};
 drag_filter(_) -> no.
 
 handle_drop({image,_,#e3d_image{width=W,height=H}=Im}, #st{bb=Uvs0}=St) ->
@@ -1203,9 +1203,9 @@ handle_drop({image,_,#e3d_image{width=W,height=H}=Im}, #st{bb=Uvs0}=St) ->
 	    #uvstate{st=GeomSt0,matname=MatName0} = Uvs0,
 	    case MatName0 of 
 		none -> 
-		    wings_u:error("Your are editing the uv-coords of several\n"
+		    wings_u:error(?__(1,"Your are editing the uv-coords of several\n"
 				  "materials, quit the uv-window set all faces\n"
-				  "to the same material");
+				  "to the same material"));
 		_ ->
 		    {GeomSt,MatName} = add_material(Im, undefined, MatName0, GeomSt0),
 		    wings_wm:send(geom, {new_state,GeomSt}),
@@ -1499,7 +1499,7 @@ align_chart(Dir, V1={X1,Y1,_},V2={X2,Y2,_}, We) ->
     rotate_chart(-Deg,Center,We).
 
 align_error() ->
-    wings_u:error("Select two vertices or one edge").
+    wings_u:error(?__(1,"Select two vertices or one edge")).
 
 flip_horizontal(We) ->
     flip(e3d_mat:scale(-1.0, 1.0, 1.0), We).
@@ -1559,10 +1559,10 @@ reunfold(Method,#st{sel=Sel,selmode=vertex}=St0) ->
     Ch = fun(Vs, _, _) ->
 		 case gb_sets:size(Vs) of
 		     N when N /= 2, Method == sphere -> 
-			 E = "Select two vertices, the North and South pole",
+			 E = ?__(1,"Select two vertices, the North and South pole"),
 			 wpa:error(E);
 		     N when N < 2 ->
-			 E = "At least two vertices per chart must be pinned",
+			 E = ?__(2,"At least two vertices per chart must be pinned"),
 			 wpa:error(E);
 		     _-> ok
 		 end
@@ -1570,11 +1570,11 @@ reunfold(Method,#st{sel=Sel,selmode=vertex}=St0) ->
     wings_sel:fold(Ch, ok, St0),
 
     %% OK. Go ahead and re-unfold.
-    wings_pb:start("remapping"),
+    wings_pb:start(?__(3,"remapping")),
     wings_pb:update(0.001),
     N = length(Sel),
     R = fun(Vs, #we{vp=Vtab}=We, I) ->
-		Msg = "chart " ++ integer_to_list(I+1),
+		Msg = ?__(4,"chart")++" " ++ integer_to_list(I+1),
 		wings_pb:update(I/N, Msg),
 		Pinned = [begin
 			      {S,T,_} = gb_trees:get(V, Vtab),
@@ -1586,11 +1586,11 @@ reunfold(Method,#st{sel=Sel,selmode=vertex}=St0) ->
     wings_pb:done(update_selected_uvcoords(St)).
 
 remap(Method, #st{sel=Sel}=St0) ->
-    wings_pb:start("remapping"),
+    wings_pb:start(?__(1,"remapping")),
     wings_pb:update(0.001),
     N = length(Sel),
     Remap = fun(_, We, I) ->
-		    Msg = "chart " ++ integer_to_list(I+1),
+		    Msg = ?__(2,"chart")++" " ++ integer_to_list(I+1),
 		    wings_pb:update(I/N, Msg),
 		    {remap(Method, none, We, St0),I+1}
 	    end,

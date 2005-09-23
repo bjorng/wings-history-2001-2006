@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.13 2005/09/13 09:15:58 giniu Exp $
+#     $Id: Makefile,v 1.14 2005/09/23 19:37:58 giniu Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -29,6 +29,9 @@ MODULES= \
 	wpc_test_ask \
 	wp9_dialogs
 
+TRANSLATABLE= \
+	wp9_dialogs
+
 TARGET_FILES= $(MODULES:%=$(EBIN)/%.beam)
 
 # ----------------------------------------------------
@@ -46,14 +49,21 @@ opt debug:
 
 common: $(TARGET_FILES) subdirs
 
+subdirs:
+	(cd accel; $(MAKE))
+	(cd import_export; $(MAKE))
+	(cd primitives; $(MAKE))
+	(cd commands; $(MAKE))
+	(cd autouv; $(MAKE))
+
 template: opt
-	@for FILE in $(MODULES); do \
+	@for FILE in $(TRANSLATABLE); do \
 		erl -pa $(WINGS_INTL) -noinput -run tools generate_template_file $(EBIN) $$FILE -run erlang halt ; \
 	done
 
-lang: template
+lang: subdirs_lang template
 	@cp *.lang $(EBIN)
-	@for FILE in $(MODULES); do \
+	@for FILE in $(TRANSLATABLE); do \
 		for LANG_FILE in $(EBIN)/$$FILE\_*.lang; do \
 			case $$LANG_FILE  in \
 				$(EBIN)/$$FILE\_en.lang) ;; \
@@ -62,13 +72,9 @@ lang: template
 			esac \
 		done;\
 	done
-		
-subdirs:
-	(cd accel; $(MAKE))
-	(cd import_export; $(MAKE))
-	(cd primitives; $(MAKE))
-	(cd commands; $(MAKE))
-	(cd autouv; $(MAKE))
+
+subdirs_lang:
+	(cd autouv; $(MAKE) lang)
 
 clean: subdirs_clean
 	rm -f $(TARGET_FILES)

@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_mapping.erl,v 1.75 2005/08/29 19:14:38 dgud Exp $
+%%     $Id: auv_mapping.erl,v 1.76 2005/09/23 19:37:58 giniu Exp $
 %%
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
@@ -59,29 +59,29 @@ map_chart(Type, We, Options) ->
     Faces = wings_we:visible(We),
     case catch auv_placement:group_edge_loops(Faces, We) of
 	[] ->
-	    {error,"A closed surface cannot be mapped. "
+	    {error,?__(1,"A closed surface cannot be mapped. "
 	     "(Either divide it into into two or more charts, "
-	     "or cut it along some edges.)"};
+	     "or cut it along some edges.)")};
 	[{_,[_,_]}] ->
-	    {error,"A cut in a closed surface must consist of at least two edges."};
+	    {error,?__(2,"A cut in a closed surface must consist of at least two edges.")};
 	_ when Type == lsqcm, is_list(Options), length(Options) < 2 ->
-	    {error,"At least 2 vertices (per chart) must be selected"};
+	    {error,?__(3,"At least 2 vertices (per chart) must be selected")};
 	[Best|_] ->
 	    map_chart_1(Type, Faces, Best, Options, We);	
 	Err ->
-	    io:format("Error: ~p~n", [Err]),
-	    {error, "Internal Error"}
+	    io:format(?__(4,"Error:")++" ~p~n", [Err]),
+	    {error, ?__(5,"Internal Error")}
     end.
 
 map_chart_1(Type, Chart, Loop, Options, We) ->
     try map_chart_2(Type, Chart, Loop, Options, We)
     catch error:{badarith,_} ->
-	    {error,"Numeric problem, probably a bad face with an empty area."};
+	    {error,?__(1,"Numeric problem, probably a bad face with an empty area.")};
 	throw:What ->
 	    {error,lists:flatten(What)};
 	_:Reason ->
-	    Msg = io_lib:format("Internal error: ~P", [Reason,10]),
-	    io:format("~p:~p Error ~p~n  ~p ~n",
+	    Msg = io_lib:format(?__(2,"Internal error:")++" ~P", [Reason,10]),
+	    io:format("~p:~p "++?__(3,"Error")++" ~p~n  ~p ~n",
 		      [?MODULE,?LINE,Reason,erlang:get_stacktrace()]),
 	    {error,lists:flatten(Msg)}
     end.
@@ -186,9 +186,9 @@ find_axes(Fs,BEdges,We) ->
     case forms_closed_object(BEdges,ChartNormal,We) of
 	undefined ->
 	    throw(
-	      "I currently can't sphere/cylinder map this type of chart/cuts,\n"
+	      ?__(1,"I currently can't sphere/cylinder map this type of chart/cuts,\n"
 	      "I can't figure out which axes you want as X,Y, and Z,\n"
-	      "please use unfolding or one of the projection mappings.");
+	      "please use unfolding or one of the projection mappings."));
 
 %%	    find_axes_from_eigenv(Fs,ChartNormal,BEdges,We);
 	Nice -> 
@@ -349,7 +349,7 @@ projectFromCamera(Chart,{matrices,{MM,PM,VP}},We) ->
 	   end,
     lists:map(Proj, Vs).
 
-chart_normal([],_We) -> throw("Can not calculate normal for chart.");
+chart_normal([],_We) -> throw(?__(1,"Can not calculate normal for chart."));
 chart_normal(Fs,We = #we{es=Etab}) ->
     CalcNormal = fun(Face,Area) -> face_normal(Face,Area,We) end,
     N0 = foldl(CalcNormal, e3d_vec:zero(), Fs),
@@ -414,7 +414,7 @@ project_faces([Face|Fs], We, I, Tris,Area) ->
 	    Vs3 = [{Vid, {Vx, Vy}} || {Vid,{Vx,Vy,_}} <- Vs2],
 	    project_faces(Fs,We,I,[{Face, Vs3}|Tris],NewArea);
 	_ ->
-	    io:format("Error: Face isn't triangulated ~p with ~p vertices~n",
+	    io:format(?__(1,"Error: Face isn't triangulated ~p with ~p vertices")++"~n",
 		      [Face, Vs0]),
 	    erlang:error({triangulation_bug, [Face, Vs2]})
     end;
@@ -1011,8 +1011,8 @@ area3d(V1, V2, V3) ->
 
 stretch_opt(We0, OVs) ->
     Fs = wings_we:visible(We0),
-    wings_pb:start("optimizing"),
-    wings_pb:update(0.01, "initializing"),
+    wings_pb:start(?__(1,"optimizing")),
+    wings_pb:update(0.01, ?__(2,"initializing")),
 
     {_,R1,R2} = now(),
     random:seed(R2, R1, 128731),
@@ -1025,7 +1025,7 @@ stretch_opt(We0, OVs) ->
     {SUvs0,_F2S2} = wings_pb:done(stretch_iter(S2V,1,V2S,F2S2,Uvs,State)),
     %% Verify
     _Mean2  = model_l2(gb_trees:keys(_F2S2), _F2S2, State#s.f2a,0.0, 0.0),
-    io:format("After Stretch sum (mean) ~p ~n",  [_Mean2]),
+    io:format(?__(3,"After Stretch sum (mean) ~p")++" ~n",  [_Mean2]),
 
     SUvs1 = gb_trees:to_list(SUvs0),
     
@@ -1046,15 +1046,15 @@ stretch_setup(Fs, We0, OVs) ->
     {F2S2,F2S8,Uvs,State0} = init_stretch(Tris,F2OV, [], [], [], [], []),
     Worst = model_l8(gb_trees:keys(F2S8), F2S8, 0.0), 
     Mean  = model_l2(gb_trees:keys(F2S2), F2S2, F2A,0.0, 0.0),
-    io:format("Stretch sum (worst) ~p ~n", [Worst]),
-    io:format("Stretch sum (mean) ~p ~n",  [Mean]),
+    io:format(?__(1,"Stretch sum (worst) ~p")++" ~n", [Worst]),
+    io:format(?__(2,"Stretch sum (mean) ~p")++" ~n",  [Mean]),
     {F2S2,F2S8,Uvs,State0#s{f2a=F2A,f2ov=F2OV,bv=Bv},S}.
 
 stretch_iter(S2V0=[{_,First}|_],I,V2S0,F2S20,Uvs0,State) 
   when First > ?MIN_STRETCH, I < ?MAX_ITER ->
     if
 	I rem 4 =:= 0 ->
-	    wings_pb:update(I/?MAX_ITER, "iteration "++integer_to_list(I));
+	    wings_pb:update(I/?MAX_ITER, ?__(1,"iteration")++" "++integer_to_list(I));
 	true ->
 	    ok
     end,
@@ -1284,7 +1284,7 @@ get_face_vspos([Face|Fs], We, Tris) ->
 	    Vs2 = [{Vid, {Vx, Vy}} || {Vid,{Vx,Vy,_}} <- Vs1],
 	    get_face_vspos(Fs,We,[{Face, Vs2}|Tris]);
        true ->
-	    io:format("Error: Face isn't triangulated ~p with ~p vertices~n",
+	    io:format(?__(1,"Error: Face isn't triangulated ~p with ~p vertices")++"~n",
 		      [Face, Vs1]),
 	    erlang:error({triangulation_bug, [Face, Vs1]})    
     end;

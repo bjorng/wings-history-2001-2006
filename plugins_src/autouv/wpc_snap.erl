@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_snap.erl,v 1.9 2005/09/06 19:05:59 dgud Exp $
+%%     $Id: wpc_snap.erl,v 1.10 2005/09/23 19:38:00 giniu Exp $
 
 -module(wpc_snap).
 
@@ -32,20 +32,20 @@ menu({tools}, Menu) ->
 	[separator,
 	 case active() of
 	     false ->
-		 {"Snap Image",snap_image_mode,
-		  "Start snap mode for \"snapping\" UV coordinates onto an image"};
+		 {?__(1,"Snap Image"),snap_image_mode,
+		  ?__(2,"Start snap mode for \"snapping\" UV coordinates onto an image")};
 	     true ->
-		 {"Exit Snap Mode",exit_snap_mode,
-		  "Exit snap mode"}
+		 {?__(3,"Exit Snap Mode"),exit_snap_mode,
+		  ?__(4,"Exit snap mode")}
 	 end];
 menu({face}, Menu) ->
     case active() of
 	false ->
 	    Menu;
 	true ->
-	    [{"Snap Image",snap_image,
-	      "Put background image on selected faces by assigning "
-	      "UV coordinates to them"}|
+	    [{?__(5,"Snap Image"),snap_image,
+	      ?__(6,"Put background image on selected faces by assigning "
+	      "UV coordinates to them")}|
 	     snap_menu()] ++ Menu    
     end;
 menu({Type}, Menu) when Type == vertex; Type == edge;
@@ -57,17 +57,17 @@ menu({Type}, Menu) when Type == vertex; Type == edge;
 menu(_, Menu) -> Menu.
 
 snap_menu() ->
-    ScaleMenu = [{"Horizontal",x,"Scale the background image horizontally"},
-		 {"Vertical",y,"Scale the background image vertically"},
-		 {"Free",free,"Scale the background image freely"},
-		 {"Uniform",uniform,"Scale the background image uniformly"}],
-    MoveMenu = [{"Horizontal",x,"Move the background image horizontally"},
-		{"Vertical",y,  "Move the background image vertically"},
-		{"Free",free,   "Move the background image freely"}], 
+    ScaleMenu = [{?__(1,"Horizontal"),x,?__(2,"Scale the background image horizontally")},
+		 {?__(3,"Vertical"),y,?__(4,"Scale the background image vertically")},
+		 {?__(5,"Free"),free,?__(6,"Scale the background image freely")},
+		 {?__(7,"Uniform"),uniform,?__(8,"Scale the background image uniformly")}],
+    MoveMenu = [{?__(9,"Horizontal"),x,?__(10,"Move the background image horizontally")},
+		{?__(11,"Vertical"),y, ?__(12,"Move the background image vertically")},
+		{?__(13,"Free"),free,  ?__(14,"Move the background image freely")}], 
 
-    [{"Scale Snap Image",{auv_snap_scale,ScaleMenu},"Scale the background image"},
-     {"Move Snap Image",{auv_snap_move,MoveMenu},"Move the background image"},
-     {"Exit Snap Mode",exit_snap_mode,"Exit the snap mode"},
+    [{?__(15,"Scale Snap Image"),{auv_snap_scale,ScaleMenu},?__(16,"Scale the background image")},
+     {?__(17,"Move Snap Image"),{auv_snap_move,MoveMenu},?__(18,"Move the background image")},
+     {?__(19,"Exit Snap Mode"),exit_snap_mode,?__(20,"Exit the snap mode")},
      separator].
 
 command({face,snap_image}, St) ->
@@ -99,7 +99,7 @@ select_image(_St) ->
     Images = find_images(),
     case Images of
 	[] -> 
-	    wpa:error("No images present, import an image first.");
+	    wpa:error(?__(1,"No images present, import an image first."));
 	_ ->
 	    Qs = [{vframe, Images}],
 	    Select = fun([Reply]) ->		     
@@ -112,7 +112,7 @@ select_image(_St) ->
 			     put(?MODULE,#s{reply=Reply,name=Name,w=W,h=H}),
 			     ignore
 		     end,
-	    wings_ask:dialog("Choose Image to snap",Qs,Select)
+	    wings_ask:dialog(?__(2,"Choose Image to snap"),Qs,Select)
     end.
 
 find_images() ->
@@ -277,7 +277,7 @@ set_materials(Image,St0) ->
     Fix = fun(Items,We0,NewMats0) ->
 		  case We0#we.mode of
 		      vertex -> 
-			  wpa:error("Can't put on image when object has vertex colors");
+			  wpa:error(?__(1,"Can't put on image when object has vertex colors"));
 		      _ -> 
 			  continue
 		  end,

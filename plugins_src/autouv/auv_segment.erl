@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.78 2005/04/21 20:25:19 dgud Exp $
+%%     $Id: auv_segment.erl,v 1.79 2005/09/23 19:37:58 giniu Exp $
 
 -module(auv_segment).
 
@@ -57,7 +57,7 @@ degrees() ->
 		   X = (math:cos(D * math:pi() / 180) + 1) / 2, 
 		   Y = math:sin(D *  math:pi() / 180) /2,    
 		   Dir = math:sqrt(X*X+Y*Y),
-		   io:format("~.3w deg -> ~w ~w~n", [D, Dir, 1 - Dir])
+		   io:format("~.3w "++?__(1,"deg")++" -> ~w ~w~n", [D, Dir, 1 - Dir])
 	   end,
     lists:foreach(Test, lists:seq(0,360,15)).
 -endif.

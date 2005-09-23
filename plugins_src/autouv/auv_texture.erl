@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_texture.erl,v 1.9 2004/12/29 09:58:18 bjorng Exp $
+%%     $Id: auv_texture.erl,v 1.10 2005/09/23 19:37:58 giniu Exp $
 %%
 
 -module(auv_texture).
@@ -38,19 +38,19 @@ draw_options() ->
     MaxTxs = max([min([4096,MaxTxs0]),256]),
     Option = list_to_prefs(get_pref(draw_prefs, pref_to_list(#opt{}))),
     
-    Qs = [{vradio,[{"Draw All Edges",    all_edges},
-		   {"Draw Border Edges", border_edges},
-		   {"Don't Draw Edges",  no_edges}], 
-	   Option#opt.edges, [{title,"Edge Options"}]},
-	  {vframe,[{"Use Face/Vertex Color on Border Edges", Option#opt.edge_color},
-		   {label_column, [{"Edge width",  {text, Option#opt.edge_width}}]}],
-	   [{title, "Overdraw options"}]},
-	  {vframe,[{"Show Colors (or texture)",Option#opt.color},
-		   {"Texture Background (if available)", Option#opt.texbg}],
-	   [{title, "Display Color and texture?"}]},
+    Qs = [{vradio,[{?__(1,"Draw All Edges"),    all_edges},
+		   {?__(2,"Draw Border Edges"), border_edges},
+		   {?__(3,"Don't Draw Edges"),  no_edges}], 
+	   Option#opt.edges, [{title,?__(4,"Edge Options")}]},
+	  {vframe,[{?__(5,"Use Face/Vertex Color on Border Edges"), Option#opt.edge_color},
+		   {label_column, [{?__(6,"Edge width"),  {text, Option#opt.edge_width}}]}],
+	   [{title, ?__(7,"Overdraw options")}]},
+	  {vframe,[{?__(8,"Show Colors (or texture)"),Option#opt.color},
+		   {?__(9,"Texture Background (if available)"), Option#opt.texbg}],
+	   [{title, ?__(10,"Display Color and texture?")}]},
 	  {vradio,gen_tx_sizes(MaxTxs, []),element(1, Option#opt.texsz),
-	   [{title,"Texture Size"}]}],
-    wings_ask:dialog("Draw Options", Qs,
+	   [{title,?__(11,"Texture Size")}]}],
+    wings_ask:dialog(?__(12,"Draw Options"), Qs,
 		     fun(Options) ->
 			     Opt = list_to_prefs(Options),
 			     set_pref([{draw_prefs, pref_to_list(Opt)}]),

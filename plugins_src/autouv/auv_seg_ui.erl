@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_seg_ui.erl,v 1.38 2005/08/24 14:01:06 dgud Exp $
+%%     $Id: auv_seg_ui.erl,v 1.39 2005/09/23 19:37:58 giniu Exp $
 %%
 
 -module(auv_seg_ui).
@@ -51,9 +51,9 @@ start(#we{id=Id}=We0, OrigWe, St0) ->
     get_seg_event(Ss).
 
 seg_init_message(Ss) ->
-    Msg1 = wings_msg:button_format("Select"),
+    Msg1 = wings_msg:button_format(?__(1,"Select")),
     Msg2 = wings_camera:help(),
-    Msg3 = wings_msg:button_format([], [], "Show menu"),
+    Msg3 = wings_msg:button_format([], [], ?__(2,"Show menu")),
     Msg  = wings_msg:join([Msg1,Msg2,Msg3]),
     Ss#seg{msg=Msg}.
 
@@ -73,7 +73,7 @@ seg_event(init_opengl, #seg{st=St}=Ss) ->
     wings:init_opengl(St),
     get_seg_event(Ss);
 seg_event(redraw, #seg{st=St,msg=Msg}) ->
-    wings_wm:message(Msg, "Segmenting"),
+    wings_wm:message(Msg, ?__(1,"Segmenting")),
     wings:redraw(St),
     keep;
 seg_event({add_faces,_,_},#seg{fs=object}) ->
@@ -111,12 +111,12 @@ seg_event_3(Ev, #seg{st=#st{selmode=Mode}}=Ss) ->
 	no -> seg_event_4(Ev, Ss);
 	{yes,X,Y,_} -> 
 	    Mappers = mappers(), 
-	    Menu = [{"Continue",{continue, Mappers}},
+	    Menu = [{?__(1,"Continue"),{continue, Mappers}},
 		    separator,
-		    {"Segment by",
+		    {?__(2,"Segment by"),
 		     {segment,
-		      [{"Projection",autouvmap},
-		       {"Feature Detection",feature}]}}|
+		      [{?__(3,"Projection"),autouvmap},
+		       {?__(4,"Feature Detection"),feature}]}}|
 		    seg_mode_menu(Mode, Ss, seg_debug([]))],
 	    wings_menu:popup_menu(X, Y, auv_segmentation, Menu)
     end.
@@ -124,42 +124,42 @@ seg_event_3(Ev, #seg{st=#st{selmode=Mode}}=Ss) ->
 -ifndef(DEBUG).
 seg_debug(Tail) -> Tail.
 mappers() ->
-    [{"Unfolding",lsqcm},				  
-     {"Projection Normal",project},
-     {"Projection Camera",camera},
-     {"Sphere Map",sphere}
-    ,{"Cylindrical Map",cyl}
+    [{?__(1,"Unfolding"),lsqcm},				  
+     {?__(2,"Projection Normal"),project},
+     {?__(3,"Projection Camera"),camera},
+     {?__(4,"Sphere Map"),sphere}
+    ,{?__(5,"Cylindrical Map"),cyl}
     ].
 -else.
 seg_debug(Tail) ->
     [separator,
-     {"Debugging",
+     {?__(1,"Debugging"),
       {debug,
-       [{"Select features",select_features},
-	{"Select seeds",select_seeds},
-        {"Select Pinned vertices", select_pinned}]}}|Tail].
+       [{?__(2,"Select features"),select_features},
+	{?__(3,"Select seeds"),select_seeds},
+        {?__(4,"Select Pinned vertices"), select_pinned}]}}|Tail].
 mappers() ->
-    [{"Unfolding",lsqcm}, 
-     {"Two pass Unfolding",lsqcm2},
-     {"Projection",project}].
+    [{?__(1,"Unfolding"),lsqcm}, 
+     {?__(2,"Two pass Unfolding"),lsqcm2},
+     {?__(3,"Projection"),project}].
 -endif.
 
 seg_mode_menu(vertex, _, Tail) -> Tail;
 seg_mode_menu(edge, _, Tail) ->
     [separator,
-     {"Mark Edges for Cut",cut_edges},
-     {"Unmark Edges",no_cut_edges},
+     {?__(1,"Mark Edges for Cut"),cut_edges},
+     {?__(2,"Unmark Edges"),no_cut_edges},
      separator,
-     {"Select Marked Edges",select_hard_edges}|Tail];
+     {?__(3,"Select Marked Edges"),select_hard_edges}|Tail];
 seg_mode_menu(face, _, Tail) ->
     Menu0 = map(fun({Name,Color}) ->
 			{atom_to_list(Name),Name,[],[{color,Color}]};
 		   (Other) -> Other
 		end, auv_util:seg_materials()),
     Menu = Menu0 ++
-	[{"Ignore Faces", ignore_faces},
+	[{?__(4,"Ignore Faces"), ignore_faces},
 	 separator,
-	 {"Select",{select,Menu0}}|Tail],
+	 {?__(5,"Select"),{select,Menu0}}|Tail],
     [separator|Menu].
 
 seg_event_4(Ev, Ss) ->
@@ -319,26 +319,26 @@ seg_hide_other(Id, #st{selmode=face,sel=[{Id,Faces}],shapes=Shs}=St) ->
 seg_hide_other(_, St) -> {object,St}.
 
 seg_map_charts(Method, #seg{st=#st{shapes=Shs},we=OrigWe}=Ss) ->
-    wings_pb:start("preparing mapping"),
+    wings_pb:start(?__(1,"preparing mapping")),
     [#we{he=Cuts0}=We] = gb_trees:values(Shs),
-    wings_pb:update(0.12, "segmenting"),
+    wings_pb:update(0.12, ?__(2,"segmenting")),
     Charts0 = auv_segment:segment_by_material(We),
-    wings_pb:update(0.35, "normalizing"),
+    wings_pb:update(0.35, ?__(3,"normalizing")),
     {Charts1,Cuts} = auv_segment:normalize_charts(Charts0, Cuts0, We),
-    wings_pb:update(1.0, "cutting"),
+    wings_pb:update(1.0, ?__(4,"cutting")),
     Charts = auv_segment:cut_model(Charts1, Cuts, OrigWe),
     wings_pb:done(),
     case length(Charts) of
 	0 ->
-	    wings_u:error("No mappable faces.");
+	    wings_u:error(?__(5,"No mappable faces."));
 	N ->
-	    wings_pb:start("mapping"),
+	    wings_pb:start(?__(6,"mapping")),
 	    seg_map_charts_1(Charts, Method, 1, N, [], Ss)
     end.
 
 seg_map_charts_1([We0|Cs], Type, Id, N, Acc,
 		 #seg{we=#we{id=OrigId},st=St0}=Ss) ->
-    wings_pb:update(Id/N, lists:flatten(io_lib:format("chart ~w/~w", [Id,N]))),
+    wings_pb:update(Id/N, lists:flatten(io_lib:format(?__(1,"chart")++" ~w/~w", [Id,N]))),
     We1 = We0#we{id=Id},
     case auv_mapping:map_chart(Type, We1, camera_dir(Type)) of
 	{error,Message} ->
