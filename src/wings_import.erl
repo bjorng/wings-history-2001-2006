@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_import.erl,v 1.23 2004/12/29 09:58:21 bjorng Exp $
+%%     $Id: wings_import.erl,v 1.24 2005/09/25 15:40:33 bjorng Exp $
 %%
 
 -module(wings_import).
@@ -64,65 +64,78 @@ store_object(Name, We, St) ->
 
 import_object(#e3d_object{obj=Mesh0}) ->
     Mesh1 = e3d_mesh:clean_faces(Mesh0),
-    {Mesh,ObjType} = prepare_mesh(Mesh1),
-    import_mesh(Mesh, ObjType).
+    Mesh = e3d_mesh:transform(Mesh1),
+    import_mesh(material, Mesh).
 
-import_mesh(Mesh0, ObjType) ->
-    case catch wings_we:build(ObjType, Mesh0) of
-	{'EXIT',_R} ->
-	    %% The mesh needs cleaning up. Unfortunately,
-	    %% that will change the vertex numbering.
-	    wings_pb:start(""),
-	    wings_pb:update(0.20, "retrying"),
-	    Mesh = e3d_mesh:partition(Mesh0),
-	    case length(Mesh) of
-		1 ->
-		    wings_pb:update(0.50, "retrying");
-		N ->
-		    wings_pb:update(0.50, "retrying ("++
-				    integer_to_list(N)++" sub-objects)")
-	    end,
-	    wings_pb:done(import_1(Mesh, ObjType, []));
-	We -> We
+-define(P(N), {N,fun N/3}).
+
+import_mesh(ObjType, Mesh) ->
+    Passes = [?P(imp_quads),
+	      ?P(imp_build),
+	      ?P(imp_revert),
+	      ?P(imp_partition)],
+    run(Passes, ObjType, Mesh).
+
+run(Ps, Type, Mesh) ->
+    run(Ps, Type, Mesh, Mesh).
+    
+run([{_Name,Final}], ObjType, Mesh0, MeshOrig) ->
+    case Final(ObjType, Mesh0, MeshOrig) of
+	#we{}=We -> We
+    end;
+run([{Name,F}|Fs], ObjType, Mesh0, MeshOrig) ->
+    try F(ObjType, Mesh0, MeshOrig) of
+	#we{}=We -> We;
+	#e3d_mesh{}=Mesh -> run(Fs, ObjType, Mesh, MeshOrig)
+    catch
+	_:_R ->
+	    io:format("~p failed: ~P\n", [Name,_R,10]),
+	    run(Fs, ObjType, Mesh0, MeshOrig)
     end.
 
-import_1([Mesh|T], ObjType, Acc) ->
-    case import_mesh_1(Mesh, ObjType) of
-	error -> import_1(T, ObjType, Acc);
-	[_|_]=Wes -> import_1(T, ObjType, Wes++Acc);
-	We -> import_1(T, ObjType, [We|Acc])
-    end;
-import_1([], _, []) -> error;
-import_1([], _, [We]) -> We;
-import_1([], _, [#we{mode=Mode}|_]=Wes) ->
-    wings_pb:update(1.0, "re-combining "++
-		    integer_to_list(length(Wes))++
-		    " sub-objects"),
-    We = wings_we:merge(Wes),
+imp_quads(_, Mesh, _) ->
+    e3d_mesh:make_quads(Mesh).
+
+imp_build(ObjType, Mesh, _) ->
+    wings_we:build(ObjType, Mesh).
+
+imp_revert(_, _, Mesh) ->
+    Mesh.
+
+imp_partition(ObjType, Mesh0, _) ->
+    wings_pb:start(""),
+    wings_pb:update(0.20, "retrying"),
+    Meshes = e3d_mesh:partition(Mesh0),
+    case length(Meshes) of
+	1 ->
+	    wings_pb:update(0.50, "retrying");
+	N ->
+	    wings_pb:update(0.50, "retrying ("++
+			    integer_to_list(N)++" sub-objects)")
+    end,
+    Passes = [?P(imp_quads),
+	      ?P(imp_build),
+	      ?P(imp_orient_normals),
+	      ?P(imp_build),
+	      ?P(imp_revert),
+	      ?P(imp_build),
+	      ?P(imp_orient_normals),
+	      ?P(imp_build),
+	      ?P(imp_rip_apart)],
+    Wes = [run(Passes, ObjType, Mesh) || Mesh <- Meshes],
+    [#we{mode=Mode}|_] = Wes,
+    We = wings_pb:done(wings_we:merge(Wes)),
     We#we{mode=Mode}.
 
-prepare_mesh(Mesh0) ->
-    Mesh1 = e3d_mesh:make_quads(Mesh0),
-    Mesh = e3d_mesh:transform(Mesh1),
-    {Mesh,material}.
+imp_orient_normals(_, Mesh, _) ->
+    e3d_mesh:orient_normals(Mesh).
 
-import_mesh_1(Mesh, ObjType) ->
-    case catch wings_we:build(ObjType, Mesh) of
-	{'EXIT',_R} ->
-	    build_1(ObjType, Mesh);
-	We -> We
-    end.
-
-build_1(ObjType, Mesh0) ->
-    %% Orient normals consistently and try to build again.
-    case catch wings_we:build(ObjType, e3d_mesh:orient_normals(Mesh0)) of
-	{'EXIT',_R} ->
-	    io:format("~P\n", [_R,10]),
-	    %% Rip apart the object. It can't fail.
-	    dump(Mesh0),
-	    rip_apart(ObjType, Mesh0);
-	We -> We
-    end.
+imp_rip_apart(ObjType, Mesh, _) ->
+    dump(Mesh),
+    Wes = rip_apart(ObjType, Mesh),
+    [#we{mode=Mode}|_] = Wes,
+    We = wings_we:merge(Wes),
+    We#we{mode=Mode}.
 
 rip_apart(Mode, Mesh) ->
     rip_apart_1(Mesh, Mode, []).
