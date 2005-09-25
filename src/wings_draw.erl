@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.216 2005/01/15 12:51:18 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.217 2005/09/25 21:17:50 giniu Exp $
 %%
 
 -module(wings_draw).
@@ -1001,8 +1001,9 @@ make_normals_dlist_1(vertex, Vs, #we{vp=Vtab}=We) ->
     foreach(fun(V) ->
 		    Pos = gb_trees:get(V, Vtab),
 		    gl:vertex3fv(Pos),
+    		    gl:color3fv(wings_pref:get_value(normal_vector_color)),
 		    N = wings_vertex:normal(V, We),
-		    gl:vertex3fv(e3d_vec:add_prod(Pos, N, 0.3))
+		    gl:vertex3fv(e3d_vec:add_prod(Pos, N, wings_pref:get_value(normal_vector_size)))
 	    end, gb_sets:to_list(Vs));
 make_normals_dlist_1(edge, Edges, #we{es=Etab,vp=Vtab}=We) ->
     Et0 = sofs:relation(gb_trees:to_list(Etab), [{edge,data}]),
@@ -1012,19 +1013,21 @@ make_normals_dlist_1(edge, Edges, #we{es=Etab,vp=Vtab}=We) ->
     foreach(fun({_,#edge{vs=Va,ve=Vb,lf=Lf,rf=Rf}}) ->
 		    PosA = gb_trees:get(Va, Vtab),
 		    PosB = gb_trees:get(Vb, Vtab),
+    		    gl:color3fv(wings_pref:get_value(normal_vector_color)),
 		    Mid = e3d_vec:average([PosA,PosB]),
 		    gl:vertex3fv(Mid),
 		    N = e3d_vec:average([wings_face:normal(Lf, We),
 					 wings_face:normal(Rf, We)]),
-		    gl:vertex3fv(e3d_vec:add_prod(Mid, N, 0.3))
+		    gl:vertex3fv(e3d_vec:add_prod(Mid, N, wings_pref:get_value(normal_vector_size)))
 	    end, Et);
 make_normals_dlist_1(face, Faces, We) ->
     foreach(fun(Face) ->
 		    Vs = wings_face:vertices_cw(Face, We),
 		    C = wings_vertex:center(Vs, We),
 		    gl:vertex3fv(C),
+    		    gl:color3fv(wings_pref:get_value(normal_vector_color)),
 		    N = wings_face:face_normal_cw(Vs, We),
-		    gl:vertex3fv(e3d_vec:add_prod(C, N, 0.3))
+		    gl:vertex3fv(e3d_vec:add_prod(C, N, wings_pref:get_value(normal_vector_size)))
 	    end, wings_we:visible(gb_sets:to_list(Faces), We));
 make_normals_dlist_1(body, _, #we{fs=Ftab}=We) ->
     make_normals_dlist_1(face, gb_sets:from_list(gb_trees:keys(Ftab)), We).

@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref_dlg.erl,v 1.11 2005/09/06 22:51:47 raimo_niskanen Exp $
+%%     $Id: wings_pref_dlg.erl,v 1.12 2005/09/25 21:17:51 giniu Exp $
 %%
 
 -module(wings_pref_dlg).
@@ -84,12 +84,20 @@ gen_prefs() ->
 	   selection_style},
 	  {hframe,[{label,?__(25,"Selection Color")},{color,selected_color}]} ],
 	 [{title,?__(26,"Selection")}]}]},
-      {vframe,
-       [{label_column,
-	 [{color,?__(27,"Text"),info_color,[{info,?__(28,"Color of information text")}]},
-	  {color,?__(29,"Background"),info_background_color,
-	   [{info,?__(30,"Color of background for information text (including transparency)")}]}]}],
-       [{title,?__(31,"Information text")}]},
+      {hframe,
+       [{vframe,
+        [{label_column,
+	  [{color,?__(27,"Text"),info_color,[{info,?__(28,"Color of information text")}]},
+	   {color,?__(29,"Background"),info_background_color,
+	    [{info,?__(30,"Color of background for information text (including transparency)")}]}]}],
+        [{title,?__(31,"Information text")}]},
+       {vframe,
+        [{label_column,
+ 	 [{?__(44,"Length"),normal_vector_size,
+	    [{info,?__(45,"Length of normals")},{range,{0.1,10.0}}]},
+	   {color,?__(46,"Color"),normal_vector_color,
+	    [{info,?__(47,"Color of normals")}]}]}],
+	 [{title,?__(48,"Normals Display")}]}]},
       {hframe,
        [{label,?__(32,"Color")},{color,grid_color},
 	{?__(33,"Force Axis-Aligned Grid"),force_show_along_grid,
@@ -366,6 +374,10 @@ smart_set_value_1(Key, Val, St) ->
 		    erase(polygon_offset);
 		polygon_offset_r -> 
 		    erase(polygon_offset);
+		normal_vector_size ->
+		    update_normal_dlist(St);
+		normal_vector_color ->
+		    update_normal_dlist(St);
         	_Other -> ok
 	    end
     end.
@@ -373,6 +385,10 @@ smart_set_value_1(Key, Val, St) ->
 delayed_set_value(Key, OldVal, NewVal) ->
     set_value(Key, OldVal),
     ets:insert(wings_delayed_update, {Key,NewVal}).
+
+update_normal_dlist(St) ->
+    wings_dl:map(fun(D, _) -> D#dlo{normals=none} end, []),
+    wings_draw:refresh_dlists(St).
 
 clear_vertex_dlist() ->
     wings_dl:map(fun clear_vertex_dlist/2, []).
