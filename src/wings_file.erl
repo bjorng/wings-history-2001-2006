@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.157 2005/04/12 20:27:29 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.158 2005/09/25 23:51:06 giniu Exp $
 %%
 
 -module(wings_file).
@@ -396,7 +396,7 @@ find_digits1([], Digits) ->
 wings_prop() ->
     %% Should we add autosaved wings files ??
     %% It's pretty nice to NOT see them in the file chooser /Dan
-    [{ext,?WINGS},{ext_desc,"Wings File"}].    
+    [{ext,?WINGS},{ext_desc,?__(1,"Wings File")}].    
 
 use_autosave(File, Body) ->
     case file:read_file_info(File) of

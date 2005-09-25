@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pl.lang,v 1.10 2005/09/25 21:17:51 giniu Exp $
+%%     $Id: wings_pl.lang,v 1.11 2005/09/25 23:51:06 giniu Exp $
 %%
 %%  Translation:  Andrzej Giniewicz
 %%  Correction:   Małgorzata Napiontek
@@ -878,6 +878,10 @@
   {use_autosave_1,
    [
     {1,"Znaleziono plik autozapisu z późniejszą datą; czy chcesz go odczytać zamiast wybranego pliku?"}
+   ]},
+  {wings_prop,
+   [
+    {1,"Pliki Wings"}
    ]}
  ]}.
 {wings_help,
