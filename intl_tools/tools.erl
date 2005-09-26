@@ -1,3 +1,15 @@
+%%
+%%  tools.erl --
+%%
+%%     Tools for translation.
+%%
+%%  Copyright (c) 2001-2005 Bjorn Gustavsson
+%%
+%%  See the file "license.terms" for information on usage and redistribution
+%%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+%%
+%%     $Id: tools.erl,v 1.2 2005/09/26 09:34:56 giniu Exp $
+%%
 -module(tools).
 
 %% Translation support tools.
