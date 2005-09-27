@@ -8,13 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mesh.erl,v 1.48 2005/02/03 07:30:33 bjorng Exp $
+%%     $Id: e3d_mesh.erl,v 1.49 2005/09/27 16:12:02 bjorng Exp $
 %%
 
 -module(e3d_mesh).
 -export([clean_faces/1,orient_normals/1,transform/1,transform/2,
 	 merge_vertices/1,triangulate/1,quadrangulate/1,
-	 make_quads/1,vertex_normals/1,renumber/1,partition/1,
+	 make_quads/1,make_polygons/1,vertex_normals/1,renumber/1,partition/1,
 	 split_by_material/1,used_materials/1]).
 -export([triangulate_face/2,triangulate_face/3,
 	 triangulate_face_with_holes/3]).
@@ -62,29 +62,28 @@ transform(#e3d_mesh{vs=Vs0,matrix=ObjMatrix}=Mesh, Matrix0) ->
 %%  will never be combined to avoid isolating vertices and/or
 %%  creating concave polygons.
 
-%% Altered - PM (11/8/2004)
-%% I've adapted this so it will merge triangles with more than one
-%% hidden edge, so you can end with polygons with > 4 verts. It will
-%% eliminate isolted verts, but cannot create polygons with holes.
+make_quads(#e3d_mesh{type=triangle,fs=Fs0}=Mesh) ->
+    Fs = filter_hidden_edges(Fs0),
+    make_polygons(Mesh#e3d_mesh{fs=Fs});
+make_quads(Mesh) -> Mesh.
 
-make_quads(#e3d_mesh{type=triangle,fs=Fs0}=Mesh0) ->
-%% Altered - end
+%% make_polygons(Mesh0) -> Mesh
+%%  Eliminate hidden edges to create polygons. Special care must be
+%%  taken to eliminate isolated vertices and not to create holes.
+%%  XXX There are knowns problems in this function.
 
+make_polygons(#e3d_mesh{type=triangle,fs=Fs0}=Mesh0) ->
     Ftab0 = number_faces(Fs0),
     Es = rhe_collect_edges(Ftab0),
     Ftab1 = gb_trees:from_orddict(Ftab0),
     Ftab = merge_faces(Es, Ftab1),
-
-%% Altered - PM (11/8/2004)
     Fs1 = gb_trees:values(Ftab),
     Fs = filter(fun ({merged,_}) -> false;
 		    (_) -> true
 		end, Fs1),
     Mesh = Mesh0#e3d_mesh{type=polygon,fs=Fs},
     renumber(Mesh);
-%% Altered - end
-
-make_quads(Mesh) -> Mesh.
+make_polygons(Mesh) -> Mesh.
 
 %% merge_vertices(Mesh0) -> Mesh
 %%  Combine vertices that have exactly the same position,
@@ -434,19 +433,7 @@ rhe_collect_edges(Fs) ->
     rhe_collect_edges(Fs, []).
 
 rhe_collect_edges([{Face,#e3d_face{vs=Vs,vis=Vis0}}|Fs], Acc0) ->
-    Vis1 = Vis0 band 7,
-
-%% Altered - PM (11/8/2004)
-
-%%     Vis = case (Vis1 band 1) + ((Vis1 bsr 1) band 1) + ((Vis1 bsr 2) band 1) of
-%% 	      0 -> 7;
-%% 	      1 -> 7;
-%% 	      _ -> Vis1
-%% 	  end,
-%%
-    Vis = Vis1,
-%% Altered - end
-
+    Vis = Vis0 band 7,
     Pairs = pairs(Vs, Vis),
     Acc = rhe_edges(Pairs, Face, Acc0),
     rhe_collect_edges(Fs, Acc);
@@ -475,6 +462,24 @@ pairs([V1], [V2|_], Vis, Acc) ->
 
 visible(F) when F band 4 =/= 0 -> visible;
 visible(_) -> invisible.
+
+
+%% filter_hidden_edges([#e3d_face{}) -> [#e3d_face{}].
+%%  Retain only hidden edges in a face if the other two edges in the
+%%  are visible, otherwise set all edges to visible.
+
+filter_hidden_edges(Fs) ->
+    filter_hidden_edges(Fs, []).
+
+filter_hidden_edges([#e3d_face{vis=Vis0}=F|Fs], Acc) ->
+    Vis = case Vis0 band 2#111 of
+	      2#110=V -> V;
+	      2#101=V -> V;
+	      2#011=V -> V;
+	      _ -> 2#111			%More than one edge is invisible.
+	  end,
+    filter_hidden_edges(Fs, [F#e3d_face{vis=Vis}|Acc]);
+filter_hidden_edges([], Acc) -> reverse(Acc).
 
 %%%
 %%% Help functions for vertex_normals/1.
