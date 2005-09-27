@@ -3,12 +3,12 @@
 %%
 %%     This module handles import of foreign objects.
 %%
-%%  Copyright (c) 2001-2004 Bjorn Gustavsson
+%%  Copyright (c) 2001-2005 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_import.erl,v 1.24 2005/09/25 15:40:33 bjorng Exp $
+%%     $Id: wings_import.erl,v 1.25 2005/09/27 16:13:03 bjorng Exp $
 %%
 
 -module(wings_import).
@@ -62,45 +62,31 @@ store_object(undefined, We, #st{onext=Oid}=St) ->
 store_object(Name, We, St) ->
     wings_shape:new(Name, We, St).
 
-import_object(#e3d_object{obj=Mesh0}) ->
+import_object(#e3d_object{name=_Name,obj=Mesh0}) ->
+    %%io:format("\n~s:\n", [_Name]),
     Mesh1 = e3d_mesh:clean_faces(Mesh0),
     Mesh = e3d_mesh:transform(Mesh1),
     import_mesh(material, Mesh).
 
 -define(P(N), {N,fun N/3}).
+-define(P_NOFAIL(N), {nofail,N,fun N/3}).
 
 import_mesh(ObjType, Mesh) ->
-    Passes = [?P(imp_quads),
-	      ?P(imp_build),
-	      ?P(imp_revert),
-	      ?P(imp_partition)],
-    run(Passes, ObjType, Mesh).
+    Pss0 = [{seq,[?P(imp_build),
+		  ?P_NOFAIL(imp_orient_normals),
+		  ?P(imp_build)]},
+	    ?P(imp_partition)],
+    Pss = polygonify_passes(Pss0, Mesh),
+    run(Pss, ObjType, Mesh).
 
-run(Ps, Type, Mesh) ->
-    run(Ps, Type, Mesh, Mesh).
-    
-run([{_Name,Final}], ObjType, Mesh0, MeshOrig) ->
-    case Final(ObjType, Mesh0, MeshOrig) of
-	#we{}=We -> We
-    end;
-run([{Name,F}|Fs], ObjType, Mesh0, MeshOrig) ->
-    try F(ObjType, Mesh0, MeshOrig) of
-	#we{}=We -> We;
-	#e3d_mesh{}=Mesh -> run(Fs, ObjType, Mesh, MeshOrig)
-    catch
-	_:_R ->
-	    io:format("~p failed: ~P\n", [Name,_R,10]),
-	    run(Fs, ObjType, Mesh0, MeshOrig)
-    end.
-
+imp_polygons(_, Mesh, _) ->
+    e3d_mesh:make_polygons(Mesh).
+     
 imp_quads(_, Mesh, _) ->
     e3d_mesh:make_quads(Mesh).
 
 imp_build(ObjType, Mesh, _) ->
     wings_we:build(ObjType, Mesh).
-
-imp_revert(_, _, Mesh) ->
-    Mesh.
 
 imp_partition(ObjType, Mesh0, _) ->
     wings_pb:start(""),
@@ -113,16 +99,12 @@ imp_partition(ObjType, Mesh0, _) ->
 	    wings_pb:update(0.50, "retrying ("++
 			    integer_to_list(N)++" sub-objects)")
     end,
-    Passes = [?P(imp_quads),
-	      ?P(imp_build),
-	      ?P(imp_orient_normals),
-	      ?P(imp_build),
-	      ?P(imp_revert),
-	      ?P(imp_build),
-	      ?P(imp_orient_normals),
-	      ?P(imp_build),
-	      ?P(imp_rip_apart)],
-    Wes = [run(Passes, ObjType, Mesh) || Mesh <- Meshes],
+    Pss0 = [?P(imp_build),
+	    ?P_NOFAIL(imp_orient_normals),
+	    ?P(imp_build),
+	    ?P(imp_rip_apart)],
+    Pss = polygonify_passes(Pss0, Mesh0),
+    Wes = [run(Pss, ObjType, Mesh) || Mesh <- Meshes],
     [#we{mode=Mode}|_] = Wes,
     We = wings_pb:done(wings_we:merge(Wes)),
     We#we{mode=Mode}.
@@ -136,6 +118,48 @@ imp_rip_apart(ObjType, Mesh, _) ->
     [#we{mode=Mode}|_] = Wes,
     We = wings_we:merge(Wes),
     We#we{mode=Mode}.
+
+polygonify_passes(Pss, #e3d_mesh{type=triangle}) ->
+    [{seq,[?P_NOFAIL(imp_polygons),?P(imp_build),
+	   ?P_NOFAIL(imp_orient_normals),?P(imp_build)]},
+     {seq,[?P_NOFAIL(imp_quads),?P(imp_build),
+	   ?P_NOFAIL(imp_orient_normals),?P(imp_build)]}|Pss];
+polygonify_passes(Pss, _) -> Pss.
+
+
+run(Ps, Type, Mesh) ->
+    run(Ps, Type, Mesh, Mesh).
+    
+run([{seq,Seq}|Ps], ObjType, Mesh, MeshOrig) ->
+    try
+	run(Seq, ObjType, Mesh, MeshOrig)
+    catch
+	_:_ ->
+	    run(Ps, ObjType, Mesh, MeshOrig)
+    end;
+run([{nofail,_Name,Final}|Fs], ObjType, Mesh0, MeshOrig) ->
+    %%io:format("~p\n", [_Name]),
+    case Final(ObjType, Mesh0, MeshOrig) of
+	#we{}=We -> We;
+	#e3d_mesh{}=Mesh -> run(Fs, ObjType, Mesh, MeshOrig)
+    end;
+run([{_Name,Final}], ObjType, Mesh0, MeshOrig) ->
+    %%io:format("~p\n", [_Name]),
+    case Final(ObjType, Mesh0, MeshOrig) of
+	#we{}=We -> We
+    end;
+run([{Name,F}|Fs], ObjType, Mesh0, MeshOrig) ->
+    %%io:format("~p\n", [Name]),
+    try F(ObjType, Mesh0, MeshOrig) of
+	#we{}=We -> We;
+	#e3d_mesh{}=Mesh -> run(Fs, ObjType, Mesh, MeshOrig)
+    catch
+	_:_R ->
+	    _Stack = erlang:get_stacktrace(),
+	    %%io:format("~p failed: ~P\n", [Name,_R,10]),
+	    %%io:format(" ~P\n", [_Stack,20]),
+	    run(Fs, ObjType, Mesh0, MeshOrig)
+    end.
 
 rip_apart(Mode, Mesh) ->
     rip_apart_1(Mesh, Mode, []).
