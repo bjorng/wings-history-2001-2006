@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_import.erl,v 1.25 2005/09/27 16:13:03 bjorng Exp $
+%%     $Id: wings_import.erl,v 1.26 2005/09/27 16:13:57 bjorng Exp $
 %%
 
 -module(wings_import).
@@ -148,8 +148,8 @@ run([{_Name,Final}], ObjType, Mesh0, MeshOrig) ->
     case Final(ObjType, Mesh0, MeshOrig) of
 	#we{}=We -> We
     end;
-run([{Name,F}|Fs], ObjType, Mesh0, MeshOrig) ->
-    %%io:format("~p\n", [Name]),
+run([{_Name,F}|Fs], ObjType, Mesh0, MeshOrig) ->
+    %%io:format("~p\n", [_Name]),
     try F(ObjType, Mesh0, MeshOrig) of
 	#we{}=We -> We;
 	#e3d_mesh{}=Mesh -> run(Fs, ObjType, Mesh, MeshOrig)
