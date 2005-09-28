@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mesh.erl,v 1.49 2005/09/27 16:12:02 bjorng Exp $
+%%     $Id: e3d_mesh.erl,v 1.50 2005/09/28 05:57:41 bjorng Exp $
 %%
 
 -module(e3d_mesh).
@@ -294,21 +294,19 @@ merge_faces([], Ftab) -> Ftab.
 
 
 merge_faces_1(Fa0, Fb0, Va, Vb, Ftab0) ->
-
-%% Altered - PM (11/8/2004)
-    {Fa, FaInfo} = lookupMergedFace(Fa0, Ftab0),
-    {Fb, FbInfo} = lookupMergedFace(Fb0, Ftab0),
+    {Fa,FaInfo} = lookupMergedFace(Fa0, Ftab0),
+    {Fb,FbInfo} = lookupMergedFace(Fb0, Ftab0),
 
 %% Since we can now merge polys with more than one invisible edge,
 %% we have to watch out for situation where both edges are in the
 %% same face (ie, we will be isolating a vertice). The other possibility
 %% when Fa == Fb is that the polygon has a hole; but since the e3d_face
-%% record doesn't allow for holes, i'm leaving the mesh as is if that's
+%% record doesn't allow for holes, I'm leaving the mesh as is if that's
 %% the case.
     if
-	Fa == Fb ->
+	Fa =:= Fb ->
 	    case FaInfo of
-		{value,#e3d_face{vs=Vs1,tx=Tx1}=Rec0} ->
+		#e3d_face{vs=Vs1,tx=Tx1}=Rec0 ->
 		    case eliminateIsolatedVert(Va, Vb, Vs1) of
 			notFound -> Ftab0;
 			Vs when is_list(Vs) ->
@@ -320,35 +318,26 @@ merge_faces_1(Fa0, Fb0, Va, Vb, Ftab0) ->
 	    end;
 	true ->
 	    case {FaInfo,FbInfo} of
-%% Altered - end
-
-		{{value,#e3d_face{vs=Vs1,tx=Tx1,mat=Mat}=Rec0},
-		 {value,#e3d_face{vs=Vs2,tx=Tx2,mat=Mat}}} ->
+		{#e3d_face{vs=Vs1,tx=Tx1,mat=Mat}=Rec0,
+		 #e3d_face{vs=Vs2,tx=Tx2,mat=Mat}} ->
 		    case merge_faces_2(Va, Vb, Vs1, Vs2) of
 			error -> Ftab0;
 			Vs when is_list(Vs) ->
 			    Tx = merge_uvs(Vs, Vs1, Vs2, Tx1, Tx2),
 			    Rec = Rec0#e3d_face{vs=Vs,tx=Tx,vis=-1},
 			    Ftab = gb_trees:update(Fa, Rec, Ftab0),
-
-%% Altered - PM (11/8/2004)
-%%		            gb_trees:delete(Fb, Ftab)
-			    gb_trees:update(Fb, {merged, Fa}, Ftab)
-%% Altered - end
+			    gb_trees:update(Fb, {merged,Fa}, Ftab)
 		    end;
-		{_,_} ->
+		{_FaInfo,_FbInfo} ->
 		    Ftab0
-%% Altered - PM (11/8/2004)	
 	    end
-%% Altered - end
     end.
 
-%% Altered - PM (11/8/2004)
 lookupMergedFace(FaceNum, FaceTable) ->
-    case gb_trees:lookup(FaceNum, FaceTable) of
-	{value, {merged, MergedFaceNum}} ->
+    case gb_trees:get(FaceNum, FaceTable) of
+	{merged,MergedFaceNum} ->
 	    lookupMergedFace(MergedFaceNum, FaceTable);
-	FaceInfo -> {FaceNum, FaceInfo}
+	FaceInfo -> {FaceNum,FaceInfo}
     end.
 
 eliminateIsolatedVert(_,_,VList) when length(VList) < 3 ->
@@ -363,8 +352,6 @@ eliminateIsolatedVert(Va, Vb, [Vb,Va,Vb|VTail], _) ->
     [Vb|VTail];   
 eliminateIsolatedVert(Va,Vb,[V|VTail],Remaining) ->
     eliminateIsolatedVert(Va,Vb,VTail ++ [V], Remaining -1).
-
-%% Altered - end
 
 merge_uvs(_, _, _, [], []) -> [];
 merge_uvs(Vs, Vs1, Vs2, Tx1, Tx2) ->
@@ -404,31 +391,36 @@ merge_faces_3(Va, Vb, [Vb,Va|Vs1], [Va,Vb|Vs2]) ->
 
 merge_faces_3(_Va, _Vb, _Vs1, _Vs2) -> error.
 
+%% rot_face(Va, Vb, [Vertex]) -> [Vertex]
+%%  Rotate the vertices making up the face so that the Va and Vb
+%%  vertices are the first in the face (in either order).
+%%  This function will cause an exception if that is not possible.
 rot_face(Va, Vb, [Va,Vb|_]=Face) -> Face;
 rot_face(Va, Vb, [Vb,Va|_]=Face) -> Face;
 rot_face(Va, Vb, [Va,Vx,Vb]) -> [Vb,Va,Vx];
 rot_face(Va, Vb, [Vb,Vx,Va]) -> [Va,Vb,Vx];
 rot_face(Va, Vb, [Vx,Va,Vb]) -> [Va,Vb,Vx];
-
-%% Altered - PM (11/8/2004)
-%% rot_face(Va, Vb, [Vx,Vb,Va]) -> [Va,Vb,Vx];
-%% Possible typo??
 rot_face(Va, Vb, [Vx,Vb,Va]) -> [Vb,Va,Vx];
-%% Altered - end
-
-rot_face(Va, Vb, Vs) ->
-    rot_face(Va, Vb, Vs, []).
+rot_face(Va, Vb, Vs) -> rot_face(Va, Vb, Vs, []).
 
 rot_face(Va, Vb, [Va,Vb|_]=Vs, Acc) -> Vs ++ reverse(Acc);
 rot_face(Va, Vb, [Vb,Va|_]=Vs, Acc) -> Vs ++ reverse(Acc);
-rot_face(Va, Vb, [Va|_]=Vs0, _Acc) ->
+rot_face(Va, Vb, [Va|_]=Vs0, Acc) ->
+    %% If the first vertex is Va, but the next is not Vb,
+    %% then we must expect to find Vb as the last element of Vs0
+    %% and Acc must be an empty list. Otherwise the rotation is
+    %% not possible.
+    [] = Acc,					%Necessary condition.
     [Vb|Vs] = reverse(Vs0),
     [Vb|reverse(Vs)];
-rot_face(Va, Vb, [Vb|_]=Vs0, _Acc) ->
+rot_face(Va, Vb, [Vb|_]=Vs0, Acc) ->
+    %% See the comment for the previous clause
+    %% (exchanging the roles of Va and Vb).
+    [] = Acc,
     [Va|Vs] = reverse(Vs0),
     [Va|reverse(Vs)];
 rot_face(Va, Vb, [V|Vs], Acc) -> rot_face(Va, Vb, Vs, [V|Acc]).
-
+    
 rhe_collect_edges(Fs) ->
     rhe_collect_edges(Fs, []).
 

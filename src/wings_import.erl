@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_import.erl,v 1.26 2005/09/27 16:13:57 bjorng Exp $
+%%     $Id: wings_import.erl,v 1.27 2005/09/28 05:57:41 bjorng Exp $
 %%
 
 -module(wings_import).
@@ -68,8 +68,8 @@ import_object(#e3d_object{name=_Name,obj=Mesh0}) ->
     Mesh = e3d_mesh:transform(Mesh1),
     import_mesh(material, Mesh).
 
--define(P(N), {N,fun N/3}).
--define(P_NOFAIL(N), {nofail,N,fun N/3}).
+-define(P(N), {N,fun N/2}).
+-define(P_NOFAIL(N), {nofail,N,fun N/2}).
 
 import_mesh(ObjType, Mesh) ->
     Pss0 = [{seq,[?P(imp_build),
@@ -79,16 +79,16 @@ import_mesh(ObjType, Mesh) ->
     Pss = polygonify_passes(Pss0, Mesh),
     run(Pss, ObjType, Mesh).
 
-imp_polygons(_, Mesh, _) ->
+imp_polygons(_, Mesh) ->
     e3d_mesh:make_polygons(Mesh).
      
-imp_quads(_, Mesh, _) ->
+imp_quads(_, Mesh) ->
     e3d_mesh:make_quads(Mesh).
 
-imp_build(ObjType, Mesh, _) ->
+imp_build(ObjType, Mesh) ->
     wings_we:build(ObjType, Mesh).
 
-imp_partition(ObjType, Mesh0, _) ->
+imp_partition(ObjType, Mesh0) ->
     wings_pb:start(""),
     wings_pb:update(0.20, "retrying"),
     Meshes = e3d_mesh:partition(Mesh0),
@@ -109,10 +109,10 @@ imp_partition(ObjType, Mesh0, _) ->
     We = wings_pb:done(wings_we:merge(Wes)),
     We#we{mode=Mode}.
 
-imp_orient_normals(_, Mesh, _) ->
+imp_orient_normals(_, Mesh) ->
     e3d_mesh:orient_normals(Mesh).
 
-imp_rip_apart(ObjType, Mesh, _) ->
+imp_rip_apart(ObjType, Mesh) ->
     dump(Mesh),
     Wes = rip_apart(ObjType, Mesh),
     [#we{mode=Mode}|_] = Wes,
@@ -127,38 +127,35 @@ polygonify_passes(Pss, #e3d_mesh{type=triangle}) ->
 polygonify_passes(Pss, _) -> Pss.
 
 
-run(Ps, Type, Mesh) ->
-    run(Ps, Type, Mesh, Mesh).
-    
-run([{seq,Seq}|Ps], ObjType, Mesh, MeshOrig) ->
+run([{seq,Seq}|Ps], ObjType, Mesh) ->
     try
-	run(Seq, ObjType, Mesh, MeshOrig)
+	run(Seq, ObjType, Mesh)
     catch
 	_:_ ->
-	    run(Ps, ObjType, Mesh, MeshOrig)
+	    run(Ps, ObjType, Mesh)
     end;
-run([{nofail,_Name,Final}|Fs], ObjType, Mesh0, MeshOrig) ->
+run([{nofail,_Name,Final}|Fs], ObjType, Mesh0) ->
     %%io:format("~p\n", [_Name]),
-    case Final(ObjType, Mesh0, MeshOrig) of
+    case Final(ObjType, Mesh0) of
 	#we{}=We -> We;
-	#e3d_mesh{}=Mesh -> run(Fs, ObjType, Mesh, MeshOrig)
+	#e3d_mesh{}=Mesh -> run(Fs, ObjType, Mesh)
     end;
-run([{_Name,Final}], ObjType, Mesh0, MeshOrig) ->
+run([{_Name,Final}], ObjType, Mesh0) ->
     %%io:format("~p\n", [_Name]),
-    case Final(ObjType, Mesh0, MeshOrig) of
+    case Final(ObjType, Mesh0) of
 	#we{}=We -> We
     end;
-run([{_Name,F}|Fs], ObjType, Mesh0, MeshOrig) ->
+run([{_Name,F}|Fs], ObjType, Mesh0) ->
     %%io:format("~p\n", [_Name]),
-    try F(ObjType, Mesh0, MeshOrig) of
+    try F(ObjType, Mesh0) of
 	#we{}=We -> We;
-	#e3d_mesh{}=Mesh -> run(Fs, ObjType, Mesh, MeshOrig)
+	#e3d_mesh{}=Mesh -> run(Fs, ObjType, Mesh)
     catch
 	_:_R ->
 	    _Stack = erlang:get_stacktrace(),
 	    %%io:format("~p failed: ~P\n", [Name,_R,10]),
 	    %%io:format(" ~P\n", [_Stack,20]),
-	    run(Fs, ObjType, Mesh0, MeshOrig)
+	    run(Fs, ObjType, Mesh0)
     end.
 
 rip_apart(Mode, Mesh) ->
