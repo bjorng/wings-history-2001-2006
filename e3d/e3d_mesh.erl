@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mesh.erl,v 1.50 2005/09/28 05:57:41 bjorng Exp $
+%%     $Id: e3d_mesh.erl,v 1.51 2005/09/29 05:26:16 bjorng Exp $
 %%
 
 -module(e3d_mesh).
@@ -282,12 +282,10 @@ face_areas(Fs, Vs) when is_list(Fs), is_list(Vs) ->
 
 merge_faces([{_Name,L}|Es], Ftab0) ->
     Ftab = case L of
-%% Altered - PM (11/8/2004)
-%%	       [{Fa,Va,Vb,invisible},{Fb,_,_,invisible}] ->
-	       [{Fa,Va,Vb,invisible},{Fb,Vb,Va,invisible}] ->
-%% Altered - end
+	       [{Fa,Va,Vb},{Fb,Vb,Va}] ->
 		   merge_faces_1(Fa, Fb, Va, Vb, Ftab0);
-	       _Other -> Ftab0
+	       _Other ->
+		   Ftab0
 	   end,
     merge_faces(Es, Ftab);
 merge_faces([], Ftab) -> Ftab.
@@ -299,7 +297,7 @@ merge_faces_1(Fa0, Fb0, Va, Vb, Ftab0) ->
 
 %% Since we can now merge polys with more than one invisible edge,
 %% we have to watch out for situation where both edges are in the
-%% same face (ie, we will be isolating a vertice). The other possibility
+%% same face (ie, we will be isolating a vertex). The other possibility
 %% when Fa == Fb is that the polygon has a hole; but since the e3d_face
 %% record doesn't allow for holes, I'm leaving the mesh as is if that's
 %% the case.
@@ -311,7 +309,7 @@ merge_faces_1(Fa0, Fb0, Va, Vb, Ftab0) ->
 			notFound -> Ftab0;
 			Vs when is_list(Vs) ->
 			    Tx = merge_uvs(Vs, Vs1, Vs1, Tx1, Tx1),
-			    Rec = Rec0#e3d_face{vs=Vs, tx=Tx, vis=-1},
+			    Rec = Rec0#e3d_face{vs=Vs,tx=Tx,vis=-1},
 			    gb_trees:update(Fa, Rec, Ftab0)
 		    end;
 		_ -> Ftab0
@@ -426,7 +424,7 @@ rhe_collect_edges(Fs) ->
 
 rhe_collect_edges([{Face,#e3d_face{vs=Vs,vis=Vis0}}|Fs], Acc0) ->
     Vis = Vis0 band 7,
-    Pairs = pairs(Vs, Vis),
+    Pairs = invis_pairs(Vs, Vis),
     Acc = rhe_edges(Pairs, Face, Acc0),
     rhe_collect_edges(Fs, Acc);
 rhe_collect_edges([], Es0) ->
@@ -434,23 +432,27 @@ rhe_collect_edges([], Es0) ->
     Es = sofs:relation_to_family(Es1),
     sofs:to_external(Es).
 
-rhe_edges([{Va,Vb,Vis}|Ps], Face, Acc) when Va < Vb ->
-    Name = {Va,Vb},
-    rhe_edges(Ps, Face, [{Name,{Face,Va,Vb,Vis}}|Acc]);
-rhe_edges([{Va,Vb,Vis}|Ps], Face, Acc) ->
+rhe_edges([{Va,Vb}=Name|Ps], Face, Acc) when Va < Vb ->
+    rhe_edges(Ps, Face, [{Name,{Face,Va,Vb}}|Acc]);
+rhe_edges([{Va,Vb}|Ps], Face, Acc) ->
     Name = {Vb,Va},
-    rhe_edges(Ps, Face, [{Name,{Face,Va,Vb,Vis}}|Acc]);
+    rhe_edges(Ps, Face, [{Name,{Face,Va,Vb}}|Acc]);
 rhe_edges([], _Face, Acc) -> Acc.
 
-pairs(Vs, Vis) ->
-    pairs(Vs, Vs, Vis, []).
+invis_pairs(Vs, Vis) ->
+    invis_pairs(Vs, Vs, Vis, []).
 
-pairs([V1|[V2|_]=Vs], More, Vis, Acc) ->
-    State = visible(Vis),
-    pairs(Vs, More, Vis bsl 1, [{V1,V2,State}|Acc]);
-pairs([V1], [V2|_], Vis, Acc) ->
-    State = visible(Vis),
-    [{V1,V2,State}|Acc].
+invis_pairs([V1|[V2|_]=Vs], More, Vis, Acc0) ->
+    Acc = case visible(Vis) of
+	      invisible -> [{V1,V2}|Acc0];
+	      visible -> Acc0
+	  end,
+    invis_pairs(Vs, More, Vis bsl 1, Acc);
+invis_pairs([V1], [V2|_], Vis, Acc) ->
+    case visible(Vis) of
+	invisible -> [{V1,V2}|Acc];
+	visible -> Acc
+    end.
 
 visible(F) when F band 4 =/= 0 -> visible;
 visible(_) -> invisible.
