@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mesh.erl,v 1.51 2005/09/29 05:26:16 bjorng Exp $
+%%     $Id: e3d_mesh.erl,v 1.52 2005/10/02 08:44:03 bjorng Exp $
 %%
 
 -module(e3d_mesh).
@@ -76,7 +76,8 @@ make_polygons(#e3d_mesh{type=triangle,fs=Fs0}=Mesh0) ->
     Ftab0 = number_faces(Fs0),
     Es = rhe_collect_edges(Ftab0),
     Ftab1 = gb_trees:from_orddict(Ftab0),
-    Ftab = merge_faces(Es, Ftab1),
+    Cs = components(Es),
+    Ftab = merge_components(Cs, Ftab1),
     Fs1 = gb_trees:values(Ftab),
     Fs = filter(fun ({merged,_}) -> false;
 		    (_) -> true
@@ -277,19 +278,67 @@ face_areas(Fs, Vs) when is_list(Fs), is_list(Vs) ->
 %%%
 
 %%%
-%%% Help functions for make_quads/1.
+%%% Help functions for make_quads/1 and make_polygons/1.
 %%%
 
-merge_faces([{_Name,L}|Es], Ftab0) ->
-    Ftab = case L of
-	       [{Fa,Va,Vb},{Fb,Vb,Va}] ->
-		   merge_faces_1(Fa, Fb, Va, Vb, Ftab0);
-	       _Other ->
-		   Ftab0
-	   end,
-    merge_faces(Es, Ftab);
-merge_faces([], Ftab) -> Ftab.
+components(Es) ->
+    G = digraph:new(),
+    components_1(Es, G).
 
+components_1([{_,[{Fa,Va,Vb},{Fb,Vb,Va}]}|Es], G) ->
+    digraph:add_vertex(G, Fa),
+    digraph:add_vertex(G, Fb),
+    digraph:add_edge(G, Fa, Fb, {Va,Vb}),
+    components_1(Es, G);
+components_1([_|Es], G) ->
+    components_1(Es, G);
+components_1([], G) ->
+    Cs0 = digraph_utils:components(G),
+    Cs = [annotate_component(G, C) || C <- Cs0],
+    digraph:delete(G),
+    Cs.
+
+annotate_component(G, [F|Fs]) ->
+    case annotate_out_edges(G, F) of
+	[] -> annotate_component(G, Fs);
+	Es -> [{F,Es}|annotate_component(G, Fs)]
+    end;
+annotate_component(_, []) -> [].
+
+annotate_out_edges(G, F) ->
+    [annotate_edge(G, F, E) || E <- digraph:out_edges(G, F)].
+
+annotate_edge(G, Fa, E) ->
+    {_,Fa,Fb,Vs} = digraph:edge(G, E),
+    {Fb,Vs}.
+
+merge_components([C|Cs], Ftab0) ->
+    try merge_component(C, Ftab0) of
+	Ftab -> merge_components(Cs, Ftab)
+    catch
+	error:_R ->
+	    %%Stk = erlang:get_stacktrace(),
+	    %%io:format("\n~p\n", [_R]),
+	    %%io:format("~p\n", [Stk]),
+	    merge_components(Cs, Ftab0)
+    end;
+merge_components([], Ftab) -> Ftab.
+
+merge_component([{Fa0,Fs}], Ftab0) ->
+    Ftab = merge_comp_faces(Fs, Fa0, Ftab0),
+    {_Fa,#e3d_face{vs=Vs}} = lookupMergedFace(Fa0, Ftab),
+    %% There must be no repeated vertices.
+    true = length(Vs) =:= length(lists:usort(Vs)),
+    Ftab;
+merge_component([{Fa,Fs}|Es], Ftab0) ->
+    Ftab = merge_comp_faces(Fs, Fa, Ftab0),
+    merge_component(Es, Ftab);
+merge_component([], Ftab) -> Ftab.
+
+merge_comp_faces([{Fb,{Va,Vb}}|Fs], Fa, Ftab0) ->
+    Ftab = merge_faces_1(Fa, Fb, Va, Vb, Ftab0),
+    merge_comp_faces(Fs, Fa, Ftab);
+merge_comp_faces([], _, Ftab) -> Ftab.
 
 merge_faces_1(Fa0, Fb0, Va, Vb, Ftab0) ->
     {Fa,FaInfo} = lookupMergedFace(Fa0, Ftab0),
