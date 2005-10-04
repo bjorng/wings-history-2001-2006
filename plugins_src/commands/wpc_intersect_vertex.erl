@@ -10,7 +10,7 @@
 %%
 %%  Contributed by elrond79.
 %%
-%%     $Id: wpc_intersect_vertex.erl,v 1.3 2004/12/16 20:04:50 bjorng Exp $
+%%     $Id: wpc_intersect_vertex.erl,v 1.4 2005/10/04 20:31:15 giniu Exp $
 %%
 %%  2000-10-01:  Changed help text to incorporate suggestions by Puzzled Paul
 %%  2000-09-21:  Normalized LD and PN (so dot product not <.001 if either is very
@@ -54,37 +54,37 @@ command(_,_) -> next.
 %% creates the menu item for the vertex intersect command.
 
 menu_item() ->
-    [{basic, {"Intersect",{intersect,[{"Stay on line", {'VALUE', submenu_items(1)},
-				       "Move vertex along LINE of chosen direction to intersection " ++
-				       "with chosen PLANE"},
-				      {"Stay on plane", {'VALUE', submenu_items(2)},
-				       "Move vertex along PLANE with chosen normal to intersection " ++
-				       "with chosen LINE"},
-				      {"Pick all", {'VALUE', submenu_items(3)},
-				       "Move vertex to intersection of LINE of chosen direction and location " ++
-				       "with PLANE with chosen normal and location"}]}}},
-     {advanced, {"Intersect",{intersect,fun adv_submenu/2}}}].
+    [{basic, {?__(1,"Intersect"),{intersect,[{?__(2,"Stay on line"), {'VALUE', submenu_items(1)},
+				       ?__(3,"Move vertex along LINE of chosen direction to intersection "
+				       "with chosen PLANE")},
+				      {?__(4,"Stay on plane"), {'VALUE', submenu_items(2)},
+				       ?__(5,"Move vertex along PLANE with chosen normal to intersection "
+				       "with chosen LINE")},
+				      {?__(6,"Pick all"), {'VALUE', submenu_items(3)},
+				       ?__(7,"Move vertex to intersection of LINE of chosen direction and location "
+				       "with PLANE with chosen normal and location")}]}}},
+     {advanced, {?__(8,"Intersect"),{intersect,fun adv_submenu/2}}}].
 
 
 submenu_items(1) ->
     {stay_on_line,
-     {'ASK',{[{axis, "Pick direction of line - line will pass through selected vertex(es)"},
-	      {axis_point, "Pick plane to intersect"}],[],[]}}};
+     {'ASK',{[{axis,       ?__(1,"Pick direction of line - line will pass through selected vertex(es)")},
+	      {axis_point, ?__(2,"Pick plane to intersect")}],[],[]}}};
 submenu_items(2) ->
     {stay_on_plane,
-     {'ASK',{[{axis, "Pick plane normal - plane will pass through selected vertex(es)"},
-	      {axis_point, "Pick line to intersect"}],[],[]}}};
+     {'ASK',{[{axis,       ?__(3,"Pick plane normal - plane will pass through selected vertex(es)")},
+	      {axis_point, ?__(4,"Pick line to intersect")}],[],[]}}};
 submenu_items(3) ->
     {pick_all,
-     {'ASK',{[{axis, "Pick direction of line"},
-	      {point, "Pick point for line to pass through"},
-	      {axis, "Pick plane normal"},
-	      {point, "Pick point for plane to pass through"}],[],[]}}}.
+     {'ASK',{[{axis,       ?__(5,"Pick direction of line")},
+	      {point,      ?__(6,"Pick point for line to pass through")},
+	      {axis,       ?__(7,"Pick plane normal")},
+	      {point,      ?__(8,"Pick point for plane to pass through")}],[],[]}}}.
 
 adv_submenu(help, _) ->
-    {"Stay on line, move to intersection with plane",
-     "Stay on plane, move to line",
-     "Pick line and plane"};
+    {?__(1,"Stay on line, move to intersection with plane"),
+     ?__(2,"Stay on plane, move to line"),
+     ?__(3,"Pick line and plane")};
 adv_submenu(Button, NS) ->
     wings_menu:build_command(submenu_items(Button), NS).
 
@@ -118,8 +118,8 @@ intersect(LineDir0, LinePoint, PlaneNorm0, PlanePoint, St) ->
 		       intersect_body(Vs, We, IntersectData)
 	       end, St)};
 	true ->
- 	    wpa:error("Line and plane are nearly parallel:\n"++
-		      "can't find intersection."),
+ 	    wpa:error(?__(1,"Line and plane are nearly parallel:\n"
+		      "can't find intersection.")),
 	    keep
     end.
 

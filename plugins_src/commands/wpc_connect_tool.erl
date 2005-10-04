@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_connect_tool.erl,v 1.22 2005/02/03 14:38:58 dgud Exp $
+%%     $Id: wpc_connect_tool.erl,v 1.23 2005/10/04 20:31:15 giniu Exp $
 %%
 -module(wpc_connect_tool).
 
@@ -43,8 +43,8 @@ init() -> true.
 
 menu({tools}, Menu0) ->
     Menu0 ++ [separator,
-	      {"Connect", connect,
-	       "Mode for quickly connecting vertices and edges"}
+	      {?__(1,"Connect"), connect,
+	       ?__(2,"Mode for quickly connecting vertices and edges")}
 	     ];
 menu(_, Menu) -> Menu.
 
@@ -524,15 +524,15 @@ obj_to_screen({MVM,PM,VP}, {X,Y,Z}) ->
     glu:project(X, Y, Z, MVM, PM, VP).
 
 help(#cs{v=[]}) ->
-    Msg1 = wings_msg:button_format("Select vertex or cut edge [press button to slide]"),
+    Msg1 = wings_msg:button_format(?__(1,"Select vertex or cut edge [press button to slide]")),
     Msg2 = wings_camera:help(),
-    Msg3 = wings_msg:button_format([], [], "Exit Connect"),
+    Msg3 = wings_msg:button_format([], [], ?__(2,"Exit Connect")),
     Msg = wings_msg:join([Msg1,Msg2,Msg3]),
     wings_wm:message(Msg, "");
 help(_) ->
-    Msg1 = wings_msg:button_format("Connects edges/vertices [reselect last vertex to end]"),
+    Msg1 = wings_msg:button_format(?__(3,"Connects edges/vertices [reselect last vertex to end]")),
     Msg2 = wings_camera:help(),
-    Msg3 = wings_msg:button_format([], [], "Exit Connect"),
+    Msg3 = wings_msg:button_format([], [], ?__(4,"Exit Connect")),
     Msg = wings_msg:join([Msg1,Msg2,Msg3]),
     wings_wm:message(Msg, "").
 

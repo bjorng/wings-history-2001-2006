@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_untriangulate.erl,v 1.2 2005/08/24 19:36:32 trepan Exp $
+%%     $Id: wpc_untriangulate.erl,v 1.3 2005/10/04 20:31:15 giniu Exp $
 %%
 
 -module(wpc_untriangulate).
@@ -52,10 +52,10 @@ init() ->
     true.
 
 menu({face,subdivide}, Menu) ->
-    Menu ++ [{"Untriangulate", untriangulate,
-              "Convert triangle sets into quads",[option]}];
+    Menu ++ [{?__(1,"Untriangulate"), untriangulate,
+              ?__(2,"Convert triangle sets into quads"),[option]}];
 menu({edit,plugin_preferences}, Menu) ->
-    Menu ++ [{"Untriangulate",untriangulate}];
+    Menu ++ [{?__(3,"Untriangulate"),untriangulate}];
 menu(_,Menu) -> Menu.
 
 command({face, {subdivide, {untriangulate, Ask}}}, St) ->
@@ -73,7 +73,7 @@ command(_,_) -> next.
 untriangulate(Ask, _) when is_atom(Ask) ->
     init_pref(),
     Qs = get_ask_list(),
-    wings_ask:dialog(Ask, "Untriangulate (v0.2)", [{vframe, Qs}],
+    wings_ask:dialog(Ask, ?__(1,"Untriangulate (v0.2)"), [{vframe, Qs}],
                      fun(Res) ->
                          {face, {subdivide, {untriangulate, Res}}}
                      end);
@@ -118,25 +118,25 @@ get_ask_list() ->
     Qs = [{hradio, 
             [{integer_to_list(N) ++ " ", IntToAtom(N)} || N <- Levels],
             IntToAtom(get_param(algolvl)),
-            [{title, "Algorithm Strength"},
-             {info, "Higher algorithm strengths are slower, " ++
-                    "but may produce better results"}
+            [{title, ?__(1,"Algorithm Strength")},
+             {info,  ?__(2,"Higher algorithm strengths are slower, "
+                     "but may produce better results")}
             ]},
           {hframe,
-            [{label, "Max Edge Angle"},
+            [{label, ?__(3,"Max Edge Angle")},
              {text, get_param(angle), [{range, {0.0, 180.0}},
-               {info, "Maximum angle of edges that are dissolved"}]}
+               {info, ?__(4,"Maximum angle of edges that are dissolved")}]}
             ]},
           separator,
-          {"Check Materials", get_param(usemat), [{key, usemat},
-            {info,"Do not dissolve edges along material boundaries"}]},
-          {"Check UV Coords", get_param(useuvs), [{key, useuvs},
-            {info,"Do not dissolve edges along disjoint " ++
-                  "texture coordinate boundaries"}]},
-          {"Check Hard Edges", get_param(usehard), [{key, usehard},
-            {info,"Do not dissolve hard edges"}]},
-          {"Check Concavity", get_param(convex), [{key, convex},
-            {info,"Do not produce concave polygons"}]}
+          {?__(5,"Check Materials"), get_param(usemat), [{key, usemat},
+            {info,?__(6,"Do not dissolve edges along material boundaries")}]},
+          {?__(7,"Check UV Coords"), get_param(useuvs), [{key, useuvs},
+            {info,?__(8,"Do not dissolve edges along disjoint "
+                  "texture coordinate boundaries")}]},
+          {?__(9,"Check Hard Edges"), get_param(usehard), [{key, usehard},
+            {info,?__(10,"Do not dissolve hard edges")}]},
+          {?__(11,"Check Concavity"), get_param(convex), [{key, convex},
+            {info,?__(12,"Do not produce concave polygons")}]}
          ],
     Qs.
 
@@ -204,10 +204,10 @@ compare_erecs(Erec0, Erec1, AlgoLevel) ->
 
 process_edges(Options, SelSet, We, St) ->
     AlgoLevel = Options#utopts.algolvl,
-    wings_pb:start("Untriangulate"),
-    wings_pb:update(0.01, "Picking Target Edges"),
+    wings_pb:start(?__(1,"Untriangulate")),
+    wings_pb:update(0.01, ?__(2,"Picking Target Edges")),
     Tlist = find_target_edges(Options,SelSet,We,St),
-    wings_pb:update(0.02, "Making Selection Tree"),
+    wings_pb:update(0.02, ?__(3,"Making Selection Tree")),
     ETree = make_erec_tree(AlgoLevel, Tlist, We),
     KillList = pick_edges(ETree, AlgoLevel),
     wings_pb:done(),
@@ -463,7 +463,7 @@ init_pref() ->
 
 pref_edit(St) ->
     Qs = get_ask_list(),
-    wpa:dialog("Untriangulate Preferences (v0.2)", [{vframe, Qs}],
+    wpa:dialog(?__(1,"Untriangulate Preferences (v0.2)"), [{vframe, Qs}],
                 fun(Attrs) -> pref_result(Attrs, St) end).
 
 pref_result([AlgoLevelAtom, Angle, 

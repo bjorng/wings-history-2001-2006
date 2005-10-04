@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_shift.erl,v 1.1 2005/06/24 13:27:06 trepan Exp $
+%%     $Id: wpc_shift.erl,v 1.2 2005/10/04 20:31:15 giniu Exp $
 %%
 
 
@@ -33,7 +33,7 @@ init() ->
 
 menu({vertex}, Menu) ->
     Menu ++ [{advanced,separator},
-	     {advanced, {"Shift", {shift,fun adv_submenu/2}}}];
+	     {advanced, {?__(1,"Shift"), {shift,fun adv_submenu/2}}}];
 menu(_,Menu) -> Menu.
 
 command({vertex,{shift,Type}}, St) ->
@@ -47,18 +47,18 @@ command(_,_) -> next.
 %%
 
 submenu_items(1) ->
-    {{planar_shift}, {'ASK',{[{axis, "Pick axis"},
-	                      {point,  "Pick point"}],[],[]}}};
+    {{planar_shift}, {'ASK',{[{axis, ?__(1,"Pick axis")},
+	                      {point,  ?__(2,"Pick point")}],[],[]}}};
 submenu_items(2) ->
-    {{spherical_shift}, {'ASK',{[{point, "Pick center"}],[],[]}}};
+    {{spherical_shift}, {'ASK',{[{point, ?__(3,"Pick center")}],[],[]}}};
 
 submenu_items(3) ->
-    {{cylindrical_shift}, {'ASK',{[{axis, "Pick axis"},
-                                   {point, "Pick point"}],[],[]}}}.
+    {{cylindrical_shift}, {'ASK',{[{axis, ?__(4,"Pick axis")},
+                                   {point, ?__(5,"Pick point")}],[],[]}}}.
 adv_submenu(help, _) ->
-    {"Planar Shift",
-     "Spherical Shift",
-     "Cylindrical Shift"};
+    {?__(1,"Planar Shift"),
+     ?__(2,"Spherical Shift"),
+     ?__(3,"Cylindrical Shift")};
 adv_submenu(Button, NS) ->
     wings_menu:build_command(submenu_items(Button), NS).
 

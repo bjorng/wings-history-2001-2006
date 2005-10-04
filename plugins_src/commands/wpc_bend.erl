@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_bend.erl,v 1.2 2005/06/24 13:39:19 trepan Exp $
+%%     $Id: wpc_bend.erl,v 1.3 2005/10/04 20:31:15 giniu Exp $
 %%
 
 
@@ -43,9 +43,9 @@ init() ->
 
 menu({vertex}, Menu) ->
     Menu ++ [{advanced,separator},
-	     {advanced, {"Bend",
+	     {advanced, {?__(1,"Bend"),
 			 {bend,fun adv_submenu_noclamp/2}}},
-	     {advanced, {"Bend Clamped",
+	     {advanced, {?__(2,"Bend Clamped"),
 			 {bend,fun adv_submenu_clamped/2}}}];
 menu(_,Menu) -> Menu.
 
@@ -61,45 +61,45 @@ command(_,_) -> next.
 
 submenu_items(1, Clamped) ->
     {{plastic_bend,Clamped},
-     {'ASK',{[{point, "Pick rod center"},
-	      {point, "Pick rod top"},
-	      {axis,  "Pick bend normal"}]
+     {'ASK',{[{point, ?__(1,"Pick rod center")},
+	      {point, ?__(2,"Pick rod top")},
+	      {axis,  ?__(3,"Pick bend normal")}]
               ++ submenu_clamp(Clamped),[],[]}}};
 submenu_items(2, Clamped) ->
     {{pivot_bend,Clamped},
-     {'ASK',{[{point, "Pick rod center"},
-	      {point, "Pick rod top"},
-	      {axis,  "Pick pivot axis"},
-	      {point, "Pick pivot location"}]
+     {'ASK',{[{point, ?__(4,"Pick rod center")},
+	      {point, ?__(5,"Pick rod top")},
+	      {axis,  ?__(6,"Pick pivot axis")},
+	      {point, ?__(7,"Pick pivot location")}]
               ++ submenu_clamp(Clamped),[],[]}}};
 submenu_items(3, Clamped) ->
     {{toprad_bend,Clamped},
-     {'ASK',{[{point, "Pick rod center"},
-	      {point, "Pick rod top"},
-	      {axis,  "Pick bend normal"}]
+     {'ASK',{[{point, ?__(8,"Pick rod center")},
+	      {point, ?__(9,"Pick rod top")},
+	      {axis,  ?__(10,"Pick bend normal")}]
               ++ submenu_clamp(Clamped),[],[]}}}.
 
 submenu_clamp(Clamped) ->
     case Clamped of
       clamped ->
-        [{point, "Pick Top Clamp Point"},
-         {point, "Pick Bottom Clamp Point"}];
+        [{point, ?__(1,"Pick Top Clamp Point")},
+         {point, ?__(2,"Pick Bottom Clamp Point")}];
       noclamp ->
         []
     end.
 
 
 adv_submenu_noclamp(help, _) ->
-    {"Plastic Bend",
-     "Pivot Bend",
-     "TopRad Bend"};
+    {?__(1,"Plastic Bend"),
+     ?__(2,"Pivot Bend"),
+     ?__(3,"TopRad Bend")};
 adv_submenu_noclamp(Button, NS) ->
     wings_menu:build_command(submenu_items(Button, noclamp), NS).
 
 adv_submenu_clamped(help, _) ->
-    {"Clamped Plastic Bend",
-     "Clamped Pivot Bend",
-     "Clamped TopRad Bend"};
+    {?__(1,"Clamped Plastic Bend"),
+     ?__(2,"Clamped Pivot Bend"),
+     ?__(3,"Clamped TopRad Bend")};
 adv_submenu_clamped(Button, NS) ->
     wings_menu:build_command(submenu_items(Button, clamped), NS).
 
@@ -250,7 +250,7 @@ bend_setup_clamps(#bend_data{rodCenter=RC, rodNormal=RN}=BD,
 
 bend_verts(BendData, St) ->
   case BendData#bend_data.rodLength of
-    0.0 -> wpa:error("Configuration doe not result in bending");
+    0.0 -> wpa:error(?__(1,"Configuration does not result in bending"));
     _ ->
       %% FIXME
       %%   Run a test call. If you don't do this before
@@ -296,7 +296,7 @@ bend_vertex(Pos, Angle, #bend_data{dragMode = DragMode,
                                    posHeightClamp = PC,
                                    negHeightClamp = NC}=BD) ->
   case ?DEBUG_BEND of
-    true  -> io:format("Angle = ~p: ", [Angle]), print_bend_data(BD);
+    true  -> io:format(?__(1,"Angle")++" = ~p: ", [Angle]), print_bend_data(BD);
     false -> []
   end,
 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_region.erl,v 1.9 2003/06/08 08:57:15 bjorng Exp $
+%%     $Id: wpc_region.erl,v 1.10 2005/10/04 20:31:15 giniu Exp $
 %%
 
 -module(wpc_region).
@@ -25,20 +25,20 @@ init() ->
 
 menu({face,move}, Menu0) ->
     Menu0 ++ [separator,
-	      {"Region",region,
-	       "Move region along the normal of its edge loop."}];
+	      {?__(1,"Region"),region,
+	       ?__(2,"Move region along the normal of its edge loop.")}];
 menu({face,scale}, Menu0) ->
     Menu0 ++ [separator,
-	      {"Region",region,
-	       "Scale region from the plane of its edge loop."}];
+	      {?__(3,"Region"),region,
+	       ?__(4,"Scale region from the plane of its edge loop.")}];
 menu({face,rotate}, Menu0) ->
     Menu0 ++ [separator,
-	      {"Region",region,
-	       "Rotate region around the normal of its edge loop."}];
+	      {?__(5,"Region"),region,
+	       ?__(6,"Rotate region around the normal of its edge loop.")}];
 menu({face,flatten}, Menu0) ->
     Menu0 ++ [separator,
-	      {"Region",region,
-	       "Flatten region to the normal of its edge loop."}];
+	      {?__(7,"Region"),region,
+	       ?__(8,"Flatten region to the normal of its edge loop.")}];
 menu(_, Menu) -> Menu.
 
 command({face,{move,region}}, St) ->
@@ -181,4 +181,4 @@ flatten_region_2(Vs, We) ->
 %%%
 
 region_error() ->
-    wpa:error("Each region must have exactly one edge loop.").
+    wpa:error(?__(1,"Each region must have exactly one edge loop.")).

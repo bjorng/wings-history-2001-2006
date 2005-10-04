@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.66 2005/01/28 06:24:41 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.67 2005/10/04 20:31:15 giniu Exp $
 %%
 
 -module(wpc_tweak).
@@ -53,8 +53,8 @@ init() -> true.
 
 menu({tools}, Menu0) ->
     Menu0 ++ [separator,
-	      {"Tweak", tweak,
-	       "Mode for quickly moving single elements"}
+	      {?__(1,"Tweak"), tweak,
+	       ?__(2,"Mode for quickly moving single elements")}
 	     ];
 menu(_, Menu) -> Menu.
 
@@ -374,33 +374,38 @@ vertex_pos(V, Vtab, OrigVtab) ->
     end.
 
 help(#tweak{magnet=false}) ->
-    Msg1 = wings_msg:button_format("Drag freely"),
+    Msg1 = wings_msg:button_format(?__(1,"Drag freely")),
     Msg2 = wings_camera:help(),
-    Msg3 = wings_msg:button_format([], [], "Exit tweak mode"),
+    Msg3 = wings_msg:button_format([], [], ?__(2,"Exit tweak mode")),
     FreeMod = wings_msg:free_lmb_modifier(),
     ModName = wings_msg:mod_name(FreeMod),
-    Msg4 = [ModName,$+,wings_msg:button_format("Along normal")],
+    Msg4 = [ModName,$+,wings_msg:button_format(?__(3,"Along normal"))],
     Msg = wings_msg:join([Msg1,Msg4,Msg2,Msg3]),
-    wings_wm:message(Msg, "[1] Magnet On");
+    wings_wm:message(Msg, "[1] "++?__(4,"Magnet On"));
 help(#tweak{magnet=true,mag_type=Type}) ->
     FreeMod = wings_msg:free_lmb_modifier(),
     ModName = wings_msg:mod_name(FreeMod),
-    Norm = [ModName,$+,wings_msg:button_format("Along normal")],
-    Drag = wings_msg:join(["Drag", Norm]),
-    Msg = wings_msg:button_format(Drag, [], "Exit"),
-    Types = help_1(Type, [{2,dome},{3,straight},{4,spike}]),
-    MagMsg = wings_msg:join(["[1] Magnet Off",
-			     "[+]/[-] Tweak R",
+    Norm = [ModName,$+,wings_msg:button_format(?__(5,"Along normal"))],
+    Drag = wings_msg:join([?__(6,"Drag"), Norm]),
+    Msg = wings_msg:button_format(Drag, [], ?__(7,"Exit")),
+    Types = help_1(Type, [{2,dome}, {3,straight}, {4,spike}]),
+    MagMsg = wings_msg:join(["[1] "++?__(8,"Magnet Off"),
+			     "[+]/[-] "++?__(9,"Tweak R"),
 			     Types]),
     wings_wm:message(Msg, MagMsg).
 
+intl_type(dome)     -> ?__(1,"Dome");
+intl_type(straight) -> ?__(2,"Straight");
+intl_type(spike)    -> ?__(3,"Spike");
+intl_type(Type)     -> wings_util:cap(atom_to_list(Type)).
+
 help_1(Type, [{Digit,Type}|T]) ->
-    wings_msg:join("[" ++ [$0+Digit] ++ "] " ++
-		   [{bold,wings_util:cap(atom_to_list(Type))}],
+    wings_msg:join("[" ++ [$0+Digit] ++ "] " ++ 
+                    [{bold,intl_type(Type)}],
 		   help_1(Type, T));
 help_1(Type, [{Digit,ThisType}|T]) ->
-    wings_msg:join("[" ++ [$0+Digit] ++ "] " ++
-		   wings_util:cap(atom_to_list(ThisType)),
+    wings_msg:join("[" ++ [$0+Digit] ++ "] " ++ 
+                    intl_type(ThisType),
 		   help_1(Type, T));
 help_1(_, []) -> [].
 

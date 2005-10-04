@@ -10,7 +10,7 @@
 %%
 %%  Contributed by elrond79.
 %%
-%%     $Id: wpc_intersect_edge.erl,v 1.3 2004/12/16 20:04:50 bjorng Exp $
+%%     $Id: wpc_intersect_edge.erl,v 1.4 2005/10/04 20:31:15 giniu Exp $
 %%
 %%  2000-10-09:  Fixed undo bug (had forgotten to use "{save_state, ...}")
 %%  2000-10-01:  Incorporated help text suggestions from Puzzled Paul
@@ -43,19 +43,19 @@ command(_,_) -> next.
 %% creates the menu item for the edge intersect command.
 
 menu_item() ->
-    {"Intersect",{intersect,fun submenu/2}}.
+    {?__(1,"Intersect"),{intersect,fun submenu/2}}.
 
 submenu(help, _) ->
-    {"Intersect std. planes",
-     "Pick plane and ref point on plane",
-     "Pick plane"};
+    {?__(1,"Intersect std. planes"),
+     ?__(2,"Pick plane and ref point on plane"),
+     ?__(3,"Pick plane")};
 submenu(1, _) ->
     [standard_planes_menu()];
 submenu(2, Ns) ->
-    wings_menu:build_command({'ASK',{[{axis, "Pick axis perpendicular to plane"},
-				      {point, "Pick point for plane to pass through"}],[],[]}}, Ns);
+    wings_menu:build_command({'ASK',{[{axis,  ?__(4,"Pick axis perpendicular to plane")},
+				      {point, ?__(5,"Pick point for plane to pass through")}],[],[]}}, Ns);
 submenu(3, Ns) ->
-    wings_menu:build_command({'ASK',{[{axis_point, "Pick axis perpendicular to plane (plane will pass through axis's base)"}],[],[]}}, Ns).
+    wings_menu:build_command({'ASK',{[{axis_point, ?__(6,"Pick axis perpendicular to plane (plane will pass through axis's base)")}],[],[]}}, Ns).
 
 standard_planes_menu() ->
     [standard_plane_fun(x),
@@ -73,21 +73,24 @@ standard_plane_fun(Vec) ->
 	   (3, Ns) ->
 		wings_menu:build_command({'ASK',{[point],[Vec]}}, Ns)
 	end,
-    VecString = wings_util:stringify(Vec),
+    VecString = intl_vec(Vec),
     if
 	Vec == last_axis; Vec == default_axis ->
-	    Help0 = "Intersect edge with plane defined by the " ++ VecString;
+	    Help0 = ?__(1,"Intersect edge with plane defined by the")++" " ++ VecString;
 	true ->
 	    PlaneString = case Vec of
 			      x -> "YZ";
 			      y -> "XZ";
 			      z -> "XY"
 			  end,
-	    Help0 = "Intersect edge with the " ++ PlaneString ++ " plane"
+	    Help0 = ?__(2,"Intersect edge with the")++" " ++ PlaneString ++ " "++?__(3,"plane")
     end,
-    Help = {Help0,[],"Pick point on plane"},
-    {VecString,F,Help,[]}.
+    Help = {Help0,[],?__(4,"Pick point on plane")},
+    {wings_util:cap(VecString),F,Help,[]}.
 
+intl_vec(last_axis)    -> ?__(1,"last axis");
+intl_vec(default_axis) -> ?__(2,"default axis");
+intl_vec(Vec)          -> wings_util:stringify(Vec).
 
 %%%
 %%% The edge Intersect command.
@@ -116,7 +119,7 @@ intersect(Plane0, Center, St) ->
 		       intersect_body(Es, Plane, Center, We)
 	       end, St)};
 	invalid ->
-	    wpa:error("Selected edges may not share any vertices"),
+	    wpa:error(?__(1,"Selected edges may not share any vertices")),
 	    keep
     end.
 
@@ -159,8 +162,8 @@ intersect_edges(Plane,Center,EdgeTab,VertPosTab0,[EdgeNum|OtherEdgeNums]) ->
     LineDotPlane = e3d_vec:dot(V1V2,Plane),
     if
 	abs(LineDotPlane) < 0.001 ->
-	    wpa:error("Line and plane are nearly parallel:\n"++
-			       "can't find intersection."),
+	    wpa:error(?__(1,"Line and plane are nearly parallel:\n"
+			       "can't find intersection.")),
 	    VertPosTab = VertPosTab0;
 	true ->
 	    %% First, see if V1 and V2 are on same side of plane;

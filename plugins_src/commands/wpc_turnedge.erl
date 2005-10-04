@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_turnedge.erl,v 1.4 2003/03/14 05:50:52 bjorng Exp $
+%%     $Id: wpc_turnedge.erl,v 1.5 2005/10/04 20:31:15 giniu Exp $
 %%
 
 -module(wpc_turnedge).
@@ -28,7 +28,7 @@ menu({edge}, Menu) ->
 	false -> Menu
     end;
 menu({edit,plugin_preferences}, Menu) ->
-    Menu ++ [{"Turn Edge",turn_edge}];
+    Menu ++ [{?__(1,"Turn Edge"),turn_edge}];
 menu(_, Menu) -> Menu.
 
 menu_entry(Menu) ->
@@ -36,12 +36,13 @@ menu_entry(Menu) ->
 	true ->
 	    TurnMenu = turns(),
 	    Menu ++ [separator,
-		     {"Turn",{turn,TurnMenu}}];
+		     {?__(1,"Turn"),{turn,TurnMenu}}];
 	false ->
 	    Menu ++ [separator,
-		     {"Turn",turn,"Turn edge"},
-		     {"Optimized Turn",optimized_turn,
-		      "Turn edge only if new edge length would be shorter"}]
+		     {?__(2,"Turn"),turn,
+		      ?__(3,"Turn edge")},
+		     {?__(4,"Optimized Turn"),optimized_turn,
+		      ?__(5,"Turn edge only if new edge length would be shorter")}]
     end.
 
 command({edge,turn}, St0) ->
@@ -75,7 +76,7 @@ turn_menu(help) -> turn_help();
 turn_menu(_) -> ignore.
 
 turn_help() ->
-    {"Turn edge", "", "Turns edge only if new edge length would be shorter"}.
+    {?__(1,"Turn edge"), "", ?__(2,"Turns edge only if new edge length would be shorter")}.
 
 %%
 %% Edge turning
@@ -133,8 +134,8 @@ optimize(Evs1, Evs2, VsList1, VsList2, Opt, Vtab) ->
 
 pref_edit(St) ->
     Enabled = get_pref(enabled, false),
-    wpa:dialog("Turn Edge Preferences",
-	       [{hframe,[{"Enabled",Enabled,[{key,enabled}]}]}],
+    wpa:dialog(?__(1,"Turn Edge Preferences"),
+	       [{hframe,[{?__(2,"Enabled"),Enabled,[{key,enabled}]}]}],
 	       fun(Attr) -> pref_result(Attr, St) end).
 
 pref_result(Attr, St) ->

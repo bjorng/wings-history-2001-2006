@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_doosabin.erl,v 1.2 2005/06/04 08:42:08 dgud Exp $
+%%     $Id: wpc_doosabin.erl,v 1.3 2005/10/04 20:31:15 giniu Exp $
 %%
 
 -module(wpc_doosabin).
@@ -28,18 +28,18 @@ menu({body}, Menu) ->
 	false -> Menu
     end;
 menu({edit,plugin_preferences}, Menu) ->
-    Menu ++ [{"Doo Sabin subd",doo_sabin}];
+    Menu ++ [{?__(1,"Doo Sabin subd"),doo_sabin}];
 menu(_, Menu) -> Menu.
 
 add_menu([Smooth = {_,smooth,_}|Rest]) ->
     [Smooth, 
-     {"DS subdivision", doo_sabin, 
-      "Makes a Doo-Sabin subdivision according to WasaMonkey (warning messes up all uv-coords)"}|Rest];
+     {?__(1,"DS subdivision"), doo_sabin, 
+      ?__(2,"Makes a Doo-Sabin subdivision according to WasaMonkey (warning messes up all uv-coords)")}|Rest];
 add_menu([Other|Rest]) ->
     [Other| add_menu(Rest)];
 add_menu([]) -> %% Just in case we end up here..
-    [{"DS subdivision", doo_sabin, 
-      "Makes a Doo-Sabin subdivision according to WasaMonkey"}].
+    [{?__(3,"DS subdivision"), doo_sabin, 
+      ?__(4,"Makes a Doo-Sabin subdivision according to WasaMonkey")}].
 
 command({body,doo_sabin}, St0) ->
     %% Do For each selected object 
@@ -105,8 +105,8 @@ doo_sabin(We0 = #we{es=Etab0, id=Id}, St0 = #st{shapes=Sh0,sel=OrigSel}) ->
 
 pref_edit(St) ->
     Enabled = get_pref(enabled, false),
-    wpa:dialog("Doo Sabin Preferences",
-	       [{hframe,[{"Enabled",Enabled,[{key,enabled}]}]}],
+    wpa:dialog(?__(1,"Doo Sabin Preferences"),
+	       [{hframe,[{?__(2,"Enabled"),Enabled,[{key,enabled}]}]}],
 	       fun(Attr) -> pref_result(Attr, St) end).
 
 pref_result(Attr, St) ->
