@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_toxic.erl,v 1.19 2005/09/06 23:21:52 raimo_niskanen Exp $
+%%     $Id: wpc_toxic.erl,v 1.20 2005/10/08 10:27:58 dgud Exp $
 %%
 
 -module(wpc_toxic).
@@ -182,7 +182,7 @@ is_plugin_active(Condition) ->
     end.
 
 menu_entry(render) ->
-    {value,{tga,Ext,_}} = lists:keysearch(tga, 1, wings_job:render_formats()),
+    {value,{png,Ext,_}} = lists:keysearch(png, 1, wings_job:render_formats()),
     [{"Toxic ("++Ext++")",?TAG,[option]}];
 menu_entry(export) ->    [{"Toxic (.xml)",?TAG,[option]}];
 menu_entry(pref) ->      [{"Toxic",?TAG}].
@@ -206,8 +206,8 @@ command_file(Op, Ask, _St) when is_atom(Ask) ->
 	       fun(Attr) -> {file,{Op,{?TAG,Attr}}} end).
 
 props(render) ->
-    {value,{tga,Ext,Desc}} =
-	lists:keysearch(tga, 1, wings_job:render_formats()),
+    {value,{png,Ext,Desc}} =
+	lists:keysearch(png, 1, wings_job:render_formats()),
     [{title,"Render"},{ext,Ext},{ext_desc,Desc}];
 props(export) ->
     [{title,"Export"},{ext,".xml"},{ext_desc,"Toxic File"}];
@@ -667,8 +667,8 @@ files(Render, Filename) ->
 			     Err  -> exit(Err)
 			 end
 		 end,
-    {value,{tga,Ext,_}} =
-	lists:keysearch(tga, 1, wings_job:render_formats()),
+    {value,{png,Ext,_}} =
+	lists:keysearch(png, 1, wings_job:render_formats()),
     Image = case Render of
 		true ->  Filename;
 		false -> RootName ++ Ext
@@ -723,7 +723,7 @@ export(Attr, Filename, E3DExport0) ->
 		fun (Status) ->
 			set_var(rendering, false),
 			case Status of
-			    ok  -> {tga,Files#files.image};
+			    ok  -> {png,Files#files.image};
 			    _   -> Status
 			end
 		end,
@@ -967,7 +967,7 @@ export_shaders(F, [{Name,Mat}|Ms], ExportDir) ->
 	    println(F,"     <ConstantTexture value=\"~s ~s ~s\"/>",
 		    [format(DR),format(DG),format(DB)]);
 	#e3d_image{name=ImageName}=Image ->
-	    MapFile = ImageName++".tga",
+	    MapFile = ImageName++".png",
 	    ok = e3d_image:save(Image, filename:join(ExportDir, MapFile)),
 	    println(F,"     <ImageTexture href=\"~s\"/>",[MapFile])
     end,
