@@ -14,14 +14,20 @@
 %%  Near clipping will not work correctly if occurs in the viewport
 %%  Duplicate and zero length line segments are generated in some cases
 %%
-%% $Id: wpc_hlines.erl,v 1.1 2004/03/01 13:26:34 dgud Exp $
+%% $Id: wpc_hlines.erl,v 1.2 2005/10/14 07:47:08 dgud Exp $
 %%
 
 -module(wpc_hlines).
 -author('Dmitry Efremov <defremov@aha.ru>').
 
 -export([init/0, menu/2, command/2]).
--import(lists, [foreach/2, foldl/3]).
+-import(lists, [
+    foldl/3,
+    foreach/2,
+    keymember/3,
+    keysearch/3,
+    keyreplace/4
+]).
 -include("wings.hrl").
 -include("e3d.hrl").
 
@@ -32,10 +38,18 @@
 -define(DEF_WIDTH, 288).
 -define(DEF_HEIGHT, 216).
 -define(DEF_EDGE_MODE, hard_edges).
--define(DEF_SMOOTH_ANGLE, 0).
--define(DEF_LINE_WIDTH, 1.0).
+-define(DEF_EDGE_WIDTH_OUTLINE, 1.0).
+-define(DEF_EDGE_WIDTH_HARD, 1.0).
+-define(DEF_EDGE_WIDTH_CREASE, 1.0).
+-define(DEF_EDGE_WIDTH_MATERIAL, 1.0).
+-define(DEF_EDGE_WIDTH_REGULAR, 1.0).
+-define(DEF_EDGE_ONE_WIDTH_FOR_ALL, true).
+-define(DEF_CREASE_ANGLE, 0).
 -define(DEF_LINE_CAP, 0).
 -define(DEF_SUBDIVISIONS, 0).
+-define(DEF_OPTIMIZE, false).
+-define(DEF_COLL_ANGLE, 0.5).
+-define(DEF_COLL_DIST, 0.25).
 
 init() ->
     true.
@@ -57,25 +71,25 @@ command(_, _) -> next.
 
 export(Arg, Op, _) when is_atom(Arg) ->
     wpa:dialog(Arg, "Cartoon edges Render Options", dialog(),
-	       fun(Res) -> {file, {Op, {eps, Res}}} end);
+        fun(Res) -> {file, {Op, {eps, Res}}} end);
 export(Arg, Op, St0) when is_list(Arg) ->
     set_pref(Arg),
     Camera_info = wpa:camera_info([aim, distance_to_aim,
-				   azimuth, elevation, tracking, 
-				   fov, hither, yon]),
+        azimuth, elevation, tracking,
+        fov, hither, yon]),
     Props = [{title, "Export"},
-	     {ext, ".eps"},
-	     {ext_desc, "Encapsulated Postscript (EPS) File"},
-	     {camera_info, Camera_info},
-	     {subdivisions, get_pref(subdivisions, ?DEF_SUBDIVISIONS)},
-	     {win_size, wings_wm:win_size()},
-	     {ortho_view, wings_wm:get_prop(orthogonal_view)}],
-    
+        {ext, ".eps"},
+        {ext_desc, "Encapsulated Postscript (EPS) File"},
+        {camera_info, Camera_info},
+        {subdivisions, get_pref(subdivisions, ?DEF_SUBDIVISIONS)},
+        {win_size, wings_wm:win_size()},
+        {ortho_view, wings_wm:get_prop(orthogonal_view)}],
+
     %% Freeze virtual mirrors.
     Shapes0 = gb_trees:to_list(St0#st.shapes),
     Shapes = [{Id, wpa:vm_freeze(We)} || {Id, We} <- Shapes0],
     St = St0#st{shapes = gb_trees:from_orddict(Shapes)},
-    
+
     case Op of
         export ->
             ?SLOW(wpa:export(Props, fun_export(Props), St))
@@ -88,47 +102,109 @@ dialog() ->
     BB_width = get_pref(bb_width, ?DEF_WIDTH),
     BB_height = get_pref(bb_height, ?DEF_HEIGHT),
     Edge_mode = get_pref(edge_mode, ?DEF_EDGE_MODE),
-    Smooth_angle = get_pref(smooth_angle, ?DEF_SMOOTH_ANGLE),
-    Line_width = get_pref(line_width, ?DEF_LINE_WIDTH),
+    Edge_width_outline = get_pref(edge_width_outline,
+        ?DEF_EDGE_WIDTH_OUTLINE),
+    Edge_width_hard = get_pref(edge_width_hard, ?DEF_EDGE_WIDTH_HARD),
+    Edge_width_crease = get_pref(edge_width_crease, ?DEF_EDGE_WIDTH_CREASE),
+    Edge_width_material = get_pref(edge_width_material,
+        ?DEF_EDGE_WIDTH_MATERIAL),
+    Edge_width_regular = get_pref(edge_width_regular,
+        ?DEF_EDGE_WIDTH_REGULAR),
+    Edge_one_width_for_all = get_pref(edge_one_width_for_all,
+        ?DEF_EDGE_ONE_WIDTH_FOR_ALL),
+    Crease_angle = get_pref(crease_angle, ?DEF_CREASE_ANGLE),
     Line_cap = get_pref(line_cap, ?DEF_LINE_CAP),
     SubDiv = get_pref(subdivisions, ?DEF_SUBDIVISIONS),
+    Optimize = get_pref(optimize, ?DEF_OPTIMIZE),
+    Coll_angle = get_pref(coll_angle, ?DEF_COLL_ANGLE),
+    Coll_dist = get_pref(coll_dist, ?DEF_COLL_DIST),
 
     [
-     {hframe, [
-	       {label, "Width"},
-	       {text, BB_width, [{key, bb_width}]},
-	       {label, "Height"},
-	       {text, BB_height, [{key, bb_height}]},
-	       {label, "pt"}
-	      ], [{title, "Bounding Box"}]},
-     {hframe,[{label,"Sub-division Steps"},
-	      {text,SubDiv,[{key,subdivisions},{range,0,4}]}],
-      [{title,"Pre-rendering"}]},
-     {hradio,
-      [
-       {"All", all_edges},
-       {"Hard", hard_edges},
-       {"None", no_edges}
-      ],
-      Edge_mode,
-      [{key, edge_mode}, {title, "Show edges"}]
-     },
-     {hframe, [{label, "Smooth angle"},
-	       {slider, {text, Smooth_angle, [{key, smooth_angle}, {range, {0, 180}}]}}]},
-     {hradio,
-      [
-       {"Butt", 0},
-       {"Round", 1},
-       {"Square", 2}
-      ],
-      Line_cap,
-      [{key, line_cap}, {title, "Line caps"}]
-     },
-     {hframe, [
-	       {label, "Line width"},
-	       {text, Line_width, [{key, line_width}, {range, {0.0, ?BIG}}]},
-	       {label, "pt"}
-	      ]}
+        {hframe, [
+            {label, "Width"},
+            {text, BB_width, [{key, bb_width}]},
+            {label, "Height"},
+            {text, BB_height, [{key, bb_height}]},
+            {label, "pt"}
+        ], [{title, "Bounding box"}]},
+
+        {hframe,[{label,"Sub-division Steps"},
+            {text,SubDiv,[{key,subdivisions},{range,0,4}]}],
+        [{title,"Pre-rendering"}]},
+
+        {hradio, [
+            {"All", all_edges},
+            {"Hard", hard_edges},
+            {"None", no_edges}
+        ], Edge_mode, [{key, edge_mode}, {title, "Show edges"}]},
+
+        {hframe, [
+            {slider,
+                {text, Crease_angle, [
+                    {key, crease_angle}, {range, {0, 180}}
+                ]}}
+        ], [{title, "Crease angle"}]},
+
+        {hframe, [
+            {vframe, [
+                {label, "Outline"},
+                {label, "Hard"},
+                {label, "Crease"},
+                {label, "Material"},
+                {label, "Regular"}
+            ]},
+            {vframe, [
+                {text, Edge_width_outline,
+                    [{key, edge_width_outline}, {range, {0.0, ?BIG}}]},
+                {text, Edge_width_hard,
+                    [{key, edge_width_hard}, {range, {0.0, ?BIG}}]},
+                {text, Edge_width_crease,
+                    [{key, edge_width_crease}, {range, {0.0, ?BIG}}]},
+                {text, Edge_width_material,
+                    [{key, edge_width_material}, {range, {0.0, ?BIG}}]},
+                {text, Edge_width_regular,
+                    [{key, edge_width_regular}, {range, {0.0, ?BIG}}]}
+            ]},
+            {vframe, [
+                {label, "pt"},
+                {label, "pt"},
+                {label, "pt"},
+                {label, "pt"},
+                {hframe, [
+                    {label, "pt"},
+                    {"All", Edge_one_width_for_all,
+                        [{key, edge_one_width_for_all}]}
+                ]}
+            ]}
+        ], [{title, "Edge width"}]},
+
+        {hradio, [
+            {"Butt", 0},
+            {"Round", 1},
+            {"Square", 2}
+        ], Line_cap, [{key, line_cap}, {title, "Line caps"}]},
+
+        {vframe, [
+            {"Merge", Optimize, [{key, optimize}]},
+            {hframe, [
+                {vframe, [
+                    {label, "Angle"},
+                    {label, "Distance"}
+                ]},
+                {vframe, [
+                    {text, Coll_angle, [
+                        {key, coll_angle}, {range, {0.0, 90.0}}
+                    ]},
+                    {text, Coll_dist, [
+                        {key, coll_dist}, {range, {0.0, ?BIG}}
+                    ]}
+                ]},
+                {vframe, [
+                    {label, [176]},
+                    {label, "pt"}
+                ]}
+            ]}
+        ], [{title, "Collinear lines (experimental)"}]}
     ].
 
 get_pref(Key, Def) ->
@@ -141,11 +217,7 @@ fun_export(Props) ->
     fun (File_name, Scene) -> do_export(Props, File_name, Scene) end.
 
 do_export(Props, File_name, #e3d_file{objs=Objs, mat=Mats}) ->
-    {ok,F} = file:open(File_name, [write]),
-
     Start_time = now(),
-
-io:format("~n", []),
 
     [Aim, Distance, Azimuth, Elevation, {TrackX, TrackY}, Fov, Hither, Yonder] =
         proplists:get_value(camera_info, Props),
@@ -159,100 +231,181 @@ io:format("~n", []),
     Wbb = max(get_pref(bb_width, ?DEF_WIDTH), 1),
     Hbb = max(get_pref(bb_height, ?DEF_HEIGHT), 1),
     ARbb = Wbb / Hbb,
-    
+
     {Wwin, Hwin} = proplists:get_value(win_size, Props),
     ARwin = Wwin / Hwin,
 
-    if
-        ARbb > ARwin ->
-            ARw = ARbb,
-            ARh = 1.0
-            ;
-        true ->
-            ARw = ARwin,
-            ARh = ARwin / ARbb
+    {ARw, ARh} = if
+        ARbb > ARwin -> {ARbb, 1.0};
+        true -> {ARwin, ARwin / ARbb}
     end,
 
     Flen = 0.5 / math:tan(Fov * math:pi() / 180.0 / 2.0),
 
-    VCs = lists:reverse(foldl(fun(#e3d_object{obj=Obj}, VCs_acc) ->
-            appendl(Obj#e3d_mesh.vs, VCs_acc)
-        end, [], Objs)),
+    VCs = foldl(fun(#e3d_object{obj=Obj}, VCs_acc) ->
+        VCs_acc ++ Obj#e3d_mesh.vs
+    end, [], Objs),
 
     EyeMesh = e3d_mesh:transform(#e3d_mesh{vs = VCs}, Veye),
 
     VCt = list_to_tuple(EyeMesh#e3d_mesh.vs),
 
-    case proplists:get_value(ortho_view, Props) of
-        true ->
-            Proj = fun ortho/2,
-            Edge_norm = fun ortho_en/2,
-            Front_face = fun ortho_ff/1,
-            Side_face = fun ortho_sf/1,
-            Wvp = Distance * ARw / Flen,
-            Hvp = Distance * ARh / Flen,
-            View_port = {{-Wvp / 2.0, -Hvp / 2.0, -Yonder},
-                {Wvp / 2.0, Hvp / 2.0, -Hither}},
-            Frustum =  View_port
-            ;
-        false ->
-            Proj = fun persp/2,
-            Edge_norm = fun persp_en/2,
-            Front_face = fun persp_ff/1,
-            Side_face = fun persp_sf/1,
-            Wvp = ARw,
-            Hvp = ARh,
-            View_port = {{-Wvp / 2.0, -Hvp / 2.0, -Yonder},
-                {Wvp / 2.0, Hvp / 2.0, -Hither}},
-            Frustum = {Wvp / 2.0, Hvp / 2.0, -Yonder, -Hither, -Flen}
+    Is_ortho = proplists:get_value(ortho_view, Props),
+
+    {Proj, Edge_norm, Front_face, Side_face, Wvp, Hvp} =
+        if
+            Is_ortho ->
+                {fun ortho/2, fun ortho_en/1, fun ortho_ff/1, fun ortho_sf/1,
+                Distance * ARw / Flen, Distance * ARh / Flen}
+                ;
+            true ->
+                {fun persp/2, fun persp_en/1, fun persp_ff/1, fun persp_sf/1,
+                ARw, ARh}
+        end,
+
+    View_port = {{-Wvp / 2.0, -Hvp / 2.0, -Yonder},
+        {Wvp / 2.0, Hvp / 2.0, -Hither}},
+
+    Frustum = if
+        Is_ortho -> View_port;
+        true -> {Wvp / 2.0, Hvp / 2.0, -Yonder, -Hither, -Flen}
     end,
 
+    Mats_dict = materials(Mats),
+    Crease_angle = get_pref(crease_angle, ?DEF_CREASE_ANGLE),
+    Thresh_cos = math:cos((180.0 - Crease_angle) * math:pi() / 180.0),
+    Edge_mode = get_pref(edge_mode, ?DEF_EDGE_MODE),
+    Edge_type_fun =
+        case get_pref(edge_one_width_for_all, ?DEF_EDGE_ONE_WIDTH_FOR_ALL) of
+        false ->
+            fun edge_type_group/5
+            ;
+        true ->
+            fun edge_type_copy/5
+    end,
 
-Mats_dict = materials(Mats, dict:new()),
+wings_pb:start(""),
+io:format("~n", []),
 
-Smooth_angle = get_pref(smooth_angle, ?DEF_SMOOTH_ANGLE),
-Thresh_cos = math:cos((180.0 - Smooth_angle) * math:pi() / 180.0),
+    Objs_total = length(Objs),
 
-    {LinesSet, Trias_qtree, _, _}
-        = foldl(fun(Obj, {Lines_acc, Trias_acc, VI_incr, TI_incr}) ->
-io:format("Reading object \"~s\"...", [Obj#e3d_object.name]),
-            R = add_mesh(Obj#e3d_object.obj, VCt, Mats_dict,
-                Lines_acc, Trias_acc, VI_incr, TI_incr,
+    {Edges_dict, Tria_qtree, _VI_incr, _Obj_count}
+        = foldl(fun(#e3d_object{name = Name, obj = Mesh},
+            {Edges_dict_acc0, Tria_qtree_acc0, VI_incr, Obj_count0}) ->
+            Obj_count = Obj_count0 + 1,
+Percent = Obj_count0 / Objs_total,
+wings_pb:update(Percent * 0.28 + 0.01,
+    "reading objects " ++ integer_to_list(round(Percent * 100.0)) ++ "%"),
+wings_pb:pause(),
+io:format("Reading object ~B of ~B \"~s\"...",
+    [Obj_count, Objs_total, Name]),
+            #e3d_mesh{vs = MVCs, fs = MFs, he = MHEs} = Mesh,
+            Is_open = is_open(Mesh) orelse has_transp_faces(Mesh, Mats_dict),
+            #e3d_mesh{fs = TMFs} = e3d_mesh:triangulate(Mesh),
+            {Edge_dict, Tria_qtree_acc} = add_tri_mesh(incr(TMFs, VI_incr),
+                VCt, Is_open, Mats_dict,
                 Frustum, View_port, -Flen,
-                Thresh_cos, Edge_norm, Front_face, Side_face, Proj),
+                Edge_norm, Front_face, Side_face, Proj,
+                Tria_qtree_acc0),
+            {HardEdge_set, Edge_set} = edge_sets(MHEs, MFs, Edge_mode, VI_incr),
+            Edges_dict_acc = group_edges(Thresh_cos, HardEdge_set, Edge_set,
+                Edge_type_fun, Edge_dict, Edges_dict_acc0),
 io:format(" done~n", []),
-            R
-        end, {sets:new(), new_qtree(bbox_2d(View_port)), 0, 0}, Objs),
+            {Edges_dict_acc, Tria_qtree_acc, VI_incr + length(MVCs),
+                Obj_count}
+        end, {dict_new(), qtree_new(bbox_2d(View_port)), 0, 0}, Objs),
 
-io:format("Processing...", []),
+wings_pb:update(0.3, "reading objects 100%"),
+wings_pb:pause(),
+io:format("Exporting"),
 
-    Ls0 = foldl(fun({LI1, LI2}, Ls_acc) ->
-        LCt = {LC1, LC2} = {coord(LI1, VCt), coord(LI2, VCt)},
-        case project(Proj, -Flen, View_port, LCt) of
-            {SC1, SC2} ->
-                LN = Edge_norm(LC1, LC2),
-                LD = dot(LN, LC1),
-                LTrias = get_triangles({SC1, SC2}, Trias_qtree),
-                appendl(line_segment({LI1, LI2}, LCt, {LN, LD}, LTrias, VCt),
-                    Ls_acc)
+    {Line_groups, Edges_total} =
+        foldl(fun({Line_width, Edges}, {Dict_acc, Edge_count}) ->
+            {dict_append_list(Line_width, Edges, Dict_acc),
+                Edge_count + length(Edges)}
+        end,
+        {dict_new(), 0},
+        [{Line_width, Edges} ||
+            {Edge_type1, Line_width} <- [
+                {outline, get_pref(edge_width_outline,
+                    ?DEF_EDGE_WIDTH_OUTLINE)},
+                {hard, get_pref(edge_width_hard,
+                    ?DEF_EDGE_WIDTH_HARD)},
+                {crease, get_pref(edge_width_crease,
+                    ?DEF_EDGE_WIDTH_CREASE)},
+                {material, get_pref(edge_width_material,
+                    ?DEF_EDGE_WIDTH_MATERIAL)},
+                {regular, get_pref(edge_width_regular,
+                    ?DEF_EDGE_WIDTH_REGULAR)}
+            ],
+            {Edge_type2, Edges} <- Edges_dict,
+            Edge_type1 == Edge_type2]),
+
+    Prog_step = max(Edges_total div 20, 250),
+
+    BB = {{0.0, 0.0}, {Wbb, Hbb}},
+    Line_cap = get_pref(line_cap, ?DEF_LINE_CAP),
+
+    {ok, F} = file:open(File_name, [write]),
+    write_eps_header(F, BB, Line_cap),
+    foldl(fun({Line_width, Edges}, {Group_count, Edge_count0}) ->
+        {Ls0, Edge_count} = foldl(fun({EVI1, EVI2} = EVIt,
+                {Ls_acc0, Edge_count_acc0}) ->
+            EVCt = {coord(EVI1, VCt), coord(EVI2, VCt)},
+            {Ls_acc, Edge_count_acc} =
+                case project(Proj, -Flen, View_port, EVCt) of
+                nil ->
+                    {Ls_acc0, Edge_count_acc0}
+                    ;
+                LVCt ->
+                    EP = ep(EVCt, Edge_norm),
+                    Ts = get_objs(LVCt, Tria_qtree),
+                    {Ls_acc0 ++ line_segment(EVIt, EVCt, EP, Ts, VCt),
+                        Edge_count_acc0 + 1}
+            end,
+            if
+                Edge_count_acc rem Prog_step == 0 ->
+                    Percent = Edge_count_acc / Edges_total,
+                    wings_pb:update(Percent * 0.69 + 0.3,
+                        integer_to_list(round(Percent * 100.0)) ++ "%"),
+                    wings_pb:pause(),
+                    io:put_chars(".")
+                    ;
+                true ->
+                    ok
+            end,
+            {Ls_acc, Edge_count_acc}
+        end, {[], Edge_count0}, Edges),
+        Offset = divide(bbox_size(bbox_2d(View_port)), 2.0),
+        Ls1 = project(Proj, -Flen, View_port, Offset, Wbb / Wvp, Ls0),
+        Ls = case get_pref(optimize, ?DEF_OPTIMIZE) of
+            true ->
+                Athr_deg = get_pref(coll_angle, ?DEF_COLL_ANGLE),
+                Athr = math:sin(Athr_deg * math:pi() / 180.0),
+                Dthr = get_pref(coll_dist, ?DEF_COLL_DIST),
+                lstree_to_list(lists:foldl(fun(L, Ls_acc) ->
+                     lstree_insert(L, Ls_acc, Athr, Dthr)
+                end, nil, Ls1))
                 ;
-            nil ->
-                Ls_acc
-        end
-    end, [], sets:to_list(LinesSet)),
-
-    Offset = divide(bbox_size(bbox_2d(View_port)), 2.0),
-
-    Ls = project(Proj, -Flen, View_port, Offset, Wbb / Wvp, Ls0),
-
-    Line_width = get_pref(line_width, ?DEF_LINE_WIDTH), 
-    Line_cap = get_pref(line_cap, ?DEF_LINE_CAP), 
-
-    write_eps(F, Ls, {{0.0, 0.0}, {Wbb, Hbb}}, Line_width, Line_cap),
+            false ->
+                Ls1
+        end,
+        write_eps_line_group(F, Ls, Line_width, Group_count),
+        {Group_count + 1, Edge_count}
+    end, {0, 0}, Line_groups),
 
     ok = file:close(F),
+wings_pb:update(1.0, "done"),
+wings_pb:done(),
+io:format(" done in ~.1f sec~n", [timer:now_diff(now(), Start_time) / 1.0e6]).
 
-io:format(" finished in ~.1f sec~n", [timer:now_diff(now(), Start_time) / 1.0e6]).
+edge_sets(Hard_edges, Faces, Edge_mode, Incr) when Edge_mode == all_edges ->
+    {gb_sets:from_list(incr(Hard_edges, Incr)),
+        gb_sets:from_list(edges(incr(Faces, Incr)))};
+edge_sets(Hard_edges, _Faces, Edge_mode, Incr) when Edge_mode == hard_edges ->
+    {gb_sets:from_list(incr(Hard_edges, Incr)), gb_sets:empty()};
+edge_sets(_Hard_edges, _Faces, _Edge_mode, _Incr) ->
+    {gb_sets:empty(), gb_sets:empty()}.
 
 
 persp({X, Y, Z}, Zf) ->
@@ -265,14 +418,13 @@ persp({{X1, Y1, Z1}, {X2, Y2, Z2}}, Zf) ->
 
 ortho({X, Y, _Z}, _) -> {X, Y}.
 
-appendl([], L)      when is_list(L) -> L;
-appendl([E], L)     when is_list(L) -> [E | L];
-appendl([E | T], L) when is_list(L) -> appendl(T, [E | L]).
-
-incr(Incr, {A, B, C}) -> {A + Incr, B + Incr, C + Incr};
-incr(Incr, {A, B}) -> {A + Incr, B + Incr};
-incr(_, [])  -> [];
-incr(Incr, [A | T]) -> [incr(Incr, A) | incr(Incr, T)].
+incr({A, B, C}, Incr) -> {A + Incr, B + Incr, C + Incr};
+incr({A, B}, Incr) -> {A + Incr, B + Incr};
+incr(#e3d_face{vs = VIs, mat = Mat}, Incr) -> 
+    #e3d_face{vs = incr(VIs, Incr), mat = Mat};
+incr([], _Incr)  -> [];
+incr([A | T], Incr) -> [incr(A, Incr) | incr(T, Incr)];
+incr(A, Incr) -> A + Incr.
 
 normalize([])                -> [];
 normalize([{P, Q} | T])      -> [normalize({P, Q}) | normalize(T)];
@@ -298,6 +450,9 @@ cull({{X1, Y1, Z1}, {X2, Y2, Z2}, {X3, Y3, Z3}}, Frustum) ->
         band outcode({X2, Y2, Z2}, Frustum)
         band outcode({X3, Y3, Z3}, Frustum) == 0.
 
+flip({A, B, C}) -> {A, C, B};
+flip({N, D}) -> {neg(N), -D}.
+
 is_open(#e3d_mesh{fs = Fs}) ->
     EFs_dict = foldl(fun(#e3d_face{vs = FVIs}, ME_acc) ->
         foldl(fun(EVIt, FE_acc) ->
@@ -316,7 +471,7 @@ has_transp_faces(#e3d_mesh{fs = Fs}, Mats_dict) ->
     has_transp_faces(Fs, Mats_dict);
 has_transp_faces([], _) -> false;
 has_transp_faces([#e3d_face{mat = Mat} | T], Mats_dict) ->
-    case dict:fetch(hd(Mat), Mats_dict) of
+    case hd(dict_fetch(hd(Mat), Mats_dict)) of
         true ->
             true
             ;
@@ -324,151 +479,105 @@ has_transp_faces([#e3d_face{mat = Mat} | T], Mats_dict) ->
             has_transp_faces(T, Mats_dict)
     end.
 
-triangle(TIt, VI_incr, {TVC1, TVC2, TVC3}, TP, Edge_norm) ->
-    EN1 = Edge_norm(TVC1, TVC2),
-    EN2 = Edge_norm(TVC2, TVC3),
-    EN3 = Edge_norm(TVC3, TVC1),
-    EPt = {{EN1, dot(EN1, TVC1)},
-        {EN2, dot(EN2, TVC2)}, {EN3, dot(EN3, TVC3)}},
-    {incr(VI_incr, TIt), TP, EPt}.
+ep({EVC1, _EVC2} = EVCt, Edge_norm) ->
+    EN = Edge_norm(EVCt),
+    {EN, dot(EN, EVC1)}.
 
-add_edges(VIs, VI_incr, VCt, Frustum, TN, Is_FF, Mat, Edges_set,
-    Lines_set, Ctrs_set) ->
-    foldl(fun(EVIt, {Lines_acc, Ctrs_acc}) ->
-        {EVI1, EVI2} = EVIt,
-        ECt = {coord(EVI1 + VI_incr, VCt), coord(EVI2 + VI_incr, VCt)},
-        case cull(ECt, Frustum) of
+ept({TVC1, TVC2, TVC3}, Edge_norm) ->
+    {ep({TVC1, TVC2}, Edge_norm),
+    ep({TVC2, TVC3}, Edge_norm),
+    ep({TVC3, TVC1}, Edge_norm)}.
+
+triangle(TVIt, TVCt, TP, Edge_norm) ->
+    {TVIt, TP, ept(TVCt, Edge_norm)}.
+
+triangle(TVIt, TVCt, TP, Edge_norm, Is_FF) when Is_FF ->
+    triangle(TVIt, TVCt, TP, Edge_norm);
+triangle(TVIt, TVCt, TP, Edge_norm, _Is_FF) ->
+    {flip(TVIt), flip(TP), ept(flip(TVCt), Edge_norm)}.
+
+add_triangle(_Tria, nil, Qtree) -> Qtree;
+add_triangle(Tria, BB, Qtree) -> qtree_insert({Tria, BB}, Qtree).
+
+add_edges(FVIs, VCt, Frustum, FN, Is_FF, Is_SF, Mat, Edge_dict_acc0) ->
+    foldl(fun({EVI1, EVI2} = EVIt, E_dict_acc0) ->
+        EVCt = {coord(EVI1, VCt), coord(EVI2, VCt)},
+        case cull(EVCt, Frustum) of
             true ->
-                T_acc = case
-                    Edges_set /= nil
-                        andalso sets:is_element(EVIt, Edges_set)
-                of
-                    true ->
-                        sets:add_element(incr(VI_incr, EVIt), Lines_acc);
-                    false ->
-                        Lines_acc
-                end,
-                CtrData = {Is_FF, TN, Mat},
-                C_acc = dict:append(EVIt, CtrData, Ctrs_acc),
-                {T_acc, C_acc}
+                Face_type = face_type(Is_FF, Is_SF),
+                dict:append(EVIt, {Face_type, FN, Mat}, E_dict_acc0)
                 ;
             false ->
-                {Lines_acc, Ctrs_acc}
+                E_dict_acc0
         end
-end, {Lines_set, Ctrs_set}, npair(VIs)).
+    end, Edge_dict_acc0, npair(FVIs)).
+
+face_type(_Is_FF, Is_SF) when Is_SF -> side;
+face_type(Is_FF, _Is_SF) when Is_FF -> front;
+face_type(_Is_FF, _Is_SF) -> back.
 
 edges(#e3d_face{vs = FVIs}) -> npair(FVIs);
 edges([]) -> [];
-edges([F | T]) -> appendl(edges(F), edges(T)).
+edges([F | T]) -> edges(F) ++ edges(T).
 
-add_mesh(#e3d_mesh{vs = VCs, fs = Faces, he = Hards} = Mesh, VCt,
-    Mats_dict,        
-    SceneLines_set, SceneTrias_qtree, VI_incr, Tri_incr,
-    Frustum, View_port, Zf,
-    Thresh_cos,
-    Edge_norm, Front_face, Side_face, Proj) ->
-    MeshIsOpen = is_open(Mesh) orelse has_transp_faces(Mesh, Mats_dict),
-    TriMesh = e3d_mesh:triangulate(Mesh),
-
-    Edge_mode = get_pref(edge_mode, ?DEF_EDGE_MODE),
-    Edges_set = case Edge_mode of
-        hard_edges -> sets:from_list(Hards);
-        all_edges -> sets:from_list(edges(Faces));
-        no_edges -> nil
-    end,
-
-    {Lines_set, Trias_qtree, TI, Ctrs_dict} =
-        foldl(fun(#e3d_face{vs = Tria, mat=Mat},
-            {Lines_acc, Trias_acc, TI, Ctrs_acc}) ->
-        {TVI1, TVI2, TVI3} = TVIt = list_to_tuple(Tria),
-        {TVC1, TVC2, TVC3} = TVCt = {coord(TVI1 + VI_incr, VCt),
-            coord(TVI2 + VI_incr, VCt), coord(TVI3 + VI_incr, VCt)},
+add_tri_mesh(TMFs, VCt, Is_open, Mats_dict,
+    Frustum, View_port, Zf, Edge_norm, Front_face, Side_face, Proj,
+    Tria_qtree_acc0) ->
+        foldl(fun(#e3d_face{vs = TVIs, mat = Mat},
+            {E_dict_acc0, T_qtree_acc0}) ->
+        {TVI1, TVI2, TVI3} = TVIt = list_to_tuple(TVIs),
+        {TVC1, TVC2, TVC3} = TVCt
+            = {coord(TVI1, VCt), coord(TVI2, VCt), coord(TVI3, VCt)},
         case cull(TVCt, Frustum) of
             true ->
                 TN = e3d_vec:normal(TVC1, TVC2, TVC3),
                 TD = dot(TN, TVC1),
                 TP = {TN, TD},
                 Is_FF = Front_face(TP),
-                case MeshIsOpen of
+                case Is_open of
                     true ->
-                        Transp = dict:fetch(hd(Mat), Mats_dict),
-                        case Transp orelse Side_face(TP) of
-                            true ->
-                                T_qtree = Trias_acc
+                        Is_transp = hd(dict_fetch(hd(Mat), Mats_dict)),
+                        Is_SF = Side_face(TP),
+                        if
+                            Is_transp; Is_SF ->
+                                T_qtree_acc = T_qtree_acc0
                                 ;
-                            false ->
-                                T_data = case Is_FF of
-                                    true ->
-                                        triangle(TVIt, VI_incr,
-                                            TVCt, {TN, TD}, Edge_norm)
-                                        ;
-                                    false ->
-                                        triangle({TVI1, TVI3, TVI2},
-                                            VI_incr,
-                                            {TVC1, TVC3, TVC2},
-                                            {neg(TN), -TD}, Edge_norm)
-                                end,
-                                T_qtree = add_triangle(Proj, Zf, View_port,
-                                    TVCt, T_data, Trias_acc)
+                            true ->
+                                T_qtree_acc = add_triangle(
+                                    triangle(TVIt, TVCt, TP, Edge_norm, Is_FF),
+                                    bbox(Proj, Zf, View_port, TVCt),
+                                    T_qtree_acc0)
                         end,
-                        {TriLines_set, TriCtrs_dict} =
-                            add_edges(Tria, VI_incr, VCt, Frustum,
-                                TN, Is_FF, Mat, Edges_set,
-                                Lines_acc, Ctrs_acc),
-                        {TriLines_set, T_qtree, TI + 1, TriCtrs_dict}
+                        {add_edges(TVIs, VCt, Frustum, TN, Is_FF, Is_SF, Mat,
+                            E_dict_acc0), T_qtree_acc}
                         ;
                     false ->
                         case Is_FF of
                             true ->
-                                T_data = triangle(TVIt, VI_incr, TVCt, TP,
-                                    Edge_norm),
-                                T_qtree = add_triangle(Proj, Zf, View_port,
-                                    TVCt, T_data, Trias_acc),
-                                {TriLines_set, TriCtrs_dict} =
-                                    add_edges(Tria, VI_incr, VCt, Frustum,
-                                        TN, Is_FF, Mat, Edges_set,
-                                        Lines_acc, Ctrs_acc),
-                                {TriLines_set, T_qtree, TI + 1, TriCtrs_dict}
+                                {add_edges(TVIs, VCt, Frustum, TN,
+                                    Is_FF, false, Mat,
+                                    E_dict_acc0),
+                                add_triangle(
+                                    triangle(TVIt, TVCt, TP, Edge_norm),
+                                    bbox(Proj, Zf, View_port, TVCt),
+                                    T_qtree_acc0)}
                                 ;
                             false ->
-                                {Lines_acc, Trias_acc, TI, Ctrs_acc}
+                                {E_dict_acc0, T_qtree_acc0}
                         end
                 end
                 ;
             false ->
-                {Lines_acc, Trias_acc, TI, Ctrs_acc}
+                {E_dict_acc0, T_qtree_acc0}
         end
-    end, {SceneLines_set, SceneTrias_qtree, Tri_incr, dict:new()},
-        TriMesh#e3d_mesh.fs),
-    Ctrs = incr(VI_incr, find_contours(Thresh_cos, dict:to_list(Ctrs_dict))),
-    Ctrs_set = sets:from_list(Ctrs),
-    Lines_set1 = sets:union(Lines_set, Ctrs_set),
-    {Lines_set1, Trias_qtree, VI_incr + length(VCs), TI}.
+    end, {dict:new(), Tria_qtree_acc0}, TMFs).
 
-contour({EVIt, Fs}, _) when list(Fs), length(Fs) < 2 -> [EVIt];
-contour({EVIt, Fs}, _) when list(Fs), length(Fs) > 2 -> [EVIt];
-contour({EVIt, Fs}, ThreshCosA) ->
-    {{Is_FF1, TN1, Mat1}, {Is_FF2, TN2, Mat2}} = list_to_tuple(Fs),
-    CosA = dot(TN1, TN2),
-    case
-        is_le(abs(CosA), ThreshCosA)
-            orelse (Mat1 /= Mat2)
-            orelse (Is_FF1 /= Is_FF2)
-    of
-        true ->
-            [EVIt]
-            ;
-        false ->
-            []
-    end.
-
-find_contours(_, []) -> [];
-find_contours(ThreshCosA, [CtrEdge | T]) ->
-    appendl(find_contours(ThreshCosA, T), contour(CtrEdge, ThreshCosA)).
+materials(Mats) when is_list(Mats) ->
+    materials(Mats, []).
 
 materials([], Mats_dict) -> Mats_dict;
 materials([{Name, Props} | T], Mats_dict) ->
-    materials(T, dict:store(Name, is_transparent(Props), Mats_dict)).
+    materials(T, dict_store(Name, is_transparent(Props), Mats_dict)).
 
 %
 % From src/wings_material.erl
@@ -482,6 +591,95 @@ is_transparent(MatProps) ->
         (_, _) -> false
     end, false, OpenGL).
 
+is_visible(AFs) when length(AFs) < 2 -> true;
+is_visible([{FT1, _TN1, _Mat1}, {FT2, _TN2, _Mat2}])
+    when FT1 == side, FT2 == side -> false;
+is_visible([{FT1, _TN1, _Mat1}, {FT2, _TN2, _Mat2}])
+    when FT1 == side, FT2 == back -> false;
+is_visible([{FT1, _TN1, _Mat1}, {FT2, _TN2, _Mat2}])
+    when FT1 == back, FT2 == side -> false;
+is_visible(_AFs) -> true.
+
+is_outline(AFs) when length(AFs) < 2 -> true;
+is_outline([{FT1, _TN1, _Mat1}, {FT2, _TN2, _Mat2}])
+    when (FT1 == front) xor (FT2 == front) -> true;
+is_outline(_AFs) -> false.
+
+is_crease(_EVIt, AFs, _ThreshCosA) when length(AFs) < 2 -> true;
+is_crease(_EVIt, [{_FT1, TN1, _Mat1}, {_FT2, TN2, _Mat2}],
+    ThreshCosA) -> is_le(dot(TN1, TN2), ThreshCosA);
+is_crease(_, _, _) -> false.
+
+is_material(AFs) when length(AFs) < 2 -> true;
+is_material([{_FT1, _TN1, Mat1}, {_FT2, _TN2, Mat2}])
+    when Mat1 /= Mat2 -> true;
+is_material(_) -> false.
+
+edge_type_group(EVIt, AFs, ThreshCosA, HardEdge_set, Edge_set) ->
+    case is_visible(AFs) of
+        true ->
+            case is_outline(AFs) of
+                true ->
+                    outline
+                    ;
+                false ->
+            case gb_sets:is_member(EVIt, HardEdge_set) of
+                true ->
+                    hard
+                    ;
+                false ->
+            case is_crease(EVIt, AFs, ThreshCosA) of
+                true ->
+                    crease
+                    ;
+                false ->
+            case is_material(AFs) of
+                true ->
+                    material
+                    ;
+                false ->
+            case gb_sets:is_member(EVIt, Edge_set) of
+                true ->
+                    regular
+                    ;
+                false ->
+                    none
+            end
+            end
+            end
+            end
+            end
+            ;
+        false ->
+            none
+    end.
+
+edge_type_copy(EVIt, AFs, ThreshCosA, HardEdge_set, Edge_set) ->
+    case is_visible(AFs)
+        andalso (is_outline(AFs)
+            orelse is_material(AFs)
+            orelse is_crease(EVIt, AFs, ThreshCosA)
+            orelse gb_sets:is_member(EVIt, HardEdge_set)
+            orelse gb_sets:is_member(EVIt, Edge_set))
+    of
+        true ->
+            regular
+            ;
+        false ->
+            none
+    end.
+
+group_edges(ThreshCosA, HardEdge_set, Edge_set, Edge_type_fun,
+    Edge_dict, Edges_dict_acc0) ->
+    dict:fold(fun(EVIt, AFs, Es_dict_acc0) ->
+        case Edge_type_fun(EVIt, AFs, ThreshCosA, HardEdge_set, Edge_set) of
+            none ->
+                Es_dict_acc0
+                ;
+            Edge_type ->
+                dict_append(Edge_type, EVIt, Es_dict_acc0)
+        end
+    end, Edges_dict_acc0, Edge_dict).
 
 
 eps(A) when is_float(A) -> ?EPS + ?EPS * abs(A).
@@ -537,7 +735,8 @@ sub({X1, Y1, Z1}, {X2, Y2, Z2}) ->
 sub({X1, Y1}, {X2, Y2}) ->
     {X1 - X2, Y1 - Y2}.
 
-neg({X, Y, Z}) -> {-X, -Y, -Z}.
+neg({X, Y, Z}) -> {-X, -Y, -Z};
+neg({X, Y}) -> {-X, -Y}.
 
 mul({X, Y, Z}, S) -> {X * S, Y * S, Z * S};
 mul({X, Y}, S) -> {X * S, Y * S}.
@@ -552,21 +751,23 @@ zero_div(A, B) when is_float(A), is_float(B) ->
     end.
 
 cross({X1, Y1, Z1}, {X2, Y2, Z2}) ->
-    {Y1 * Z2 - Y2 * Z1, X2 * Z1 - X1 * Z2, X1 * Y2 - X2 * Y1}.
+    {Y1 * Z2 - Y2 * Z1, X2 * Z1 - X1 * Z2, X1 * Y2 - X2 * Y1};
+cross({X1, Y1}, {X2, Y2}) -> X1 * Y2 - X2 * Y1.
 
-dot({X1, Y1, Z1}, {X2, Y2, Z2}) -> X1 * X2 + Y1 * Y2 + Z1 * Z2.
+dot({X1, Y1, Z1}, {X2, Y2, Z2}) -> X1 * X2 + Y1 * Y2 + Z1 * Z2;
+dot({X1, Y1}, {X2, Y2}) -> X1 * X2 + Y1 * Y2.
 
 %normal(V1, V2, V3) -> cross(sub(V2, V1), sub(V3, V1)).
 
-persp_en(V1, V2) -> cross(V1, V2).
+persp_en({V1, V2}) -> cross(V1, V2).
 
-ortho_en({X1, Y1, _}, {X2, Y2, _}) -> {Y2 - Y1, X1 - X2, 0.0}.
+ortho_en({{X1, Y1, _}, {X2, Y2, _}}) -> {Y2 - Y1, X1 - X2, 0.0}.
 
-persp_ff({_, D}) -> is_lt0(D, ?EPS).
+persp_ff({_, D}) -> is_lt0(D, 0.001).
 
 ortho_ff({{_, _, Z}, _}) -> is_gt(Z, 0.001).
 
-persp_sf({_, D}) -> is_eq0(D, ?EPS).
+persp_sf({_, D}) -> is_eq0(D, 0.001).
 
 ortho_sf({{_, _, Z}, _}) -> is_eq0(Z, 0.001).
 
@@ -574,38 +775,38 @@ ortho_sf({{_, _, Z}, _}) -> is_eq0(Z, 0.001).
 % Cohen-Sutherland
 %
 outcode({X, Y, Z}, {{Xmin, Ymin, Zmin}, {Xmax, Ymax, Zmax}}) ->
-    C0 = case X < Xmin of true ->  1; false -> 0 end,
-    C1 = case X > Xmax of true ->  2; false -> 0 end,
-    C2 = case Y < Ymin of true ->  4; false -> 0 end,
-    C3 = case Y > Ymax of true ->  8; false -> 0 end,
-    C4 = case Z < Zmin of true -> 16; false -> 0 end,
-    C5 = case Z > Zmax of true -> 32; false -> 0 end,
+    C0 = if X < Xmin -> 1; true -> 0 end,
+    C1 = if X > Xmax -> 2; true -> 0 end,
+    C2 = if Y < Ymin -> 4; true -> 0 end,
+    C3 = if Y > Ymax -> 8; true -> 0 end,
+    C4 = if Z < Zmin -> 16; true -> 0 end,
+    C5 = if Z > Zmax -> 32; true -> 0 end,
     C0 bor C1 bor C2 bor C3 bor C4 bor C5;
 outcode({X, Y}, {{Xmin, Ymin}, {Xmax, Ymax}}) ->
-    C0 = case X < Xmin of true ->  1; false -> 0 end,
-    C1 = case X > Xmax of true ->  2; false -> 0 end,
-    C2 = case Y < Ymin of true ->  4; false -> 0 end,
-    C3 = case Y > Ymax of true ->  8; false -> 0 end,
+    C0 = if X < Xmin -> 1; true -> 0 end,
+    C1 = if X > Xmax -> 2; true -> 0 end,
+    C2 = if Y < Ymin -> 4; true -> 0 end,
+    C3 = if Y > Ymax -> 8; true -> 0 end,
     C0 bor C1 bor C2 bor C3;
 outcode({X, Y, Z}, {HSx, HSy, Zmin, Zmax, Zf}) ->
     R =  Z / Zf,
     Rx = HSx * R,
     Ry = HSy * R,
-    if
+    {C0, C1, C2, C3} = if
         Z > 0.0 ->
-            C0 = case X < -Rx of true ->  0; false -> 1 end,
-            C1 = case X > Rx of true ->  0; false -> 2 end,
-            C2 = case Y < -Ry of true ->  0; false -> 4 end,
-            C3 = case Y > Ry of true ->  0; false -> 8 end
+            {if X < -Rx -> 0; true -> 1 end,
+            if X > Rx -> 0; true -> 2 end,
+            if Y < -Ry -> 0; true -> 4 end,
+            if Y > Ry -> 0; true -> 8 end}
             ;
         true ->
-            C0 = case X < -Rx of true ->  1; false -> 0 end,
-            C1 = case X > Rx of true ->  2; false -> 0 end,
-            C2 = case Y < -Ry of true ->  4; false -> 0 end,
-            C3 = case Y > Ry of true ->  8; false -> 0 end
+            {if X < -Rx -> 1; true -> 0 end,
+            if X > Rx -> 2; true -> 0 end,
+            if Y < -Ry -> 4; true -> 0 end,
+            if Y > Ry -> 8; true -> 0 end}
     end,
-    C4 = case Z < Zmin of true -> 16; false -> 0 end,
-    C5 = case Z > Zmax of true -> 32; false -> 0 end,
+    C4 = if Z < Zmin -> 16; true -> 0 end,
+    C5 = if Z > Zmax -> 32; true -> 0 end,
     C0 bor C1 bor C2 bor C3 bor C4 bor C5;
 outcode({X, Y, Z}, {{{Xmin, Ymin}, {Xmax, Ymax}}, Zf}) ->
     R =  Z / Zf,
@@ -613,18 +814,18 @@ outcode({X, Y, Z}, {{{Xmin, Ymin}, {Xmax, Ymax}}, Zf}) ->
     Ry_min = Ymin * R,
     Rx_max = Xmax * R,
     Ry_max = Ymax * R,
-    if
+    {C0, C1, C2, C3} = if
         Z > 0.0 ->
-            C0 = case X < Rx_min of true ->  0; false -> 1 end,
-            C1 = case X > Rx_max of true ->  0; false -> 2 end,
-            C2 = case Y < Ry_min of true ->  0; false -> 4 end,
-            C3 = case Y > Ry_max of true ->  0; false -> 8 end
+            {if X < Rx_min -> 0; true -> 1 end,
+            if X > Rx_max -> 0; true -> 2 end,
+            if Y < Ry_min -> 0; true -> 4 end,
+            if Y > Ry_max -> 0; true -> 8 end}
             ;
         true ->
-            C0 = case X < Rx_min of true ->  1; false -> 0 end,
-            C1 = case X > Rx_max of true ->  2; false -> 0 end,
-            C2 = case Y < Ry_min of true ->  4; false -> 0 end,
-            C3 = case Y > Ry_max of true ->  8; false -> 0 end
+            {if X < Rx_min -> 1; true -> 0 end,
+            if X > Rx_max -> 2; true -> 0 end,
+            if Y < Ry_min -> 4; true -> 0 end,
+            if Y > Ry_max -> 8; true -> 0 end}
     end,
     C0 bor C1 bor C2 bor C3.
 
@@ -805,8 +1006,8 @@ line_segment(LIt, LCt, LP, [Triangle | T], VCt) ->
                                             line_segment(LIt, LA, LP, T, VCt)
                                             ;
                                         {LA, LB} ->
-                                            appendl(line_segment(LIt, LA, LP, T, VCt),
-                                                line_segment(LIt, LB, LP, T, VCt))
+                                            line_segment(LIt, LA, LP, T, VCt) ++
+                                                line_segment(LIt, LB, LP, T, VCt)
                                     end
                             end
                             ;
@@ -984,8 +1185,7 @@ section({LC1, LC2}, {TN, TD}) ->
             ?BIG
     end.
 
-param({LC1, LC2}, U) ->
-    e3d_vec:add(LC1, e3d_vec:mul(e3d_vec:sub(LC2, LC1), U)).
+param({LC1, LC2}, U) -> add(LC1, mul(sub(LC2, LC1), U)).
 
 
 
@@ -994,50 +1194,36 @@ param({LC1, LC2}, U) ->
 %% See http://www.tulrich.com/geekstuff/partitioning.html
 %%
 
-new_qtree(Box) when size(Box) == 2 -> new_qtree(cons(Box));
-new_qtree(Cons) -> {[], Cons, nil, nil, nil, nil}.
+qtree_new(Box) when size(Box) == 2 -> qtree_new(cons(Box));
+qtree_new(Cons) -> {[], Cons, nil, nil, nil, nil}.
 
-add_to_qtree(Obj, Q) -> add_to_qtree(Obj, Q, 0).
+qtree_insert({_Obj, BB} = QE, Q) -> qtree_insert(QE, mid(BB), Q, 0).
 
-add_to_qtree(Fits, Obj, Cons, Q, Depth) ->
-    case Fits of
-        true ->
-            add_to_qtree(Obj, if Q == nil -> new_qtree(Cons); true -> Q end, Depth + 1)
-            ;
-        false ->
-            Q
-    end.
+qtree_insert(false, _QE, _QE_mid, _Cons, Q, _Depth) -> Q;
+qtree_insert(true, QE, QE_mid, Cons, nil, Depth) ->
+    qtree_insert(QE, QE_mid, qtree_new(Cons), Depth + 1);
+qtree_insert(true, QE, QE_mid, _Cons, Q, Depth) ->
+    qtree_insert(QE, QE_mid, Q, Depth + 1).
 
-add_to_qtree(Obj, {Ls, Cons, Q1, Q2, Q3, Q4}, Depth) ->
+qtree_insert(QE, QE_mid, {QEs, Cons, Q1, Q2, Q3, Q4}, Depth) ->
     C1 = cons(if Q1 == nil -> quad1(Cons); true -> Q1 end),
     C2 = cons(if Q2 == nil -> quad2(Cons); true -> Q2 end),
     C3 = cons(if Q3 == nil -> quad3(Cons); true -> Q3 end),
     C4 = cons(if Q4 == nil -> quad4(Cons); true -> Q4 end),
-    F1 = fits(Obj, C1),
-    F2 = fits(Obj, C2),
-    F3 = fits(Obj, C3),
-    F4 = fits(Obj, C4),
-    case (Depth > ?MAXDEPTH - 1) orelse (not (F1 or F2 or F3 or F4)) of
-        true ->
-            {Data, Box, _} = Obj,
-            {[{Data, Box} | Ls], Cons, Q1, Q2, Q3, Q4}
+    F1 = fits(QE, QE_mid, C1),
+    F2 = fits(QE, QE_mid, C2),
+    F3 = fits(QE, QE_mid, C3),
+    F4 = fits(QE, QE_mid, C4),
+    if
+        Depth > ?MAXDEPTH - 1; not (F1 or F2 or F3 or F4) ->
+            {[QE | QEs], Cons, Q1, Q2, Q3, Q4}
             ;
-        false ->
-            N1 = add_to_qtree(F1, Obj, C1, Q1, Depth), 
-            N2 = add_to_qtree(F2, Obj, C2, Q2, Depth), 
-            N3 = add_to_qtree(F3, Obj, C3, Q3, Depth), 
-            N4 = add_to_qtree(F4, Obj, C4, Q4, Depth), 
-            {Ls, Cons, N1, N2, N3, N4}
-    end.
-
-add_triangle(Proj, Zf, View_port, TVCt, Tria, Qtree) ->
-    BB = bbox(Proj, Zf, View_port, TVCt),
-    case BB of
-        BB when is_tuple(BB) ->
-            add_to_qtree({Tria, BB, mid(BB)}, Qtree)
-                ;
-        nil ->
-            Qtree
+        true ->
+            N1 = qtree_insert(F1, QE, QE_mid, C1, Q1, Depth),
+            N2 = qtree_insert(F2, QE, QE_mid, C2, Q2, Depth),
+            N3 = qtree_insert(F3, QE, QE_mid, C3, Q3, Depth),
+            N4 = qtree_insert(F4, QE, QE_mid, C4, Q4, Depth),
+            {QEs, Cons, N1, N2, N3, N4}
     end.
 
 cons({{Xmin, Ymin}, {Xmax, Ymax}}) ->
@@ -1046,7 +1232,7 @@ cons({{Xmin, Ymin}, {Xmax, Ymax}}) ->
     {{{Xmin, Ymin}, {Xmax, Ymax}},
         {{Xmin - Dx, Ymin - Dy}, {Xmax + Dx, Ymax + Dy}},
         {Xmin + Dx, Ymin + Dy}};
-cons({_, Cons, _, _, _, _}) -> Cons.
+cons({_QEs, Cons, _Q1, _Q2, _Q3, _Q4}) -> Cons.
 
 quad1({{_, {Xmax, Ymax}}, _, {Xmid, Ymid}}) ->
     {{Xmid, Ymid}, {Xmax, Ymax}}.
@@ -1060,30 +1246,29 @@ quad4({{{_, Ymin}, {Xmax, _}}, _, {Xmid, Ymid}}) ->
 inside({X, Y}, {{Xmin, Ymin}, {Xmax, Ymax}}) ->
     (X >= Xmin) andalso (Y >= Ymin) andalso (X =< Xmax) andalso (Y =< Ymax).
 
-fits({_, {Obj_min, Obj_max}, Obj_mid}, {Cons_box, Cons_lim, _}) ->
+fits({_, {Obj_min, Obj_max}}, QE_mid, {Cons_box, Cons_lim, _}) ->
     inside(Obj_min, Cons_lim) andalso inside(Obj_max, Cons_lim)
-        andalso inside(Obj_mid, Cons_box).
+        andalso inside(QE_mid, Cons_box).
 
-get_quad_trias(_, []) -> [];
-get_quad_trias(Seg, [{Data, Box} | T]) ->
-    case overlays(Seg, Box) of
+get_quad_objs(_LS, []) -> [];
+get_quad_objs(LS, [{Obj, BB} | T]) ->
+    case overlays(LS, BB) of
         true ->
-            [Data | get_quad_trias(Seg, T)]
+            [Obj | get_quad_objs(LS, T)]
             ;
         false ->
-            get_quad_trias(Seg, T)
+            get_quad_objs(LS, T)
     end.
 
-get_triangles(_,  nil) -> [];
-get_triangles(Seg, {Ls, {_, Lim, _}, Q1, Q2, Q3, Q4}) ->
-    case overlays(Seg, Lim) of
+get_objs(_,  nil) -> [];
+get_objs(LS, {QEs, {_BB, Lim, _Mid}, Q1, Q2, Q3, Q4}) ->
+    case overlays(LS, Lim) of
         true ->
-            L1s = get_triangles(Seg, Q1),
-            L2s = get_triangles(Seg, Q2),
-            L3s = get_triangles(Seg, Q3),
-            L4s = get_triangles(Seg, Q4),
-            appendl(L4s, appendl(L3s, appendl(L2s,
-                appendl(L1s, get_quad_trias(Seg, Ls)))))
+            get_quad_objs(LS, QEs)
+                ++ get_objs(LS, Q1)
+                ++ get_objs(LS, Q2)
+                ++ get_objs(LS, Q3)
+                ++ get_objs(LS, Q4)
             ;
         false ->
             []
@@ -1203,23 +1388,149 @@ project(Proj, Zf, View_port, Offset, Scale, [LVCt | T])
             project(Proj, Zf, View_port, Offset, Scale, T)
     end.
 
-write_eps(F, Ls, {{Xbb_min, Ybb_min}, {Xbb_max, Ybb_max}}, Line_width0, Line_cap) ->
+merge(LS1, _BB1, [], _Dthr) -> [LS1];
+merge(LS1, {{Xmin_1, Ymin_1}, {Xmax_1, Ymax_1}} = BB1, [LS2 | T], Dthr) ->
+    {{Xmin_2, Ymin_2}, {Xmax_2, Ymax_2}} = BB2 = bbox(LS2),
+    {{Xmin, Ymin}, {Xmax, Ymax}} = BB = bbox(BB1, BB2),
+    case
+        (max(Xmin_1, Xmin_2) =< min(Xmax_1, Xmax_2) + Dthr)
+            andalso (max(Ymin_1, Ymin_2) =< min(Ymax_1, Ymax_2) + Dthr)
+    of
+        true ->
+            {LS11, _LS12} = LS1,
+            LS = if
+                LS11 == {Xmin_1, Ymin_1}; LS11 == {Xmax_1, Ymax_1} ->
+                    {{Xmin, Ymin}, {Xmax, Ymax}}
+                    ;
+                true ->
+                    {{Xmin, Ymax}, {Xmax, Ymin}}
+            end,
+            merge(LS, BB, T, Dthr)
+            ;
+        false ->
+            [LS2 | merge(LS1, BB1, T, Dthr)]
+    end.
+
+merge(LS, [], _Dthr) -> [LS];
+merge(LS, LSs, Dthr) -> merge(LS, bbox(LS), LSs, Dthr).
+
+lstree_insert(LS, LS_tree, Athr, Dthr) ->
+    lstree_insert(unit_2d(LS, Dthr), LS, LS_tree, Athr, Dthr).
+
+lstree_insert(nil, _LS0, LS_tree, _Athr, _Dthr) -> LS_tree;
+lstree_insert(U0, LS0, nil, _Athr, Dthr)  ->
+    {lstree_insert1(U0, mid(LS0), LS0, nil, Dthr), nil, nil};
+lstree_insert(U0, LS0, {{U, _, _, _, _} = LS_tree, Small, Big}, Athr, Dthr) ->
+    Sin = cross(U0, U),
+    Cos = dot(U0, U),
+    if
+        ((Sin < -Athr) and (Cos > Athr))
+            or ((Sin > Athr) and (Cos < -Athr)) ->
+            {LS_tree, lstree_insert(U0, LS0, Small, Athr, Dthr), Big}
+            ;
+        ((Sin > Athr) and (Cos >= -Athr))
+            or ((Sin < -Athr) and (Cos =< Athr))->
+            {LS_tree, Small, lstree_insert(U0, LS0, Big, Athr, Dthr)}
+            ;
+        true ->
+            {lstree_insert1(U0, mid(LS0), LS0, LS_tree, Dthr), Small, Big}
+    end.
+
+lstree_insert1(U0, Mid_LS0, LS0, nil, _Dthr)  ->
+    {U0, Mid_LS0, [LS0], nil, nil};
+lstree_insert1(U0, Mid_LS0, LS0, {U, Mid_LS, LSs, Small, Big}, Dthr) ->
+    V = sub(Mid_LS0, Mid_LS),
+    D1 = cross(U, V),
+    D2 = cross(U0, neg(V)),
+    D0 = min(abs(D1), abs(D2)),
+    D = if D1 >= 0.0 -> D0 ; true -> -D0 end,
+    if
+        D < -Dthr ->
+            {U, Mid_LS, LSs,
+                lstree_insert1(U0, Mid_LS0, LS0, Small, Dthr), Big}
+            ;
+        D > Dthr ->
+            {U, Mid_LS, LSs,
+                Small, lstree_insert1(U0, Mid_LS0, LS0, Big, Dthr)}
+            ;
+        true ->
+        {U, Mid_LS, merge(LS0, LSs, Dthr), Small, Big}
+    end.
+
+lstree_to_list(nil, List) -> List;
+lstree_to_list({LS_tree, Small, Big}, List) ->
+    LSs = lstree_to_list(LS_tree),
+    lstree_to_list(Small, LSs ++ lstree_to_list(Big, List));
+lstree_to_list({_U, _Mid_LS, LSs, Small, Big}, List) ->
+    lstree_to_list(Small, LSs ++ lstree_to_list(Big, List)).
+
+lstree_to_list(LS_tree) -> lstree_to_list(LS_tree, []).
+
+unit_2d({{X1, Y1}, {X2, Y2}}, Dthr) ->
+    UX0 = X2 - X1,
+    UY0 = Y2 - Y1,
+    if
+        (abs(UX0) < Dthr) and (abs(UY0) < Dthr) ->
+            nil
+            ;
+        true ->
+            D = math:sqrt(UX0 * UX0 + UY0 * UY0),
+            {UX0 / D, UY0 / D}
+    end.
+
+write_eps_header(F, {{Xbb_min, Ybb_min}, {Xbb_max, Ybb_max}}, Line_cap) ->
     io:put_chars(F, "%!PS-Adobe-2.0 EPSF-2.0\n"),
     io:fwrite(F, "%%BoundingBox: ~w ~w ~w ~w~n",
         [round(Xbb_min), round(Ybb_min), round(Xbb_max), round(Ybb_max)]),
-    io:put_chars(F, "/l {lineto} bind def\n"),
-    io:put_chars(F, "/m {moveto} bind def\n"),
-    io:put_chars(F, "/n {newpath} bind def\n"),
-    io:put_chars(F, "/s {stroke} bind def\n"),
-    Line_width = max(Line_width0, 0.0),
-    case Line_width of
-        1.0 -> ok;
-        _ -> io:fwrite(F, "~.1f setlinewidth~n", [Line_width])
-    end,
+    io:put_chars(F, "/s {newpath moveto lineto stroke} bind def\n"),
     case Line_cap of
         0 -> ok;
         _ -> io:fwrite(F, "~w setlinecap~n", [Line_cap])
-    end,
+    end.
+
+write_eps_line_group(_F, [], _Line_width, _Group_count) -> ok;
+write_eps_line_group(F, Ls, Line_width, Group_count)
+    when Group_count > 0; Line_width /= 1.0 ->
+    io:fwrite(F, "~.1f setlinewidth~n", [max(Line_width, 0.0)]),
+    write_eps_line_group(F, Ls);
+write_eps_line_group(F, Ls, _Line_width, _Group_count) ->
+    write_eps_line_group(F, Ls).
+
+write_eps_line_group(F, Ls) ->
     foreach(fun({{X1, Y1}, {X2, Y2}}) ->
-        io:fwrite(F, "n ~.1f ~.1f m ~.1f ~.1f l s~n", [X1, Y1, X2, Y2])
+        io:fwrite(F, "~.1f ~.1f ~.1f ~.1f s~n", [X2, Y2, X1, Y1])
     end, Ls).
+
+
+dict_new() -> [].
+
+dict_append_list(Key0, Values0, KVs) ->
+    case keysearch(Key0, 1, KVs) of
+        {value, {_Key, Values}} ->
+            keyreplace(Key0, 1, KVs, {Key0, Values ++ Values0})
+            ;
+        false ->
+            [{Key0, Values0} | KVs]
+    end.
+
+dict_append(Key0, Value, KVs) ->
+    case keysearch(Key0, 1, KVs) of
+        {value, {_Key, Values}} ->
+            keyreplace(Key0, 1, KVs, {Key0, [Value | Values]})
+            ;
+        false ->
+            [{Key0, [Value]} | KVs]
+    end.
+
+dict_store(Key0, Value, KVs) ->
+    case keymember(Key0, 1, KVs) of
+        true ->
+            keyreplace(Key0, 1, KVs, {Key0, [Value]})
+            ;
+        false ->
+            [{Key0, [Value]} | KVs]
+    end.
+
+dict_fetch(Key, KVs) ->
+    {value, {_Key, Values}} = keysearch(Key, 1, KVs),
+    Values.
