@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.196 2005/09/15 05:23:06 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.197 2005/10/14 07:47:47 dgud Exp $
 %%
 
 -module(wings_drag).
@@ -643,7 +643,7 @@ mouse_scale([D|Ds], [S|Ss]) ->
 mouse_scale(Ds, _) -> Ds.
 
 constraints_scale([U0|_],Mod,[UnitScales|_]) ->
-    case constraint_factor(clean_unit(U0),Mod) of
+    case constraint_factor(clean_unit(U0),Mod,false) of
 	none -> 1.0;
 	{_,What} -> What*0.01/UnitScales
     end.
@@ -654,7 +654,7 @@ constrain(Ds0, Mod, #drag{unit=Unit}=Drag) ->
 
 constrain_0([U0|Us], [D0|Ds], Mod, Acc) ->
     U = clean_unit(U0),
-    D = case constraint_factor(U, Mod) of
+    D = case constraint_factor(U, Mod, true) of
 	    none -> D0;
 	    {F1,F2} -> 
 		round(D0*F1)*F2
@@ -673,16 +673,16 @@ clamp({_,{Min,_Max}}, D) when D < Min -> Min;
 clamp({_,{_Min,Max}}, D) when D > Max -> Max;
 clamp(_, D) -> D.
 
-constraint_factor(angle, Mod) ->
+constraint_factor(angle, Mod, Scale) ->
     if
 	Mod band ?SHIFT_BITS =/= 0,
 	Mod band ?CTRL_BITS =/= 0 -> {15,1/15};%{150,1/15};
 	Mod band ?CTRL_BITS =/= 0 -> {1,1.0};%{15,1.0};
 	Mod band ?SHIFT_BITS =/= 0 ->{1/15,15.0};%{1,15.0};
-	%%true -> {1.0E5,1.0E-5}
+	Scale == true -> {1.0E5,1.0E-5};
 	true -> none
     end;
-constraint_factor(_, Mod) ->
+constraint_factor(_, Mod, _) ->
     if
 	Mod band ?SHIFT_BITS =/= 0,
 	Mod band ?CTRL_BITS =/= 0 -> {100,1/100};
