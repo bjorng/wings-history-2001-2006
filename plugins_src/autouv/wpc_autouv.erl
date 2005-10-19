@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.316 2005/10/19 09:45:04 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.317 2005/10/19 18:00:15 dgud Exp $
 %%
 
 -module(wpc_autouv).
@@ -403,7 +403,11 @@ command_menu(body, X, Y) ->
 	    {basic,separator},
 	    {?__(2,"Move"), move, ?__(3,"Move selected charts")},
 	    {?__(4,"Scale"), {scale, scale_directions(false) ++ 
-			      [separator] ++ stretch_directions()}, 
+			      [separator] ++ stretch_directions() ++
+			      [separator, 
+			       {?__(411,"Normalize Sizes"), normalize, 
+				?__(412,"Normalize Chart Sizes so that each"
+				    "chart get it's corresponding 2d area")}]}, 
 	     ?__(5,"Scale selected charts")},
 	    {?__(6,"Rotate"), rotate, ?__(7,"Rotate selected charts")},
 	    separator,
@@ -460,6 +464,12 @@ command_menu(edge, X, Y) ->
 	    {?__(60,"Move"),move,?__(61,"Move selected edges"),[magnet]},
 	    {?__(62,"Scale"),{scale,Scale},?__(63,"Scale selected edges"), [magnet]},
 	    {?__(64,"Rotate"),{rotate,Align},?__(65,"Rotate commands")},
+	    {?__(641,"Slide"),slide,?__(642,"Slide along neighbor edges")},
+	    {?__(643,"Distribute"),
+	     {equal,
+	      [{?__(25,"Horizontal"),horizontal,?__(644,"Distribute horizontally")},
+	       {?__(27,"Vertical"),vertical,?__(645,"Distribute vertically")}]},
+	     ?__(646,"Distribute vertices evenly")},
 	    separator,
 	    {?__(66,"Stitch"), stitch, ?__(67,"Stitch edges/charts")},
 	    {?__(68,"Cut"), cut_edges, ?__(69,"Cut selected edges")}
@@ -701,6 +711,8 @@ handle_event_3({action,Ev}, St) ->
 	    handle_command({scale,Dir},St);
 	{_, {scale,_S}} ->
 	    handle_command({scale,uniform},St);
+	{_, slide} ->
+	    handle_command(slide,St);
 	{view,aim} ->
 	    St1 = fake_selection(St),
 	    wings_view:command(aim, St1),
@@ -708,7 +720,8 @@ handle_event_3({action,Ev}, St) ->
 	{view,Cmd} when Cmd == frame ->
 	    wings_view:command(Cmd,St),
 	    get_event(St);
-	_ ->	    
+	_ ->
+%%	    io:format("Miss Action ~p~n", [Ev]),
 	    keep
     end;
 handle_event_3(got_focus, _) ->
@@ -729,7 +742,6 @@ clear_temp_sel(#st{temp_sel={Mode,Sh}}=St) ->
 -record(tweak, {type, st, pos, ev}).
 
 start_tweak(Type, Ev = #mousebutton{x=X,y=Y}, St0) ->
-%%    io:format("Start tweak~n", []),
     T = #tweak{type=Type,st=St0,pos={X,Y}, ev=Ev},
     {seq,push,get_tweak_event(T)}.
 
@@ -767,6 +779,26 @@ handle_command({scale,Dir}, St0) %% Maximize chart
     St1 = wpa:sel_map(fun(_, We) -> stretch(Dir,We) end, St0),
     St = update_selected_uvcoords(St1),
     get_event(St);
+handle_command({scale,normalize}, St0) -> %% Normalize chart sizes    
+    #st{shapes=Sh0, bb=#uvstate{id=Id,st=#st{shapes=Orig}}} = St0,
+    OWe = gb_trees:get(Id, Orig), 
+    {TA2D,TA3D,List} = wings_sel:fold(fun(_,We,Areas) -> 
+					      calc_areas(We,OWe,Areas)
+				      end, {0.0,0.0,[]}, St0),
+    TScale = TA2D/TA3D,
+    Scale = fun({A2D,A3D,We0 = #we{id=WId}},Sh) ->
+		    Scale = math:sqrt(TScale * A3D/A2D),
+		    Center = wings_vertex:center(We0),
+		    T0 = e3d_mat:translate(e3d_vec:neg(Center)),
+		    SM = e3d_mat:scale(Scale, Scale, 1.0),
+		    T1 = e3d_mat:mul(SM, T0),
+		    T = e3d_mat:mul(e3d_mat:translate(Center), T1),
+		    We = wings_we:transform_vs(T, We0),
+		    gb_trees:update(WId,We,Sh)
+	    end,
+    Sh = lists:foldl(Scale, Sh0, List),
+    St = update_selected_uvcoords(St0#st{shapes=Sh}),
+    get_event(St);
 handle_command({scale, {'ASK', Ask}}, St) ->
     wings:ask(Ask, St, fun({Dir,M},St0) -> 
 			       drag(wings_scale:setup({Dir,center,M}, St0)) 
@@ -802,6 +834,12 @@ handle_command({flip,horizontal}, St0) ->
     get_event(St);
 handle_command({flip,vertical}, St0) ->
     St1 = wpa:sel_map(fun(_, We) -> flip_vertical(We) end, St0),
+    St = update_selected_uvcoords(St1),
+    get_event(St);
+handle_command(slide, St) ->
+    drag(wings_edge_cmd:command(slide,St));
+handle_command({equal,Op}, St0) ->
+    St1 = equal_length(Op,St0),
     St = update_selected_uvcoords(St1),
     get_event(St);
 handle_command(tighten, St) ->
@@ -933,6 +971,54 @@ mag_vertex_tighten(Vs0, We, Magnet, A) ->
     Vis = gb_sets:from_ordset(wings_we:visible(We)),
     Vs = [V || V <- gb_sets:to_list(Vs0), not_bordering(V, Vis, We)],
     wings_vertex_cmd:tighten(Vs, We, Magnet, A).
+
+equal_length(Op,St) ->
+    wings_sel:map(fun(Es, We) ->
+			  Links = wings_edge_loop:edge_links(Es,We),
+			  make_equal(Op,Links,We)
+		  end, St).
+
+make_equal(Op,[Link0|R],We = #we{vp=Vtab}) ->
+    E = if Op == horizontal -> 1; true -> 2 end,
+    case length(Link0) of
+	X when X < 2 -> make_equal(Op,R,We);
+	No ->
+	    Link = case Link0 of
+		       [{_,A,_},{_,_,A}|_] -> Link0;
+		       [{_,_,A},{_,A,_}|_] -> reverse(Link0)
+		   end,
+	    D = foldl(fun({_E,Ve,Vs}, {X,Y,_}) ->
+			      {Xd,Yd,_} = e3d_vec:sub(gb_trees:get(Ve,Vtab),
+						      gb_trees:get(Vs,Vtab)),
+			      {X+(Xd),Y+(Yd),0.0}
+		      end,
+		      {0.0,0.0,0.0},Link),
+	    Dist = element(E,D)/No,
+	    Vt = foldl(fun({_E,Ve,Vs}, Vt) ->
+			       Pos1 = gb_trees:get(Vs,Vt),
+			       Pos2 = gb_trees:get(Ve,Vt),
+			       Pos = setelement(E,Pos2,element(E,Pos1) + Dist),
+			       gb_trees:update(Ve,Pos,Vt)
+		       end,
+		       Vtab,Link),	    
+	    make_equal(Op,R,We#we{vp=Vt})
+    end;
+make_equal(_,[],We) -> We.
+
+calc_areas(We,OWe,{TA2D,TA3D,L}) ->
+    Fs = wings_we:visible(We),
+    {A2D,A3D} = 
+	lists:foldl(fun(Face,{A2D,A3D}) ->
+			    %% 2D
+			    Vs2 = wpa:face_vertices(Face, We),
+			    A2 = auv_mapping:calc_area(Vs2,{0.0,0.0,1.0}, We),
+			    %% 3D
+			    N3 = wings_face:normal(Face, OWe),
+			    Vs3 = wpa:face_vertices(Face, OWe),
+			    A3 = auv_mapping:calc_area(Vs3,N3, OWe),
+			    {A2D+A2,A3+A3D}
+		    end, {0.0,0.0}, Fs),
+    {A2D+TA2D,A3D+TA3D,[{A2D,A3D,We}|L]}.
 
 not_bordering(V, Vis, We) ->
     wings_vertex:fold(fun(_, _, _, false) -> false;
