@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.109 2005/04/12 20:20:48 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.110 2005/10/19 19:04:05 dgud Exp $
 %%
 %% Note: To keep the call graph clean, wings_util MUST NOT call
 %%       other wings_* modules (except wings_pref).
@@ -293,7 +293,11 @@ limit(Val, {Min,Max}) when Min < Max -> Val.
 format_1("~s"++F, [S0|Args], Acc) ->
     S = if
 	    is_atom(S0) -> atom_to_list(S0);
-	    is_list(S0) -> S0
+	    is_list(S0) -> S0;
+	    true -> 
+		io:format("Bad string formatter for ~p in ~p~n", 
+			  [S0, lists:flatten(reverse(Acc) ++ F)]),
+		erlang:error(badarg)
 	end,
     format_1(F, Args, [S|Acc]);
 format_1("~p"++F, [S0|Args], Acc) ->
