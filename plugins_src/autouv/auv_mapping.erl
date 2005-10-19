@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_mapping.erl,v 1.76 2005/09/23 19:37:58 giniu Exp $
+%%     $Id: auv_mapping.erl,v 1.77 2005/10/19 19:03:26 dgud Exp $
 %%
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
@@ -39,7 +39,7 @@
 
 -module(auv_mapping).
 
--export([stretch_opt/2, area2d2/3,area3d/3]).
+-export([stretch_opt/2, area2d2/3,area3d/3, calc_area/3]).
 -export([map_chart/3]).
 
 %% Internal exports.
