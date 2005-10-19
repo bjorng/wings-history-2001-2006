@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.315 2005/09/23 19:37:58 giniu Exp $
+%%     $Id: wpc_autouv.erl,v 1.316 2005/10/19 09:45:04 dgud Exp $
 %%
 
 -module(wpc_autouv).
@@ -234,7 +234,7 @@ create_uv_state(Charts, MatName, Fs, We, GeomSt) ->
 
     wings_wm:set_prop(Name, drag_filter, fun drag_filter/1),
     wings_wm:set_prop(show_wire_backfaces, true),
-    wings_wm:set_prop(show_info_text, false),
+    wings_wm:set_prop(show_info_text, false), %% Users want this
     wings_wm:set_prop(orthogonal_view, true),
     wings_wm:set_prop(show_axes, false),
     wings_wm:set_prop(show_groundplane, false),
@@ -402,7 +402,8 @@ command_menu(body, X, Y) ->
     Menu = [{basic,{?__(1,"Chart operations"),ignore}},
 	    {basic,separator},
 	    {?__(2,"Move"), move, ?__(3,"Move selected charts")},
-	    {?__(4,"Scale"), {scale, scale_directions()++ stretch_directions()}, 
+	    {?__(4,"Scale"), {scale, scale_directions(false) ++ 
+			      [separator] ++ stretch_directions()}, 
 	     ?__(5,"Scale selected charts")},
 	    {?__(6,"Rotate"), rotate, ?__(7,"Rotate selected charts")},
 	    separator,
@@ -440,24 +441,24 @@ command_menu(body, X, Y) ->
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu);
 command_menu(face, X, Y) ->
-    Scale = scale_directions(),
+    Scale = scale_directions(true),
     Menu = [{basic,{?__(46,"Face operations"),ignore}},
 	    {basic,separator},
 	    {?__(47,"Move"),move,?__(48,"Move selected faces"),[magnet]},
-	    {?__(49,"Scale"),{scale,Scale},?__(50,"Scale selected faces")},
-	    {?__(51,"Rotate"),rotate,?__(52,"Rotate selected faces")}
+	    {?__(49,"Scale"),{scale,Scale},?__(50,"Scale selected faces"), [magnet]},
+	    {?__(51,"Rotate"),rotate,?__(52,"Rotate selected faces"), [magnet]}
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu);
 command_menu(edge, X, Y) ->
-    Scale = scale_directions(),
+    Scale = scale_directions(true),
     Align = 	    
-	[{?__(53,"Free"),free,?__(54,"Rotate selection freely")},
+	[{?__(53,"Free"),free,?__(54,"Rotate selection freely"), [magnet]},
 	 {?__(55,"Chart to X"), align_x, ?__(56,"Rotate chart to align selected edge to X-axis")},
 	 {?__(57,"Chart to Y"), align_y, ?__(58,"Rotate chart to align selected edge to Y-axis")}],
     Menu = [{basic,{?__(59,"Edge operations"),ignore}},
 	    {basic,separator},
 	    {?__(60,"Move"),move,?__(61,"Move selected edges"),[magnet]},
-	    {?__(62,"Scale"),{scale,Scale},?__(63,"Scale selected edges")},
+	    {?__(62,"Scale"),{scale,Scale},?__(63,"Scale selected edges"), [magnet]},
 	    {?__(64,"Rotate"),{rotate,Align},?__(65,"Rotate commands")},
 	    separator,
 	    {?__(66,"Stitch"), stitch, ?__(67,"Stitch edges/charts")},
@@ -465,9 +466,9 @@ command_menu(edge, X, Y) ->
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu);
 command_menu(vertex, X, Y) ->
-    Scale = scale_directions(),
+    Scale = scale_directions(true),
     Align = 	    
-	[{?__(70,"Free"),free,?__(71,"Rotate selection freely")},
+	[{?__(70,"Free"),free,?__(71,"Rotate selection freely"), [magnet]},
 	 {?__(72,"Chart to X"), align_x, 
 	  ?__(73,"Rotate chart to align (imaginary) edge joining selected verts to X-axis")},
 	 {?__(74,"Chart to Y"), align_y, 
@@ -476,7 +477,7 @@ command_menu(vertex, X, Y) ->
     Menu = [{basic,{?__(76,"Vertex operations"),ignore}},
 	    {basic,separator},
 	    {?__(77,"Move"),move,?__(78,"Move selected vertices"),[magnet]},
-	    {?__(79,"Scale"),{scale,Scale},?__(80,"Scale selected vertices")},
+	    {?__(79,"Scale"),{scale,Scale},?__(80,"Scale selected vertices"), [magnet]},
 	    {?__(81,"Rotate"),{rotate,Align},?__(82,"Rotation commands")},
 	    separator,
 	    {?__(83,"Flatten"),{flatten,
@@ -497,14 +498,19 @@ command_menu(_, X, Y) ->
     wings_menu:popup_menu(X,Y, auv, Menu).
 
 stretch_directions() ->
-    [{?__(1,"Max Uniform"),    max_uniform, ?__(2,"Maximize either horizontally or vertically")},
+    [{?__(1,"Max Uniform"), max_uniform, ?__(2,"Maximize either horizontally or vertically")},
      {?__(3,"Max Horizontal"), max_x, ?__(4,"Maximize horizontally (X dir)")},
      {?__(5,"Max Vertical"),   max_y, ?__(6,"Maximize vertically (Y dir)")}].
 
-scale_directions() ->
-    [{?__(1,"Uniform"),    scale_uniform, ?__(2,"Scale in both directions")},
-     {?__(3,"Horizontal"), scale_x, ?__(4,"Scale horizontally (X dir)")},
-     {?__(5,"Vertical"),   scale_y, ?__(6,"Scale vertically (Y dir)")}].
+scale_directions(true) ->
+    [{?__(1,"Uniform"),    uniform, ?__(2,"Scale in both directions"), [magnet]},
+     {?__(3,"Horizontal"), x, ?__(4,"Scale horizontally (X dir)"), [magnet]},
+     {?__(5,"Vertical"),   y, ?__(6,"Scale vertically (Y dir)"), [magnet]}];
+scale_directions(false) ->
+    [{?__(1,"Uniform"),    uniform, ?__(2,"Scale in both directions")},
+     {?__(3,"Horizontal"), x, ?__(4,"Scale horizontally (X dir)")},
+     {?__(5,"Vertical"),   y, ?__(6,"Scale vertically (Y dir)")}].
+
 
 option_menu() ->
     [separator,
@@ -686,17 +692,15 @@ handle_event_3({action,{view,toggle_background}}, _) ->
     wings_wm:dirty();
 
 handle_event_3({action,Ev}, St) ->
-    case Ev of
+    case Ev of  %% Keyboard shortcuts end up here (I believe)
 	{_, {move,_}} ->
 	    handle_command(move,St);
 	{_, {rotate,_}} ->
 	    handle_command({rotate,free},St);
-	{_, {scale,{x,_}}} ->
-	    handle_command({scale,scale_x},St);
-	{_, {scale,{y,_}}} ->
-	    handle_command({scale,scale_y},St);
-	{_, {scale,_}} ->
-	    handle_command({scale,scale_uniform},St);
+	{_, {scale,{Dir,_S}}} ->
+	    handle_command({scale,Dir},St);
+	{_, {scale,_S}} ->
+	    handle_command({scale,uniform},St);
 	{view,aim} ->
 	    St1 = fake_selection(St),
 	    wings_view:command(aim, St1),
@@ -758,20 +762,36 @@ handle_command(move, St) ->
     drag(wings_move:setup(free_2d, St));
 handle_command({move,Magnet}, St) ->
     drag(wings_move:setup({free_2d,Magnet}, St));
-handle_command({scale,scale_uniform}, St) ->
-    drag(wings_scale:setup({uniform,center}, St));
-handle_command({scale,scale_x}, St) ->
-    drag(wings_scale:setup({x,center}, St));
-handle_command({scale,scale_y}, St) ->
-    drag(wings_scale:setup({y,center}, St));
-handle_command({scale,Dir}, St0) -> %% Maximize chart
+handle_command({scale,Dir}, St0) %% Maximize chart
+  when Dir == max_uniform; Dir == max_x; Dir == max_y -> 
     St1 = wpa:sel_map(fun(_, We) -> stretch(Dir,We) end, St0),
     St = update_selected_uvcoords(St1),
     get_event(St);
+handle_command({scale, {'ASK', Ask}}, St) ->
+    wings:ask(Ask, St, fun({Dir,M},St0) -> 
+			       drag(wings_scale:setup({Dir,center,M}, St0)) 
+		       end);
+handle_command({scale,Dir}, St) ->
+    drag(wings_scale:setup({Dir,center}, St));
 handle_command(rotate, St) ->
     drag(wings_rotate:setup({free,center}, St));
 handle_command({rotate,free}, St) ->
     drag(wings_rotate:setup({free,center}, St));
+handle_command({rotate, {'ASK', Ask}}, St) ->
+    wings:ask(Ask, St, fun({Dir,M},St0) -> 
+			       drag(wings_rotate:setup({Dir,center,M}, St0)) 
+		       end);
+handle_command({rotate, Magnet}, St) when element(1, Magnet) == magnet ->
+    drag(wings_rotate:setup({free,center,Magnet}, St));
+handle_command({rotate,Dir}, St0) 
+  when Dir == align_y; Dir == align_x; Dir == align_xy ->
+    St1 = align_chart(Dir, St0),
+    St = update_selected_uvcoords(St1),
+    get_event(St);
+handle_command({rotate,Deg}, St0) ->
+    St1 = wpa:sel_map(fun(_, We) -> rotate_chart(Deg, We) end, St0),
+    St = update_selected_uvcoords(St1),
+    get_event(St);
 handle_command({move_to,Dir}, St0) ->
     St1 = wpa:sel_map(fun(_, We) -> move_to(Dir,We) end, St0),
     St = update_selected_uvcoords(St1),
@@ -782,15 +802,6 @@ handle_command({flip,horizontal}, St0) ->
     get_event(St);
 handle_command({flip,vertical}, St0) ->
     St1 = wpa:sel_map(fun(_, We) -> flip_vertical(We) end, St0),
-    St = update_selected_uvcoords(St1),
-    get_event(St);
-handle_command({rotate,Dir}, St0) 
-  when Dir == align_y; Dir == align_x; Dir == align_xy ->
-    St1 = align_chart(Dir, St0),
-    St = update_selected_uvcoords(St1),
-    get_event(St);
-handle_command({rotate,Deg}, St0) ->
-    St1 = wpa:sel_map(fun(_, We) -> rotate_chart(Deg, We) end, St0),
     St = update_selected_uvcoords(St1),
     get_event(St);
 handle_command(tighten, St) ->
@@ -841,8 +852,8 @@ handle_command(cut_edges, St0 = #st{selmode=edge,bb=#uvstate{id=Id,st=Geom}}) ->
     St  = update_selected_uvcoords(St2),
     get_event(St);
 
-%%    get_event(St);
-handle_command(_, #st{sel=[]}) ->
+handle_command(_Cmd, #st{sel=[]}) ->
+%%    io:format("~p ~n", [_Cmd]),
     keep.
 
 fake_selection(St) ->
@@ -1261,7 +1272,7 @@ rebuild_charts(We, St = #st{bb=UVS=#uvstate{st=Old,mode=Mode}}, ExtraCuts) ->
     Charts2 = auv_segment:cut_model(Charts1, Cuts, We),
     Charts = update_uv_tab(Charts2, FvUvMap),
     wings_wm:set_prop(wireframed_objects,
-		      gb_sets:from_ordset(lists:seq(1, length(Charts2)))),
+		      gb_sets:from_ordset(lists:seq(1, lists:max([gb_trees:size(Charts),1])))),
     St#st{sel=[],bb=UVS#uvstate{mode=update_mode(Faces,We),st=Old#st{sel=[]}},
 	  shapes=Charts}.
 
