@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: autouv_pl.lang,v 1.1 2005/10/03 21:33:28 giniu Exp $
+%%     $Id: autouv_pl.lang,v 1.2 2005/10/19 19:35:16 giniu Exp $
 %%
 %%  Translation:  Andrzej Giniewicz
 %%  Correction:   Małgorzata Napiontek
@@ -237,7 +237,15 @@
     {89,"Rozłóż"},
     {90,"Rozłóż zachowując naturalną pozycję zaznaczonych punktów"},
     {91,"Mapuj sferycznie"},
-    {92,"Mapuj sferycznie używając zaznaczonych punktów jako biegunów południowego i północnego"}
+    {92,"Mapuj sferycznie używając zaznaczonych punktów jako biegunów południowego i północnego"},
+    {411,"Ujednolić rozmiar"},
+    {412,"Ujednolić rozmiar arkuszy aby ich pola odpowiadały modelowi"},
+    {641,"Przesuń po krawędziach"},
+    {642,"Przesuń po sąsiednich krawędziach"},
+    {643,"Rozmieść"},
+    {644,"Rozmieść w poziomie"},
+    {645,"Rozmieść w pionie"},
+    {646,"Rozmieść równomiernie"}
    ]},
   {create_window,
    [
