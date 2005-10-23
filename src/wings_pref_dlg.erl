@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref_dlg.erl,v 1.12 2005/09/25 21:17:51 giniu Exp $
+%%     $Id: wings_pref_dlg.erl,v 1.13 2005/10/23 21:37:14 raimo_niskanen Exp $
 %%
 
 -module(wings_pref_dlg).
@@ -221,7 +221,8 @@ ui_prefs() ->
        ]},
       {?__(14,"No Progress Bar"),no_progress_bar},
       {?__(24,"Objects in Outliner"),objects_in_outliner},
-      {?__(25,"View image after rendering"),render_load_image},
+      {hframe,[{?__(25,"View image after rendering"),render_load_image},
+	       {?__(26,"Load image after rendering"),render_iload_image}]},
       {oframe,
        [{atom_to_list(Format),viewer_prefs(Format)}
 	|| {Format,_,_} <- wings_job:render_formats()],

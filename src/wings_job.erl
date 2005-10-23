@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_job.erl,v 1.5 2005/09/16 18:59:41 raimo_niskanen Exp $
+%%     $Id: wings_job.erl,v 1.6 2005/10/23 21:37:14 raimo_niskanen Exp $
 %%
 
 -module(wings_job).
@@ -46,12 +46,13 @@ render_formats() ->
      {exr,".exr","OpenEXR"}].
 %% Formats that internal image loader can handle
 %%
--define(INTERNAL_VIEWER_FORMATS, [tga,bmp,png,jpg]).
+-define(LOAD_IMAGE_FORMATS, [tga,bmp,png,jpg]).
 
 %%
 %%
 init() ->
     wings_pref:set_default(render_load_image, false),
+    wings_pref:set_default(render_iload_image, false),
     wings_pref:set_default(viewer_frame, 1),
     lists:foreach(
       fun({Format,_,_}) ->
@@ -73,21 +74,21 @@ render_done({error,Error}, _St) ->
     wpa:error("Rendering error");
 render_done({Format,Filename}, _St) ->
     io:format("Rendering Job ready~n~n"),
-    LoadImage = 
-	wings_pref:get_value(render_load_image),
-    Viewer = wings_pref:get_value({viewer,Format}, ""),
-    case {LoadImage,Viewer,lists:member(Format, ?INTERNAL_VIEWER_FORMATS)} of
-	{true,"",true} ->
+    ViewImage = wings_pref:get_value(render_load_image), % Misleading prefname
+    Viewer = wings_pref:get_value({viewer,Format}),
+    case {ViewImage,Viewer} of
+	{true,""} -> ok;
+	{true,_} ->
+	    io:format("Viewing rendered image~n~n"),
+	    view_image(Filename, Format, Viewer); % Ignoring errors
+	{false,_} -> ok
+    end,
+    LoadImage = wings_pref:get_value(render_iload_image), % Bad prefname
+    case {LoadImage,lists:member(Format, ?LOAD_IMAGE_FORMATS)} of
+	{true,true} ->
 	    io:format("Loading rendered image~n~n"),
 	    load_image(Filename);
-	{true,"",_} ->
-	    io:format("Viewing error: no viewer configured~n~n"),
-	    wpa:error("Viewing error");
-	{true,_,_} ->
-	    io:format("Viewing rendered image~n~n"),
-	    view_image(Filename, Format, Viewer);
-	{false,_,_} ->
-	    keep
+	_ -> keep
     end.
 
 load_image(Filename) ->
@@ -107,9 +108,9 @@ view_image(Filename, Format, Viewer) ->
     case filename:pathtype(Viewer) of
 	absolute ->
 	    case altname(Viewer) of
-		{error,Reason} ->
+		{error,Reason}=Error ->
 		    io:format("Viewing error: ~p~n~n", [Reason]),
-		    wpa:error("Viewing error");
+		    Error;
 		Altname ->
 		    view_image_1(Filename, Altname, 
 				 ViewerPreopts, ViewerPostopts)
@@ -139,8 +140,7 @@ view_image_1(Filename, Viewer, ViewerPreopts, ViewerPostopts) ->
 			io:format("Viewer returned: ~p~n", [ExitStatus])
 		end
 	end,
-    run(Cmd, Handler, [{cd,Dirname}]),
-    keep.
+    run(Cmd, Handler, [{cd,Dirname}]).
 
 
 
