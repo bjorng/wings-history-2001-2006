@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pl.lang,v 1.11 2005/09/25 23:51:06 giniu Exp $
+%%     $Id: wings_pl.lang,v 1.12 2005/10/24 07:44:15 giniu Exp $
 %%
 %%  Translation:  Andrzej Giniewicz
 %%  Correction:   Małgorzata Napiontek
@@ -1858,7 +1858,8 @@
     {22,"Konsola"},
     {23,"Język"},
     {24,"Wyświetlaj obiekty w oknie schematu sceny"},
-    {25,"Wyświetl gotowy obraz po zakończeniu renderingu"}
+    {25,"Wyświetl gotowy obraz po zakończeniu renderingu"},
+    {26,"Załaduj gotowy obraz po zakończeniu renderingu"}
    ]},
   {viewer_prefs,
    [
