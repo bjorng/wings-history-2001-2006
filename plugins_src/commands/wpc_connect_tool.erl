@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_connect_tool.erl,v 1.23 2005/10/04 20:31:15 giniu Exp $
+%%     $Id: wpc_connect_tool.erl,v 1.24 2005/11/09 20:37:42 dgud Exp $
 %%
 -module(wpc_connect_tool).
 
@@ -299,7 +299,9 @@ do_connect(_X,_Y,MM,St0=#st{selmode=vertex,sel=[{Shape,Sel0}],shapes=Sh},
 	    catch _:_What -> 
 %%    		    io:format("~p catched ~w ~p~n",[?LINE,_What,erlang:get_stacktrace()]),
 		    C0
-	    end
+	    end;
+	_ -> %% Wrong we, ignore 
+	    C0
     end;
 do_connect(_,_,_,_,C) -> 
     C.
