@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.110 2005/10/19 19:04:05 dgud Exp $
+%%     $Id: wings_util.erl,v 1.111 2005/11/09 21:00:28 dgud Exp $
 %%
 %% Note: To keep the call graph clean, wings_util MUST NOT call
 %%       other wings_* modules (except wings_pref).
@@ -247,7 +247,7 @@ unique_name(Name, Names) ->
 	true -> unique_name_1(reverse(Name), Names)
     end.
 
-unique_name_1([C|Cs], Names) when $0 =< C, C =< $9 ->
+unique_name_1([C|Cs], Names) when $0 =< C, C =< $9, Cs /= [] ->
     unique_name_1(Cs, Names);
 unique_name_1(Name, Names0) ->
     Base0 = [First|_] = reverse(Name),
