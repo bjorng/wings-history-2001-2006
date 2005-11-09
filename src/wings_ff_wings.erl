@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.62 2004/12/30 05:27:12 bjorng Exp $
+%%     $Id: wings_ff_wings.erl,v 1.63 2005/11/09 21:50:01 dgud Exp $
 %%
 
 -module(wings_ff_wings).
@@ -222,9 +222,16 @@ import_images(Props) ->
     end.
 	    
 import_images_1([{Id0,Im}|T], Map) ->
-    #e3d_image{name=Name} = E3D = import_image(Im),
-    Id = wings_image:new(Name, E3D),
-    import_images_1(T, gb_trees:insert(Id0, Id, Map));
+    try 
+	#e3d_image{name=Name} = E3D = import_image(Im),
+	Id = wings_image:new(Name, E3D),
+	import_images_1(T, gb_trees:insert(Id0, Id, Map))
+    catch
+	throw:{bad_image,Image} -> 
+	    E3d = #e3d_image{name=Image,width=1,height=1,image= <<0,0,0>>},
+	    ID = wings_image:new(Image, E3d),
+	    import_images_1(T, gb_trees:insert(Id0, ID, Map))
+    end;
 import_images_1([], Map) -> Map.
 
 import_image(Im) ->
@@ -236,8 +243,12 @@ import_image(Im) ->
 	    PP = proplists:get_value(samples_per_pixel, Im, 0),
 	    Pixels = proplists:get_value(pixels, Im),
 	    if
-		W*H*PP =:= size(Pixels) -> ok;
-		true -> wings_u:error(?__(2,"Bad image: ~p\n"), [Name])
+		W*H*PP =:= size(Pixels) -> 
+		    ok;
+		true -> 
+		    Str = io_lib:format(?__(2,"Bad image: ~p\n"), [Name]),
+		    wings_u:message(lists:flatten(Str)),
+		    throw({bad_image,Name})
 	    end,
 	    MaskSize = proplists:get_value(mask_size, Im),
 	    Type = case PP of
@@ -255,7 +266,9 @@ import_image(Im) ->
 		#e3d_image{}=E3D ->
 		    E3D#e3d_image{name=Name,filename=Filename};
 		{error,_} ->
-		    #e3d_image{name=Name,width=1,height=1,image= <<0,0,0>>}
+		    Str = io_lib:format(?__(2,"Bad image: ~p\n"), [Name]),
+		    wings_u:message(lists:flatten(Str)),
+		    throw({bad_image,Name})
 	    end
     end.
 
