@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.47 2005/08/18 09:25:22 dgud Exp $
+%%     $Id: wings_image.erl,v 1.48 2005/11/12 09:18:59 bjorng Exp $
 %%
 
 -module(wings_image).
@@ -699,8 +699,11 @@ create_image() ->
 
 create_image_1(Pattern, W, H) ->
     Pixels = pattern(Pattern, W, H),
-    Im = #e3d_image{width=W,height=H,image=Pixels,order=upper_left},
-    new(atom_to_list(Pattern), Im).
+    case {size(Pixels),3*W*H} of
+	{S,S} ->				%Assertion.
+	    Im = #e3d_image{width=W,height=H,image=Pixels,order=upper_left},
+	    new(atom_to_list(Pattern), Im)
+    end.
 
 pattern(grid, W, H) ->
     grid(W, H);
@@ -720,61 +723,51 @@ grid(Width, Height) ->
     White = [255,255,255],
     Black = [0,0,0],
     WhiteRow = pattern_repeat(Width, White),
-    BlackRow = pattern_repeat(14, Black),
-    R0 = pattern_repeat(14*(Width div 16), [White,BlackRow|White]),
-    R = [WhiteRow,R0|WhiteRow],
-    All = pattern_repeat(Height div 16, R),
-    list_to_binary(All).
+    BlackLine = pattern_repeat(14, Black),
+    Mixed0 = pattern_repeat(14*((Width+15) div 16), [White,BlackLine|White]),
+    Mixed = truncate(Mixed0, 3*Width),
+    MixedRows = pattern_repeat(14, Mixed),
+    R = [WhiteRow,MixedRows|WhiteRow],
+    All = pattern_repeat((Height+15) div 16, R),
+    truncate(All, 3*Width*Height).
 
 %% Generate a checkerboard image of 4x4 squares 
 %% with given side length in pixels.
 checkerboard(Width, Height) ->
-    White = [255,255,255],
-    Black = [0,0,0],
-    FourWhite = pattern_repeat(4, White),
-    FourBlack = pattern_repeat(4, Black),
-    R1 = pattern_repeat(Width div 8, [FourBlack|FourWhite]),
-    R2 = pattern_repeat(Width div 8, [FourWhite|FourBlack]),
+    FourWhite = pattern_repeat(3*4, 255),
+    FourBlack = pattern_repeat(3*4, 0),
+    RoundedW = (Width+7) div 8,
+    RowSize = 3*Width,
+    R1 = truncate(pattern_repeat(RoundedW, [FourBlack|FourWhite]), RowSize),
+    R2 = truncate(pattern_repeat(RoundedW, [FourWhite|FourBlack]), RowSize),
     R8 = [pattern_repeat(4, [R1])|pattern_repeat(4, [R2])],
-    list_to_binary(pattern_repeat(Height div 8, R8)).
+    truncate(pattern_repeat(RoundedW, R8), 3*Width*Height).
 
-%% Generate a vertical bars image of 4 pixels width 
-%% with given side length in pixels.
+%% Generate a vertical bars image of 4 pixels width of given size.
 vertical_bars(Width, Height) ->
-    W = [255,255,255],
-    B = [0,0,0],
-    W4 = pattern_repeat(4, W),
-    B4 = pattern_repeat(4, B),
-    R = pattern_repeat(Width div 8, [B4|W4]),
-    R8 = pattern_repeat(8, [R]),
-    list_to_binary(pattern_repeat(Height div 8, [R8])).
+    W4 = pattern_repeat(3*4, 255),
+    B4 = pattern_repeat(3*4, 0),
+    Row = truncate(pattern_repeat((Width+7) div 8, [B4|W4]), 3*Width),
+    list_to_binary(pattern_repeat(Height, Row)).
 
-%% Generate a horizontal bars image of 4 pixels width 
-%% with given side length in pixels.
+%% Generate a horizontal bars image of 4 pixels height.
 horizontal_bars(Width, Height) ->
-    W = [255,255,255],
-    B = [0,0,0],
-    W8 = pattern_repeat(8, W),
-    B8 = pattern_repeat(8, B),
-    WR4 = pattern_repeat(4*(Width div 8), [W8]),
-    BR4 = pattern_repeat(4*(Width div 8), [B8]),
-    list_to_binary(pattern_repeat(Height div 8, [BR4|WR4])).
+    WhiteRow = pattern_repeat(3*Width, 255),
+    BlackRow = pattern_repeat(3*Width, 0),
+    WR4 = pattern_repeat(4, WhiteRow),
+    BR4 = pattern_repeat(4, BlackRow),
+    truncate(pattern_repeat((Height+7) div 8, [BR4|WR4]), 3*Width*Height).
 
-%% Generate an all white image
-%% with given side length in pixels.
+%% Generate an all white image with given size.
 all_white(Width, Height) ->
-    solid(Width, Height, [255,255,255]).
+    solid(Width, Height, 255).
 
-%% Generate an all white image
-%% with given side length in pixels.
+%% Generate an all white image with given size.
 all_black(Width, Height) ->
-    solid(Width, Height, [0,0,0]).
+    solid(Width, Height, 0).
 
-solid(Width, Height, Point) ->
-    P8 = pattern_repeat(8, Point),
-    R = pattern_repeat(Width div 8, P8),
-    R8 = pattern_repeat(8, R),
-    list_to_binary(pattern_repeat(Height div 8, R8)).
+solid(Width, Height, Channel) ->
+    list_to_binary(pattern_repeat(3*Width*Height, Channel)).
 
 pattern_repeat(0, _) -> [];
 pattern_repeat(1, D) -> [D];
@@ -784,6 +777,10 @@ pattern_repeat(N, D) ->
 	0 -> [B|B];
 	1 -> [D,B|B]
     end.
+
+truncate(B0, Sz) ->
+    <<B:Sz/binary,_/binary>> = list_to_binary(B0),
+    B.
 
 %% Creating Normal-Cubemap
 
