@@ -1,0 +1,43 @@
+(Next release, probably 0.98.32b.)
+
+- Giniu made AutoUV and almost all other plug-ins translatable and
+  translated them to Polish.
+
+- Import, especially 3DS import, improved.
+
+- Dan G fixed crash in the Connect tool. (Problem reported by Fonte Boa.)
+
+- The Image creation command now correctly create images
+  with size which are not multiples of 8 or 16.
+
+- Dan G made sure wings files containing bad images created by previous
+  versions of Wings can now be loaded, but with the faulty images
+  missing. (Problem reported by Hanzaa.)
+
+- Dan G fixed file open problem reported by Bob19971.
+
+- The length and color of normals shown by View|Show Normals can now
+  be changed in the preferences. (By Giniu.)
+
+- Dmitry Efremov has updated the hlines plug-in.
+
+- Changed toxic to render png instead of tga. (By Dan G.)
+
+- Dan G fixed the Rotate commands speed so they work as before.
+
+AutoUV (by Dan G):
+
+- New commands in edge mode: slide, distribute evenly.
+
+- New commands in object mode:Normalize Chart sizes.
+
+- More magnet commands accept magnet. ???
+
+
+For developers:
+
+- New function e3d_mesh:make_polygons/1. e3d_mesh:make_quads/1 changed back
+  to only make quads.
+
+- Adding option for loading rendered image into
+  internal viewer independent from external viewer option. (By Raimo.) ???
