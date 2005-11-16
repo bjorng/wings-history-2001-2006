@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.197 2005/10/14 07:47:47 dgud Exp $
+%%     $Id: wings_drag.erl,v 1.198 2005/11/16 13:54:09 dgud Exp $
 %%
 
 -module(wings_drag).
@@ -679,7 +679,7 @@ constraint_factor(angle, Mod, Scale) ->
 	Mod band ?CTRL_BITS =/= 0 -> {15,1/15};%{150,1/15};
 	Mod band ?CTRL_BITS =/= 0 -> {1,1.0};%{15,1.0};
 	Mod band ?SHIFT_BITS =/= 0 ->{1/15,15.0};%{1,15.0};
-	Scale == true -> {1.0E5,1.0E-5};
+	Scale == true -> {15.0E5,1.0E-5};
 	true -> none
     end;
 constraint_factor(_, Mod, _) ->
