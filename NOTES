@@ -1,4 +1,5 @@
-(Next release, probably 0.98.32b.)
+
+--- 0.98.32b -----------------------------------------------------------------
 
 - Giniu made AutoUV and almost all other plug-ins translatable and
   translated them to Polish.
@@ -25,13 +26,16 @@
 
 - Dan G fixed the Rotate commands speed so they work as before.
 
+- Raimo added an option for loading rendered image into
+  internal viewer independent from external viewer option.
+
 AutoUV (by Dan G):
 
 - New commands in edge mode: slide, distribute evenly.
 
 - New commands in object mode:Normalize Chart sizes.
 
-- More magnet commands accept magnet. ???
+- The Scale and Rotate commands now have magnets.
 
 
 For developers:
@@ -39,5 +43,3 @@ For developers:
 - New function e3d_mesh:make_polygons/1. e3d_mesh:make_quads/1 changed back
   to only make quads.
 
-- Adding option for loading rendered image into
-  internal viewer independent from external viewer option. (By Raimo.) ???
