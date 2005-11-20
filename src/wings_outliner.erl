@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.58 2005/06/24 13:36:47 trepan Exp $
+%%     $Id: wings_outliner.erl,v 1.59 2005/11/20 15:46:25 dgud Exp $
 %%
 
 -module(wings_outliner).
@@ -32,7 +32,8 @@
 	 os,					%All objects.
 	 active,				%Number of active object.
 	 lh,					%Line height.
-	 drag_ok=false				%Drag is possible.
+	 drag_ok=false,				%Drag is possible.
+	 save_drag=none                         %Dragged object
 	}).
 
 window(St) ->
@@ -174,12 +175,13 @@ event(Ev, Ost) ->
 handle_drop({image,Id,_}, {material,Name,_,_}, {X0,Y0}, _Ost) ->
     {X,Y} = wings_wm:local2global(X0, Y0),
     Menu = [{?__(1,"Texture Type"),ignore},
-	     separator,
+	    separator,
 	    {?__(2,"Diffuse"),tx_cmd(diffuse, Id, Name)},
 	    {?__(3,"Gloss"),tx_cmd(gloss, Id, Name)},
 	    {?__(4,"Bump"),tx_cmd(bump, Id, Name)}],
     wings_menu:popup_menu(X, Y, outliner, Menu);
-handle_drop(_, _, _, _) -> keep.
+handle_drop(_Drop, _On, _, _) -> 
+    keep.
 
 tx_cmd(Type, Id, Mat) ->
     {'VALUE',{assign_texture,Type,Id,Mat}}.
@@ -187,7 +189,7 @@ tx_cmd(Type, Id, Mat) ->
 do_menu(-1, _, _, _) -> keep;
 do_menu(Act, X, Y, #ost{os=Objs}) ->
     Menu = case lists:nth(Act+1, Objs) of
-	       {material,Name,_,_} ->
+	       Mat = {material,Name,_,_} ->
 		   [{?__(1,"Edit Material..."),menu_cmd(edit_material, Name),
 		     ?__(2,"Edit material properties")},
 		    {?__(3,"Assign to Selection"),menu_cmd(assign_material, Name),
@@ -201,7 +203,11 @@ do_menu(Act, X, Y, #ost{os=Objs}) ->
 		    {?__(9,"Delete"),menu_cmd(delete_material, Name),
 		     ?__(10,"Delete this material")},
 		    {?__(11,"Rename"),menu_cmd(rename_material, Name),
-		     ?__(12,"Rename this material")}];
+		     ?__(12,"Rename this material")},
+		    separator,
+		    {?__(121,"Drop picked object"),
+		     menu_cmd(drop_object,{{X,Y},Mat}),
+		     ?__(122,"Drop a previously picked object on this material")}];
 	       {object,Id,_} ->
 		   [{?__(13,"Duplicate"),menu_cmd(duplicate_object, Id),
 		     ?__(14,"Duplicate this object")},
@@ -250,7 +256,11 @@ common_image_menu(Id) ->
      {?__(5,"Delete"),menu_cmd(delete_image, Id),
       ?__(6,"Delete selected image")},
      {?__(7,"Rename"),menu_cmd(rename_image, Id),
-      ?__(8,"Rename selected image")}].
+      ?__(8,"Rename selected image")},
+     separator, 
+     {?__(9,"Pick up Image"), menu_cmd(pick_image, Id), 
+      ?__(10,"Pick up the Image to it put on a material as a texture")}
+    ].
 
 menu_cmd(Cmd, Id) ->
     {'VALUE',{Cmd,Id}}.
@@ -267,6 +277,10 @@ command({delete_material,Name}, _Ost) ->
     wings_wm:send(geom, {action,{material,{delete,[Name]}}});
 command({rename_material,Name}, _Ost) ->
     wings_wm:send(geom, {action,{material,{rename,[Name]}}});
+command({drop_object, _}, #ost{save_drag=none}) ->
+    keep;
+command({drop_object, {Pos, OnObject}}, Ost = #ost{save_drag=Saved}) ->
+    handle_drop(Saved, OnObject, Pos, Ost);
 command({assign_texture,Type,Id,Name0}, #ost{st=#st{mat=Mtab}}) ->
     Name = list_to_atom(Name0),
     Mat0 = gb_trees:get(Name, Mtab),
@@ -299,6 +313,9 @@ command({make_external,Id}, _) ->
     make_external(Id);
 command({export_image,Id}, _) ->
     export_image(Id);
+command({pick_image, Id}, Ost1) ->
+    Ost=Ost1#ost{save_drag={image,Id,dummy}},
+    get_event(Ost);
 command(Cmd, _) ->
     io:format(?__(1,"NYI: ~p\n"), [Cmd]),
     keep.
