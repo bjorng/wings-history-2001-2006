@@ -2,6 +2,7 @@
 
 - Dan G fixed (hopefully finally) the Rotate commands speed so they work as before.
 
+- DesiredUserName/MicrobeSoft implemented pick-up and drop images in outliner.
 
 
 --- 0.98.32b -----------------------------------------------------------------
