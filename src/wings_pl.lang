@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pl.lang,v 1.12 2005/10/24 07:44:15 giniu Exp $
+%%     $Id: wings_pl.lang,v 1.13 2005/11/21 23:24:48 giniu Exp $
 %%
 %%  Translation:  Andrzej Giniewicz
 %%  Correction:   Małgorzata Napiontek
@@ -1540,7 +1540,9 @@
     {5,"Usuń"},
     {6,"Usuń obraz"},
     {7,"Zmień nazwę"},
-    {8,"Zmień nazwę obrazu"}
+    {8,"Zmień nazwę obrazu"},
+    {9,"Wybierz obraz"},
+    {10,"Wybierz obraz do późniejszego opuszczenia na materiale jako teksture"}
    ]},
   {delete_image,
    [
@@ -1574,7 +1576,9 @@
     {23,"Usuń"},
     {24,"Usuń światło"},
     {25,"Zmień nazwę"},
-    {26,"Zmień nazwę światła"}
+    {26,"Zmień nazwę światła"},
+    {121,"Opuść wybrany obiekt"},    
+    {122,"Opuść wybrany wcześniej obiekt na tym materiale"}
    ]},
   {event,
    [
