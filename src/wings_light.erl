@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.64 2005/04/12 20:27:29 bjorng Exp $
+%%     $Id: wings_light.erl,v 1.65 2005/11/27 15:52:19 raimo_niskanen Exp $
 %%
 
 -module(wings_light).
@@ -670,7 +670,7 @@ import_we(#light{type=area}=Light, OpenGL, {X,Y,Z}) ->
 			      {X-1.0,Y,Z-1.0},{X+1.0,Y,Z-1.0}]};
 	    {mesh,M} -> e3d_mesh:transform(e3d_mesh:clean_faces(M))
 	end,
-    We = wings_import:import_mesh(Mesh, material),
+    We = wings_import:import_mesh(material, Mesh),
     We#we{light=Light,has_shape=true};
 import_we(#light{}=Light, _OpenGL, Pos) ->
     Fs = [[0,3,2,1],[2,3,7,6],[0,4,7,3],[1,2,6,5],[4,5,6,7],[0,1,5,4]],
