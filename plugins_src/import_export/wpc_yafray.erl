@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.114 2005/09/12 18:06:13 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.115 2005/11/27 16:05:11 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -3388,7 +3388,7 @@ export_light(F, Name, area, OpenGL, YafRay) ->
 		      println(F, "<light type=\"arealight\" "
 			      "name=\"~s\" power=\"~.3f\"~n"
 			      "       dummy=\"~s\""++
-			      if Dummy -> ok;
+			      if Dummy -> "";
 				 true ->
 				      " samples=\"~w\" psamples=\"~w\""
 			      end++">", 
