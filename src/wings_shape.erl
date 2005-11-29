@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.77 2004/12/31 07:56:30 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.78 2005/11/29 22:25:44 raimo_niskanen Exp $
 %%
 
 -module(wings_shape).
@@ -27,10 +27,21 @@
 %%%
 
 %% new(Name, We, St0) -> St.
-%%  Create a new object having the given name.
-new(Name, We0, #st{shapes=Shapes0,onext=Oid}=St) ->
-    We = We0#we{name=Name,id=Oid},
-    Shapes = gb_trees:insert(Oid, We, Shapes0),
+%%  Create a new object having the given name,
+%%  converting all unknown materials to default.
+new(Name, We0, #st{shapes=Shapes0,onext=Oid,mat=Mat}=St) ->
+    UsedMat = wings_facemat:used_materials(We0),
+    We = 
+	case lists:filter(
+	       fun (M) -> not gb_trees:is_defined(M, Mat) end, 
+	       UsedMat) of
+	    [] -> We0;
+	    XMat ->
+		FMs = lists:filter(fun ({_,M}) -> lists:member(M, XMat) end,
+				   wings_facemat:all(We0)),
+		wings_facemat:assign(default, [F||{F,_}<-FMs], We0)
+	end,
+    Shapes = gb_trees:insert(Oid, We#we{name=Name,id=Oid}, Shapes0),
     St#st{shapes=Shapes,onext=Oid+1}.
 
 %% new(We, Suffix, St0) -> St.

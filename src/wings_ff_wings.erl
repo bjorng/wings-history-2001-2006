@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.63 2005/11/09 21:50:01 dgud Exp $
+%%     $Id: wings_ff_wings.erl,v 1.64 2005/11/29 22:25:44 raimo_niskanen Exp $
 %%
 
 -module(wings_ff_wings).
@@ -437,6 +437,7 @@ export(Name, St0) ->
     wings_pb:start( ?__(1,"saving")),
     wings_pb:update(0.01, ?__(2,"lights")),
     Lights = wings_light:export(St0),
+    Materials = wings_material:used_materials(St0),
     #st{shapes=Shs0,views={CurrentView,_}} = St = 
 	remove_lights(St0),
     Sel0 = collect_sel(St),
@@ -444,7 +445,6 @@ export(Name, St0) ->
     {Shs1,Sel} = renumber(gb_trees:to_list(Shs0), Sel0, 0, [], []),
     Shs = foldl(fun shape/2, [], Shs1),
     wings_pb:update(0.98, ?__(4,"objects")),
-    Materials = wings_material:used_materials(St),
     Props0 = export_props(Sel),
     Props1 = case Lights of
 		 [] -> Props0;
