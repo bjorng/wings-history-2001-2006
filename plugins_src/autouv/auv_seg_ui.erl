@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_seg_ui.erl,v 1.39 2005/09/23 19:37:58 giniu Exp $
+%%     $Id: auv_seg_ui.erl,v 1.40 2005/12/03 12:08:28 dgud Exp $
 %%
 
 -module(auv_seg_ui).
@@ -28,7 +28,8 @@
 	      selmodes,				%Legal selection modes.
 	      we,				%Original We.
 	      orig_st,				%Original St.
-	      fs,                                %Original Selected faces or object
+	      fs,                               %Original Selected faces or object
+	      err,                              %Last Error message
 	      msg				%Message.
 	     }).
 
@@ -42,7 +43,7 @@ start(#we{id=Id}=We0, OrigWe, St0) ->
     wings_wm:menubar(This, Menu),
     We = We0#we{mode=material},
     St1 = seg_create_materials(St0),
-    {Fs,St2} = seg_hide_other(Id, St1#st{shapes=gb_trees:from_orddict([{Id,We}])}),
+    {Fs,St2} = seg_hide_other(Id,St1#st{shapes=gb_trees:from_orddict([{Id,We}])}),
     St = St2#st{sel=[],selmode=face},
     Ss = seg_init_message(#seg{selmodes=Modes,st=St,orig_st=St0,we=OrigWe,fs=Fs}),
 
@@ -76,6 +77,8 @@ seg_event(redraw, #seg{st=St,msg=Msg}) ->
     wings_wm:message(Msg, ?__(1,"Segmenting")),
     wings:redraw(St),
     keep;
+%% seq_event({current_state,geom_display_lists,GeomSt},Ss) ->
+%%     keep;
 seg_event({add_faces,_,_},#seg{fs=object}) ->
     keep;
 seg_event({add_faces,Mode0,_St},#seg{fs=Fs,st=St0}=Ss) ->
@@ -333,35 +336,51 @@ seg_map_charts(Method, #seg{st=#st{shapes=Shs},we=OrigWe}=Ss) ->
 	    wings_u:error(?__(5,"No mappable faces."));
 	N ->
 	    wings_pb:start(?__(6,"mapping")),
-	    seg_map_charts_1(Charts, Method, 1, N, [], Ss)
+	    seg_map_charts_1(Charts, Method, 1, N, [], [], Ss)
     end.
 
-seg_map_charts_1([We0|Cs], Type, Id, N, Acc,
-		 #seg{we=#we{id=OrigId},st=St0}=Ss) ->
+seg_map_charts_1([We0|Cs], Type, Id, N, Acc,Failed,Ss) ->
     wings_pb:update(Id/N, lists:flatten(io_lib:format(?__(1,"chart")++" ~w/~w", [Id,N]))),
     We1 = We0#we{id=Id},
     case auv_mapping:map_chart(Type, We1, camera_dir(Type)) of
 	{error,Message} ->
-	    wings_pb:done(),
-	    wings_u:message(Message),
-	    Fs = wings_we:visible(We1),
-	    St = St0#st{selmode=face,sel=[{OrigId,gb_sets:from_ordset(Fs)}]},
-	    get_seg_event(seg_init_message(Ss#seg{st=St}));
+	    seg_map_charts_1(Cs,Type,Id+1,N,Acc,[We1|Failed],Ss#seg{err=Message});
 	Vs ->
 	    We = We1#we{vp=gb_trees:from_orddict(sort(Vs))},
-	    seg_map_charts_1(Cs, Type, Id+1, N, [We|Acc], Ss)
+	    seg_map_charts_1(Cs, Type, Id+1, N, [We|Acc], Failed, Ss)
     end;
-seg_map_charts_1([], _, _, _, Charts0, #seg{orig_st=GeomSt,fs=Fs,we=#we{id=Id}}) ->
+seg_map_charts_1([],_, _, _,Charts0,Failed,
+		 Ss = #seg{orig_st=GeomSt0,fs=Fs,st=St0,we=#we{id=Id}}) ->
     wings_pb:done(),
-
     %% Empty display list structure.
     wings_dl:update(fun(eol, _) -> eol;
 		       (_, _) -> deleted
 		    end, []),
-
-    Charts = reverse(Charts0),
-    We = gb_trees:get(Id, GeomSt#st.shapes),
-    wpc_autouv:init_show_maps(Charts, Fs, We, GeomSt).
+    if Charts0 == [] -> 
+	    wings_u:message(Ss#seg.err),
+	    get_seg_event(seg_init_message(Ss));
+       true ->
+	    Charts = reverse(Charts0),
+	    We = gb_trees:get(Id, GeomSt0#st.shapes),
+	    GeomSt = wpc_autouv:init_show_maps(Charts, Fs, We, GeomSt0),
+	    case Failed of 
+		[] -> 
+		    %% cleanup_before_exit(),
+		    delete;
+		_ ->
+		    wings_u:message(Ss#seg.err),
+		    #st{shapes=Shs} = St0,
+		    [We0] = gb_trees:values(Shs),
+		    Keep = foldl(fun(#we{fs=Ftab},Acc) -> 
+					 New = gb_sets:from_ordset(gb_trees:keys(Ftab)),
+					 gb_sets:union(New,Acc)
+				 end, gb_sets:empty(), Failed),
+		    Other = wings_sel:inverse_items(face, Keep, We0),
+		    WeKeep = wings_we:hide_faces(Other, We0),
+		    St = wings_sel:clear(St0#st{shapes=gb_trees:update(Id,WeKeep,Shs)}),
+		    get_seg_event(seg_init_message(Ss#seg{st=St,fs=Keep,orig_st=GeomSt}))
+	    end
+    end.
 
 segment(Mode, #st{shapes=Shs}=St) ->
     [We] = gb_trees:values(Shs),

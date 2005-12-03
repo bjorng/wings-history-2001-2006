@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.317 2005/10/19 18:00:15 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.318 2005/12/03 12:08:28 dgud Exp $
 %%
 
 -module(wpc_autouv).
@@ -139,9 +139,10 @@ create_window(Action, Name, Id, #st{shapes=Shs}=St) ->
     Op = {replace,fun(Ev) -> auv_event(Ev, St) end},
     Segment = if element(1,Action) == edit -> ""; true -> ?__(1,"Segmenting") end,
     Title = "AutoUV "++ Segment ++": " ++ ObjName,
-    {X,Y,W,H} = init_drawarea(),
+    {X0,Y,W,H} = init_drawarea(),
     Props = [{display_lists,Name}|wings_view:initial_properties()],
     CreateToolbar = fun(N, P, Wi) -> wings_toolbar:create(N, P, Wi) end,
+    X = if element(1,Action) == edit -> X0; true -> 10 end,
     wings_wm:toplevel(Name, Title, {X,Y,highest}, {W,H},
 		      [resizable,closable,menubar,{properties,Props},
 		       {toolbar,CreateToolbar}], Op),
@@ -208,8 +209,7 @@ init_show_maps(Charts0, Fs, OldWe=#we{name=WeName,id=Id}, GeomSt0) ->
 	    create_window({edit,Fs},EditWin,Id,GeomSt),
 	    wings_wm:send(geom, {new_state,GeomSt})
     end,
-    cleanup_before_exit(),
-    delete.
+    GeomSt.
 
 create_uv_state(Charts, MatName, Fs, We, GeomSt) ->
     wings:mode_restriction([vertex,edge,face,body]),
