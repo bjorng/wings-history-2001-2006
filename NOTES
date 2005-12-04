@@ -3,6 +3,7 @@
 - Dan G fixed (hopefully finally) the Rotate commands speed so they work as before.
 - Updated autouv, so that when uv-mapping failes the good charts gets uv-mapped and
   the user gets an opportunity to restart with the failed charts.
+- MMB on uv-mapping, finds and marks the old chart cuts.
 
 - DesiredUserName/MicrobeSoft implemented pick-up and drop images in outliner.
 

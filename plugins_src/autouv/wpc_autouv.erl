@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.318 2005/12/03 12:08:28 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.319 2005/12/04 21:37:41 dgud Exp $
 %%
 
 -module(wpc_autouv).
@@ -62,19 +62,21 @@ auv_menu() ->
     {?__(1,"UV Mapping"), {?MODULE, fun auv_menu/2}}.
 auv_menu(help,_) ->
     {?__(2,"Generate UV mapping or texture"),
-     "",
-     ?__(3,"Force to segmenting mode")};
+     ?__(25,"Re-segment object(s)"),
+     ?__(3,"Force to segmenting mode (delete old segments)")};
 auv_menu(1,_What) -> 
     case wings_pref:get_value(advanced_menus) of
 	false -> 
 	    [{?__(4,"Direct"), segment,
 	      ?__(5,"Open UV-window directly if selection already contains uv-coords")},
-	     {?__(6,"Force Segment"), force_seg,
+	     {?__(8,"Force Segment (keep previous)"), segment_old,
+	      ?__(9,"Re-segment with old UV-coords ")},
+	     {?__(6,"Force Segment (delete previous)"), force_seg,
 	      ?__(7,"Delete old UV-coords and start over with segmenting")}];
 	true -> 
 	    {?MODULE, segment}
     end;
-auv_menu(2,_) -> ignore;
+auv_menu(2,_) -> {?MODULE, segment_old};
 auv_menu(3,_) -> {?MODULE, force_seg}.
 
 command({body,{?MODULE, Op}} , St) ->
@@ -102,7 +104,7 @@ start_uvmap_1([{Id,_}|T], Action, St) ->
 	{edit,Fs} when EditExists ->
 	    wings_wm:send(EditWin, {add_faces,Fs,St}),
 	    wings_wm:raise(EditWin);
-	{seg_ui,Fs} when SegExists ->
+	{seg_ui,Fs,_} when SegExists ->
 	    wings_wm:send(SegWin, {add_faces,Fs,St}),
 	    wings_wm:raise(SegWin);
 	Op when element(1,Op) == edit ->	    
@@ -119,20 +121,25 @@ segment_or_edit(segment,Id,#st{selmode=face,sel=Sel,shapes=Shs}) ->
     UVFs = gb_sets:from_ordset(wings_we:uv_mapped_faces(We)),
     {value,{_,Fs}} = lists:keysearch(Id, 1, Sel),
     case gb_sets:is_subset(Fs,UVFs) of
-	false -> {seg_ui, Fs};
+	false -> {seg_ui, Fs,delete_old};
 	true ->  {edit, Fs}
     end;
 segment_or_edit(segment,Id,#st{shapes=Shs}) ->
     We = gb_trees:get(Id, Shs),
     case wings_we:uv_mapped_faces(We) of    
-	[] -> {seg_ui,object};
+	[] -> {seg_ui,object,delete_old};
 	_ ->  {edit,object}
     end;
 segment_or_edit(force_seg,Id,#st{selmode=face,sel=Sel}) -> 
     {value,{_,Fs}} = lists:keysearch(Id, 1, Sel),
-    {seg_ui,Fs};
+    {seg_ui,Fs,delete_old};
 segment_or_edit(force_seg,_Id,_) ->
-    {seg_ui,object}.
+    {seg_ui,object,delete_old};
+segment_or_edit(segment_old,Id,#st{selmode=face,sel=Sel}) -> 
+    {value,{_,Fs}} = lists:keysearch(Id, 1, Sel),
+    {seg_ui,Fs,keep_old};
+segment_or_edit(segment_old,_Id,_) ->
+    {seg_ui,object,keep_old}.
 	    
 create_window(Action, Name, Id, #st{shapes=Shs}=St) ->
     #we{name=ObjName} = We = gb_trees:get(Id, Shs),
@@ -152,7 +159,7 @@ auv_event({init,Op}, St) ->
     wings:init_opengl(St),
     case Op of
 	{{edit,What},We} -> start_edit(What, We, St);
-	{{seg_ui,_},We} ->  auv_seg_ui:start(We, We, St)
+	{{seg_ui,_,Oper},We} ->  auv_seg_ui:start(Oper, We, We, St)
     end;
 auv_event(redraw, _) ->
     wings_wm:clear_background(),

@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_seg_ui.erl,v 1.40 2005/12/03 12:08:28 dgud Exp $
+%%     $Id: auv_seg_ui.erl,v 1.41 2005/12/04 21:37:41 dgud Exp $
 %%
 
 -module(auv_seg_ui).
--export([start/3]).
+-export([start/4]).
 
 -define(NEED_ESDL, 1).
 -include("wings.hrl").
@@ -33,7 +33,7 @@
 	      msg				%Message.
 	     }).
 
-start(#we{id=Id}=We0, OrigWe, St0) ->
+start(Op, #we{id=Id}=We0, OrigWe, St0) ->
     Modes = [vertex,edge,face],
     wings:mode_restriction(Modes),
     This = wings_wm:this(),
@@ -41,12 +41,25 @@ start(#we{id=Id}=We0, OrigWe, St0) ->
     Menu  = [Item || {_,Name,_}=Item <- get(wings_menu_template),
 		     member(Name, Allowed)],
     wings_wm:menubar(This, Menu),
-    We = We0#we{mode=material},
     St1 = seg_create_materials(St0),
-    {Fs,St2} = seg_hide_other(Id,St1#st{shapes=gb_trees:from_orddict([{Id,We}])}),
-    St = St2#st{sel=[],selmode=face},
-    Ss = seg_init_message(#seg{selmodes=Modes,st=St,orig_st=St0,we=OrigWe,fs=Fs}),
+    {Fs,We1} = seg_hide_other(Id,We0,St0),
+    We = case Op of 
+	     keep_old -> 
+		 {Faces,FvUvMap} = auv_segment:fv_to_uv_map(Fs,We1),
+		 {Charts,Cuts0} = auv_segment:uv_to_charts(Faces,FvUvMap,We1),
+		 Cuts = 
+		     foldl(fun(Chart,Acc) ->
+				   Es = wings_face:outer_edges(Chart,We1),
+				   gb_sets:union(gb_sets:from_list(Es),Acc)
+			   end, Cuts0, Charts),
+		 We1#we{he=Cuts, mode=material};
+	     delete_old ->
+		 We1#we{mode=material}
+	 end,
 
+    St = St1#st{sel=[],selmode=face,shapes=gb_trees:from_orddict([{Id,We}])},
+    Ss = seg_init_message(#seg{selmodes=Modes,st=St,orig_st=St0,we=OrigWe,fs=Fs}),
+    
     %% Don't push here - instead replace the default crash handler
     %% which is the only item on the stack.
     get_seg_event(Ss).
@@ -314,12 +327,11 @@ seg_create_materials(St0) ->
     {St,[]} = wings_material:add_materials(M, St0),
     St.
 
-seg_hide_other(Id, #st{selmode=face,sel=[{Id,Faces}],shapes=Shs}=St) ->
-    We0 = gb_trees:get(Id, Shs),
+seg_hide_other(Id, We0, #st{selmode=face,sel=[{Id,Faces}]}) ->
     Other = wings_sel:inverse_items(face, Faces, We0),
     We = wings_we:hide_faces(Other, We0),
-    {Faces,wings_sel:clear(St#st{shapes=gb_trees:update(Id, We, Shs)})};
-seg_hide_other(_, St) -> {object,St}.
+    {Faces,We};
+seg_hide_other(_,We,_) -> {object,We}.
 
 seg_map_charts(Method, #seg{st=#st{shapes=Shs},we=OrigWe}=Ss) ->
     wings_pb:start(?__(1,"preparing mapping")),
