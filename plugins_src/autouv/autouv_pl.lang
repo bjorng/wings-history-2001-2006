@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: autouv_pl.lang,v 1.2 2005/10/19 19:35:16 giniu Exp $
+%%     $Id: autouv_pl.lang,v 1.3 2005/12/06 20:55:20 giniu Exp $
 %%
 %%  Translation:  Andrzej Giniewicz
 %%  Correction:   Małgorzata Napiontek
@@ -141,8 +141,11 @@
     {3,"Wymuś przejście do trybu dzielenia"},
     {4,"Bezpośrednio"},
     {5,"Otwórz okno UV bezpośrednio jeśli zaznaczenie zawiera już koordynaty"},
-    {6,"Wymuś dzielenie"},
-    {7,"Skasuj stare koordynaty UV i zacznij od dzielenia"}
+    {6,"Wymuś dzielenie (skasuj poprzednie)"},
+    {7,"Skasuj stare koordynaty UV i zacznij od dzielenia"},
+    {8,"Wymuś dzielenie (zatrzymaj poprzednie)"},
+    {9,"Zachowaj stare koordynaty UV i zacznij od dzielenia"},
+    {25,"Podziel ponownie"}
    ]},
   {command_menu,
    [
