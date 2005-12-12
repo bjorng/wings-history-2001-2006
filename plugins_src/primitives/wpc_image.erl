@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_image.erl,v 1.20 2004/12/18 19:36:02 bjorng Exp $
+%%     $Id: wpc_image.erl,v 1.21 2005/12/12 18:00:32 giniu Exp $
 %%
 
 -module(wpc_image).
@@ -17,6 +17,7 @@
 -include_lib("esdl/include/gl.hrl").
 -include("e3d.hrl").
 -include("e3d_image.hrl").
+-include("wings_intl.hrl").
 
 -import(lists, [reverse/1]).
 
@@ -35,7 +36,7 @@ insert_before_more([]) ->
     [image_menu()].
 
 image_menu() ->
-    {"Image Plane...",image_plane,"Create a plane containing an image"}.
+    {?__(1,"Image Plane..."),image_plane,?__(2,"Create a plane containing an image")}.
 
 command({shape,image_plane}, _St) ->
     make_image();
@@ -53,7 +54,7 @@ make_image(Name) ->
 	#e3d_image{}=Image ->
 	    make_image_1(Name, Image);
 	{error,Error} ->
-	    wpa:error("Failed to load \"~s\": ~s\n",
+	    wpa:error(?__(1,"Failed to load \"~s\": ~s\n"),
 		      [Name,file:format_error(Error)])
     end.
 
@@ -67,8 +68,7 @@ make_image_1(Name0, #e3d_image{type=Type}=Image0) ->
     ImageId = wings_image:new(Name, Image),
     case can_texture_be_loaded(Image) of
 	false ->
-	    wpa:error("The image cannot be loaded as a texture "
-		      "(it is probably too large).");
+	    wpa:error(?__(1,"The image cannot be loaded as a texture (it is probably too large)."));
 	true ->
 	    MaxU = W0/W,
 	    MaxV = H0/H,

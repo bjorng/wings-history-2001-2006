@@ -5,6 +5,8 @@
   the user gets an opportunity to restart with the failed charts.
 - MMB on uv-mapping, finds and marks the old chart cuts.
 
+- Giniu made primitives plug-ins translatable and translated them to Polish.
+
 - DesiredUserName/MicrobeSoft implemented pick-up and drop images in outliner.
 
 --- 0.98.32b -----------------------------------------------------------------

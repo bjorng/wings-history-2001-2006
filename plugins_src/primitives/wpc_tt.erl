@@ -17,6 +17,7 @@
 		flatten/1,sum/1,append/1]).
 
 -include("e3d.hrl").
+-include("wings_intl.hrl").
 
 -record(ttfont,
 	{nglyph,			% number of glyphs
@@ -49,7 +50,7 @@ insert_before_more([]) ->
     [menu_entry()].
 
 menu_entry() ->
-    {"Text",text,"Convert text to a 3D object",[option]}.
+    {?__(1,"Text"),text,?__(2,"Convert text to a 3D object"),[option]}.
 
 command({shape,{text,Ask}}, _St) -> make_text(Ask);
 command(_, _) -> next.
@@ -59,11 +60,11 @@ make_text(Ask) when is_atom(Ask) ->
     DefFontName = wpa:pref_get(wpc_tt, fontname, default_font(DefFontDir)),
     DefText = wpa:pref_get(wpc_tt, text, "A"),
     DefBisect = wpa:pref_get(wpc_tt, bisections, 0),
-    wpa:ask(Ask, "Create Text",
-		[{"Text", DefText},
-		 {"TrueType font",DefFontName},
-		 {"Font dir",DefFontDir},
-		 {"Number of edge bisections", DefBisect}],
+    wpa:ask(Ask, ?__(1,"Create Text"),
+		[{?__(2,"Text"), DefText},
+		 {?__(3,"TrueType font"),DefFontName},
+		 {?__(4,"Font dir"),DefFontDir},
+		 {?__(5,"Number of edge bisections"), DefBisect}],
 	    fun(Res) -> {shape,{text,Res}} end);
 make_text([T,F,D,N]) ->
     gen(F, D, T, N).
@@ -78,10 +79,10 @@ gen(Font, Dir, Text, Nsubsteps) ->
 	    wpa:pref_set(wpc_tt, bisections, Nsubsteps),
 	    S;
 	{error,Reason} ->
-	    wpa:error("Text failed: " ++ Reason);
+	    wpa:error(?__(1,"Text failed: ") ++ Reason);
 	X ->
-	    io:format("caught error: ~p~n", [X]),
-	    wpa:error("Text failed: internal error")
+	    io:format(?__(2,"caught error: ") ++"~p~n", [X]),
+	    wpa:error(?__(3,"Text failed: internal error"))
     end.
 
 trygen(File, Text, Nsubsteps) ->
@@ -93,7 +94,7 @@ trygen(File, Text, Nsubsteps) ->
 			Pa = getpolyareas(Text, Ttf, Nsubsteps),
 			{Vs,Fs} = polyareas_to_faces(Pa),
 			{new_shape,"text",Fs,Vs};
-		    _ -> {error, "Can't find TrueType section in " ++ File}
+		    _ -> {error, ?__(1,"Can't find TrueType section in ") ++ File}
 		end;
 	{error,Reason} ->
 	    {error,file:format_error(Reason)}
@@ -113,7 +114,7 @@ font_file(Name, Dir) ->
 	_ ->
 		case os:type() of
 		    {win32,_} ->
-			Name2 = case winregval("Fonts", Name ++ " (TrueType)") of
+			Name2 = case winregval(?__(1,"Fonts"), Name ++ " (TrueType)") of
 				    none -> Name;
 				    Fname -> Fname
 		    		end,
@@ -340,7 +341,7 @@ parsett(<<_C1,_C2,_C3,_C4,Ntabs:16/unsigned,_Srchrng:16/unsigned,
 	Glyf = findtab("glyf", Tabs),
 	#ttfont{nglyph=Nglyph, uperem=Uperem, cmap=Cmap, loca=Loca, adv=Adv, glyf=Glyf};
 parsett(_) ->
-	throw({error,"Bad offset table"}).
+	throw({error,?__(1,"Bad offset table")}).
 
 % returns list of table directory entries: {offset,length,name} tuples
 getdirs(Ntabs,B) -> getdirs(Ntabs,B,[]).
@@ -355,7 +356,7 @@ getdirs(0, B, Acc) ->
 getdirs(Nleft,<<W,X,Y,Z,_Csum:32,Off:32,Len:32,B/binary>>,Acc) ->
 	getdirs(Nleft-1, B, [{Off,Len,[W,X,Y,Z]} | Acc]);
 getdirs(_,_,_) ->
-	throw({error,"Bad dir format"}).
+	throw({error,?__(1,"Bad dir format")}).
 
 % returns list of {tablename,table/binary} tuples
 gettabs(Dirs,B,Offset) -> gettabs(Dirs,B,Offset,[]).
@@ -372,7 +373,7 @@ gettabs([{Offnext,Len,Nam}|T]=Dirs,B,Off,Acc) ->
 		<<_C:Padlen/binary,B1/binary>> = B,
 		gettabs(Dirs,B1,Offnext,Acc);
 	    true ->
-		throw({error,"Bad table offsets/sizes"})
+		throw({error,?__(1,"Bad table offsets/sizes")})
 	end.
 
 % Find the table with the given name in Tabs and return it.
@@ -382,7 +383,7 @@ findtab(Name, Tabs) ->
 	    {value, {_, Tab}} ->
 		Tab;
 	    false ->
-		throw({error,"No " ++ Name ++ " table"})
+		throw({error,?__(1,"No ") ++ Name ++ ?__(2," table")})
 	end.
 	
 
@@ -415,7 +416,7 @@ parsecmaptab(Tabs) ->
 		list_to_tuple(binary_to_list(Tab,Off+1+6,Off+256+6));
 	    [{_P,_E,4,Off}|_] ->
 		cmapf4(Tab, Off);
-	    _ -> throw({error,"No suitable character map"})
+	    _ -> throw({error,?__(1,"No suitable character map")})
 	end.
 
 getcmapsubtabs(0, _, _, Acc) ->

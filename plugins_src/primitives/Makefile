@@ -8,13 +8,14 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.8 2003/09/25 08:27:14 bjorng Exp $
+#     $Id: Makefile,v 1.9 2005/12/12 18:00:32 giniu Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
 	.fig .dvi .tex .class .java .pdf .psframe .pscrop
 
 ESRC=.
+WINGS_INTL=../../intl_tools
 EBIN=../../plugins/primitives
 ERLC=erlc
 WINGS_SRC=../../src
@@ -33,6 +34,13 @@ MODULES= \
 	wpc_spiral \
 	wpc_torus \
 	wpc_tt
+	
+TRANSLATABLE= \
+	wpc_image \
+	wpc_knot \
+	wpc_spiral \
+	wpc_torus \
+	wpc_tt
 
 TARGET_FILES= $(MODULES:%=$(EBIN)/%.beam)
 
@@ -40,7 +48,7 @@ TARGET_FILES= $(MODULES:%=$(EBIN)/%.beam)
 # FLAGS
 # ----------------------------------------------------
 ERL_FLAGS += -I $(WINGS_SRC) -I $(WINGS_E3D) -pa $(ESDL)/ebin
-ERL_COMPILE_FLAGS += -W $(TYPE_FLAGS) +warn_unused_vars +debug_info
+ERL_COMPILE_FLAGS += -W $(TYPE_FLAGS) +warn_unused_vars +debug_info  -pa $(WINGS_INTL) -I $(WINGS_INTL)
 
 # ----------------------------------------------------
 # Targets
@@ -48,6 +56,23 @@ ERL_COMPILE_FLAGS += -W $(TYPE_FLAGS) +warn_unused_vars +debug_info
 
 opt debug:
 	$(MAKE) TYPE=$@ common
+
+template: opt
+	@for FILE in $(TRANSLATABLE); do \
+		erl -pa $(WINGS_INTL) -noinput -run tools generate_template_file $(EBIN) $$FILE -run erlang halt ; \
+	done
+
+lang: template
+	@cp *.lang $(EBIN)
+	@for FILE in $(TRANSLATABLE); do \
+		for LANG_FILE in $(EBIN)/$$FILE\_*.lang; do \
+			case $$LANG_FILE  in \
+				$(EBIN)/$$FILE\_en.lang) ;; \
+				*) echo "Processing: $$LANG_FILE"; \
+	erl -pa $(WINGS_INTL) -noinput -eval "tools:diff(\"$$LANG_FILE\")" -run erlang halt >> $$LANG_FILE ;; \
+			esac \
+		done;\
+	done
 
 common: $(TARGET_FILES)
 

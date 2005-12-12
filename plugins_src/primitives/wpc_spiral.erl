@@ -8,6 +8,7 @@
 -export([init/0,menu/2,command/2]).
 
 -import(math, [sqrt/1,cos/1,sin/1,pi/0]).
+-include("wings_intl.hrl").
 
 init() ->
     true.
@@ -19,8 +20,8 @@ menu({shape,more}, Menu) ->
 menu(_, Menu) -> Menu.
 
 spiral_menu() ->
-    [{"Spiral",spiral,[option]},
-     {"Spring",spring,[option]}].
+    [{?__(1,"Spiral"),spiral,[option]},
+     {?__(2,"Spring"),spring,[option]}].
 
 command({shape,{more,{spiral,Ask}}}, _St) -> make_spiral(Ask);
 command({shape,{more,{spring,Ask}}}, _St) -> make_spring(Ask);
@@ -29,10 +30,10 @@ command(_, _) -> next.
 %%% The rest are local functions.
 
 make_spiral(Ask) when is_atom(Ask) ->
-    wpa:ask(Ask, "Create Spiral",
-	    [{"Loops",2,[{range,{1,32}}]},
-	     {"Segments",16,[{range,{3,128}}]},
-	     {"Sections",8,[{range,{2,64}}]}],
+    wpa:ask(Ask, ?__(1,"Create Spiral"),
+	    [{?__(2,"Loops"),2,[{range,{1,32}}]},
+	     {?__(3,"Segments"),16,[{range,{3,128}}]},
+	     {?__(4,"Sections"),8,[{range,{2,64}}]}],
 	    fun(Res) -> {shape,{more,{spiral,Res}}} end);
 make_spiral([L,Ns,Nl]) ->
     Vs = spiral_vertices(Ns, Nl, L),
@@ -40,10 +41,10 @@ make_spiral([L,Ns,Nl]) ->
     {new_shape,"spiral",Fs,Vs}.
  
 make_spring(Ask) when is_atom(Ask) ->
-    wpa:ask(Ask, "Create Spring",
-	    [{"Loops",2,[{range,{1,32}}]},
-	     {"Segments",16,[{range,{3,128}}]},
-	     {"Sections",8,[{range,{2,64}}]}],
+    wpa:ask(Ask, ?__(1,"Create Spring"),
+	    [{?__(2,"Loops"),2,[{range,{1,32}}]},
+	     {?__(3,"Segments"),16,[{range,{3,128}}]},
+	     {?__(4,"Sections"),8,[{range,{2,64}}]}],
 	    fun(Res) -> {shape,{more,{spring,Res}}} end);
 make_spring([L,Ns,Nl]) ->
     Vs = spiral_vertices2(Ns, Nl, L),

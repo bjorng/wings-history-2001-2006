@@ -33,6 +33,10 @@
 
 -export([init/0,menu/2,command/2]).
 
+%% this include is added to make this module translatable
+
+-include("wings_intl.hrl").
+
 %% This function will be called once at the startup of Wings.
 %% It must return true. (Return false to disable the plug-in.)
 
@@ -53,7 +57,7 @@ menu(_, Menu) ->
     Menu.
 
 torus_menu() ->
-    [{"Torus Knot",torus_knot}].
+    [{?__(1,"Torus Knot"),torus_knot}].
     
 %% This function will be called before executing any command.
 
