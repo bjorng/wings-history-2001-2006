@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_mapping.erl,v 1.77 2005/10/19 19:03:26 dgud Exp $
+%%     $Id: auv_mapping.erl,v 1.78 2005/12/13 22:29:50 dgud Exp $
 %%
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
@@ -39,8 +39,8 @@
 
 -module(auv_mapping).
 
--export([stretch_opt/2, area2d2/3,area3d/3, calc_area/3]).
--export([map_chart/3]).
+-export([stretch_opt/2, fs_area/2, area2d2/3,area3d/3, calc_area/3]).
+-export([map_chart/3, projectFromChartNormal/2]).
 
 %% Internal exports.
 -export([model_l2/5]).
@@ -393,6 +393,21 @@ rotate_to_z(Vs, Normal, We) ->
 %% Alg. found in comp.graphics.algorithms faq
 %% To be correct it needs the polygons to flat but we
 %% don't need to be 100% correct.
+
+fs_area(Fs,We) ->
+    fs_area(Fs,We,0.0).
+fs_area([Face|Rest],We,Area) ->
+    Vs0 = wpa:face_vertices(Face, We),
+    NewArea = try 
+		  Normal = wings_face:normal(Face, We),
+		  calc_area(Vs0, Normal, We)
+	      catch _:_ ->
+		      0.0
+	      end,
+    fs_area(Rest,We,NewArea+Area);
+fs_area([],_,Area) ->
+    Area.
+
 calc_area(Vs0, Normal, We) ->
     [V|Vs] = [wings_vertex:pos(V, We) || V <- Vs0],
     Sum = sum_crossp([V|Vs] ++ [V], e3d_vec:zero()),
@@ -447,7 +462,7 @@ lsqcm(Fs, Pinned0, Loop, We) ->
 	    Patch = fun({Idt, {Ut,Vt}}) -> {Idt,{Ut,Vt,0.0}} end,
 	    Vs3 = lists:sort(lists:map(Patch, Vs2)),
 	    TempVs = gb_trees:from_orddict(Vs3),
-	    MappedArea = calc_2dface_area(TriFs, TriWe#we{vp=TempVs}, 0.0),
+	    MappedArea = fs_area(TriFs, TriWe#we{vp=TempVs}, 0.0),
 	    Scale = Area/MappedArea,
 	    scaleVs(Vs3,math:sqrt(Scale),[])
     end.
@@ -457,13 +472,6 @@ scaleVs([{Id, {X,Y,_}}|Rest],Scale,Acc)
     scaleVs(Rest, Scale, [{Id, {X*Scale,Y*Scale,0.0}}|Acc]);
 scaleVs([],_,Acc) ->
     lists:reverse(Acc).
-
-calc_2dface_area([Face|Rest],We,Area) ->
-    Vs0 = wpa:face_vertices(Face, We),
-    NewArea = calc_area(Vs0, {0.0,0.0,1.0}, We) + Area,
-    calc_2dface_area(Rest,We,NewArea);
-calc_2dface_area([],_,Area) ->
-    Area.
 
 
 -record(link,{no=0,pos={0.0,0.0,0.0}}).

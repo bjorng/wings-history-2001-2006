@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.319 2005/12/04 21:37:41 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.320 2005/12/13 22:29:50 dgud Exp $
 %%
 
 -module(wpc_autouv).
@@ -270,7 +270,13 @@ menubar() ->
       fun(_) ->
 	      [{?__(2,"Undo/Redo"),undo_toggle,?__(3,"Undo or redo the last command")},
 	       {?__(4,"Redo"),redo,?__(5,"Redo the last command that was undone")},
-	       {?__(6,"Undo"),undo,?__(7,"Undo the last command")}]
+	       {?__(6,"Undo"),undo,?__(7,"Undo the last command")},
+	       {?__(71,"Repeat"),repeat,?__(72,"Repeat the last command")},
+	       {?__(74,"Repeat Args"),repeat_args,
+		?__(75,"Repeat the last command with same arguments")},
+	       {?__(76,"Repeat Drag"),repeat_drag,
+		?__(77,"Repeat the last command with same arguments the same distance")}
+	      ]
       end},
      {?__(8,"View"),view,
       fun(_) ->
@@ -457,7 +463,10 @@ command_menu(face, X, Y) ->
 	    {basic,separator},
 	    {?__(47,"Move"),move,?__(48,"Move selected faces"),[magnet]},
 	    {?__(49,"Scale"),{scale,Scale},?__(50,"Scale selected faces"), [magnet]},
-	    {?__(51,"Rotate"),rotate,?__(52,"Rotate selected faces"), [magnet]}
+	    {?__(51,"Rotate"),rotate,?__(52,"Rotate selected faces"), [magnet]},
+	    separator,
+	    {?__(521,"Project-Unfold"),	proj_lsqcm,
+	     ?__(522,"Project selected faces from normal and unfold the rest of chart")}
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu);
 command_menu(edge, X, Y) ->
@@ -662,17 +671,6 @@ handle_event_3({action,{auv,{draw_options,Opt}}}, #st{bb=Uvs}=St) ->
 	    wings_wm:send(geom, {new_state,GeomSt}),
 	    get_event(St#st{bb=Uvs#uvstate{st=GeomSt,matname=MatName}})
     end;
-handle_event_3({action,{auv,{remap,Method}}}, St0) ->
-    St = remap(Method, St0),
-    get_event(St);
-handle_event_3({action,{auv,lsqcm}}, St0) ->
-    St = reunfold(lsqcm,St0),
-    get_event(St);
-handle_event_3({action,{auv,sphere}}, St0) ->
-    St = reunfold(sphere,St0),
-    get_event(St);
-
-
 %% Others
 handle_event_3({vec_command,Command,_St}, _) when is_function(Command) ->
     %% Use to execute command with vector arguments (see wings_vec.erl).
@@ -703,6 +701,12 @@ handle_event_3({action,{edit,undo}}=Act, _) ->
     wings_wm:send(geom, Act);
 handle_event_3({action,{edit,redo}}=Act, _) ->
     wings_wm:send(geom, Act);
+handle_event_3({action,{edit,repeat}}, St) ->
+    repeat(command, St);
+handle_event_3({action,{edit,repeat_args}}, St) ->
+    repeat(args, St);
+handle_event_3({action,{edit,repeat_drag}}, St) ->
+    repeat(drag, St);
 handle_event_3({action,{view,toggle_background}}, _) ->
     Old = get({?MODULE,show_background}),
     put({?MODULE,show_background},not Old),
@@ -727,6 +731,12 @@ handle_event_3({action,Ev}, St) ->
 	{view,Cmd} when Cmd == frame ->
 	    wings_view:command(Cmd,St),
 	    get_event(St);
+	{edit, repeat} ->
+	    repeat(command, St);
+	{edit, repeat_args} ->
+	    repeat(args, St);
+	{edit,repeat_drag} ->
+	    repeat(drag, St);
 	_ ->
 %%	    io:format("Miss Action ~p~n", [Ev]),
 	    keep
@@ -777,16 +787,43 @@ new_state(#st{bb=#uvstate{}=Uvs}=St0) ->
     St = update_selected_uvcoords(St1),
     get_event(St).
 
-handle_command(move, St) ->
-    drag(wings_move:setup(free_2d, St));
-handle_command({move,Magnet}, St) ->
-    drag(wings_move:setup({free_2d,Magnet}, St));
-handle_command({scale,Dir}, St0) %% Maximize chart
+handle_command(Cmd, St0) ->    
+    case handle_command_1(Cmd,remember_command(Cmd,St0)) of
+	Drag = {drag, _} -> do_drag(Drag);
+	Result -> Result
+    end.
+
+handle_ask(Cmd, St) ->
+%%    io:format("Handle Ask ~p ~n",[Cmd]),
+    do_drag(handle_command_1(Cmd,St)).
+
+handle_command_1({'ASK',Ask}, St) ->
+    wings:ask(Ask, St, fun handle_ask/2);
+handle_command_1({remap,Method}, St0) ->
+    St = remap(Method, St0),
+    get_event(St);
+handle_command_1(M=proj_lsqcm, St0) ->
+    St = remap(M,St0),
+    get_event(St);
+handle_command_1(lsqcm, St0) ->
+    St = reunfold(lsqcm,St0),
+    get_event(St);
+handle_command_1(sphere, St0) ->
+    St = reunfold(sphere,St0),
+    get_event(St);
+handle_command_1(move, St) ->
+    wings_move:setup(free_2d, St);
+handle_command_1({move,{move,Magnet}}, St) ->
+    wings_move:setup({free_2d,Magnet}, St); %% Repeat drag with mag
+handle_command_1({move,Magnet}, St) ->
+%%    do_drag(wings_move:setup({free_2d,Magnet}, St),none);
+    wings_move:setup({free_2d,Magnet}, St);
+handle_command_1({scale,Dir}, St0) %% Maximize chart
   when Dir == max_uniform; Dir == max_x; Dir == max_y -> 
     St1 = wpa:sel_map(fun(_, We) -> stretch(Dir,We) end, St0),
     St = update_selected_uvcoords(St1),
     get_event(St);
-handle_command({scale,normalize}, St0) -> %% Normalize chart sizes    
+handle_command_1({scale,normalize}, St0) -> %% Normalize chart sizes    
     #st{shapes=Sh0, bb=#uvstate{id=Id,st=#st{shapes=Orig}}} = St0,
     OWe = gb_trees:get(Id, Orig), 
     {TA2D,TA3D,List} = wings_sel:fold(fun(_,We,Areas) -> 
@@ -806,64 +843,64 @@ handle_command({scale,normalize}, St0) -> %% Normalize chart sizes
     Sh = lists:foldl(Scale, Sh0, List),
     St = update_selected_uvcoords(St0#st{shapes=Sh}),
     get_event(St);
-handle_command({scale, {'ASK', Ask}}, St) ->
+handle_command_1({scale, {'ASK', Ask}}, St) ->
     wings:ask(Ask, St, fun({Dir,M},St0) -> 
-			       drag(wings_scale:setup({Dir,center,M}, St0)) 
+			       do_drag(wings_scale:setup({Dir,center,M}, St0))
 		       end);
-handle_command({scale,Dir}, St) ->
-    drag(wings_scale:setup({Dir,center}, St));
-handle_command(rotate, St) ->
-    drag(wings_rotate:setup({free,center}, St));
-handle_command({rotate,free}, St) ->
-    drag(wings_rotate:setup({free,center}, St));
-handle_command({rotate, {'ASK', Ask}}, St) ->
+handle_command_1({scale,{Dir,M}}, St) when element(1,M) == magnet ->
+    wings_scale:setup({Dir,center,M}, St); % For repeat drag
+handle_command_1({scale,Dir}, St) ->
+    wings_scale:setup({Dir,center}, St);
+handle_command_1(rotate, St) ->
+    wings_rotate:setup({free,center}, St);
+handle_command_1({rotate,free}, St) ->
+    wings_rotate:setup({free,center}, St);
+handle_command_1({rotate, {'ASK', Ask}}, St) ->
     wings:ask(Ask, St, fun({Dir,M},St0) -> 
-			       drag(wings_rotate:setup({Dir,center,M}, St0)) 
+			       do_drag(wings_rotate:setup({Dir,center,M}, St0)) 
 		       end);
-handle_command({rotate, Magnet}, St) when element(1, Magnet) == magnet ->
-    drag(wings_rotate:setup({free,center,Magnet}, St));
-handle_command({rotate,Dir}, St0) 
+handle_command_1({rotate, Magnet}, St) when element(1, Magnet) == magnet ->
+    wings_rotate:setup({free,center,Magnet}, St); % For repeat drag
+handle_command_1({rotate,Dir}, St0) 
   when Dir == align_y; Dir == align_x; Dir == align_xy ->
     St1 = align_chart(Dir, St0),
     St = update_selected_uvcoords(St1),
     get_event(St);
-handle_command({rotate,Deg}, St0) ->
+handle_command_1({rotate,Deg}, St0) ->
     St1 = wpa:sel_map(fun(_, We) -> rotate_chart(Deg, We) end, St0),
     St = update_selected_uvcoords(St1),
     get_event(St);
-handle_command({move_to,Dir}, St0) ->
+handle_command_1({move_to,Dir}, St0) ->
     St1 = wpa:sel_map(fun(_, We) -> move_to(Dir,We) end, St0),
     St = update_selected_uvcoords(St1),
     get_event(St);
-handle_command({flip,horizontal}, St0) ->
+handle_command_1({flip,horizontal}, St0) ->
     St1 = wpa:sel_map(fun(_, We) -> flip_horizontal(We) end, St0),
     St = update_selected_uvcoords(St1),
     get_event(St);
-handle_command({flip,vertical}, St0) ->
+handle_command_1({flip,vertical}, St0) ->
     St1 = wpa:sel_map(fun(_, We) -> flip_vertical(We) end, St0),
     St = update_selected_uvcoords(St1),
     get_event(St);
-handle_command(slide, St) ->
-    drag(wings_edge_cmd:command(slide,St));
-handle_command({equal,Op}, St0) ->
+handle_command_1(slide, St) ->
+    wings_edge_cmd:command(slide,St);
+handle_command_1({equal,Op}, St0) ->
     St1 = equal_length(Op,St0),
     St = update_selected_uvcoords(St1),
     get_event(St);
-handle_command(tighten, St) ->
+handle_command_1(tighten, St) ->
     tighten(St);
-handle_command({tighten,Magnet}, St) ->
+handle_command_1({tighten,Magnet}, St) ->
     tighten(Magnet, St);
-handle_command(delete, St) ->
+handle_command_1(delete, St) ->
     get_event(delete_charts(St));
-handle_command(hide, St) ->
+handle_command_1(hide, St) ->
     get_event(hide_charts(St));
-handle_command({'ASK',Ask}, St) ->
-    wings:ask(Ask, St, fun handle_command/2);
-handle_command({flatten, Plane}, St0 = #st{selmode=vertex}) ->
+handle_command_1({flatten, Plane}, St0 = #st{selmode=vertex}) ->
     {save_state, St1} = wings_vertex_cmd:flatten(Plane, St0),
     St = update_selected_uvcoords(St1),
     get_event(St);
-handle_command(stitch, St0 = #st{selmode=edge}) ->
+handle_command_1(stitch, St0 = #st{selmode=edge}) ->
     Es = wpa:sel_fold(fun(Es,We=#we{name=#ch{emap=Emap},es=Etab},A) ->
 			      Vis = gb_sets:from_list(wings_we:visible(We)),
 			      [auv_segment:map_edge(E,Emap)
@@ -879,7 +916,7 @@ handle_command(stitch, St0 = #st{selmode=edge}) ->
     %% Do something here, i.e. restart uvmapper.
     St = rebuild_charts(gb_trees:get(Id,Geom#st.shapes), AuvSt, []),
     get_event(St);
-handle_command(cut_edges, St0 = #st{selmode=edge,bb=#uvstate{id=Id,st=Geom}}) ->
+handle_command_1(cut_edges, St0 = #st{selmode=edge,bb=#uvstate{id=Id,st=Geom}}) ->
     Es = wpa:sel_fold(fun(Es,We=#we{name=#ch{emap=Emap},es=Etab},A) ->
 			      Vis = gb_sets:from_list(wings_we:visible(We)),
 			      A ++ [auv_segment:map_edge(E,Emap)
@@ -897,9 +934,73 @@ handle_command(cut_edges, St0 = #st{selmode=edge,bb=#uvstate{id=Id,st=Geom}}) ->
     St  = update_selected_uvcoords(St2),
     get_event(St);
 
-handle_command(_Cmd, #st{sel=[]}) ->
-%%    io:format("~p ~n", [_Cmd]),
+handle_command_1(_Cmd, #st{sel=[]}) ->
+    io:format("Error unknown command ~p ~n", [_Cmd]),
     keep.
+
+remember_command(Cmd,St0) ->
+    St0#st{repeatable=Cmd,ask_args=none,drag_args=none}.
+
+repeat(_Type, #st{sel=Sel,repeatable=Rep}) when Sel == []; Rep == ignore ->
+    keep;
+repeat(Type, St=#st{selmode=Mode, repeatable=Cmd}) ->
+%%     io:format("Repeat ~p ~n", [{St#st.repeatable,St#st.ask_args,St#st.drag_args}]),
+    case repeatable(Cmd,Mode) of
+	false -> 
+%% 	    io:format("Not repeatable ~p ~p ~p~n",[Type,Cmd,Mode]),
+	    keep;
+	true ->
+%% 	    io:format("Repeatable ~p ~p ~p ~n",[Type,Cmd,Mode]),
+	    repeat(Type, Cmd, St)
+    end.
+
+repeat(command, Cmd, St) ->
+    repeat2(Cmd,St,none);
+repeat(args, Cmd0, St = #st{ask_args=AskArgs}) ->
+    Cmd =replace_ask(Cmd0, AskArgs),
+    repeat2(Cmd,St,none);
+repeat(drag, Cmd0, St = #st{ask_args=AskArgs,drag_args=DragArgs}) ->
+    Cmd = replace_ask(Cmd0, AskArgs),
+    repeat2(Cmd,St,DragArgs).
+
+repeat2(Cmd,St,DragArgs) ->
+    case handle_command_1(Cmd,St) of
+	{drag,Drag} -> wings_drag:do_drag(Drag, DragArgs); 
+	Other -> Other
+    end.
+
+replace_ask(Term, none) -> Term;
+replace_ask({'ASK',_}, AskArgs) -> AskArgs;
+replace_ask(Tuple0, AskArgs) when is_tuple(Tuple0) ->
+    Tuple = [replace_ask(El, AskArgs) || El <- tuple_to_list(Tuple0)],
+    list_to_tuple(Tuple);
+replace_ask(Term, _) -> Term.
+
+repeatable({remap,_},Mode) -> Mode == body;
+repeatable(lsqcm, Mode) -> Mode == vertex;
+repeatable(sphere, Mode)-> Mode == vertex;
+repeatable(proj_lsqcm, Mode) -> Mode == face;
+repeatable({scale, Dir}, Mode) 
+  when ((Dir == max_uniform) or (Dir == max_x) or (Dir == max_y) or 
+	(Dir == normalize)) and (Mode /= body) -> false;
+repeatable({rotate, Dir}, Mode) 
+  when ((Dir == align_y) or (Dir == align_x) or (Dir == align_xy)) 
+       and ((Mode == body) or (Mode == face)) -> no;
+repeatable({move_to,_},Mode) -> Mode == body;
+repeatable({flip,_},Mode) -> Mode == body;
+repeatable(slide, Mode) -> Mode == edge;
+repeatable({equal,_}, Mode) -> Mode == edge;
+repeatable(tighten, Mode) ->
+    (Mode == vertex) orelse (Mode == body);
+repeatable({tighten,_}, Mode) -> 
+    (Mode == vertex) orelse (Mode == body);
+repeatable(delete, Mode) -> Mode == body;
+repeatable(hide, Mode) -> Mode == body;
+repeatable(flatten, Mode) -> Mode == edge;
+repeatable(stitch, Mode) ->  Mode == edge;
+repeatable(cut_edges, Mode) -> Mode == edge;
+repeatable(_Cmd,_Mode) ->
+    true.
 
 fake_selection(St) ->
     wings_dl:fold(fun(#dlo{src_sel=none}, S) ->
@@ -941,10 +1042,12 @@ add_faces(NewFs,St0=#st{bb=ASt=#uvstate{id=Id,mode=Mode,st=GeomSt=#st{shapes=Shs
 	    end
     end.
 
-drag({drag,Drag}) ->
+do_drag({drag,Drag}) -> 
     wings:mode_restriction([vertex,edge,face,body]),
     wings_wm:set_prop(show_info_text, true),
-    wings_drag:do_drag(Drag, none).
+    wings_drag:do_drag(Drag,none);
+do_drag(Other) ->
+    Other.
 
 tighten(#st{selmode=vertex}=St) ->
     tighten_1(fun vertex_tighten/3, St);
@@ -953,8 +1056,7 @@ tighten(#st{selmode=body}=St) ->
 
 tighten_1(Tighten, St) ->    
     Tvs = wings_sel:fold(Tighten, [], St),
-    {drag,Drag} = wings_drag:setup(Tvs, [percent], St),
-    wings_drag:do_drag(Drag, none).
+    wings_drag:setup(Tvs, [percent], St).
 
 vertex_tighten(Vs0, We, A) ->
     Vis = gb_sets:from_ordset(wings_we:visible(We)),
@@ -971,8 +1073,7 @@ tighten(Magnet, St) ->
 				 mag_vertex_tighten(Vs, We, Magnet, A)
 			 end, [], St),
     Flags = wings_magnet:flags(Magnet, []),
-    {drag,Drag} = wings_drag:setup(Tvs, [percent,falloff], Flags, St),
-    wings_drag:do_drag(Drag, none).
+    wings_drag:setup(Tvs, [percent,falloff], Flags, St).
 
 mag_vertex_tighten(Vs0, We, Magnet, A) ->
     Vis = gb_sets:from_ordset(wings_we:visible(We)),
@@ -1684,7 +1785,7 @@ reunfold(Method,#st{sel=Sel,selmode=vertex}=St0) ->
 			      {S,T,_} = gb_trees:get(V, Vtab),
 			      {V,{S,T}}
 			  end || V <- gb_sets:to_list(Vs)],
-		{remap(Method, Pinned, We, St0),I+1}
+		{remap(Method, Pinned, Vs, We, St0),I+1}
 	end,
     {St,_} = wings_sel:mapfold(R, 1, St0),
     wings_pb:done(update_selected_uvcoords(St)).
@@ -1693,42 +1794,36 @@ remap(Method, #st{sel=Sel}=St0) ->
     wings_pb:start(?__(1,"remapping")),
     wings_pb:update(0.001),
     N = length(Sel),
-    Remap = fun(_, We, I) ->
+    Remap = fun(Elems, We, I) ->
 		    Msg = ?__(2,"chart")++" " ++ integer_to_list(I+1),
 		    wings_pb:update(I/N, Msg),
-		    {remap(Method, none, We, St0),I+1}
+		    {remap(Method, none, Elems, We, St0),I+1}
 	    end,
     {St,_} = wings_sel:mapfold(Remap, 1, St0),
     wings_pb:done(update_selected_uvcoords(St)).
 
-remap(stretch_opt, _, We, St) ->
+remap(stretch_opt, _, _, We, St) ->
     Vs3d = orig_pos(We, St),
     ?SLOW(auv_mapping:stretch_opt(We, Vs3d));
-remap(Type, Pinned, #we{name=Ch}=We0, St) ->
-    [Lower,Upper] = wings_vertex:bounding_box(We0),
-    {W,H,_} = e3d_vec:sub(Upper, Lower),
-
+remap(proj_lsqcm, _, Sel, We0, St = #st{selmode=face}) ->
+    Vs3d = orig_pos(We0, St),
+    Vs0 = auv_mapping:projectFromChartNormal(gb_sets:to_list(Sel),We0#we{vp=Vs3d}),
+    Vtab = gb_trees:from_orddict(Vs0),
+%%    We1 = #we{vs=Vtab} = update_and_scale_chart(Vs0,We0),
+    SelVs = wings_vertex:from_faces(Sel,We0),
+    Pinned = [begin
+		  {S,T,_} = gb_trees:get(V, Vtab),
+		  {V,{S,T}}
+	      end || V <- SelVs],
+    remap(lsqcm, Pinned, Sel, We0, St);    
+remap(Type, Pinned, _, We0, St) ->
     %% Get 3d positions (even for mapped vs).
     Vs3d = orig_pos(We0, St),
     case auv_mapping:map_chart(Type, We0#we{vp=Vs3d}, Pinned) of
 	{error,Msg} -> 
 	    wpa:error(Msg);
 	Vs0 -> 
-	    We1 = We0#we{vp=gb_trees:from_orddict(sort(Vs0))},
-	    Fs = wings_we:visible(We1),
-	    {{Dx,Dy},Vs1} = auv_placement:center_rotate(Fs, We1),
-	    Center = wings_vertex:center(We0),
-	    Scale = if Dx > Dy -> W / Dx;
-		       true -> H / Dy
-		    end,
-	    Smat = e3d_mat:scale(Scale),
-	    Cmat = e3d_mat:translate(Center),
-	    Fix  = e3d_mat:mul(Cmat, Smat),
-	    Vs = foldl(fun({VId, Pos}, Acc) -> 
-			       [{VId,e3d_mat:mul_point(Fix, Pos)}|Acc] 
-		       end, [], Vs1),
-	    We0#we{vp=gb_trees:from_orddict(sort(Vs)),
-		   name=Ch#ch{size={Dx*Scale, Dy*Scale}}}
+	    update_and_scale_chart(Vs0,We0)
     end.
 
 %% gb_tree of every vertex orig 3d position, (including the new cut ones)
@@ -1745,6 +1840,19 @@ orig_pos(We = #we{name=#ch{vmap=Vmap}},St) ->
 	       end, gb_trees:to_list(We#we.vp)),
     gb_trees:from_orddict(Vs3d).
 
+update_and_scale_chart(Vs0,We0) ->
+    We1 = We0#we{vp=gb_trees:from_orddict(sort(Vs0))},
+    Fs = wings_we:visible(We1),
+    OldA = auv_mapping:fs_area(Fs,We0),
+    NewA = auv_mapping:fs_area(Fs,We1),
+    NewCenter = wings_vertex:center(We1),
+    OldCenter = wings_vertex:center(We0),
+    Scale = math:sqrt(OldA/NewA),
+    T0 = e3d_mat:translate(e3d_vec:neg(NewCenter)),
+    Smat = e3d_mat:scale(Scale),
+    T1  = e3d_mat:mul(Smat, T0),
+    T  = e3d_mat:mul(e3d_mat:translate(OldCenter),T1),
+    wings_we:transform_vs(T, We1).
 
 %%%
 %%% Draw routines.
