@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: autouv_pl.lang,v 1.3 2005/12/06 20:55:20 giniu Exp $
+%%     $Id: autouv_pl.lang,v 1.4 2005/12/16 00:10:36 giniu Exp $
 %%
 %%  Translation:  Andrzej Giniewicz
 %%  Correction:   Małgorzata Napiontek
@@ -243,6 +243,8 @@
     {92,"Mapuj sferycznie używając zaznaczonych punktów jako biegunów południowego i północnego"},
     {411,"Ujednolić rozmiar"},
     {412,"Ujednolić rozmiar arkuszy aby ich pola odpowiadały modelowi"},
+    {521,"Wykonaj projekcję-rozłóż"},
+    {522,"Wykonaj projekcję normalną zaznaczonych płaszczyzn i rozłóż pozostałą część arkusza"},
     {641,"Przesuń po krawędziach"},
     {642,"Przesuń po sąsiednich krawędziach"},
     {643,"Rozmieść"},
@@ -284,7 +286,13 @@
     {8,"Widok"},
     {9,"Pokaż/Ukryj bitmapę tła"},
     {10,"Przełącza wyświetlanie bitmapy tła"},
-    {11,"Zaznaczenie"}
+    {11,"Zaznaczenie"},
+    {71,"Powtórz"},
+    {72,"Powtórz ostatnią komendę"},
+    {74,"Powtórz z argumentem"},
+    {75,"Powtórz ostatnią komendę zachowując argumenty"},
+    {76,"Powtórz z przesunięciem"},
+    {77,"Powtórz ostatnią komendę zachowując argumenty i przesunięcie"}
    ]},
   {option_menu,
    [
