@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.63 2005/08/15 22:36:34 dgud Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.64 2005/12/16 00:00:33 giniu Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -71,13 +71,19 @@ menu(St) ->
 	     [{?__(37,"2 Edges"),2},
 	      {?__(38,"3 Edges"),3},
 	      {?__(39,"4 Edges"),4},
-	      {?__(40,"5 Edges"),5}]}},
+	      {?__(40,"5 Edges"),5},
+	      {?__(401,"6 or More"),6}]}},
 	   {?__(41,"Faces With"),
 	    {faces_with,
 	     [{?__(42,"2 Edges"),2},
 	      {?__(43,"3 Edges"),3},
 	      {?__(44,"4 Edges"),4},
 	      {?__(45,"5 or More"),5}]}},
+	   {?__(nq0,"Non Quadrangle Faces"),
+	    {non_quad,
+	     [{?__(nq1,"All Non Quadrangle Faces"),all},
+	      {?__(nq2,"Odd Non Quadrangle Faces"),odd},
+	      {?__(nq3,"Even Non Quadrangle Faces"),even}]}},
 	   {?__(46,"Random"),
 	    {random,[{"10%",10},
 		     {"20%",20},
@@ -294,6 +300,15 @@ by_command(isolated_vertices, St) ->
     {save_state,select_isolated(St)};
 by_command({nonplanar_faces,Ask}, St) ->
     nonplanar_faces(Ask, St);
+by_command({vertices_with,6}, St) ->
+    Sel = fun(V, We) ->
+		  Cnt = wings_vertex:fold(
+			  fun(_, _, _, Cnt) ->
+				  Cnt+1
+			  end, 0, V, We),
+		  Cnt >= 6
+	  end, 
+    {save_state,wings_sel:make(Sel, vertex, St)};
 by_command({vertices_with,N}, St) ->
     Sel = fun(V, We) ->
 		  Cnt = wings_vertex:fold(
@@ -303,6 +318,23 @@ by_command({vertices_with,N}, St) ->
 		  Cnt =:= N
 	  end, 
     {save_state,wings_sel:make(Sel, vertex, St)};
+by_command({non_quad,all}, St) ->
+    Sel = fun(Face, We) ->
+		  wings_face:vertices(Face, We) =/= 4
+	    end,
+    {save_state,wings_sel:make(Sel, face, St)};
+by_command({non_quad,odd}, St) ->
+    Sel = fun(Face, We) ->
+                  Half = wings_face:vertices(Face, We)/2,
+		  trunc(Half) /= Half
+	    end,
+    {save_state,wings_sel:make(Sel, face, St)};
+by_command({non_quad,even}, St) ->
+    Sel = fun(Face, We) ->
+                  Half = wings_face:vertices(Face, We)/2,
+		  (Half /= 2) and (trunc(Half) == Half)
+	    end,
+    {save_state,wings_sel:make(Sel, face, St)};
 by_command({faces_with,5}, St) ->
     Sel = fun(Face, We) ->
 		  wings_face:vertices(Face, We) >= 5

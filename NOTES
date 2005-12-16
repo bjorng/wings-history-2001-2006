@@ -4,6 +4,9 @@
 
 - Giniu made primitives plug-ins translatable and translated them to Polish.
 
+- Giniu added 4 selection methods: select by vertices with 6 or more edges,
+  select by non quadrangle faces (all faces, faces with odd or even number of edges)
+
 - DesiredUserName/MicrobeSoft implemented pick-up and drop images in outliner.
 
 - AUTOUV changes (Dan): 

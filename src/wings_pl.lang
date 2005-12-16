@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pl.lang,v 1.13 2005/11/21 23:24:48 giniu Exp $
+%%     $Id: wings_pl.lang,v 1.14 2005/12/16 00:00:33 giniu Exp $
 %%
 %%  Translation:  Andrzej Giniewicz
 %%  Correction:   Małgorzata Napiontek
@@ -2087,7 +2087,12 @@
     {83,"Nowa grupa..."},
     {84,"Tworzy nową grupę zaznaczenia"},
     {85,"Krzywizny"},
-    {86,"Zaznacz wszystkie krzywizny"}
+    {86,"Zaznacz wszystkie krzywizny"},
+    {401,"6 lub więcej krawędziami"},
+    {nq0,"Płaszczyzny nie kwadratowe"},
+    {nq1,"Wszystkie płaszczyzny"},
+    {nq2,"Nieparzyste płaszczyzny"},
+    {nq3,"Parzyste płaszczyzny"}
    ]},
   {more_help,
    [
