@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__png.erl,v 1.2 2005/06/21 21:15:00 dgud Exp $
+%%     $Id: e3d__png.erl,v 1.3 2005/12/18 13:44:34 dgud Exp $
 %%
 -module(e3d__png).
 
@@ -187,13 +187,13 @@ decode_chunk({_Type,_Chunk},PNG0) ->
 
 check_crc(Data,Crc,Z) ->   
     case zlib:crc32(Z,Data) of
-	{ok,Crc} -> ok;
+	Crc -> ok;
 	_E ->
 	    throw(decode_error)
     end.
      
 create_image(P=#png{w=W,h=H,chunks=Chunks}) ->
-    {ok,Image0} = zlib:uncompress(list_to_binary(Chunks)),
+    Image0 = zlib:uncompress(list_to_binary(Chunks)),
     Image1  = unfilter(Image0,P#png{chunks=used}),
     {#png{restype=ResType},Image} = convert(Image1,P),
 %%     io:format("Sz Uncompressed ~p Unfiltered ~p Converted ~p~n", 
@@ -853,7 +853,7 @@ compress_image(I,RowLen, Bin, Acc) ->
 	    compress_image(I+1,RowLen,Bin,[Filtered|Acc]);
 	_ when Pos == size(Bin) ->
 	    Filtered = list_to_binary(lists:reverse(Acc)),
-	    {ok,Compressed} = zlib:compress(Filtered),
+	    Compressed = zlib:compress(Filtered),
 	    Compressed
     end.
 
@@ -873,7 +873,7 @@ create_chunk(Bin,Z) when is_list(Bin) ->
     create_chunk(list_to_binary(Bin),Z);
 create_chunk(Bin,Z) when is_binary(Bin) ->
     Sz = size(Bin)-4,
-    {ok,Crc} = zlib:crc32(Z,Bin),
+    Crc = zlib:crc32(Z,Bin),
     <<Sz:32,Bin/binary,Crc:32>>.
 
 test() ->
