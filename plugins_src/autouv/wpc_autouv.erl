@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.320 2005/12/13 22:29:50 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.321 2005/12/18 14:08:21 dgud Exp $
 %%
 
 -module(wpc_autouv).
@@ -225,7 +225,8 @@ create_uv_state(Charts, MatName, Fs, We, GeomSt) ->
 		   id=We#we.id,
 		   mode=Fs,
 		   matname=MatName},
-    St = GeomSt#st{selmode=body,sel=[],shapes=Charts,bb=Uvs},
+    St = GeomSt#st{selmode=body,sel=[],shapes=Charts,bb=Uvs,
+		   repeatable=ignore,ask_args=none,drag_args=none},
     Name = wings_wm:this(),
 
     View = #view{origin={0.0,0.0,0.0},
