@@ -1,6 +1,7 @@
 --- 0.98.3XX -----------------------------------------------------------------
 
 - Dan fixed (hopefully finally) the Rotate commands speed so they work as before.
+- Dan fixed rotate in vertex mode so it centers around all selected vertices.
 
 - Giniu made primitives plug-ins translatable and translated them to Polish.
 
@@ -15,6 +16,9 @@
     the failed charts stays in the segmenting window.
   - MMB on uv-mapping, finds and marks the old chart cuts.
   - Repeat implemented.
+
+- Programmers: 
+  Update to the latest erlang release. (png requires it)
 
 --- 0.98.32b -----------------------------------------------------------------
 
