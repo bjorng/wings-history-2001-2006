@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_rotate.erl,v 1.40 2004/12/18 19:36:22 bjorng Exp $
+%%     $Id: wings_rotate.erl,v 1.41 2005/12/18 14:04:31 dgud Exp $
 %%
 
 -module(wings_rotate).
@@ -35,6 +35,14 @@ setup_1(Axis, Point, Magnet, St)
 setup_1(Vec, Center, Magnet, St) ->
     setup_2(wings_util:make_vector(Vec), Center, Magnet, St).
 
+setup_2(Vec, center, Magnet, #st{selmode=vertex}=St) ->
+    VsPs = wings_sel:fold(
+	     fun(Vs, #we{vp=Vtab}, Acc) ->
+		     Pos = [gb_trees:get(V,Vtab)||V <- gb_sets:to_list(Vs)],
+		     [Pos|Acc]
+	     end, [], St),
+    Center = e3d_vec:average(lists:append(VsPs)),
+    setup_2(Vec, Center, Magnet, St);
 setup_2(Vec, Center, Magnet, #st{selmode=vertex}=St) ->
     Tvs = wings_sel:fold(
 	    fun(Vs, We, Acc) ->
