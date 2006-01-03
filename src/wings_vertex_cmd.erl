@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.51 2005/01/30 07:40:43 bjorng Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.52 2006/01/03 23:34:08 giniu Exp $
 %%
 
 -module(wings_vertex_cmd).
@@ -28,6 +28,8 @@ menu(X, Y, St) ->
 	    {?STR(menu,2,"Move"),{move,Dir},[],[magnet]},
 	    wings_menu_util:rotate(St),
 	    wings_menu_util:scale(St),
+	    separator,
+	    {?STR(menu,17,"Move to exact position"),move_to},
 	    separator,
 	    {?STR(menu,3,"Extrude"),{extrude,Dir}},
 	    separator,
@@ -72,6 +74,8 @@ command(collapse, St) ->
     {save_state,wings_collapse:collapse(St)};
 command({move,Type}, St) ->
     wings_move:setup(Type, St);
+command(move_to, St) ->
+    wings_move:move_to(St);
 command({rotate,Type}, St) ->
     wings_rotate:setup(Type, St);
 command({scale,Type}, St) ->

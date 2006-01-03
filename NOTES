@@ -7,6 +7,9 @@
 
 - Giniu added 4 selection methods: select by vertices with 6 or more edges,
   select by non quadrangle faces (all faces, faces with odd or even number of edges)
+  
+- Giniu added ability to move single vertex to absolute position, now you can enter
+  position not only tranformation vector
 
 - DesiredUserName/MicrobeSoft implemented pick-up and drop images in outliner.
 
