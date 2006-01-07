@@ -8,10 +8,10 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_move.erl,v 1.57 2006/01/03 23:34:08 giniu Exp $
+%%     $Id: wings_move.erl,v 1.58 2006/01/07 18:00:52 giniu Exp $
 %%
 -module(wings_move).
--export([setup/2,setup_we/4,plus_minus/3,magnet_move_fun/3,move_to/1]).
+-export([setup/2,setup_we/4,plus_minus/3,magnet_move_fun/3]).
 
 -include("wings.hrl").
 -import(lists, [map/2,foldr/3,foldl/3,sort/1]).
@@ -332,34 +332,6 @@ translate_fun({Xt0,Yt0,Zt0}) ->
 	    Zt = Zt0*Dx,
 	    e3d_mat:translate(Xt, Yt, Zt)
     end.
-
-%%
-%% Move one vertex to absolute position
-%%
-
-move_to(#st{sel=[{Obj,{1,{Vert,_,_}}}],shapes=Shs}=St) ->
-   We = gb_trees:get(Obj, Shs),
-   Vtab = We#we.vp,
-   {X,Y,Z}=gb_trees:get(Vert, Vtab),
-   wings_ask:dialog(
-      ?__(1,"Numeric Input"), 
-      [{hframe,[{label,"X"},{text,X}]},
-       {hframe,[{label,"Y"},{text,Y}]},
-       {hframe,[{label,"Z"},{text,Z}]}],
-      fun(Move) ->
-         move_to1(Move,St)
-      end);
-move_to(St) ->
-   wings_u:error(?__(2,"You can move only one point")),
-   St.
-
-move_to1([X,Y,Z],#st{sel=[{Obj,{1,{Vert,_,_}}}],shapes=Shs}=St) ->
-   We = gb_trees:get(Obj, Shs),
-   Vtab = We#we.vp,
-   NewVtab = gb_trees:update(Vert,{X,Y,Z},Vtab),
-   NewWe = We#we{vp=NewVtab},
-   NewShs = gb_trees:update(Obj,NewWe,Shs),
-   St#st{shapes=NewShs}.
 
 %%%
 %%% Magnet move.

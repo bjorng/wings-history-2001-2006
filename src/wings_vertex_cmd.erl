@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.52 2006/01/03 23:34:08 giniu Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.53 2006/01/07 18:00:52 giniu Exp $
 %%
 
 -module(wings_vertex_cmd).
@@ -29,7 +29,8 @@ menu(X, Y, St) ->
 	    wings_menu_util:rotate(St),
 	    wings_menu_util:scale(St),
 	    separator,
-	    {?STR(menu,17,"Move to exact position"),move_to},
+	    {?STR(menu,17,"Positionize"),move_to,
+	     ?STR(menu,18,"Move one vertex to exact position in absolute coordinates")},
 	    separator,
 	    {?STR(menu,3,"Extrude"),{extrude,Dir}},
 	    separator,
@@ -75,7 +76,7 @@ command(collapse, St) ->
 command({move,Type}, St) ->
     wings_move:setup(Type, St);
 command(move_to, St) ->
-    wings_move:move_to(St);
+    move_to(St);
 command({rotate,Type}, St) ->
     wings_rotate:setup(Type, St);
 command({scale,Type}, St) ->
@@ -435,3 +436,31 @@ set_color_1([V|Vs], Color, #we{es=Etab0}=We) ->
 	     end, Etab0, V, We),
     set_color_1(Vs, Color, We#we{es=Etab});
 set_color_1([], _, We) -> We.
+
+%%
+%% Move one vertex to absolute position
+%%
+
+move_to(#st{sel=[{Obj,{1,{Vert,_,_}}}],shapes=Shs}=St) ->
+   We = gb_trees:get(Obj, Shs),
+   Vtab = We#we.vp,
+   {X,Y,Z}=gb_trees:get(Vert, Vtab),
+   wings_ask:dialog(
+      ?__(1,"Numeric Input"), 
+      [{hframe,[{label,"X"},{text,X}]},
+       {hframe,[{label,"Y"},{text,Y}]},
+       {hframe,[{label,"Z"},{text,Z}]}],
+      fun(Move) ->
+         move_to1(Move,St)
+      end);
+move_to(St) ->
+   wings_u:error(?__(2,"You can move only one point")),
+   St.
+
+move_to1([X,Y,Z],#st{sel=[{Obj,{1,{Vert,_,_}}}],shapes=Shs}=St) ->
+   We = gb_trees:get(Obj, Shs),
+   Vtab = We#we.vp,
+   NewVtab = gb_trees:update(Vert,{X,Y,Z},Vtab),
+   NewWe = We#we{vp=NewVtab},
+   NewShs = gb_trees:update(Obj,NewWe,Shs),
+   St#st{shapes=NewShs}.

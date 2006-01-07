@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pl.lang,v 1.15 2006/01/03 23:34:08 giniu Exp $
+%%     $Id: wings_pl.lang,v 1.16 2006/01/07 18:00:52 giniu Exp $
 %%
 %%  Translation:  Andrzej Giniewicz
 %%  Correction:   Małgorzata Napiontek
@@ -1525,14 +1525,6 @@
     {2,"Skaluj równomiernie od środka obiektu"}
    ]}
  ]}.
-{wings_move,
- [
-  {move_to,
-   [
-    {1,"Podaj pozycję:"},
-    {2,"Tym narzędziem możesz przesuwać tylko pojedyńcze punkty"}
-   ]}
- ]}.
 {wings_outliner,
  [
   {command,
@@ -2410,7 +2402,13 @@
     {14,"Zniekształć"},
     {15,"Kolor punktów"},
     {16,"Zastosuj kolor punktów do wybranych punktów"},
-    {17,"Przesuń na pozycję"}
+    {17,"Pozycjonuj"},
+    {18,"Przesuń wybrany punkt na dokłądną pozycję w koordynatach bezwzględnych"}
+   ]},
+  {move_to,
+   [
+    {1,"Podaj pozycję:"},
+    {2,"Tym narzędziem możesz przesuwać tylko pojedyńcze punkty"}
    ]}
  ]}.
 {wings_view,
