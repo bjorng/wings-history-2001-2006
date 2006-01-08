@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_3ds.erl,v 1.13 2005/02/20 05:34:30 bjorng Exp $
+%%     $Id: wpc_3ds.erl,v 1.14 2006/01/08 18:02:00 giniu Exp $
 %%
 
 -module(wpc_3ds).
@@ -19,6 +19,7 @@
 
 -include("e3d.hrl").
 -include("e3d_image.hrl").
+-include("wings_intl.hrl").
 
 -define(DEF_IMAGE_TYPE, ".bmp").
 
@@ -50,14 +51,14 @@ menu_entry(Menu) ->
     Menu ++ [{"3D Studio (.3ds)...",tds,[option]}].
 
 props() ->
-    [{ext,".3ds"},{ext_desc,"3D Studio File"}].
+    [{ext,".3ds"},{ext_desc,?__(1,"3D Studio File")}].
 
 %%%
 %%% Import.
 %%%
 
 do_import(Ask, _St) when is_atom(Ask) ->
-    wpa:dialog(Ask, "3D Studio Import Options", dialog(import),
+    wpa:dialog(Ask, ?__(1,"3D Studio Import Options"), dialog(import),
 	       fun(Res) ->
 		       {file,{import,{tds,Res}}}
 	       end);
@@ -81,7 +82,7 @@ import_fun(Attr) ->
 %%%
 
 do_export(Ask, Op, _Exporter, _St) when is_atom(Ask) ->
-    wpa:dialog(Ask, "3D Studio Export Options", dialog(export),
+    wpa:dialog(Ask, ?__(1,"3D Studio Export Options"), dialog(export),
 	       fun(Res) ->
 		       {file,{Op,{tds,Res}}}
 	       end);

@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.72 2005/03/20 18:55:07 dgud Exp $
+%%     $Id: wpc_opengl.erl,v 1.73 2006/01/08 18:02:00 giniu Exp $
 
 -module(wpc_opengl).
 
@@ -89,26 +89,26 @@ dialog_qs(render) ->
     
     BumpP = wings_gl:is_ext({1,3}, bump_exts()) or programmable(),
     StencilP = hd(gl:getIntegerv(?GL_STENCIL_BITS)) >= 8,
-    Ps = [{dialog_type,save_dialog},{ext,".tga"},{ext_desc,"Targa File"}],
+    Ps = [{dialog_type,save_dialog},{ext,".tga"},{ext_desc,?__(1,"Targa File")}],
 
     [aa_frame(),
      {hframe,
-      [{label,"Sub-division Steps"},{text,SubDiv,[{key,subdivisions},
+      [{label,?__(2,"Sub-division Steps")},{text,SubDiv,[{key,subdivisions},
 						  {range,1,4}]}]},
      {hframe,
-      [{label,"Background Color"},{color,Back,[{key,background_color}]}]},
-     {"Render Alpha Channel",Alpha,[{key,render_alpha}]},
-     {"Render Shadows",Shadow,
+      [{label,?__(3,"Background Color")},{color,Back,[{key,background_color}]}]},
+     {?__(4,"Render Alpha Channel"),Alpha,[{key,render_alpha}]},
+     {?__(5,"Render Shadows"),Shadow,
       [{key,render_shadow}, {hook, fun(is_disabled, _) -> not StencilP; (_,_) -> void end}]},
-     {"Render Self-Shadows (Bump maps)", BumpMap, 
+     {?__(6,"Render Self-Shadows (Bump maps)"), BumpMap, 
       [{key,render_bumps}, {hook, fun(is_disabled, _) -> not BumpP; (_,_) -> void end}]},
      {vframe,
-      [{key_alt,DefKey,"Image Window",preview},
+      [{key_alt,DefKey,?__(7,"Image Window"),preview},
        {hframe,
-	[{key_alt,DefKey,"File: ",file},
+	[{key_alt,DefKey,?__(8,"File")++": ",file},
 	 {button,{text,Filename,[{key,output_file},{props,Ps},
 				 {hook,fun button_hook/2}]}}]}],
-      [{title,"Render Output"}]}
+      [{title,?__(9,"Render Output")}]}
     ].
 
 button_hook(is_disabled, {_Var,_I,Store}) ->
@@ -124,13 +124,13 @@ aa_frame() ->
 	  end,
     {hframe,
      [{menu,
-       [{"Draft Quality (no AA)",draft}|
+       [{?__(1,"Draft Quality (no AA)"),draft}|
 	case have_accum() of
 	    false -> [];
 	    true ->
-		[{"Regular Quality (normal AA)",regular},
-		 {"Super Quality",super},
-		 {"Premium Quality",premium}]
+		[{?__(2,"Regular Quality (normal AA)"),regular},
+		 {?__(3,"Super Quality"),super},
+		 {?__(4,"Premium Quality"),premium}]
 	end],Def,[{key,aa}]}]}.
 
 have_accum() ->
@@ -150,7 +150,7 @@ set_pref(KeyVals) ->
 %%%
 
 do_render(Ask, _St) when is_atom(Ask) ->
-    wpa:dialog(Ask, "Render Options",
+    wpa:dialog(Ask, ?__(1,"Render Options"),
 	       dialog_qs(render),
 	       fun(Res) ->
 		       {file,{render,{opengl,Res}}}
@@ -164,7 +164,7 @@ do_render(Attr, St) ->
     RenderShadow = proplists:get_value(render_shadow, Attr, false),
     RenderBumps	 = proplists:get_value(render_bumps, Attr, false),
 
-    wings_pb:start("Rendering"),
+    wings_pb:start(?__(2,"Rendering")),
     {Data,{NOL, Amb,Lights}} = create_dls(St, Attr, RenderShadow, RenderBumps),
     
     Rr = #r{acc_size=AccSize,attr=Attr,
@@ -212,20 +212,20 @@ prepare_mesh(We0=#we{light=none},SubDiv,RenderAlpha,RenderBumps,Wes,Shapes,St) -
 	     0 ->
 		 %% If no sub-divisions requested, it is safe to
 		 %% first triangulate and then freeze any mirror.
-		 wings_pb:update(0.8*Step+Start, "Triangulating"),
+		 wings_pb:update(0.8*Step+Start, ?__(1,"Triangulating")),
 		 We1 = wpa:triangulate(We0),
 		 wpa:vm_freeze(We1);
 	     _ ->
 		 %% Otherwise, we must do it in this order
 		 %% (slower if there is a virtual mirror).
-		 wings_pb:update(0.9*Step+Start, "Subdividing and triangulating"),
+		 wings_pb:update(0.9*Step+Start, ?__(2,"Subdividing and triangulating")),
 		 We1 = wpa:vm_freeze(We0),
 		 We2 = sub_divide(SubDiv, We1),
 		 wpa:triangulate(We2)
 	 end,
     wings_pb:pause(),
     Fast = dlist_mask(RenderAlpha, We),
-    wings_pb:update(Step+Start, "Generating mesh data"),
+    wings_pb:update(Step+Start, ?__(3,"Generating mesh data")),
     FN0	     = [{Face,wings_face:normal(Face, We)} || Face <- gb_trees:keys(We#we.fs)],
     FVN	     = wings_we:normals(FN0, We),  %% gb_tree of {Face, [VInfo|Normal]}
     MatFs0   = wings_facemat:mat_faces(FVN, We), %% sorted by mat..
@@ -261,13 +261,13 @@ create_dls(St0, Attr, Shadows, Bumps) ->
 	     Shadows or Bumps -> %% Needs per-light data..
 		 Ls0  = expand_arealights(wpa:lights(St)),
 		 Mats = St#st.mat,
-		 wings_pb:update(0.95, "Generating shadows and bump data per light "),
+		 wings_pb:update(0.95, ?__(1,"Generating shadows and bump data per light ")),
 		 wings_pb:pause(),
 		 create_light_data(Ls0, Ds, 0, Mats, Bumps, Shadows, none, []);
 	     true ->
 		 {0,none,[]}
 	 end,
-    wings_pb:update(0.98, "Rendering"),
+    wings_pb:update(0.98, ?__(2,"Rendering")),
     ?CHECK_ERROR(),
     {Ds, Ls}.
 
@@ -460,7 +460,7 @@ render_redraw(#r{attr=Attr}=Rr) ->
 	    end,
     case proplists:get_value(output_type, Attr) of
 	preview ->
-	    Id = wings_image:new_temp("<<Rendered>>", Image),
+	    Id = wings_image:new_temp(?__(1,"<<Rendered>>"), Image),
 	    wings_image:window(Id);
 	file ->
 	    RendFile = proplists:get_value(output_file, Attr),
@@ -1479,7 +1479,7 @@ load_program(Target, Prog) ->
 	[] -> PId;
 	Err ->
 	    print_program(binary_to_list(Prog)),
-	    io:format("Error when loading program: ~s\n", [Err]),
+	    io:format(?__(1,"Error when loading program")++": ~s\n", [Err]),
 	    exit(prog_error)
     end.   
 

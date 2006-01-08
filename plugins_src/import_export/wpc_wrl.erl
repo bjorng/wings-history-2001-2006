@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_wrl.erl,v 1.18 2005/02/20 05:45:21 bjorng Exp $
+%%     $Id: wpc_wrl.erl,v 1.19 2006/01/08 18:02:00 giniu Exp $
 %%
 
 -module(wpc_wrl).
@@ -24,6 +24,7 @@
 
 -include("e3d.hrl").
 -include("e3d_image.hrl").
+-include("wings_intl.hrl").
 
 init() ->
     true.
@@ -46,10 +47,10 @@ menu_entry(Menu) ->
     Menu ++ [{"VRML 2.0 (.wrl)...", wrl, [option]}].
 
 props() ->
-    [{ext, ".wrl"},{ext_desc, "VRML 2.0 File"}].
+    [{ext, ".wrl"},{ext_desc, ?__(1,"VRML 2.0 File")}].
 
 do_export(Ask, Op, _Exporter, _St) when is_atom(Ask) ->
-    wpa:dialog(Ask, "VRML Export Options", dialog(export),
+    wpa:dialog(Ask, ?__(1,"VRML Export Options"), dialog(export),
 	       fun(Res) ->
 		       {file,{Op,{wrl,Res}}}
 	       end);
@@ -104,7 +105,7 @@ export(File_name, Export0, Attr) ->
 		      Used_mats
 	      end, [], Objs)
     catch _:Err -> 
-	    io:format("VRML Error: ~P in ~p~n", [Err,30, erlang:get_stacktrace()])
+	    io:format(?__(1,"VRML Error: ~P in")++" ~p~n", [Err,30, erlang:get_stacktrace()])
     end,
     ok = file:close(F).
 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.115 2005/11/27 16:05:11 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.116 2006/01/08 18:02:00 giniu Exp $
 %%
 
 -module(wpc_yafray).
@@ -390,17 +390,17 @@ command_file(render, Attr, St) when is_list(Attr) ->
 		      props(render, Attr), 
 		      [{?TAG_RENDER,true}|Attr], St);
 	true ->
-	    wpa:error("Already rendering.")
+	    wpa:error(?__(1,"Already rendering."))
     end;
 command_file(render=Op, Ask, _St) when is_atom(Ask) ->
-    export_dialog(Op, Ask, "YafRay Render Options",
+    export_dialog(Op, Ask, ?__(2,"YafRay Render Options"),
 		  fun(Attr) -> {file,{Op,{?TAG,Attr}}} end);
 command_file(Op, Attr, St) when is_list(Attr) ->
     %% when Op =:= export; Op =:= export_selected
     set_prefs(Attr),
     do_export(Op, props(Op, Attr), Attr, St);
 command_file(Op, Ask, _St) when is_atom(Ask) ->
-    export_dialog(Op, Ask, "YafRay Export Options",
+    export_dialog(Op, Ask, ?__(3,"YafRay Export Options"),
 	       fun(Attr) -> {file,{Op,{?TAG,Attr}}} end).
 
 -record(camera_info, {pos,dir,up,fov}).
@@ -417,8 +417,8 @@ do_export(Op, Props0, Attr0, St0) ->
 		    ok ->
 			ok;
 		    Error ->
-			io:format("ERROR: Failed to export:~n~p~n", [Error]),
-			{error,"Failed to export"}
+			io:format(?__(1,"ERROR: Failed to export")++":~n~p~n", [Error]),
+			{error,?__(2,"Failed to export")}
 		end
 	end,
     %% Freeze virtual mirrors.
@@ -432,11 +432,11 @@ props(render, Attr) ->
 	proplists:get_value(render_format, Attr, ?DEF_RENDER_FORMAT),
     {value,{RenderFormat,Ext,Desc}} =
 	lists:keysearch(RenderFormat, 1, wings_job:render_formats()),
-    [{title,"Render"},{ext,Ext},{ext_desc,Desc}];
+    [{title,?__(1,"Render")},{ext,Ext},{ext_desc,Desc}];
 props(export, _Attr) ->
-    [{title,"Export"},{ext,".xml"},{ext_desc,"YafRay File"}];
+    [{title,?__(2,"Export")},{ext,".xml"},{ext_desc,?__(3,"YafRay File")}];
 props(export_selected, _Attr) ->
-    [{title,"Export Selected"},{ext,".xml"},{ext_desc,"YafRay File"}].
+    [{title,?__(4,"Export Selected")},{ext,".xml"},{ext_desc,?__(5,"YafRay File")}].
 
 
 
@@ -490,21 +490,21 @@ material_dialog(_Name, Mat) ->
     Modulators = proplists:get_value(modulators, YafRay, def_modulators(Maps)),
     ObjectFrame = 
 	{vframe,
-	 [{hframe,[{"Cast Shadow",Shadow,[key(shadow)]},
-		   {"Emit Rad",EmitRad,[key(emit_rad)]},
-		   {"Recv Rad",RecvRad,[key(recv_rad)]},
+	 [{hframe,[{?__(1,"Cast Shadow"),Shadow,[key(shadow)]},
+		   {?__(2,"Emit Rad"),EmitRad,[key(emit_rad)]},
+		   {?__(3,"Recv Rad"),RecvRad,[key(recv_rad)]},
 		   panel,
 		   help_button({material_dialog,object})]},
-	  {hframe,[{"Use Edge Hardness",UseHardness,
+	  {hframe,[{?__(4,"Use Edge Hardness"),UseHardness,
 		    [key(use_hardness)]},
-		   {"Caustic",Caus,[key(caus)]}]},
-	  {hframe,[{"Autosmooth",Autosmooth,[key(autosmooth)]},
-		   {label,"Angle"},
+		   {?__(5,"Caustic"),Caus,[key(caus)]}]},
+	  {hframe,[{?__(6,"Autosmooth"),Autosmooth,[key(autosmooth)]},
+		   {label,?__(7,"Angle")},
 		   {slider,{text,AutosmoothAngle,
 			    [range(autosmooth_angle),{width,5},
 			     key(autosmooth_angle),
 			     hook(enable, ?KEY(autosmooth))]}}]}],
-	 [{title,"Object Parameters"},{minimized,ObjectMinimized},
+	 [{title,?__(8,"Object Parameters")},{minimized,ObjectMinimized},
 	  key(object_minimized)]},
     BlockShaderFlags = 
 	[key(block_shader),
@@ -518,50 +518,50 @@ material_dialog(_Name, Mat) ->
     ShaderFrame =
 	{hframe,
 	 [{menu,
-	   [{"Generic Shader",generic},{"Block Shader",block}],
+	   [{?__(9,"Generic Shader"),generic},{?__(10,"Block Shader"),block}],
 	   ShaderType,
 	   [key(shader_type),layout]},
 	  {value,BlockShader,BlockShaderFlags},
-	  {button,"Edit",keep,
+	  {button,?__(11,"Edit"),keep,
 	   [block_shader_hook(?KEY(shader_type), 
 			      ?KEY(block_shader),
 			      Mat),
 	    {drop_flags, [{index,-1}|BlockShaderFlags]}]}]},
     FresnelFrame =
 	{vframe,
-	 [{hframe,[{label,"Index Of Refraction"},
+	 [{hframe,[{label,?__(12,"Index Of Refraction")},
 		   {text,IOR,[range(ior),key(ior)]},
 		   panel,
 		   help_button({material_dialog,fresnel})]},
 	  {hframe,
-	   [{"Fast Fresnel",FastFresnel,[key(fast_fresnel)]},
-	    {"Total Internal Reflection",TIR,[key(tir)]}],
+	   [{?__(13,"Fast Fresnel"),FastFresnel,[key(fast_fresnel)]},
+	    {?__(14,"Total Internal Reflection"),TIR,[key(tir)]}],
 	   [hook(enable, [member,?KEY(shader_type),generic])]},
-	  {hframe,[{label,"Minimum Reflection"},
+	  {hframe,[{label,?__(15,"Minimum Reflection")},
 		   {slider,{text,MinRefle,[range(min_refle),{width,5},
 					   key(min_refle)]}}]},
-	  {hframe,[{vframe,[{label,"Reflected"},
-			    {label,"Transmitted"}]},
+	  {hframe,[{vframe,[{label,?__(16,"Reflected")},
+			    {label,?__(17,"Transmitted")}]},
 		   {vframe,[{slider,{color,Reflected,
 				     [key(reflected)]}},
 			    {slider,{color,Transmitted,
 				     [key(transmitted)]}}]},
 		   {vframe,[panel,
-			    {button,"Set Default",keep,
+			    {button,?__(18,"Set Default"),keep,
 			     [transmitted_hook(?KEY(transmitted))]}]}]},
 	  {vframe,
-	   [{"Grazing Angle Colors",Fresnel2,[key(fresnel2),layout]},
-	    {hframe,[{vframe,[{label,"Reflected"},
-			      {label,"Transmitted"}]},
+	   [{?__(19,"Grazing Angle Colors"),Fresnel2,[key(fresnel2),layout]},
+	    {hframe,[{vframe,[{label,?__(20,"Reflected")},
+			      {label,?__(21,"Transmitted")}]},
 		     {vframe,[{slider,{color,Reflected2,
 				       [key(reflected2)]}},
 			      {slider,{color,Transmitted2,
 				       [key(transmitted2)]}}]},
 		     {vframe,[panel,
-			      {button,"Set Default",keep,
+			      {button,?__(22,"Set Default"),keep,
 			       [transmitted_hook(?KEY(transmitted2))]}]}],
 	     [hook(open, ?KEY(fresnel2))]},
-	    {hframe,[{label,"Absorption:"},
+	    {hframe,[{label,?__(23,"Absorption:")},
 		     {color,AbsorptionColor,[key(absorption_color)]},
 		     {label,"@"},
 		     {text,AbsorptionDist,
@@ -569,20 +569,20 @@ material_dialog(_Name, Mat) ->
 		       range(absorption_dist),
 		       hook(enable, ['not',[member,?KEY(absorption_color),
 					    ?DEF_ABSORPTION_COLOR]])]}]},
-	    {vframe,[{hframe,[{label,"Dispersion: Power"},
+	    {vframe,[{hframe,[{label,?__(24,"Dispersion: Power")},
 			      {slider,{text,DispersionPower,
 				       [key(dispersion_power),
 					range(dispersion_power)]}}]},
-		     {hframe,[{label," Samples"},
+		     {hframe,[{label," "++?__(25,"Samples")},
 			      {text,DispersionSamples,
 			       [key(dispersion_samples),
 				range(dispersion_samples)]},
-			      {"Jitter",DispersionJitter,
+			      {?__(26,"Jitter"),DispersionJitter,
 			       [key(dispersion_jitter)]}],
 		      [hook(enable, 
 			    ['not',[member,?KEY(dispersion_power),0.0]])]}]}],
 	   [hook(enable, [member,?KEY(shader_type),generic])]}],
-	 [{title,"Fresnel Parameters"},{minimized,FresnelMinimized},
+	 [{title,?__(27,"Fresnel Parameters")},{minimized,FresnelMinimized},
 	  key(fresnel_minimized)]},
     %%
     [{vframe,
@@ -592,7 +592,7 @@ material_dialog(_Name, Mat) ->
        {vframe,
 	modulator_dialogs(Modulators, Maps),
 	[hook(open, ['not',[member,?KEY(shader_type),block]])]}],
-      [{title,"YafRay Options"},{minimized,Minimized},key(minimized)]}].
+      [{title,?__(28,"YafRay Options")},{minimized,Minimized},key(minimized)]}].
 
 alpha({R,G,B,A}) -> {R*A,G*A,B*A}.
 
@@ -639,9 +639,9 @@ modulator_dialogs(Modulators, Maps) ->
 
 modulator_dialogs([], _Maps, M) ->
     [{hframe,
-      [{button,"New Modulator",done,[key(new_modulator)]},
+      [{button,?__(1,"New Modulator"),done,[key(new_modulator)]},
        panel|
-       if M =:= 1 -> [{button,"Default Modulators",done}];
+       if M =:= 1 -> [{button,?__(2,"Default Modulators"),done}];
 	  true -> [] end]}];
 modulator_dialogs([Modulator|Modulators], Maps, M) ->
     modulator_dialog(Modulator, Maps, M)++
@@ -661,8 +661,8 @@ modulator_dialog({modulator,Ps}, Maps, M) when list(Ps) ->
     Normal = proplists:get_value(normal, Ps, ?DEF_MOD_NORMAL),
     Filename = proplists:get_value(filename, Ps, ?DEF_MOD_FILENAME),
     BrowseProps = [{dialog_type,open_dialog},
-		   {extensions,[{".jpg","JPEG compressed image"},
-				{".tga","Targa bitmap"}]}],
+		   {extensions,[{".jpg",?__(3,"JPEG compressed image")},
+				{".tga",?__(4,"Targa bitmap")}]}],
 %    erlang:display({?MODULE,?LINE,[Filename,AbsnameX,BrowseProps]}),
     Color1 = proplists:get_value(color1, Ps, ?DEF_MOD_COLOR1),
     Color2 = proplists:get_value(color2, Ps, ?DEF_MOD_COLOR2),
@@ -676,54 +676,54 @@ modulator_dialog({modulator,Ps}, Maps, M) when list(Ps) ->
     MapsFrame = [{hradio,[{atom_to_list(Map),{map,Map}} || {Map,_} <- Maps],
 		  Type,[{key,TypeTag},layout]}],
     [{vframe,
-      [{hframe,[{"Enabled",Enabled,[{key,{?TAG,enabled,M}}]},
-		{menu,[{"Mix",mix},{"Mul",mul},{"Add",add}],Mode,
+      [{hframe,[{?__(5,"Enabled"),Enabled,[{key,{?TAG,enabled,M}}]},
+		{menu,[{?__(6,"Mix"),mix},{?__(7,"Mul"),mul},{?__(8,"Add"),add}],Mode,
 		 [hook(enable, {?TAG,enabled,M})]},
-		{button,"Delete",done}]},
+		{button,?__(9,"Delete"),done}]},
        {vframe, % hook(enable, {?TAG,enabled,M})
-	[{hframe,[{label,"SizeX"},{text,SizeX,[range(size)]},
-		  {label,"SizeY"},{text,SizeY,[range(size)]},
-		  {label,"SizeZ"},{text,SizeZ,[range(size)]}]},
-	 {hframe,[{vframe,[{label,"Diffuse "},
-			   {label,"Specular"},
-			   {label,"Ambient"},
-			   {label,"Shininess"},
-			   {label,"Normal"}]},
+	[{hframe,[{label,?__(10,"SizeX")},{text,SizeX,[range(size)]},
+		  {label,?__(11,"SizeY")},{text,SizeY,[range(size)]},
+		  {label,?__(12,"SizeZ")},{text,SizeZ,[range(size)]}]},
+	 {hframe,[{vframe,[{label,?__(13,"Diffuse")++" "},
+			   {label,?__(14,"Specular")},
+			   {label,?__(15,"Ambient")},
+			   {label,?__(16,"Shininess")},
+			   {label,?__(17,"Normal")}]},
 		  {vframe,[{slider,{text,Diffuse,[range(modulation)]}},
 			   {slider,{text,Specular,[range(modulation)]}},
 			   {slider,{text,Ambient,[range(modulation)]}},
 			   {slider,{text,Shininess,[range(modulation)]}},
 			   {slider,{text,Normal,[range(modulation)]}}]}]}]
 	++MapsFrame++
-	[{hradio,[{"Image",image},{"Clouds",clouds},
-		  {"Marble",marble},{"Wood",wood}],
+	[{hradio,[{?__(18,"Image"),image},{?__(19,"Clouds"),clouds},
+		  {?__(20,"Marble"),marble},{?__(21,"Wood"),wood}],
 	  Type,[{key,TypeTag},layout]},
 	 {vframe,
 	  [{hframe,
 	    [{hframe,
-	      [{label,"Filename"},
+	      [{label,?__(22,"Filename")},
 	       {button,{text,Filename,[{props,BrowseProps}]}}],
 	      [hook(open, [member,{?TAG,type,M},image])]},
 	     {hframe,
-	      [{label,"Color 1"},{color,Color1},
-	       {label,"Color 2"},{color,Color2},
-	       {label,"Depth"},{text,Depth,[range(noise_depth)]},
-	       {"Hard Noise",Hard,
+	      [{label,?__(23,"Color 1")},{color,Color1},
+	       {label,?__(24,"Color 2")},{color,Color2},
+	       {label,?__(25,"Depth")},{text,Depth,[range(noise_depth)]},
+	       {?__(26,"Hard Noise"),Hard,
 		[hook(open, [member,{?TAG,type,M},marble,wood])]}],
 	      [hook(open, [member,{?TAG,type,M},clouds,marble,wood])]}]},
 	   {hframe,
-	    [{label,"Turbulence"},{text,Turbulence,[range(turbulence)]},
+	    [{label,?__(27,"Turbulence")},{text,Turbulence,[range(turbulence)]},
 	     {hframe,
-	      [{label,"Sharpness"},{text,Sharpness,[range(sharpness)]}],
+	      [{label,?__(28,"Sharpness")},{text,Sharpness,[range(sharpness)]}],
 	      [hook(open, [member,{?TAG,type,M},marble])]}],
 	    [hook(open, [member,{?TAG,type,M},marble,wood])]},
 	   {hframe,
-	    [{label,"Ringscale X"},{text,RingscaleX,[range(scale)]},
-	     {label,"Ringscale Z"},{text,RingscaleZ,[range(scale)]}],
+	    [{label,?__(29,"Ringscale X")},{text,RingscaleX,[range(scale)]},
+	     {label,?__(30,"Ringscale Z")},{text,RingscaleZ,[range(scale)]}],
 	    [hook(open, [member,{?TAG,type,M},wood])]}]}],
 	[hook(enable, {?TAG,enabled,M})]}],
       [{title,
-	"Modulator "++integer_to_list(M)++mod_legend(Enabled, Mode, Type)},
+	?__(31,"Modulator")++" "++integer_to_list(M)++mod_legend(Enabled, Mode, Type)},
        {minimized,Minimized}]}];
 modulator_dialog(_Modulator, _Maps, _) ->
     []. % Discard old modulators that anyone may have
@@ -752,8 +752,8 @@ mod_legend(Enabled, Mode, Type) when atom(Type) ->
     mod_legend(Enabled, Mode, wings_util:cap(Type));
 mod_legend(Enabled, Mode, Type) when list(Mode), list(Type) ->
     case Enabled of
-	true -> " (enabled, ";
-	false -> " (disabled, "
+	true -> " ("++?__(1,"enabled")++", ";
+	false -> " ("++?__(2,"disabled")++", "
     end++Mode++", "++Type++")".
 
 
@@ -820,7 +820,7 @@ block_shader_hook(TypeVar, DropVar, Mat) ->
 %%% 	     io:format(?MODULE_STRING":~w Enter~n~p~n", [?LINE,Block]),
 	     Qs = bs_qs(Block, Mat, Sto),
 	     Fun = bs_fun(Block, Mat, Sto, wings_wm:this()),
-	     wings_ask:dialog("Block Shader", Qs, Fun);
+	     wings_ask:dialog(?__(1,"Block Shader"), Qs, Fun);
 	 (is_minimized, {_Var,_I,Sto}) ->
 	     gb_trees:get(TypeVar, Sto) =/= block;
 	 (_, _) -> void
@@ -837,14 +837,14 @@ bs_qs(Block, Mat, ParentStore) ->
     BsQs = case catch bs(#bs_dialog{parent_store=ParentStore,
 				    clipboard=undefined,
 				    material=Mat},
-			 [Block,"Block Shader",[no_clipboard]]) of
+			 [Block,?__(1,"Block Shader"),[no_clipboard]]) of
 	       {'EXIT',_} = Exit ->
 		   io:format(?MODULE_STRING":~w 'EXIT'~n~p~n~p~n", 
 			     [?LINE,Block,Exit]),
 		   panel;
 	       BQ -> BQ
 	   end,
-    {hframe,[BsQs,{vframe,[{button,"OK",done,[ok]},
+    {hframe,[BsQs,{vframe,[{button,?__(2,"OK"),done,[ok]},
 			   {button,cancel,[cancel]}]}]}.
 
 %% Returns the dialog return fun for the block shader editor
@@ -906,7 +906,7 @@ bs(#bs_dialog{clipboard={TypeCB,_}}=Op, [{Type,Ps}=Default,Title0,Spec]) ->
     Menu0 =
 	case proplists:get_bool(no_clipboard, Spec) of
 	    true -> [];
-	    false -> [{"[STO]",store},{"[RCL]",recall},{"[XCHG]",exchange}]
+	    false -> [{?__(1,"[STO]"),store},{?__(2,"[RCL]"),recall},{?__(3,"[XCHG]"),exchange}]
 	end,
     Menu1 =
 	case proplists:get_bool(float, Spec) of
@@ -925,7 +925,7 @@ bs(#bs_dialog{clipboard={TypeCB,_}}=Op, [{Type,Ps}=Default,Title0,Spec]) ->
 	end,
     Menu =
 	case proplists:get_bool(undefined, Spec) of
-	    true -> [{"void",undefined}|Menu3];
+	    true -> [{?__(4,"void"),undefined}|Menu3];
 	    false -> Menu3
 	end,
     Title = case Title0 of
@@ -1048,26 +1048,26 @@ bs_dispatch(Type, Op) ->
     end.
 
 bs_menu(top, L) ->
-    [{"Phong",phong}|L];
+    [{?__(1,"Phong"),phong}|L];
 bs_menu(color, L) ->
-    [{"(color)",float2color},
-     {"RGB",rgb},
-     {"HSV",hsv},
-     {"SSS",sss},
-     {"Image",image},
-     {"Mix",mix},
-     {"Fresnel",fresnel},
-     {"ConeTr",conetrace},
-     {"Gobo",gobo},
-     {"ColBand",colorband},
-     {"Clouds",clouds},
-     {"Marble",marble},
-     {"Wood",wood}|L];
+    [{?__(2,"(color)"),float2color},
+     {?__(3,"RGB"),rgb},
+     {?__(4,"HSV"),hsv},
+     {?__(5,"SSS"),sss},
+     {?__(6,"Image"),image},
+     {?__(7,"Mix"),mix},
+     {?__(8,"Fresnel"),fresnel},
+     {?__(9,"ConeTr"),conetrace},
+     {?__(10,"Gobo"),gobo},
+     {?__(11,"ColBand"),colorband},
+     {?__(12,"Clouds"),clouds},
+     {?__(13,"Marble"),marble},
+     {?__(14,"Wood"),wood}|L];
 bs_menu(float, L) ->
-    [{"(float)",color2float},
-     {"Coords",coords},
-     {"Mul",mul},
-     {"Sin",sin}|L].
+    [{?__(15,"(float)"),color2float},
+     {?__(16,"Coords"),coords},
+     {?__(17,"Mul"),mul},
+     {?__(18,"Sin"),sin}|L].
 
 bs_print_tag(_F, _Tag, undefined) -> ok;
 bs_print_tag(F, Tag, Value) ->
@@ -1101,7 +1101,7 @@ bs_block_shader(#bs_dialog{ps=Ps}=Op) ->
 		     {shader,Ps,?DEF_BS_TOP}, ["",[top,no_clipboard]]),
 	     {vframe,
 	      [bs(Op#bs_dialog{clipboard=CB}, 
-		  [CB,"[MEM]",[float,color,undefined,no_clipboard]])],
+		  [CB,?__(1,"[MEM]"),[float,color,undefined,no_clipboard]])],
 	      [{hook,fun (is_disabled, {_Var,_I,_Sto}) -> true;
 			 (_, _) -> void end}]}]};
 bs_block_shader(#bs_result{result=[CB0|R]}=Op0) ->
@@ -1125,11 +1125,11 @@ bs_phong(#bs_dialog{ps=Ps,parent_store=Sto}=Op) ->
     DefAmbient = gb_trees:get(ambient, Sto),
     DefSpecular = gb_trees:get(specular, Sto),
     {vframe,[bs_prop(Op, {diffuse,Ps,?DEF_BSCOL(DefDiffuse)},
-		     ["Diffuse",[color]]),
+		     [?__(1,"Diffuse"),[color]]),
 	     bs_prop(Op, {ambient,Ps,?DEF_BSCOL(DefAmbient)},
-		     ["Ambient",[color]]),
+		     [?__(2,"Ambient"),[color]]),
 	     bs_prop(Op, {specular,Ps,?DEF_BSCOL(DefSpecular)},
-		     ["Specular",[color]])]};
+		     [?__(3,"Specular"),[color]])]};
 bs_phong(#bs_result{parent_store=Sto}=Op0) ->
     DefDiffuse = gb_trees:get(diffuse, Sto),
     DefAmbient = gb_trees:get(ambient, Sto),
@@ -1166,7 +1166,7 @@ bs_phong(#bs_export{ps=Ps,dest=F,base_name=Name,material=Mat}=Op0) ->
 %%
 
 bs_float2color(#bs_dialog{ps=Ps}=Op) ->
-    bs_prop(Op, {input,Ps,?DEF_BS_FLOAT}, ["Input",[float]]);
+    bs_prop(Op, {input,Ps,?DEF_BS_FLOAT}, [?__(1,"Input"),[float]]);
 bs_float2color(#bs_result{}=Op) ->
     bs(Op, [input]);
 bs_float2color(#bs_export{ps=Ps,dest=F,name=Name}=Op0) ->
@@ -1185,7 +1185,7 @@ bs_rgb(#bs_dialog{ps=Ps}=Op) ->
      [bs_prop(Op, {input_r,Ps}, ["R",[float,undefined]]),
       bs_prop(Op, {input_g,Ps}, ["G",[float,undefined]]),
       bs_prop(Op, {input_b,Ps}, ["B",[float,undefined]]),
-      {hframe,[{label,"Default Color"},{color,Color}]}]};
+      {hframe,[{label,?__(1,"Default Color")},{color,Color}]}]};
 bs_rgb(#bs_result{}=Op0) ->
     Op1 = bs(Op0, [input_r]),
     Op2 = bs(Op1, [input_g]),
@@ -1220,9 +1220,9 @@ bs_sss(#bs_dialog{ps=Ps}) ->
     Samples = proplists:get_value(sss_samples, Ps, ?DEF_BS_SSS_SAMPLES),
     {vframe,
      [{label_column,
-       [{"Color",{color,Color}},
-	{"Radius",{text,Radius,[range(sss_radius)]}},
-	{"Samples",{text,Samples,[range(sss_samples)]}}]}]};
+       [{?__(1,"Color"),{color,Color}},
+	{?__(2,"Radius"),{text,Radius,[range(sss_radius)]}},
+	{?__(3,"Samples"),{text,Samples,[range(sss_samples)]}}]}]};
 bs_sss(#bs_result{result=[Color,Radius,Samples|Rest],ps=Ps}=Op) ->
     Op#bs_result{
       result=Rest,
@@ -1248,7 +1248,7 @@ bs_hsv(#bs_dialog{ps=Ps}=Op) ->
      [bs_prop(Op, {input_h,Ps}, ["H",[float,undefined]]),
       bs_prop(Op, {input_s,Ps}, ["S",[float,undefined]]),
       bs_prop(Op, {input_v,Ps}, ["V",[float,undefined]]),
-      {hframe,[{label,"Default Color"},{color,Color}]}]};
+      {hframe,[{label,?__(1,"Default Color")},{color,Color}]}]};
 bs_hsv(#bs_result{}=Op0) ->
     Op1 = bs(Op0, [input_h]),
     Op2 = bs(Op1, [input_s]),
@@ -1281,8 +1281,8 @@ bs_image(#bs_dialog{ps=Ps,material=Mat}) ->
     Types = [image|[{map,M1} || {M1,_} <- proplists:get_value(maps, Mat, [])]],
     Filename = proplists:get_value(filename, Ps, ?DEF_MOD_FILENAME),
     BrowseProps = [{dialog_type,open_dialog},
-		   {extensions,[{".jpg","JPEG compressed image"},
-				{".tga","Targa bitmap"}]}],
+		   {extensions,[{".jpg",?__(1,"JPEG compressed image")},
+				{".tga",?__(2,"Targa bitmap")}]}],
     NofTypes = length(Types),
     TypesFrame =
 	case Types of
@@ -1303,7 +1303,7 @@ bs_image(#bs_dialog{ps=Ps,material=Mat}) ->
     {vframe,
      TypesFrame++
      [{hframe,
-       [{label,"Filename"},
+       [{label,?__(3,"Filename")},
 	{button,{text,Filename,[{width,15},{props,BrowseProps}]}}],
        [hook(enable, [member,-NofTypes,image])]}]};
 bs_image(#bs_result{result=[Type,Filename|Rest],ps=Ps}=Op) ->
@@ -1343,8 +1343,8 @@ bs_mix(#bs_dialog{ps=Ps}=Op) ->
 		   multiply,negation,overlay,reflect,screen,
 		   softlight,stamp,subtract]],
        Mode},
-      bs_prop(Op, {input_1,Ps,?DEF_BS_COLOR}, ["Input 1",[color]]),
-      bs_prop(Op, {input_2,Ps,?DEF_BS_COLOR}, ["Input 2",[color]])]};
+      bs_prop(Op, {input_1,Ps,?DEF_BS_COLOR}, [?__(1,"Input 1"),[color]]),
+      bs_prop(Op, {input_2,Ps,?DEF_BS_COLOR}, [?__(2,"Input 2"),[color]])]};
 bs_mix(#bs_result{result=[Mode|Rest],ps=Ps}=Op0) ->
     Op1 = bs(Op0#bs_result{result=Rest,ps=[{mode,Mode}|Ps]}, [input_1]),
     bs(Op1, [input_2]);
@@ -1365,10 +1365,10 @@ bs_fresnel(#bs_dialog{ps=Ps,parent_store=Sto}=Op) ->
     {vframe,
      [bs_prop(Op, {reflected,Ps,
 		   {conetrace,[{mode,reflect},{color,DefReflected}]}}, 
-	      ["Reflected",[color]]),
+	      [?__(1,"Reflected"),[color]]),
       bs_prop(Op, {transmitted,Ps,
 		   {conetrace,[{mode,refract},{color,DefTransmitted}]}}, 
-	      ["Transmitted",[color]])]};
+	      [?__(2,"Transmitted"),[color]])]};
 bs_fresnel(#bs_result{parent_store=Sto}=Op0) ->
     DefReflected = gb_trees:get(?KEY(reflected), Sto),
     DefTransmitted = gb_trees:get(?KEY(transmitted), Sto),
@@ -1405,14 +1405,14 @@ bs_conetrace(#bs_dialog{ps=Ps}) ->
     Samples = proplists:get_value(samples, Ps, ?DEF_BS_CONE_SAMPLES),
     Color = proplists:get_value(color, Ps, ?DEF_BS_CONE_COLOR),
     {vframe,
-     [{menu,[{"Reflect",reflect},{"Refract",refract}],Mode},
+     [{menu,[{?__(1,"Reflect"),reflect},{?__(2,"Refract"),refract}],Mode},
       {hframe,
-       [{vframe,[{label,"Angle"},
-		 {label,"Samples"}]},
+       [{vframe,[{label,?__(3,"Angle")},
+		 {label,?__(4,"Samples")}]},
 	{vframe,[{text,Angle,[range(cone_angle)]},
 		 {text,Samples,[range(samples)]}]},
 	{vframe,[{slider,[range(cone_angle),{key,-3}]},
-		 {hframe,[{label,"Color"},{color,Color}]}]}]}]};
+		 {hframe,[{label,?__(5,"Color")},{color,Color}]}]}]}]};
 bs_conetrace(#bs_result{result=[Mode,Angle,Samples,Color|Rest],ps=Ps}=Op) ->
     Op#bs_result{result=Rest,
 		 ps=[{mode,Mode},{angle,Angle},
@@ -1448,10 +1448,10 @@ bs_gobo(#bs_dialog{ps=Ps}=Op) ->
     Hardedge = proplists:get_value(hardedge, Ps, ?DEF_BS_GOBO_HARD),
     Edgeval = proplists:get_value(edgeval, Ps, ?DEF_BS_GOBO_EDGE),
     {vframe,
-     [bs_prop(Op, {input_1,Ps,?DEF_BS_COLOR}, ["Input 1",[color]]),
-      bs_prop(Op, {input_2,Ps,?DEF_BS_COLOR}, ["Input 2",[color]]),
-      bs_prop(Op, {gobo,Ps,{image,[]}}, ["Gobo",[color,float]]),
-      {hframe,[{"Hard Edge Val",Hardedge},
+     [bs_prop(Op, {input_1,Ps,?DEF_BS_COLOR}, [?__(1,"Input 1"),[color]]),
+      bs_prop(Op, {input_2,Ps,?DEF_BS_COLOR}, [?__(2,"Input 2"),[color]]),
+      bs_prop(Op, {gobo,Ps,{image,[]}}, [?__(3,"Gobo"),[color,float]]),
+      {hframe,[{?__(4,"Hard Edge Val"),Hardedge},
 	       {text,Edgeval,[hook(enable, -1)]}]}]};
 bs_gobo(#bs_result{}=Op0) ->
     Op1 = bs(Op0, [input_1]),
@@ -1488,7 +1488,7 @@ bs_colorband(#bs_dialog{ps=Ps}=Op) ->
     Bands = proplists:get_value(bands, Ps, 
 				[[{value,0.0},{color,?DEF_DIFFUSE}]]),
     {vframe,
-     [bs_prop(Op, {input,Ps,?DEF_BS_FLOAT}, ["Input",[float]]),
+     [bs_prop(Op, {input,Ps,?DEF_BS_FLOAT}, [?__(1,"Input"),[float]]),
       {hframe,bs_colorband_dialog(Bands)}]};
 bs_colorband(#bs_result{}=Op0) ->
     Op = #bs_result{result=Result,ps=Ps}= bs(Op0, [input]),
@@ -1533,10 +1533,10 @@ bs_colorband_dialog_1([Band|Bands], DelButtonOpts) ->
     Value = proplists:get_value(value, Band, 0.0),
     Color = proplists:get_value(color, Band, ?DEF_DIFFUSE),
     [{vframe,[{text,Value,[{width,4}]},{color,Color},
-	      {button,"Del",done,DelButtonOpts}]}|
+	      {button,?__(1,"Del"),done,DelButtonOpts}]}|
      case Bands of
 	 [] ->
-	     [{vframe,[{button,"New",done},{button,"Sort",done}]}];
+	     [{vframe,[{button,?__(2,"New"),done},{button,?__(3,"Sort"),done}]}];
 	 _ ->
 	     bs_colorband_dialog_1(Bands, DelButtonOpts)
      end].
@@ -1562,11 +1562,11 @@ bs_clouds(#bs_dialog{ps=Ps}=Op) ->
     Depth = proplists:get_value(depth, Ps, ?DEF_MOD_DEPTH),
     {vframe,
      [bs_prop(Op, {input_1,Ps,?DEF_BSCOL(?DEF_MOD_COLOR1)}, 
-	      ["Input 1",[color,undefined]]),
+	      [?__(1,"Input 1"),[color,undefined]]),
       bs_prop(Op, {input_2,Ps,?DEF_BSCOL(?DEF_MOD_COLOR2)}, 
-	      ["Input 2",[color,undefined]]),
-      {hframe,[{label,"Size"},{text,Size,[range(size)]},
-	       {label,"Depth"},{text,Depth,[range(noise_depth)]}]}]};
+	      [?__(2,"Input 2"),[color,undefined]]),
+      {hframe,[{label,?__(3,"Size")},{text,Size,[range(size)]},
+	       {label,?__(4,"Depth")},{text,Depth,[range(noise_depth)]}]}]};
 bs_clouds(#bs_result{}=Op0) ->
     Op1 = bs(Op0, [input_1,{color,?DEF_MOD_COLOR1}]),
     Op2 = #bs_result{result=[Size,Depth|Rest],ps=Ps} =
@@ -1598,14 +1598,14 @@ bs_marble(#bs_dialog{ps=Ps}=Op) ->
     Sharpness = proplists:get_value(sharpness, Ps, ?DEF_MOD_SHARPNESS),
     {vframe,
      [bs_prop(Op, {input_1,Ps,?DEF_BSCOL(?DEF_MOD_COLOR1)}, 
-	      ["Input 1",[color,undefined]]),
+	      [?__(1,"Input 1"),[color,undefined]]),
       bs_prop(Op, {input_2,Ps,?DEF_BSCOL(?DEF_MOD_COLOR2)}, 
-	      ["Input 2",[color,undefined]]),
-      {hframe,[{label,"Size"},{text,Size,[range(size)]},
-	       {label,"Depth"},{text,Depth,[range(noise_depth)]},
-	       {"Hard Noise",Hard}]},
-      {hframe,[{label,"Turbulence"},{text,Turbulence,[range(turbulence)]},
-	       {label,"Sharpness"},{text,Sharpness,[range(sharpness)]}]}]};
+	      [?__(2,"Input 2"),[color,undefined]]),
+      {hframe,[{label,?__(3,"Size")},{text,Size,[range(size)]},
+	       {label,?__(4,"Depth")},{text,Depth,[range(noise_depth)]},
+	       {?__(5,"Hard Noise"),Hard}]},
+      {hframe,[{label,?__(6,"Turbulence")},{text,Turbulence,[range(turbulence)]},
+	       {label,?__(7,"Sharpness")},{text,Sharpness,[range(sharpness)]}]}]};
 bs_marble(#bs_result{}=Op0) ->
     Op1 = bs(Op0, [input_1,{color,?DEF_MOD_COLOR1}]),
     Op2 = #bs_result{result=[Size,Depth,Hard,Turbulence,Sharpness|Rest],
@@ -1646,18 +1646,18 @@ bs_wood(#bs_dialog{ps=Ps}=Op) ->
     RingscaleZ = proplists:get_value(ringscale_z, Ps, ?DEF_MOD_RINGSCALE_Z),
     {vframe,
      [bs_prop(Op, {input_1,Ps,?DEF_BSCOL(?DEF_MOD_COLOR1)}, 
-	      ["Input 1",[color,undefined]]),
+	      [?__(1,"Input 1"),[color,undefined]]),
       bs_prop(Op, {input_2,Ps,?DEF_BSCOL(?DEF_MOD_COLOR2)}, 
-	      ["Input 2",[color,undefined]]),
-      {hframe,[{vframe,[{label,"Size"},
-			{label,"Turbulence"},
-			{label,"Ringscale X"}]},
+	      [?__(2,"Input 2"),[color,undefined]]),
+      {hframe,[{vframe,[{label,?__(3,"Size")},
+			{label,?__(4,"Turbulence")},
+			{label,?__(5,"Ringscale X")}]},
 	       {vframe,[{text,Size,[range(size)]},
 			{text,Turbulence,[range(turbulence)]},
 			{text,RingscaleX,[range(scale)]}]},
-	       {vframe,[{label,"Depth"},
-			{"Hard Noise",Hard},
-			{label,"Ringscale Z"}]},
+	       {vframe,[{label,?__(6,"Depth")},
+			{?__(7,"Hard Noise"),Hard},
+			{label,?__(8,"Ringscale Z")}]},
 	       {vframe,[{text,Depth,[range(noise_depth)]},
 			panel,
 			{text,RingscaleZ,[range(scale)]}]}]}]};
@@ -1701,7 +1701,7 @@ bs_wood(#bs_export{ps=Ps,dest=F,name=Name}=Op0) ->
 %%
 
 bs_color2float(#bs_dialog{ps=Ps}=Op) ->
-    bs_prop(Op, {input,Ps,?DEF_BS_COLOR}, ["Input",[color]]);
+    bs_prop(Op, {input,Ps,?DEF_BS_COLOR}, [?__(1,"Input"),[color]]);
 bs_color2float(#bs_result{}=Op) ->
     bs(Op, [input]);
 bs_color2float(#bs_export{ps=Ps,dest=F,name=Name}=Op0) ->
@@ -1730,9 +1730,9 @@ bs_coords(#bs_export{ps=Ps,dest=F,name=Name}=Op) ->
 bs_mul(#bs_dialog{ps=Ps}=Op) ->
     Value = proplists:get_value(value, Ps, ?DEF_BS_MUL_VALUE),
     {vframe,
-     [bs_prop(Op, {input_1,Ps}, ["Input 1",[float,undefined]]),
-      bs_prop(Op, {input_2,Ps}, ["Input 2",[float,undefined]]),
-      {hframe,[{label,"Value"},{text,Value}]}]};
+     [bs_prop(Op, {input_1,Ps}, [?__(1,"Input 1"),[float,undefined]]),
+      bs_prop(Op, {input_2,Ps}, [?__(2,"Input 2"),[float,undefined]]),
+      {hframe,[{label,?__(3,"Value")},{text,Value}]}]};
 bs_mul(#bs_result{}=Op0) ->
     Op1 = bs(Op0, [input_1]),
     Op = #bs_result{result=[Value|Rest],ps=Ps} = bs(Op1, [input_2]),
@@ -1751,7 +1751,7 @@ bs_mul(#bs_export{ps=Ps,dest=F,name=Name}=Op0) ->
     Op#bs_export{name=Name}.
 
 bs_sin(#bs_dialog{ps=Ps}=Op) ->
-    bs_prop(Op, {input,Ps,?DEF_BS_FLOAT}, ["Input",[float]]);
+    bs_prop(Op, {input,Ps,?DEF_BS_FLOAT}, [?__(1,"Input"),[float]]);
 bs_sin(#bs_result{}=Op) ->
     bs(Op, [input]);
 bs_sin(#bs_export{ps=Ps,dest=F,name=Name}=Op0) ->
@@ -1780,12 +1780,12 @@ light_dialog(Name, Ps) ->
     Minimized = proplists:get_value(minimized, YafRay, true),
     Power = proplists:get_value(power, YafRay, DefPower),
     [{vframe,
-      [{hframe,[{vframe, [{label,"Power"}]},
+      [{hframe,[{vframe, [{label,?__(1,"Power")}]},
 		{vframe,[{text,Power,[range(power),key(power)]}]},
 		panel,
 		help_button(light_dialog)]}|
        light_dialog(Name, Type, YafRay)],
-      [{title,"YafRay Options"},key(minimized),{minimized,Minimized}]}].
+      [{title,?__(2,"YafRay Options")},key(minimized),{minimized,Minimized}]}].
 
 light_dialog(_Name, point, Ps) ->
     Type = proplists:get_value(type, Ps, ?DEF_POINT_TYPE),
@@ -1808,12 +1808,12 @@ light_dialog(_Name, point, Ps) ->
     GlowOffset = proplists:get_value(glow_offset, Ps, ?DEF_GLOW_OFFSET),
     GlowType = proplists:get_value(glow_type, Ps, ?DEF_GLOW_TYPE),
     [{vframe,
-      [{hradio,[{"Pointlight",pointlight},
-		{"Softlight",softlight},
-		{"Spherelight",spherelight}],Type,[key(type),layout]},
+      [{hradio,[{?__(3,"Pointlight"),pointlight},
+		{?__(4,"Softlight"),softlight},
+		{?__(5,"Spherelight"),spherelight}],Type,[key(type),layout]},
        {hframe,
-	[{vframe,[{label,"Intensity"},
-		  {label,"Offset"}]},
+	[{vframe,[{label,?__(6,"Intensity")},
+		  {label,?__(7,"Offset")}]},
 	 {vframe,[{text,GlowIntensity,GlowIntensityOpts},
 		  {text,GlowOffset,
 		   [key(glow_offset),
@@ -1821,32 +1821,32 @@ light_dialog(_Name, point, Ps) ->
 		    hook(enable, 
 			 ['not',[member,?KEY(glow_intensity),0.0]])]}]},
 	 {vframe,[{slider,GlowIntensityOpts},
-		  {menu,[{"Ad-hoc type",0},
-			 {"Han-Wen Nienhuys",1}],GlowType,
+		  {menu,[{?__(8,"Ad-hoc type"),0},
+			 {?__(9,"Han-Wen Nienhuys"),1}],GlowType,
 		   [key(glow_type),
 		    hook(enable, 
 			 ['not',[member,?KEY(glow_intensity),0.0]])]}]}],
-	[{title,"Glow"},key(minimized_glow),{minimized,MinimizedGlow}]},
-       {"Cast Shadows",CastShadows,
+	[{title,?__(10,"Glow")},key(minimized_glow),{minimized,MinimizedGlow}]},
+       {?__(11,"Cast Shadows"),CastShadows,
 	[key(cast_shadows),
 	 hook(open, [member,?KEY(type),pointlight])]},
        {hframe,
-	[{label,"Bias"},{text,Bias,[range(bias),key(bias)]},
-	 {label,"Res"},{text,Res,[range(res),key(res)]},
-	 {label,"Radius"},{text,Radius,[range(radius),key(radius)]}],
+	[{label,?__(12,"Bias")},{text,Bias,[range(bias),key(bias)]},
+	 {label,?__(13,"Res")},{text,Res,[range(res),key(res)]},
+	 {label,?__(14,"Radius")},{text,Radius,[range(radius),key(radius)]}],
 	[hook(open, [member,?KEY(type),softlight])]},
        {vframe,
-	[{hframe,[{label,"Radius"},
+	[{hframe,[{label,?__(15,"Radius")},
 		  {text,ArealightRadius,[range(arealight_radius),
 					 key(arealight_radius)]},
-		  {"Global Photonlight Dummy",Dummy,[key(dummy)]}]},
-	 {hframe,[{label,"Samples"},
+		  {?__(16,"Global Photonlight Dummy"),Dummy,[key(dummy)]}]},
+	 {hframe,[{label,?__(17,"Samples")},
 		  {text,ArealightSamples,[range(samples),
 					  key(arealight_samples)]},
-		  {label,"Penumbra Samples"},
+		  {label,?__(18,"Penumbra Samples")},
 		  {text,ArealightPsamples,[range(psamples),
 					   key(arealight_psamples)]},
-		  {menu,[{"QMC 0",0},{"QMC 1",1}],QmcMethod,
+		  {menu,[{?__(19,"QMC 0"),0},{?__(20,"QMC 1"),1}],QmcMethod,
 		   [key(qmc_method)]}],
 	  [hook(enable, ['not',?KEY(dummy)])]}],
 	[hook(open, [member,?KEY(type),spherelight])]}]}];
@@ -1878,13 +1878,13 @@ light_dialog(_Name, spot, Ps) ->
     BlurRange = range(blur),
     HaloFrame =
 	{hframe,
-	 [{vframe,[{label,"Res"},
-		   {label,"Samples"},
-		   {label,"Shadow Samples"},
-		   {label,"Blur"},
-		   {label,"Shadow Blur"},
-		   {label,"Fog Density"},
-		   {label,"Fog Color"}]},
+	 [{vframe,[{label,?__(21,"Res")},
+		   {label,?__(22,"Samples")},
+		   {label,?__(23,"Shadow Samples")},
+		   {label,?__(24,"Blur")},
+		   {label,?__(25,"Shadow Blur")},
+		   {label,?__(26,"Fog Density")},
+		   {label,?__(27,"Fog Color")}]},
 	  {vframe,[{text,HaloRes,
 		    [range(res),key(halo_res),
 		     {hook,
@@ -1912,34 +1912,34 @@ light_dialog(_Name, spot, Ps) ->
 		   {slider,[BlurRange,key(halo_blur)]},
 		   {slider,[BlurRange,key(halo_shadow_blur)]},
 		   panel]}],
-	 [{title,"Halo"},
+	 [{title,?__(28,"Halo")},
 	  key(minimized_halo),{minimized,MinimizedHalo},
 	  hook(enable, ?KEY(halo))]},
     %%
     [{hframe,
-      [{hradio,[{"Spotlight",spotlight},
-		{"Photonlight",photonlight}],Type,[layout,key(type)]},
-       {menu,[{"Diffuse",diffuse},{"Caustic",caustic}],Mode,
+      [{hradio,[{?__(29,"Spotlight"),spotlight},
+		{?__(30,"Photonlight"),photonlight}],Type,[layout,key(type)]},
+       {menu,[{?__(31,"Diffuse"),diffuse},{?__(32,"Caustic"),caustic}],Mode,
 	[key(mode),hook(open, [member,?KEY(type),photonlight])]},
-       {"Use QMC",UseQMC,[key(use_QMC),
+       {?__(33,"Use QMC"),UseQMC,[key(use_QMC),
 			  hook(open, [member,?KEY(type), photonlight])]}]},
      {vframe,
-      [{hframe,[{"Cast Shadows",CastShadows,[key(cast_shadows)]},
-		{label,"Blend"},
+      [{hframe,[{?__(34,"Cast Shadows"),CastShadows,[key(cast_shadows)]},
+		{label,?__(35,"Blend")},
 		{text,Blend,[range(blend),key(blend)]}]},
        {hframe,[{"",Halo,[key(halo)]},
 		HaloFrame]}],
       [hook(open, [member,?KEY(type), spotlight])]},
-     {hframe,[{vframe,[{label,"Photons"},
-		       {label,"Depth"},
-		       {label,"Fixedradius"}]},
+     {hframe,[{vframe,[{label,?__(36,"Photons")},
+		       {label,?__(37,"Depth")},
+		       {label,?__(38,"Fixedradius")}]},
 	      {vframe,[{text,Photons,[range(photons),key(photons)]},
 		       {text,Depth,[range(depth),key(depth)]},
 		       {text,Fixedradius,[range(fixedradius),
 					  key(fixedradius)]}]},
-	      {vframe,[{label,"Search"},
-		       {label,"Mindepth"},
-		       {label,"Cluster"}]},
+	      {vframe,[{label,?__(39,"Search")},
+		       {label,?__(40,"Mindepth")},
+		       {label,?__(41,"Cluster")}]},
 	      {vframe,[{text,Search,[range(search),key(search)]},
 		       {text,Mindepth,[range(depth),key(mindepth)]},
 		       {text,Cluster,[range(cluster),key(cluster)]}]}],
@@ -1957,23 +1957,23 @@ light_dialog(_Name, infinite, Ps) ->
     D_var = proplists:get_value(d_var, Ps, ?DEF_SUNSKY_VAR),
     E_var = proplists:get_value(e_var, Ps, ?DEF_SUNSKY_VAR),
     %%
-    [{"Cast Shadows",CastShadows,[key(cast_shadows)]},
+    [{?__(42,"Cast Shadows"),CastShadows,[key(cast_shadows)]},
      {vframe,
-      [{hradio,[{"Constant",constant},
-		{"Sunsky",sunsky},
-		{"None", undefined}],Bg,[layout,key(background)]},
-       {hframe,[{label,"Color"},
+      [{hradio,[{?__(43,"Constant"),constant},
+		{?__(44,"Sunsky"),sunsky},
+		{?__(45,"None"), undefined}],Bg,[layout,key(background)]},
+       {hframe,[{label,?__(46,"Color")},
 		{color,BgColor,[key(background_color)]}],
 	[hook(open, [member,?KEY(background),constant])]},
        {vframe,
 	[{hframe,[]},
 	 {hframe,
-	  [{vframe,[{label,"Turbidity"},
-		    {label,"a: Horizon Brightness"},
-		    {label,"b: Horizon Spread"},
-		    {label,"c: Sun Brightness"},
-		    {label,"d: Sun Contraction"},
-		    {label,"e: Sun Backscatter"}]},
+	  [{vframe,[{label,?__(47,"Turbidity")},
+		    {label,"a: "++?__(48,"Horizon Brightness")},
+		    {label,"b: "++?__(49,"Horizon Spread")},
+		    {label,"c: "++?__(50,"Sun Brightness")},
+		    {label,"d: "++?__(51,"Sun Contraction")},
+		    {label,"e: "++?__(52,"Sun Backscatter")}]},
 	   {vframe,[{text,Turbidity,[range(turbidity),key(turbidity)]},
 		    {text,A_var,[key(a_var)]},
 		    {text,B_var,[key(b_var)]},
@@ -1981,19 +1981,19 @@ light_dialog(_Name, infinite, Ps) ->
 		    {text,D_var,[key(d_var)]},
 		    {text,E_var,[key(e_var)]}]}]}],
 	[hook(open, [member,?KEY(background),sunsky])]}],
-      [{title,"Background"}]}];
+      [{title,?__(53,"Background")}]}];
 light_dialog(_Name, ambient, Ps) ->
     Bg = proplists:get_value(background, Ps, ?DEF_BACKGROUND),
     BgColor = proplists:get_value(background_color, Ps, ?DEF_BACKGROUND_COLOR),
     BgFnameImage = proplists:get_value(background_filename_image, Ps, 
 				       ?DEF_BACKGROUND_FILENAME),
     BrowsePropsImage = [{dialog_type,open_dialog},
-			{extensions,[{".jpg","JPEG compressed image"},
-				     {".tga","Targa bitmap"}]}],
+			{extensions,[{".jpg",?__(54,"JPEG compressed image")},
+				     {".tga",?__(55,"Targa bitmap")}]}],
     BgFnameHDRI = proplists:get_value(background_filename_HDRI, Ps, 
 				      ?DEF_BACKGROUND_FILENAME),
     BrowsePropsHDRI = [{dialog_type,open_dialog},
-		       {extensions,[{".hdr","High Dynamic Range image"}]}],
+		       {extensions,[{".hdr",?__(56,"High Dynamic Range image")}]}],
     BgExpAdj = proplists:get_value(background_exposure_adjust, Ps, 
 				   ?DEF_BACKGROUND_EXPOSURE_ADJUST),
     BgMapping = proplists:get_value(background_mapping, Ps, 
@@ -2037,33 +2037,33 @@ light_dialog(_Name, ambient, Ps) ->
 				   ?DEF_GLOBALPHOTONLIGHT_DEPTH),
     GplSearch = proplists:get_value(globalphotonlight_search, Ps,
 				    ?DEF_GLOBALPHOTONLIGHT_SEARCH),
-    [{hradio,[{"Hemilight",hemilight},
-	      {"Pathlight",pathlight},
-	      {"Global Photonlight",globalphotonlight}],
+    [{hradio,[{?__(57,"Hemilight"),hemilight},
+	      {?__(58,"Pathlight"),pathlight},
+	      {?__(59,"Global Photonlight"),globalphotonlight}],
       Type,[layout,key(type)]},
      %% Hemilight and Pathlight
      {hframe,
-      [{vframe,[{"Use QMC",UseQMC,[key(use_QMC)]},
-		{"Direct",Direct,[key(direct),
+      [{vframe,[{?__(60,"Use QMC"),UseQMC,[key(use_QMC)]},
+		{?__(61,"Direct"),Direct,[key(direct),
 				  hook(open, [member,?KEY(type),
 					      pathlight])]}]},
-       {vframe,[{label,"Samples"},
-		{label,"Depth",[hook(open, [member,?KEY(type),pathlight])]}]},
+       {vframe,[{label,?__(62,"Samples")},
+		{label,?__(63,"Depth"),[hook(open, [member,?KEY(type),pathlight])]}]},
        {vframe,[{text,Samples,[range(samples),key(samples)]},
 		{text,Depth,[range(raydepth),key(depth),
 			     hook(open, [member,?KEY(type),pathlight])]}]},
        {vframe,[panel,
-		{label,"Caus Depth"}],
+		{label,?__(64,"Caus Depth")}],
 	[hook(open, [member,?KEY(type),pathlight])]},
        {vframe,[panel,
 		{text,CausDepth,[range(raydepth),key(caus_depth)]}],
 	[hook(open, [member,?KEY(type),pathlight])]}],
       [hook(open, [member,?KEY(type),hemilight,pathlight])]},
-     {menu,[{"default mode",undefined},{"Occlusion mode",occlusion}],
+     {menu,[{?__(65,"default mode"),undefined},{?__(66,"Occlusion mode"),occlusion}],
       PathlightMode,
       [key(pathlight_mode),hook(open, [member,?KEY(type),pathlight])]},
      {hframe,
-      [{"Maxdistance",UseMaxdistance,[key(use_maxdistance)]},
+      [{?__(67,"Maxdistance"),UseMaxdistance,[key(use_maxdistance)]},
        {text,Maxdistance,[key(maxdistance),
 			  range(maxdistance),
 			  hook(enable, ?KEY(use_maxdistance))]}],
@@ -2074,35 +2074,35 @@ light_dialog(_Name, ambient, Ps) ->
 	[{"",Cache,[key(cache)]},
 	 {hframe,
 	  [{vframe,
-	    [{label,"Size"},
-	     {label,"Angle Threshold"},
+	    [{label,?__(68,"Size")},
+	     {label,?__(69,"Angle Threshold")},
 	     panel,
-	     {label,"Shadow Threshold"},
-	     {"Gradient",Gradient,[key(gradient)]},
-	     {label,"Search"}]},
+	     {label,?__(70,"Shadow Threshold")},
+	     {?__(71,"Gradient"),Gradient,[key(gradient)]},
+	     {label,?__(72,"Search")}]},
 	   {vframe,
 	    [{text,CacheSize,[key(cache_size),range(cache_size)]},
 	     {text,AngleThreshold,[{key,AngleKey},AngleRange]},
 	     {slider,[{key,AngleKey},AngleRange]},
 	     {text,ShadowThreshold,[key(shadow_threshold),
 				    range(shadow_threshold)]},
-	     {"Show Samples",ShowSamples,[key(show_samples)]},
+	     {?__(73,"Show Samples"),ShowSamples,[key(show_samples)]},
 	     {text,Search,[key(search),range(cache_search)]}]}],
-	  [{title,"Irradiance Cache"},
+	  [{title,?__(74,"Irradiance Cache")},
 	   {minimized,CacheMinimized},key(cache_minimized),
 	   hook(enable, ?KEY(cache))]}],
 	[hook(enable, ['not',?KEY(direct)])]}],
       [hook(open, [member,?KEY(type),pathlight])]},
      %% Global Photonlight
-     {hframe,[{vframe,[{label,"Photons"},
-		       {label,"Depth"}]},
+     {hframe,[{vframe,[{label,?__(75,"Photons")},
+		       {label,?__(76,"Depth")}]},
 	      {vframe,[{text,GplPhotons,
 			[range(photons),key(globalphotonlight_photons)]},
 		       {text,GplDepth,
 			[range(raydepth),
 			 key(globalphotonlight_depth)]}]},
-	      {vframe,[{label,"Radius"},
-		       {label,"Search"}]},
+	      {vframe,[{label,?__(77,"Radius")},
+		       {label,?__(78,"Search")}]},
 	      {vframe,[{text,GplRadius,
 			[range(fixedradius),key(globalphotonlight_radius)]},
 		       {text,GplSearch,
@@ -2110,46 +2110,46 @@ light_dialog(_Name, ambient, Ps) ->
       [hook(open, [member,?KEY(type),globalphotonlight])]},
      %% Backgrounds
      {vframe,
-      [{hradio,[{"HDRI",'HDRI'},
-		{"Image",image},
-		{"Constant",constant},
-		{"None", undefined}],Bg,[layout,key(background)]},
-       {hframe,[{label,"Filename"},
+      [{hradio,[{?__(79,"HDRI"),'HDRI'},
+		{?__(80,"Image"),image},
+		{?__(81,"Constant"),constant},
+		{?__(82,"None"), undefined}],Bg,[layout,key(background)]},
+       {hframe,[{label,?__(83,"Filename")},
 		{button,{text,BgFnameHDRI,
 			 [key(background_filename_HDRI),
 			  {props,BrowsePropsHDRI}]}}],
 	[hook(open, [member,?KEY(background),'HDRI'])]},
-       {hframe,[{label,"Filename"},
+       {hframe,[{label,?__(84,"Filename")},
 		{button,{text,BgFnameImage,
 			 [key(background_filename_image),
 			  {props,BrowsePropsImage}]}}],
 	[hook(open, [member,?KEY(background),image])]},
        {hframe,
-	[{hframe,[{label,"Exposure Adjust"},
+	[{hframe,[{label,?__(85,"Exposure Adjust")},
 		  {text,BgExpAdj,[key(background_exposure_adjust),
 				  range(exposure_adjust)]},
-		  {menu,[{"Angular Map",probe},{"Spherical Map",spherical}],
+		  {menu,[{?__(86,"Angular Map"),probe},{?__(87,"Spherical Map"),spherical}],
 		   BgMapping,[key(background_mapping)]}],
 	  [hook(open, [member,?KEY(background),'HDRI'])]},
-	 {hframe,[{label,"Power"},
+	 {hframe,[{label,?__(88,"Power")},
 		  {text,BgPower,[key(background_power),range(power)]}],
 	  [hook(open, [member,?KEY(background),image])]},
-	 {"Enlight",BgEnlight,[key(background_enlight)]}],
+	 {?__(89,"Enlight"),BgEnlight,[key(background_enlight)]}],
 	[hook(open, [member,?KEY(background),'HDRI',image])]},
-       {hframe,[{label,"Color"},
+       {hframe,[{label,?__(90,"Color")},
 		{color,BgColor,[key(background_color)]}],
 	[hook(open, [member,?KEY(background),constant])]}],
-      [{title,"Background"}]}];
+      [{title,?__(91,"Background")}]}];
 light_dialog(_Name, area, Ps) ->
     ArealightSamples = proplists:get_value(arealight_samples, Ps, 
 					   ?DEF_AREALIGHT_SAMPLES),
     ArealightPsamples = proplists:get_value(arealight_psamples, Ps, 
 					    ?DEF_AREALIGHT_PSAMPLES),
     Dummy = proplists:get_value(dummy, Ps, ?DEF_DUMMY),
-    [{"Global Photonlight Dummy",Dummy,[key(dummy)]},
-     {hframe,[{label,"Samples"},
+    [{?__(92,"Global Photonlight Dummy"),Dummy,[key(dummy)]},
+     {hframe,[{label,?__(93,"Samples")},
 	      {text,ArealightSamples,[range(samples),key(arealight_samples)]},
-	      {label,"Penumbra Samples"},
+	      {label,?__(94,"Penumbra Samples")},
 	      {text,ArealightPsamples,[range(psamples),
 				       key(arealight_psamples)]}],
       [hook(enable, ['not',?KEY(dummy)])]}];
@@ -2204,21 +2204,21 @@ pref_dialog(St) ->
     Dialog =
 	[{vframe,
 	  [{hframe,
-	    [{menu,[{"Disabled Dialogs",disabled},
-		    {"Automatic Dialogs",auto},
-		    {"Enabled Dialogs",enabled}],
+	    [{menu,[{?__(1,"Disabled Dialogs"),disabled},
+		    {?__(2,"Automatic Dialogs"),auto},
+		    {?__(3,"Enabled Dialogs"),enabled}],
 	      Dialogs,[{key,dialogs}]},
 	     panel,
 	     help_button(pref_dialog)]},
 	   {hframe,
 	    [{vframe,
-	      [{label,"Executable"},
-	       {label,"Options"}]},
+	      [{label,?__(4,"Executable")},
+	       {label,?__(5,"Options")}]},
 	     {vframe,
 	      [{button,{text,Renderer,[{key,renderer},
 				       wings_job:browse_props()]}},
 	       {text,Options,[{key,options}]}]}]}]}],
-    wpa:dialog("YafRay Options", Dialog, 
+    wpa:dialog(?__(6,"YafRay Options"), Dialog, 
 	       fun (Attr) -> pref_result(Attr,St) end).
 
 pref_result(Attr, St) ->
@@ -2303,32 +2303,32 @@ export_dialog_qs(Op,
     AA_thresholdFlags = [range(aa_threshold),{key,aa_threshold}],
     AA_pixelwidthFlags = [range(aa_pixelwidth),{key,aa_pixelwidth}],
     BiasFlags = [range(bias),{key,bias}],
-    [{hframe,[{label,"Sub-division Steps"},
+    [{hframe,[{label,?__(1,"Sub-division Steps")},
 	      {text,SubDiv,[{key,subdivisions},range(subdivisions)]},
 	      case Op of
 		  render ->
-		      {"Write and keep .xml file",KeepXML,[{key,keep_xml}]};
+		      {?__(2,"Write and keep .xml file"),KeepXML,[{key,keep_xml}]};
 		  _ ->
 		      {value,KeepXML,[{key,keep_xml}]}
 	      end],
-      [{title,"Pre-rendering"}]},
+      [{title,?__(3,"Pre-rendering")}]},
      {hframe,
       [{vframe,
-	[{label,"Raydepth"},
-	 {label,"Gamma"}]},
+	[{label,?__(4,"Raydepth")},
+	 {label,?__(5,"Gamma")}]},
        {vframe,
 	[{text,Raydepth,[range(raydepth),{key,raydepth}]},
 	 {text,Gamma,[range(gamma),{key,gamma}]}]},
        {vframe,
-	[{label,"Bias"},
-	 {label,"Exposure"}]},
+	[{label,?__(6,"Bias")},
+	 {label,?__(7,"Exposure")}]},
        {vframe,
 	[{text,Bias,BiasFlags},
 	 {text,Exposure,[range(exposure),{key,exposure}]}]},
        {vframe,
 	[{slider,BiasFlags},
 	 panel]}],
-      [{title,"Render"}]},
+      [{title,?__(8,"Render")}]},
      {hframe,
 	[{menu,[{Ext++" ("++Desc++")",Format}
 		|| {Format,Ext,Desc} <- wings_job:render_formats(),
@@ -2336,11 +2336,11 @@ export_dialog_qs(Op,
 	  RenderFormat,
 	  [{key,render_format},layout]},
 	 {hframe,
-	  [{"Float",ExrFlagFloat,[{key,exr_flag_float}]},
-	   {"Zbuf",ExrFlagZbuf,[{key,exr_flag_zbuf}]},
-	   {label," Compression:"},
+	  [{?__(9,"Float"),ExrFlagFloat,[{key,exr_flag_float}]},
+	   {?__(10,"Zbuf"),ExrFlagZbuf,[{key,exr_flag_zbuf}]},
+	   {label," "++?__(11,"Compression:")},
 	   {menu,
-	    [{"none",compression_none},
+	    [{?__(12,"none"),compression_none},
 	     {"piz",compression_piz},
 	     {"rle",compression_rle},
 	     {"pxr24",compression_pxr24},
@@ -2348,81 +2348,81 @@ export_dialog_qs(Op,
 	    ExrFlagCompression,
 	    [{key,exr_flag_compression}]}],
 	  [hook(open, [member,render_format,exr])]}],
-      [{title,"Output"}]},
+      [{title,?__(13,"Output")}]},
      {hframe,
       [{vframe,
 	[{hframe,
 	  [{vframe,
-	    [{label,"AA_passes"},
-	     {label,"AA_minsamples"}]},
+	    [{label,?__(14,"AA_passes")},
+	     {label,?__(15,"AA_minsamples")}]},
 	   {vframe,
 	    [{text,AA_passes,[range(aa_passes),{key,aa_passes}]},
 	     {text,AA_minsamples,[range(aa_minsamples),
 				  {key,aa_minsamples}]}]}]},
-	 {"AA_jitterfirst",AA_jitterfirst,[{key,aa_jitterfirst}]}]},
+	 {?__(16,"AA_jitterfirst"),AA_jitterfirst,[{key,aa_jitterfirst}]}]},
        {vframe,
 	[{hframe,
 	  [{vframe,
-	    [{label,"AA_threshold"},
-	     {label,"AA_pixelwidth"}]},
+	    [{label,?__(17,"AA_threshold")},
+	     {label,?__(18,"AA_pixelwidth")}]},
 	   {vframe,
 	    [{text,AA_threshold,AA_thresholdFlags},
 	     {text,AA_pixelwidth,AA_pixelwidthFlags}]}]},
-	 {"Clamp RGB",ClampRGB,[{key,clamp_rgb}]}]},
+	 {?__(19,"Clamp RGB"),ClampRGB,[{key,clamp_rgb}]}]},
        {vframe,
 	[{slider,AA_thresholdFlags},
 	 {slider,AA_pixelwidthFlags}]}],
-      [{title,"Anti-Aliasing"}]},
+      [{title,?__(20,"Anti-Aliasing")}]},
      {hframe,
-      [{label,"Default Color"},
+      [{label,?__(21,"Default Color")},
        {color,BgColor,[{key,background_color}]},
-       {label,"Alpha Channel:"},
-       {menu,[{"Off",false},{"On",true},
-	      {"Premultiply",premultiply},{"Backgroundmask",backgroundmask}],
+       {label,?__(22,"Alpha Channel:")},
+       {menu,[{?__(23,"Off"),false},{"On",true},
+	      {?__(24,"Premultiply"),premultiply},{?__(25,"Backgroundmask"),backgroundmask}],
 	SaveAlpha,
 	[{key,save_alpha}]}],
-      [{title,"Background"}]},
+      [{title,?__(26,"Background")}]},
      {hframe,
       [{vframe,
-	[{menu,[{"Perspective",false},
-		{"Orthographic",true},
-		{"Spherical",spherical},
-		{"Lightprobe",lightprobe}],Ortho,[{key,ortho}]},
-	 {label,"Depth Of Field:"},
-	 {hframe,[panel,{"Use QMC",BokehUseQMC,
+	[{menu,[{?__(27,"Perspective"),false},
+		{?__(28,"Orthographic"),true},
+		{?__(29,"Spherical"),spherical},
+		{?__(30,"Lightprobe"),lightprobe}],Ortho,[{key,ortho}]},
+	 {label,?__(31,"Depth Of Field:")},
+	 {hframe,[panel,{?__(32,"Use QMC"),BokehUseQMC,
 			 [{key,bokeh_use_QMC},
 			  hook(enable, 
 			       ['not',[member,aperture,0.0]])]}]},
 	 panel]},
        {vframe,
-	[{label,"Width"},
-	 {label,"Aperture"},
-	 {label,"Type"},
-	 {label,"Rotation"}]},
+	[{label,?__(33,"Width")},
+	 {label,?__(34,"Aperture")},
+	 {label,?__(35,"Type")},
+	 {label,?__(36,"Rotation")}]},
        {vframe,
 	[{hframe,
 	  [{vframe,[{text,Width,[range(pixels),{key,width},{width,6}]},
 		    {text,Aperture,[range(aperture),{key,aperture},{width,6}]},
-		    {menu,[{"Disk1",disk1},{"Disk2",disk2},
-			   {"Triangle",triangle},
-			   {"Square",square},{"Pentagon",pentagon},
-			   {"Hexagon",hexagon},{"Ring",ring}],
+		    {menu,[{?__(37,"Disk1"),disk1},{?__(38,"Disk2"),disk2},
+			   {?__(39,"Triangle"),triangle},
+			   {?__(40,"Square"),square},{?__(41,"Pentagon"),pentagon},
+			   {?__(42,"Hexagon"),hexagon},{?__(43,"Ring"),ring}],
 		     BokehType,[{key,bokeh_type},
 				hook(enable, 
 				     ['not',[member,aperture,0.0]])]}]},
-	   {vframe,[{label,"Height"},
-		    {label,"f-stop"},
-		    {label,"Bias"}]},
+	   {vframe,[{label,?__(44,"Height")},
+		    {label,?__(45,"f-stop")},
+		    {label,?__(46,"Bias")}]},
 	   {vframe,[{text,Height,[range(pixels),{key,height},{width,6}]},
 		    {menu,[{F,math:sqrt(A)}
 			   || {F,A} <- [{"1.0",1/1},{"1.4",1/2},{"2",1/4},
 					{"2.8",1/8},{"4",1/16},{"5.6",1/32},
 					{"8",1/64},{"11",1/128},{"16",256},
 					{"22",1/512},{"32",1/1024},
-					{"pinhole",0.0}]],
+					{?__(47,"pinhole"),0.0}]],
 		     Aperture,[{key,aperture}]},
-		    {menu,[{"Uniform",uniform},{"Center",center},
-			   {"Edge",edge}],
+		    {menu,[{?__(48,"Uniform"),uniform},{?__(49,"Center"),center},
+			   {?__(50,"Edge"),edge}],
 		     BokehBias,[{key,bokeh_bias},
 				hook(enable, 
 				     ['not',[member,aperture,0.0]])]}]}]},
@@ -2431,16 +2431,16 @@ export_dialog_qs(Op,
 		   {key,bokeh_rotation},
 		   hook(enable, 
 			['not',[member,aperture,0.0]])]}}]}],
-      [{title,"Camera"}]},
+      [{title,?__(51,"Camera")}]},
      {hframe,
-      [{label,"Density"},
+      [{label,?__(52,"Density")},
        {text,FogDensity,[range(fog_density),{key,fog_density}]},
-       {label,"Color"},
+       {label,?__(53,"Color")},
        {color,FogColor,[{key,fog_color}]}],
-      [{title,"Fog"}]},
-     {hframe,[{button,"Save",done,[{info,"Save to user preferences"}]},
-	      {button,"Load",done,[{info,"Load from user preferences"}]},
-	      {button,"Reset",done,[{info,"Reset to default values"}]}]}].
+      [{title,?__(54,"Fog")}]},
+     {hframe,[{button,?__(55,"Save"),done,[{info,?__(56,"Save to user preferences")}]},
+	      {button,?__(57,"Load"),done,[{info,?__(58,"Load from user preferences")}]},
+	      {button,?__(59,"Reset"),done,[{info,?__(60,"Reset to default values")}]}]}].
 
 export_dialog_loop({Op,Fun}=Keep, Attr) ->
     {Prefs,Buttons} = split_list(Attr, 29),
@@ -2546,8 +2546,8 @@ export(Attr, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
 		{Filename,filename:rootname(Filename)++Ext}
 	end,
     F = open(ExportFile, export),
-    io:format("Exporting  to: ~s~n"
-	      "for render to: ~s~n", [ExportFile,RenderFile]),
+    io:format(?__(1,"Exporting  to:")++" ~s~n"++
+	      ?__(2,"for render to:")++" ~s~n", [ExportFile,RenderFile]),
     CameraName = "x_Camera",
     ConstBgName = "x_ConstBackground",
     Lights = proplists:get_value(lights, Attr, []),
@@ -2646,7 +2646,7 @@ warn_multiple_backgrounds([]) ->
 warn_multiple_backgrounds([_]) ->
     ok;
 warn_multiple_backgrounds(BgLights) ->
-    io:format("WARNING: Multiple backgrounds - ", []),
+    io:format(?__(1,"WARNING: Multiple backgrounds")++" - ", []),
     foreach(fun ({Name,_}) ->
 		    io:put_chars([format(Name), $ ])
 	    end, BgLights),
@@ -2928,16 +2928,16 @@ export_object_1(F, NameStr, Mesh0=#e3d_mesh{he=He0}, DefaultMaterial, MatPs) ->
     Mesh1 = #e3d_mesh{} = 
 	case {He0,UseHardness} of
 	    {[_|_],true} ->
-		io:format("Mesh ~s: slitting hard edges...", [NameStr]),
+		io:format(?__(1,"Mesh ~s: slitting hard edges..."), [NameStr]),
 		M1 = e3d_mesh:slit_hard_edges(Mesh0, [slit_end_vertices]),
-		io:format("done~n"),
+		io:format(?__(2,"done")++"~n"),
 		M1;
 	    _ -> Mesh0
 	end,
-    io:format("Mesh ~s: triangulating...", [NameStr]),
+    io:format(?__(3,"Mesh ~s: triangulating..."), [NameStr]),
     #e3d_mesh{fs=Fs,vs=Vs,vc=Vc,tx=Tx} = e3d_mesh:triangulate(Mesh1),
-    io:format("done~n"),
-    io:format("Mesh ~s: exporting...", [NameStr]),
+    io:format(?__(4,"done")++"~n"),
+    io:format(?__(5,"Mesh ~s: exporting..."), [NameStr]),
     %%
     println(F, "<object name=\"~s\" shader_name=\"~s\" shadow=\"~s\"~n"++
 	    "        "++
@@ -2975,7 +2975,7 @@ export_object_1(F, NameStr, Mesh0=#e3d_mesh{he=He0}, DefaultMaterial, MatPs) ->
     println(F, "        </faces>~n"++
 	    "    </mesh>~n"++
 	    "</object>", []),
-    io:format("done~n").
+    io:format(?__(6,"done")++"~n").
 
 
 
@@ -3010,11 +3010,11 @@ export_faces(F, [#e3d_face{vs=[A,B,C],vc=VCols,tx=Tx,mat=[Mat|_]}|T],
     UV = case {TxT,Tx} of
 	     {{},[]} -> "";
 	     {{},_} ->
-		 io:format("WARNING! Face refers to non-existing "
-			   "texture coordinates~n"),
+		 io:format(?__(1,"WARNING! Face refers to non-existing "
+			   "texture coordinates")++"~n"),
 		 "";
 	     {_,[]} ->
-		 %%io:format("WARNING! Face missing texture coordinates~n"),
+		 %%io:format("WARNING! Face missing texture coordinates")++"~n",
 		 "";
 	     {_,[Ta,Tb,Tc]} ->
 		 {Ua,Va} = element(1+Ta, TxT),
@@ -3027,15 +3027,15 @@ export_faces(F, [#e3d_face{vs=[A,B,C],vc=VCols,tx=Tx,mat=[Mat|_]}|T],
 		  io_lib:nl(),"           u_c=\"",format(Uc),
 		  "\" v_c=\"",format(-Vc),"\""];
 	     _ ->
-		 io:format("WARNING! Face has ~w =/= 3 texture coordinates~n",
+		 io:format(?__(2,"WARNING! Face has ~w =/= 3 texture coordinates")++"~n",
 			    [length(Tx)]),
 		 ""
 	 end,
     VCol = case {VColT,VCols} of
 	       {{},[]} -> "";
 	       {{},_} ->
-		   io:format("WARNING! Face refers to non-existing "
-			     "vertex colors~n"),
+		   io:format(?__(3,"WARNING! Face refers to non-existing "
+			     "vertex colors")++"~n"),
 		   "";
 	       {_,[]} ->
 		   %%io:format("WARNING! Face missing vertex colors~n"),
@@ -3054,7 +3054,7 @@ export_faces(F, [#e3d_face{vs=[A,B,C],vc=VCols,tx=Tx,mat=[Mat|_]}|T],
 		    "\" vcol_c_g=\"",format(VcCg),
 		    "\" vcol_c_b=\"",format(VcCb),"\""];
 	       _ ->
-		   io:format("WARNING! Face has ~w =/= 3 vertex colors~n",
+		   io:format(?__(4,"WARNING! Face has ~w =/= 3 vertex colors")++"~n",
 			     [length(VCols)]),
 		   ""
 	   end,
@@ -3407,7 +3407,7 @@ export_light(F, Name, area, OpenGL, YafRay) ->
       end, 1, AFs),
     undefined;
 export_light(_F, Name, Type, _OpenGL, _YafRay) ->
-    io:format("WARNING: Ignoring unknown light \"~s\" type: ~p~n", 
+    io:format(?__(1,"WARNING: Ignoring unknown light \"~s\" type: ~p")++"~n", 
 	      [Name, format(Type)]),
     undefined.
 
@@ -3848,94 +3848,94 @@ help_button(Subject) ->
     {help,Title,TextFun}.
 
 help(title, material_dialog) ->
-    "YafRay Material Properties";
+    ?__(1,"YafRay Material Properties");
 help(text, material_dialog) ->
-    [<<"Each Material creates a YafRay shader. "
-      "The OpenGL properties that map to YafRay shader parameters are:">>,
-     <<"Diffuse * Opacity -> 'color'.">>,
-     <<"Specular -> 'specular'.">>,
-     <<"Shininess * 128-> 'hard'.">>];
+    [?__(2,"Each Material creates a YafRay shader. "
+      "The OpenGL properties that map to YafRay shader parameters are:"),
+     ?__(3,"Diffuse * Opacity -> 'color'."),
+     ?__(4,"Specular -> 'specular'."),
+     ?__(5,"Shininess * 128 -> 'hard'.")];
 help(title, {material_dialog,object}) ->
-    "YafRay Material Properties: Object Parameters";
+    ?__(6,"YafRay Material Properties: Object Parameters");
 help(text, {material_dialog,object}) ->
-    [<<"Object Parameters are applied to whole objects, namely those "
-      "that have this material on a majority of their faces.">>,
-     <<"Mapping to YafRay object parameters:">>,
-     <<"Cast Shadow -> 'shadow'.">>,
-     <<"Emit Rad -> 'emit_rad'.">>,
-     <<"Recv Rad -> 'recv_rad'.">>,
-     <<"Use Edge Hardness -> Emulate hard edges by "
-      "slitting the object mesh along hard edges.">>,
-     <<"Caustic -> Make the object caustic, i.e refract and "
+    [?__(7,"Object Parameters are applied to whole objects, namely those "
+      "that have this material on a majority of their faces."),
+     ?__(8,"Mapping to YafRay object parameters:"),
+     ?__(9,"Cast Shadow -> 'shadow'."),
+     ?__(10,"Emit Rad -> 'emit_rad'."),
+     ?__(11,"Recv Rad -> 'recv_rad'."),
+     ?__(12,"Use Edge Hardness -> Emulate hard edges by "
+      "slitting the object mesh along hard edges."),
+     ?__(13,"Caustic -> Make the object caustic, i.e refract and "
       "reflect photons but not get hit by them. This is done by "
       "setting options 'caus_IOR', 'caus_rcolor' and 'caus_tcolor' "
-      "from the corresponding Fresnel Parameters.">>,
-     <<"Autosmooth Angle -> 'autosmooth'.">>];
+      "from the corresponding Fresnel Parameters."),
+     ?__(14,"Autosmooth Angle -> 'autosmooth'.")];
 help(title, {material_dialog,fresnel}) ->
-    "YafRay Material Properties: Fresnel Parameters";
+    ?__(15,"YafRay Material Properties: Fresnel Parameters");
 help(text, {material_dialog,fresnel}) ->
-    [<<"Fresnel Parameters affect how rays reflect off and refract in "
+    [?__(16,"Fresnel Parameters affect how rays reflect off and refract in "
       "glass-like materials. This is a different light model than the "
       "OpenGL (Diffuse,Specular,Shininess) model and they do not often "
-      "go well together.">>,
-     <<"Mapping to YafRay shader parameters:">>,
-     <<"Index Of Refraction -> 'ior'.">>,
-     <<"Total Internal Reflection -> 'tir'.">>,
-     <<"Minimum Reflection -> 'min_refle'.">>,
-     <<"Reflected -> 'reflected'.">>,
-     <<"Transmitted -> 'transmitted'.">>,
-     <<"Set Default -> Sets 'transmitted' to Diffuse * (1 - Opacity). "
+      "go well together."),
+     ?__(17,"Mapping to YafRay shader parameters:"),
+     ?__(18,"Index Of Refraction -> 'ior'."),
+     ?__(19,"Total Internal Reflection -> 'tir'."),
+     ?__(20,"Minimum Reflection -> 'min_refle'."),
+     ?__(21,"Reflected -> 'reflected'."),
+     ?__(22,"Transmitted -> 'transmitted'."),
+     ?__(23,"Set Default -> Sets 'transmitted' to Diffuse * (1 - Opacity). "
       "This makes a semi-transparent object in OpenGL look the same in "
-      "YafRay provided that Index Of Refraction is 1.0.">>,
-     <<"Grazing Angle Colors -> Use the secondary Reflected and Transmitted "
+      "YafRay provided that Index Of Refraction is 1.0."),
+     ?__(24,"Grazing Angle Colors -> Use the secondary Reflected and Transmitted "
       "colors following that show from grazing angles of the material. "
       "For a glass with green edges set Transmitted to white and "
-      "Grazing Angle Transmitted to green.">>,
-     <<"Absorption -> Sets the desired color for white light travelling "
-      "the given distance through the material.">>];
+      "Grazing Angle Transmitted to green."),
+     ?__(25,"Absorption -> Sets the desired color for white light travelling "
+      "the given distance through the material.")];
 %%
 help(title, light_dialog) ->
-    "YafRay Light Properties";
+    ?__(26,"YafRay Light Properties");
 help(text, light_dialog) ->
-    [<<"OpenGL properties that map to YafRay light parameters are:">>,
-     <<"Diffuse -> 'color'">>,
-     <<"All other OpenGl properties are ignored, particulary the "
-      "Attenuation properties">>,
-     <<"YafRay parameters mapping is pretty straightforward - "
-      "the dialog field names should be self-explanatory except:">>,
-     <<"The Enlight checkbox in a Hemilight with an image background "
+    [?__(27,"OpenGL properties that map to YafRay light parameters are:"),
+     ?__(28,"Diffuse -> 'color'"),
+     ?__(29,"All other OpenGl properties are ignored, particulary the "
+      "Attenuation properties"),
+     ?__(30,"YafRay parameters mapping is pretty straightforward - "
+      "the dialog field names should be self-explanatory except:"),
+     ?__(31,"The Enlight checkbox in a Hemilight with an image background "
       "activates the background image as ambient light source instead of "
       "the defined ambient color by excluding the 'color' tag "
-      "from the Hemilight.">>,
-     <<"Note: For a YafRay Global Photon Light (one of the Ambient lights) - "
-      "the Power parameter is ignored">>];
+      "from the Hemilight."),
+     ?__(32,"Note: For a YafRay Global Photon Light (one of the Ambient lights) - "
+      "the Power parameter is ignored")];
 help(title, pref_dialog) ->
-    "YafRay Options";
+    ?__(33,"YafRay Options");
 help(text, pref_dialog) ->
-    [<<"These are user preferences for the YafRay exporter plugin">>,
-     "Automatic Dialogs: "
-     ++wings_help:cmd(["File","Export","YafRay"])++", "
-     ++wings_help:cmd(["File","Export Selected","YafRay"])++" and "
-     ++wings_help:cmd(["File","Render","YafRay"])++" "
-     "are enabled if the rendering executable is found (in the path), "
-     "or if the rendering executable is specified with an absolute path.",
+    [?__(34,"These are user preferences for the YafRay exporter plugin"),
+     ?__(35,"Automatic Dialogs: ")
+     ++wings_help:cmd([?__(36,"File"),?__(37,"Export"),?__(38,"YafRay")])++", "
+     ++wings_help:cmd([?__(39,"File"),?__(40,"Export Selected"),?__(41,"YafRay")])++" "++?__(42,"and")++" "
+     ++wings_help:cmd([?__(43,"File"),?__(44,"Render"),?__(45,"YafRay")])++" "++
+     ?__(46,"are enabled if the rendering executable is found (in the path), "++
+     "or if the rendering executable is specified with an absolute path."),
      %%
-     "Disabled Dialogs: "
-     ++wings_help:cmd(["File","Export","YafRay"])++", "
-     ++wings_help:cmd(["File","Export Selected","YafRay"])++" and "
-     ++wings_help:cmd(["File","Render","YafRay"])++" "
-     "are disabled.",
+     ?__(47,"Disabled Dialogs:")++" "
+     ++wings_help:cmd([?__(48,"File"),?__(49,"Export"),?__(50,"YafRay")])++", "
+     ++wings_help:cmd([?__(51,"File"),?__(52,"Export Selected"),?__(53,"YafRay")])++" "++?__(54,"and")++" "
+     ++wings_help:cmd([?__(55,"File"),?__(56,"Render"),?__(57,"YafRay")])++" "++
+     ?__(58,"are disabled."),
      %%
-     "Enabled Dialogs: "
-     ++wings_help:cmd(["File","Export","YafRay"])++" and "
-     ++wings_help:cmd(["File","Export Selected","YafRay"])++" "
-     "are always enabled, but "
-     ++wings_help:cmd(["File","Render","YafRay"])++" "
-     "is still as for \"Automatic Dialogs\".",
+     ?__(59,"Enabled Dialogs:")++" "
+     ++wings_help:cmd([?__(60,"File"),?__(61,"Export"),?__(62,"YafRay")])++" "++?__(63,"and")++" "
+     ++wings_help:cmd([?__(64,"File"),?__(65,"Export Selected"),?__(66,"YafRay")])++" "++
+     ?__(67,"are always enabled, but")++" "
+     ++wings_help:cmd([?__(68,"File"),?__(69,"Render"),?__(70,"YafRay")])++" "++
+     ?__(71,"is still as for \"Automatic Dialogs\"."),
      %%
-     <<"Executable: The rendering command for the YafRay "
+     ?__(72,"Executable: The rendering command for the YafRay "
       "raytrace renderer (normally 'yafray') that is supposed to be found "
       "in the executables search path; "
-      "or, the absolute path of that executable.">>,
-     <<"Options: Rendering command line options to be inserted "
-      "between the executable and the .xml filename.">>].
+      "or, the absolute path of that executable."),
+     ?__(73,"Options: Rendering command line options to be inserted "
+      "between the executable and the .xml filename.")].

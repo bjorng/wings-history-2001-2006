@@ -8,12 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_obj.erl,v 1.15 2005/02/20 05:20:19 bjorng Exp $
+%%     $Id: wpc_obj.erl,v 1.16 2006/01/08 18:02:00 giniu Exp $
 %%
 
 -module(wpc_obj).
 
 -export([init/0,menu/2,command/2]).
+
+-include("wings_intl.hrl").
 
 init() ->
     true.
@@ -41,14 +43,14 @@ menu_entry(Menu) ->
     Menu ++ [{"Wavefront (.obj)...",obj,[option]}].
 
 props() ->
-    [{ext,".obj"},{ext_desc,"Wavefront File"}].
+    [{ext,".obj"},{ext_desc,?__(1,"Wavefront File")}].
 
 %%%
 %%% Import.
 %%%
 
 do_import(Ask, _St) when is_atom(Ask) ->
-    wpa:dialog(Ask, "Wavefront Import Options", dialog(import),
+    wpa:dialog(Ask, ?__(1,"Wavefront Import Options"), dialog(import),
 	       fun(Res) ->
 		       {file,{import,{obj,Res}}}
 	       end);
@@ -72,7 +74,7 @@ import_fun(Attr) ->
 %%%
 
 do_export(Ask, Op, _Exporter, _St) when is_atom(Ask) ->
-    wpa:dialog(Ask, "Wavefront Export Options", dialog(export),
+    wpa:dialog(Ask, ?__(1,"Wavefront Export Options"), dialog(export),
 	       fun(Res) ->
 		       {file,{Op,{obj,Res}}}
 	       end);
@@ -103,9 +105,9 @@ dialog(import) ->
     [wpa:dialog_template(?MODULE, import)];
 dialog(export) ->
     wpa:pref_set_default(?MODULE, default_filetype, ".tga"),
-    [{"One group per material",get_pref(group_per_material, true),
+    [{?__(1,"One group per material"),get_pref(group_per_material, true),
       [{key,group_per_material}]},
-     {"Vue d'Esprit workaround",get_pref(dot_slash_mtllib, false),
+     {?__(2,"Vue d'Esprit workaround"),get_pref(dot_slash_mtllib, false),
       [{key,dot_slash_mtllib}]},
      panel,
      wpa:dialog_template(?MODULE, tesselation),

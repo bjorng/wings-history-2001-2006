@@ -14,7 +14,7 @@
 %%  Near clipping will not work correctly if occurs in the viewport
 %%  Duplicate and zero length line segments are generated in some cases
 %%
-%% $Id: wpc_hlines.erl,v 1.2 2005/10/14 07:47:08 dgud Exp $
+%% $Id: wpc_hlines.erl,v 1.3 2006/01/08 18:02:00 giniu Exp $
 %%
 
 -module(wpc_hlines).
@@ -70,16 +70,16 @@ command({file, {export_selected, {eps, Arg}}}, St) ->
 command(_, _) -> next.
 
 export(Arg, Op, _) when is_atom(Arg) ->
-    wpa:dialog(Arg, "Cartoon edges Render Options", dialog(),
+    wpa:dialog(Arg, ?__(1,"Cartoon edges Render Options"), dialog(),
         fun(Res) -> {file, {Op, {eps, Res}}} end);
 export(Arg, Op, St0) when is_list(Arg) ->
     set_pref(Arg),
     Camera_info = wpa:camera_info([aim, distance_to_aim,
         azimuth, elevation, tracking,
         fov, hither, yon]),
-    Props = [{title, "Export"},
+    Props = [{title, ?__(2,"Export")},
         {ext, ".eps"},
-        {ext_desc, "Encapsulated Postscript (EPS) File"},
+        {ext_desc, ?__(3,"Encapsulated Postscript (EPS) File")},
         {camera_info, Camera_info},
         {subdivisions, get_pref(subdivisions, ?DEF_SUBDIVISIONS)},
         {win_size, wings_wm:win_size()},
@@ -99,6 +99,7 @@ export(Arg, Op, St0) when is_list(Arg) ->
     end.
 
 dialog() ->
+    IntlPT=?__(1,"pt"),
     BB_width = get_pref(bb_width, ?DEF_WIDTH),
     BB_height = get_pref(bb_height, ?DEF_HEIGHT),
     Edge_mode = get_pref(edge_mode, ?DEF_EDGE_MODE),
@@ -121,37 +122,37 @@ dialog() ->
 
     [
         {hframe, [
-            {label, "Width"},
+            {label, ?__(2,"Width")},
             {text, BB_width, [{key, bb_width}]},
-            {label, "Height"},
+            {label, ?__(3,"Height")},
             {text, BB_height, [{key, bb_height}]},
-            {label, "pt"}
-        ], [{title, "Bounding box"}]},
+            {label, IntlPT}
+        ], [{title, ?__(4,"Bounding box")}]},
 
-        {hframe,[{label,"Sub-division Steps"},
+        {hframe,[{label,?__(5,"Sub-division Steps")},
             {text,SubDiv,[{key,subdivisions},{range,0,4}]}],
-        [{title,"Pre-rendering"}]},
+        [{title,?__(6,"Pre-rendering")}]},
 
         {hradio, [
-            {"All", all_edges},
-            {"Hard", hard_edges},
-            {"None", no_edges}
-        ], Edge_mode, [{key, edge_mode}, {title, "Show edges"}]},
+            {?__(7,"All"), all_edges},
+            {?__(8,"Hard"), hard_edges},
+            {?__(9,"None"), no_edges}
+        ], Edge_mode, [{key, edge_mode}, {title, ?__(10,"Show edges")}]},
 
         {hframe, [
             {slider,
                 {text, Crease_angle, [
                     {key, crease_angle}, {range, {0, 180}}
                 ]}}
-        ], [{title, "Crease angle"}]},
+        ], [{title, ?__(11,"Crease angle")}]},
 
         {hframe, [
             {vframe, [
-                {label, "Outline"},
-                {label, "Hard"},
-                {label, "Crease"},
-                {label, "Material"},
-                {label, "Regular"}
+                {label, ?__(12,"Outline")},
+                {label, ?__(13,"Hard")},
+                {label, ?__(14,"Crease")},
+                {label, ?__(15,"Material")},
+                {label, ?__(16,"Regular")}
             ]},
             {vframe, [
                 {text, Edge_width_outline,
@@ -166,30 +167,30 @@ dialog() ->
                     [{key, edge_width_regular}, {range, {0.0, ?BIG}}]}
             ]},
             {vframe, [
-                {label, "pt"},
-                {label, "pt"},
-                {label, "pt"},
-                {label, "pt"},
+                {label, IntlPT},
+                {label, IntlPT},
+                {label, IntlPT},
+                {label, IntlPT},
                 {hframe, [
-                    {label, "pt"},
-                    {"All", Edge_one_width_for_all,
+                    {label, IntlPT},
+                    {?__(17,"All"), Edge_one_width_for_all,
                         [{key, edge_one_width_for_all}]}
                 ]}
             ]}
-        ], [{title, "Edge width"}]},
+        ], [{title, ?__(18,"Edge width")}]},
 
         {hradio, [
-            {"Butt", 0},
-            {"Round", 1},
-            {"Square", 2}
-        ], Line_cap, [{key, line_cap}, {title, "Line caps"}]},
+            {?__(19,"Butt"), 0},
+            {?__(20,"Round"), 1},
+            {?__(21,"Square"), 2}
+        ], Line_cap, [{key, line_cap}, {title, ?__(22,"Line caps")}]},
 
         {vframe, [
-            {"Merge", Optimize, [{key, optimize}]},
+            {?__(23,"Merge"), Optimize, [{key, optimize}]},
             {hframe, [
                 {vframe, [
-                    {label, "Angle"},
-                    {label, "Distance"}
+                    {label, ?__(24,"Angle")},
+                    {label, ?__(25,"Distance")}
                 ]},
                 {vframe, [
                     {text, Coll_angle, [
@@ -201,10 +202,10 @@ dialog() ->
                 ]},
                 {vframe, [
                     {label, [176]},
-                    {label, "pt"}
+                    {label, IntlPT}
                 ]}
             ]}
-        ], [{title, "Collinear lines (experimental)"}]}
+        ], [{title, ?__(26,"Collinear lines (experimental)")}]}
     ].
 
 get_pref(Key, Def) ->
@@ -295,9 +296,9 @@ io:format("~n", []),
             Obj_count = Obj_count0 + 1,
 Percent = Obj_count0 / Objs_total,
 wings_pb:update(Percent * 0.28 + 0.01,
-    "reading objects " ++ integer_to_list(round(Percent * 100.0)) ++ "%"),
+    ?__(1,"reading objects")++" " ++ integer_to_list(round(Percent * 100.0)) ++ "%"),
 wings_pb:pause(),
-io:format("Reading object ~B of ~B \"~s\"...",
+io:format(?__(2,"Reading object ~B of")++" ~B \"~s\"...",
     [Obj_count, Objs_total, Name]),
             #e3d_mesh{vs = MVCs, fs = MFs, he = MHEs} = Mesh,
             Is_open = is_open(Mesh) orelse has_transp_faces(Mesh, Mats_dict),
@@ -310,14 +311,14 @@ io:format("Reading object ~B of ~B \"~s\"...",
             {HardEdge_set, Edge_set} = edge_sets(MHEs, MFs, Edge_mode, VI_incr),
             Edges_dict_acc = group_edges(Thresh_cos, HardEdge_set, Edge_set,
                 Edge_type_fun, Edge_dict, Edges_dict_acc0),
-io:format(" done~n", []),
+io:format(" "++?__(3,"done")++"~n", []),
             {Edges_dict_acc, Tria_qtree_acc, VI_incr + length(MVCs),
                 Obj_count}
         end, {dict_new(), qtree_new(bbox_2d(View_port)), 0, 0}, Objs),
 
-wings_pb:update(0.3, "reading objects 100%"),
+wings_pb:update(0.3, ?__(4,"reading objects")++" 100%"),
 wings_pb:pause(),
-io:format("Exporting"),
+io:format(?__(5,"Exporting")),
 
     {Line_groups, Edges_total} =
         foldl(fun({Line_width, Edges}, {Dict_acc, Edge_count}) ->
@@ -395,9 +396,9 @@ io:format("Exporting"),
     end, {0, 0}, Line_groups),
 
     ok = file:close(F),
-wings_pb:update(1.0, "done"),
+wings_pb:update(1.0, ?__(6,"done")),
 wings_pb:done(),
-io:format(" done in ~.1f sec~n", [timer:now_diff(now(), Start_time) / 1.0e6]).
+io:format(" "++?__(7,"done in ~.1f sec")++"~n", [timer:now_diff(now(), Start_time) / 1.0e6]).
 
 edge_sets(Hard_edges, Faces, Edge_mode, Incr) when Edge_mode == all_edges ->
     {gb_sets:from_list(incr(Hard_edges, Incr)),

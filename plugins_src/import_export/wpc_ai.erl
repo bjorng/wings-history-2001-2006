@@ -16,6 +16,7 @@
 		sublist/2,nthtail/2,map/2]).
 
 -include("e3d.hrl").
+-include("wings_intl.hrl").
 
 -define(SCALEFAC, 0.01).		% amount to scale AI coords by
 
@@ -55,11 +56,11 @@ menu(_, Menu) -> Menu.
 
 command({file,{import,{ai,Ask}}}, _St) when is_atom(Ask) ->
     DefBisect = wpa:pref_get(wpc_ai, bisections, 0),
-    wpa:ask(Ask, "AI Import Options",
-	    [{"Number of edge bisections", DefBisect}],
+    wpa:ask(Ask, ?__(1,"AI Import Options"),
+	    [{?__(2,"Number of edge bisections"), DefBisect}],
 	    fun(Res) -> {file,{import,ai,Res}} end);
 command({file,{import,ai,[Nsub]}}, St) ->
-    Props = [{ext,".ai"},{ext_desc,"Adobe Illustrator File"}],
+    Props = [{ext,".ai"},{ext_desc,?__(3,"Adobe Illustrator File")}],
     wpa:import(Props, fun(F) -> make_ai(F, Nsub) end, St);
 command(_, _) ->
     next.
@@ -70,9 +71,9 @@ make_ai(Name, Nsubsteps) ->
 	    wpa:pref_set(wp0_ai, bisections, Nsubsteps),
 	    {ok, E3dFile};
 	{error,Reason} ->
-	    {error, "AI import failed: " ++ Reason};
+	    {error, ?__(1,"AI import failed")++": " ++ Reason};
 	_ ->
-	    {error, "AI import internal error"}
+	    {error, ?__(2,"AI import internal error")}
     end.
 
 tryimport(Name, Nsubsteps) ->
@@ -89,7 +90,7 @@ tryimport(Name, Nsubsteps) ->
 		Obj = #e3d_object{name=Name,obj=Mesh},
 		{ok, #e3d_file{objs=[Obj]}};
 	    {ok,_} ->
-		{error,"Not an Adobe Illustrator File (Version 8 or earlier)"};
+		{error,?__(1,"Not an Adobe Illustrator File (Version 8 or earlier)")};
 	    {error,Reason} ->
 		{error,file:format_error(Reason)}
 	end.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_toxic.erl,v 1.20 2005/10/08 10:27:58 dgud Exp $
+%%     $Id: wpc_toxic.erl,v 1.21 2006/01/08 18:02:00 giniu Exp $
 %%
 
 -module(wpc_toxic).
@@ -193,26 +193,26 @@ command_file(render, Attr, St) when is_list(Attr) ->
 	false ->
 	    do_export(export, props(render), [{?TAG_RENDER,true}|Attr], St);
 	true ->
-	    wpa:error("Already rendering.")
+	    wpa:error(?__(1,"Already rendering."))
     end;
 command_file(render, Ask, _St) when is_atom(Ask) ->
-    wpa:dialog(Ask, "Toxic Render Options", export_dialog(render),
+    wpa:dialog(Ask, ?__(2,"Toxic Render Options"), export_dialog(render),
 	       fun(Attr) -> {file,{render,{?TAG,Attr}}} end);
 command_file(Op, Attr, St) when is_list(Attr) ->
     set_pref(Attr),
     do_export(Op, props(Op), Attr, St);
 command_file(Op, Ask, _St) when is_atom(Ask) ->
-    wpa:dialog(Ask, "Toxic Export Options", export_dialog(Op),
+    wpa:dialog(Ask, ?__(3,"Toxic Export Options"), export_dialog(Op),
 	       fun(Attr) -> {file,{Op,{?TAG,Attr}}} end).
 
 props(render) ->
     {value,{png,Ext,Desc}} =
 	lists:keysearch(png, 1, wings_job:render_formats()),
-    [{title,"Render"},{ext,Ext},{ext_desc,Desc}];
+    [{title,?__(1,"Render")},{ext,Ext},{ext_desc,Desc}];
 props(export) ->
-    [{title,"Export"},{ext,".xml"},{ext_desc,"Toxic File"}];
+    [{title,?__(2,"Export")},{ext,".xml"},{ext_desc,?__(3,"Toxic File")}];
 props(export_selected) ->
-    [{title,"Export Selected"},{ext,".xml"},{ext_desc,"Toxic File"}].
+    [{title,?__(4,"Export Selected")},{ext,".xml"},{ext_desc,?__(5,"Toxic File")}].
 
 -record(camera_info, {pos,dir,up,fov,origin,distance,azimuth,
 		      elevation,pan_x,pan_y}).
@@ -247,8 +247,8 @@ fun_export_2(Attr) ->
 		ok ->
 		    ok;
 		Error ->
-		    io:format("ERROR: Failed to export:~n~p~n", [Error]),
-		    {error,"Failed to export"}
+		    io:format(?__(1,"ERROR: Failed to export")++":~n~p~n", [Error]),
+		    {error,?__(2,"Failed to export")}
 	    end
     end.
 
@@ -266,9 +266,9 @@ material_dialog(_Name, Mat) ->
 %				      true -> ?DEF_EDF_RADIANCE end),
     [{vframe,
       [{hframe,
-	[{label, "BRDF"},
-	 {hradio,[{"Lambertian",lambertian},
-		  {"Perfect Specular",perfectspecular}],
+	[{label, ?__(1,"BRDF")},
+	 {hradio,[{?__(2,"Lambertian"),lambertian},
+		  {?__(3,"Perfect Specular"),perfectspecular}],
 	  BDF,[layout,{key,{?TAG,bdf}}]},
 	 panel,
 	 help_button({material_dialog,shaders})]}
@@ -278,7 +278,7 @@ material_dialog(_Name, Mat) ->
 % 	 {text, Radiant, [{range, {0, 500000}}, {key, {?TAG, radiant}},
 % 			  enable_hook({?TAG, edf})]}]}
       ],
-      [{title,"Toxic Options"},{minimized,Min},
+      [{title,?__(4,"Toxic Options")},{minimized,Min},
        {key,{?TAG,shader_minimized}}]}].
 
 rgba2rgb({R,G,B,_}) -> {R,G,B}.
@@ -306,20 +306,20 @@ light_dialog(_Name, Ps) ->
     case Type of
 	area ->
  	    [{vframe,
-	      [{hframe,[{label,"Power"},
+	      [{hframe,[{label,?__(1,"Power")},
 			{text,Power,[{range,{0.0,10000.0}},{key,{?TAG,power}}]},
 			panel,
 			help_button(light_dialog)]}],
-	      [{title,"Toxic Options"},{key,{?TAG,minimized}},{minimized,Minimized}]}];
+	      [{title,?__(2,"Toxic Options")},{key,{?TAG,minimized}},{minimized,Minimized}]}];
 	ambient -> [];
 	_ ->
 	    [{vframe,
-	      [{hframe,[{label,"Power"},
+	      [{hframe,[{label,?__(3,"Power")},
 			{text,Power,[{range,{0.0,10000.0}},{key,{?TAG,power}}]},
 			panel,
 			help_button(light_dialog)]},
-	       {"Cast Shadows",CastShadows,[{key,{?TAG,cast_shadows}}]}],
-	      [{title,"Toxic Options"},{key,{?TAG,minimized}},{minimized,Minimized}]}]
+	       {?__(4,"Cast Shadows"),CastShadows,[{key,{?TAG,cast_shadows}}]}],
+	      [{title,?__(5,"Toxic Options")},{key,{?TAG,minimized}},{minimized,Minimized}]}]
     end.
 
 max_hook(Key, Values) when list(Values) ->
@@ -369,14 +369,14 @@ pref_edit(St) ->
     Dialogs = get_pref(dialogs, ?DEF_DIALOGS),
     Renderer = get_pref(renderer, ?DEF_RENDERER),
     Dialog =
-	[{vframe,[{menu,[{"Disabled Dialogs",disabled},
-			 {"Automatic Dialogs",auto},
-			 {"Enabled Dialogs",enabled}],
+	[{vframe,[{menu,[{?__(1,"Disabled Dialogs"),disabled},
+			 {?__(2,"Automatic Dialogs"),auto},
+			 {?__(3,"Enabled Dialogs"),enabled}],
 		   Dialogs,[{key,dialogs}]},
-		  {label,"Rendering Command:"},
+		  {label,?__(4,"Rendering Command:")},
 		  {button,{text,Renderer,
 			   [{key,renderer},wings_job:browse_props()]}}]}],
-    wpa:dialog("Toxic Options", Dialog,
+    wpa:dialog(?__(5,"Toxic Options"), Dialog,
 	       fun (Attr) -> pref_result(Attr,St) end).
 
 pref_result(Attr, St) ->
@@ -458,26 +458,26 @@ export_dialog(Operation) ->
 
     [{vframe,
       [{hframe,
-	[{hframe,[{"Export Mesh(es)", ExportMesh, [{key, {?TAG,export_mesh}}]},
-		  {label,"Sub-division Steps"},
+	[{hframe,[{?__(1,"Export Mesh(es)"), ExportMesh, [{key, {?TAG,export_mesh}}]},
+		  {label,?__(2,"Sub-division Steps")},
 		  {text,SubDiv,[{key,{?TAG,subdivisions}},{range,{0,10}},
 				enable_hook({?TAG, export_mesh})]}],
-	  [{title,"Pre-rendering"}]},
+	  [{title,?__(3,"Pre-rendering")}]},
 	 panel,
 	 help_button(export_dialog)]},
-       {hframe, [{label, "Scale"},
+       {hframe, [{label, ?__(4,"Scale")},
 		 {text, GScale, [{range,{0.0,1.0E200}},
 				 {key, {?TAG,globalscale}}]}],
-	[{title,"Global Scale"}]},
-       {vframe, [{hframe, [{hradio,[{"PinHole Camera",pinhole},
-				    {"Thin Lens Camera",thinlens}],
+	[{title,?__(5,"Global Scale")}]},
+       {vframe, [{hframe, [{hradio,[{?__(6,"PinHole Camera"),pinhole},
+				    {?__(7,"Thin Lens Camera"),thinlens}],
 			    Camera,[layout,{key,{?TAG,camera}}]}]},
-		 {hframe, [{label, "Fstop"},
+		 {hframe, [{label, ?__(8,"Fstop")},
 			   {text, Fstop, [{key, {?TAG,fstop}}]},
-			   {label, "Focal length"},
+			   {label, ?__(9,"Focal length")},
 			   {text, Focallen, [{key, {?TAG,focallen}}]}
 			  ], [max_hook({?TAG,camera},[thinlens])]},
-		 {vframe, [{hframe, [{"AutoFocus", AutoFocus,
+		 {vframe, [{hframe, [{?__(10,"AutoFocus"), AutoFocus,
 				      [{key, {?TAG,autofocus}},layout]},
 				     {hframe, [{label, "X"},
 					       {text,AutoPosX,
@@ -488,62 +488,62 @@ export_dialog(Operation) ->
 						[{key,{?TAG,autoposy}},
 						 {range,{-0.5,0.5}}]}],
 				      [max_hook({?TAG, autofocus},[true])]},
-				     {hframe, [{label, "Focal Distance"},
+				     {hframe, [{label, ?__(11,"Focal Distance")},
 					       {text, FocalDist, 
 						[{key, {?TAG,focaldist}}]}],
 				      [max_hook({?TAG, autofocus},[false])]}]
 			   }],[max_hook({?TAG,camera},[thinlens])]}
-		], [{title, "Camera"}]},
+		], [{title, ?__(12,"Camera")}]},
        {vframe,
-	[{hradio,[{"Super Sampling",super},
-		  {"Whitted Adaptive",whitted}],
+	[{hradio,[{?__(13,"Super Sampling"),super},
+		  {?__(14,"Whitted Adaptive"),whitted}],
 	  Sampling,[layout,{key,{?TAG,sampling}}]},
 	 {vframe,
 	  pixelsampling(pixel,[SStype, SSrandom,SSWidth,SSHeight]),
 	  [max_hook({?TAG, sampling},[super])]},
 	 {hframe,
-	  [{vframe, [{label, "Contrast Threshold"},
-		     {label, "Max Depth"}]},
+	  [{vframe, [{label, ?__(15,"Contrast Threshold")},
+		     {label, ?__(16,"Max Depth")}]},
 	   {vframe, [{text, WAContrast, [{key, {?TAG,wacontrast}}]},
 		     {text, WAMax, [{range, {0, 500}}, {key, {?TAG, wamax}}]}]}],
 	  [max_hook({?TAG, sampling},[whitted])]}],
-	[{title,"Pixel Sampling"}]},
+	[{title,?__(17,"Pixel Sampling")}]},
        {vframe,
 	[{hframe,
 	  [{"", DirectLight, [{key, {?TAG,direct_light}}]},
 	   {vframe,
 	    pixelsampling(direct_light,[DLtype, DLrandom, DLWidth,DLHeight]),
-	    [{title,"Enable Direct Lighting"},
+	    [{title,?__(18,"Enable Direct Lighting")},
 	     {minimized,DirectLightMin},{key,{?TAG,direct_light_min}},
 	     enable_hook({?TAG,direct_light})]}]},
 	 {hframe,
 	  [{"", InDirectLight, [{key, {?TAG,indirect_light}}]},
 	   {vframe,
 	    [{hframe,
-	      [{label, "Emit Photons"},
+	      [{label, ?__(19,"Emit Photons")},
 	       {text,
 		IDLNoPhotons,[{range,{10000,50000000}},{key,{?TAG,idlnoPhotons}}]},
-	       {label, "Max Photons"},
+	       {label, ?__(20,"Max Photons")},
 	       {text,
 		IDLMaxPhotons,[{range,{10,50000}},{key,{?TAG,idlmaxPhotons}}]},
-	       {label, "Max Distance"},
+	       {label, ?__(21,"Max Distance")},
 	       {text, IDLMaxDist, [{key, {?TAG, idlmaxDist}}]}]},
 	     {hframe,
 	      [{"", RadPreComp, [{key, {?TAG, radprecomp}}]},
-	       {label, "Radiance Precomputation"},
+	       {label, ?__(22,"Radiance Precomputation")},
 	       {hframe,
 		[
-		 {label, "Spacing"},
+		 {label, ?__(23,"Spacing")},
 		 {text, RadPreSpacing,[{range,{1,10000}},
 				       {key,{?TAG,{radprecomp,spacing}}}]},
-		 {label, "Search Dist"},
+		 {label, ?__(24,"Search Dist")},
 		 {text, RadPreSearch, [{range,{0.1,100.0}},
 				       {key, {?TAG, {radprecomp, search}}}]}],
 		[enable_hook({?TAG, radprecomp})]}]},
 	     {hframe,
 	      [{"", RadPrimary, [{key, {?TAG, radprimary}}]},
 	       {vframe,
-		[{label, "Primary Final Gathering"} |
+		[{label, ?__(25,"Primary Final Gathering")} |
 		 pixelsampling(radprimary, [IDLPtype, IDLPrandom,
 					    IDLPWidth,IDLPHeight])],
 		[enable_hook({?TAG, radprimary})]}]},
@@ -551,59 +551,59 @@ export_dialog(Operation) ->
 	      [{"", RadSecondary, [{key, {?TAG, radsecondary}}]},
 	       {vframe, 
 		[{hframe, 
-		  [{label, "Secondary Final Gathering"},
+		  [{label, ?__(26,"Secondary Final Gathering")},
 		   {text, RadSecDist, 
 		    [{range, {0.0000001, 1000.0}},
 		     {key, {?TAG, {radsecondary, dist}}}]}]} |
 		 pixelsampling(radsecondary, [IDLStype, IDLSrandom,
 					      IDLSWidth,IDLSHeight])],
 		[enable_hook({?TAG,radsecondary})]}]}],
-	    [{title,"Enable Indirect Lighting"},
+	    [{title,?__(27,"Enable Indirect Lighting")},
 	     {minimized,InDirectLightMin},
 	     {key,{?TAG,indirect_light_min}},
 	   enable_hook({?TAG,indirect_light})]}]},
 	 {hframe,
 	  [{"", SpecularRefl, [{key, {?TAG,specular_refl}}]},
 	   {hframe,
-	    [{label, "Reflection Depth"},
+	    [{label, ?__(28,"Reflection Depth")},
 	     {text, SpecDepth, [{range, {0, 1000000}},
 				{key, {?TAG, specdepth}}]}],
-	    [{title,"Enable Specular Reflections"},
+	    [{title,?__(29,"Enable Specular Reflections")},
 	     {minimized,SpecularReflMin},{key,{?TAG,specular_refl_min}},
 	     enable_hook({?TAG,specular_refl})]}]},
 	 {hframe,
 	  [{"", Caustics, [{key, {?TAG,caustics}}]},
 	   {hframe,
-	    [{label, "Emit Photons"},
+	    [{label, ?__(30,"Emit Photons")},
 	     {text, CAUNoPhotons,
 	      [{range,{10000,50000000}},{key,{?TAG,caunoPhotons}}]},
-	     {label, "Max Photons"},
+	     {label, ?__(31,"Max Photons")},
 	     {text, CAUMaxPhotons,
 	      [{range,{10,50000}},{key,{?TAG,caumaxPhotons}}]},
-	     {label, "Max Distance"},
+	     {label, ?__(32,"Max Distance")},
 	     {text, CAUMaxDist, [{key, {?TAG, caumaxDist}}]}],
-	    [{title,"Enable Caustics"},
+	    [{title,?__(33,"Enable Caustics")},
 	     {minimized,CausticsMin},{key,{?TAG,caustics_min}},
 	     enable_hook({?TAG,caustics})]}]}],
-	[{title,"Render"}]},
+	[{title,?__(34,"Render")}]},
        {hframe,
-	[{vframe,[{label,"Width"}]},
+	[{vframe,[{label,?__(35,"Width")}]},
 	 {vframe,[{text,Width,[{range,{1,10000}},{key,{?TAG,width}}]}]},
-	 {vframe,[{label,"Height"}]},
+	 {vframe,[{label,?__(36,"Height")}]},
 	 {vframe,[{text,Height,[{range,{1,10000}},{key,{?TAG,height}}]}]},
-	 {vframe,[{label,"Gamma"}]},
+	 {vframe,[{label,?__(37,"Gamma")}]},
 	 {vframe,[{text,Gamma,[{range,{0.0,10.0}},{key,{?TAG,gamma}}]}]},
-	 {vframe,[{label,"BackGround"}]},
+	 {vframe,[{label,?__(38,"BackGround")}]},
 	 {vframe,[{color,BG,[{key,{?TAG,background}}]}]}],
-	[{title,"Output"}]}]}
+	[{title,?__(39,"Output")}]}]}
      |
      case Operation of
 	 render ->
-	     [{hframe,[{label,"Options"},
+	     [{hframe,[{label,?__(40,"Options")},
 		       {text,Options,[{key,{?TAG,options}}]}
 %%		       {"Load Image",LoadImage,[{key,load_image}]}
 		      ],
-	       [{title,"Rendering Job"}]}];
+	       [{title,?__(41,"Rendering Job")}]}];
 	 export ->
 	     [];
 	 export_selected ->
@@ -611,19 +611,19 @@ export_dialog(Operation) ->
      end].
 
 pixelsampling(PType, [Sample, Random, Width,Height]) ->
-    [{hframe, [{hradio, [{"Random", random},
-			 {"Regular", regular},
-			 {"Stratified", stratified}],
+    [{hframe, [{hradio, [{?__(1,"Random"), random},
+			 {?__(2,"Regular"), regular},
+			 {?__(3,"Stratified"), stratified}],
 		Sample, [layout, {key,{?TAG,{PType,sstype}}}]},
 	       {hframe,
-		[{label, "Samples"},
+		[{label, ?__(4,"Samples")},
 		 {text, Random, [{range,{1,128}},
 				 {key,{?TAG,{PType,samples}}}]}],
 		[max_hook({?TAG,{PType,sstype}},[random])]},
 	       {hframe,
-		[{label, "Width"},
+		[{label, ?__(5,"Width")},
 		 {text, Width, [{range,{1,128}},{key,{?TAG,{PType,sswidth}}}]},
-		 {label, "Height"},
+		 {label, ?__(6,"Height")},
 		 {text, Height,[{range,{1,128}},{key,{?TAG,{PType,ssheight}}}]}
 		],[max_hook({?TAG,{PType,sstype}},[regular, stratified])]}
 	      ]}].
@@ -816,7 +816,7 @@ split_fs([], Mat, [Curr|Acc]) ->
 
 export_settings(#files{settings=File}, Attr) ->
     F = open(File, export),
-    io:format("Exporting to ~s~n", [File]),
+    io:format(?__(1,"Exporting to")++" ~s~n", [File]),
     println(F, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"),
     println(F, "<!-- ~s: Exported from Wings3d -->",
 	    [filename:basename(File)]),
@@ -925,7 +925,7 @@ export_sampling(F,Type,Attr) ->
 
 export_scene(#files{scene=File,dir=Dir, objects=Wavefront}, Objs, Attrs) ->
     F = open(File, export),
-    io:format("Exporting to ~s~n", [File]),
+    io:format(?__(1,"Exporting to")++" ~s~n", [File]),
     println(F, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"),
     println(F, "<!-- ~s: Exported from Wings3d -->",
 	    [filename:basename(File)]),
@@ -1363,11 +1363,11 @@ help_button(Subject) ->
     {help,Title,TextFun}.
 
 help(title, export_dialog) ->
-    "Toxic Export Properties";
+    ?__(1,"Toxic Export Properties");
 help(text, export_dialog) ->
-    [<<"Toxic: see http://toxicengine.sourceforge.net">>,
+    [?__(2,"Toxic: see http://toxicengine.sourceforge.net"),
 
-     <<"Toxic export uses several files: YourScene.xml consists of "
+     ?__(3,"Toxic export uses several files: YourScene.xml consists of "
       "the shaders (e.g. materials) and objects (with references to the "
       "actual meshes). Lights and the camera are also defined as scene objects. "
       "Render settings are defined in YourScene.setting.xml "
@@ -1375,14 +1375,14 @@ help(text, export_dialog) ->
       "The actual meshes are stored in YourScene.objects.obj "
       "file; that means that you don't have to export the the meshes for every "
       "rendering, i.e. if you only change something in the materials or in this "
-      "dialog you don't have to export the meshes again." >>,
+      "dialog you don't have to export the meshes again."),
 
-     <<"Global Scale lets you specify a scale parameter from wings units to meters. "
+     ?__(4,"Global Scale lets you specify a scale parameter from wings units to meters. "
       "This is necessary get correct lighting in your scene. So if one wings unit "
       "represents one centimeter on your model set Global Scale to 0.01, or if "
-      "one wings unit is two meters, set Global Scale to 2.">>,
+      "one wings unit is two meters, set Global Scale to 2."),
 
-     <<"Camera lets you choose between two different type of cameras.",
+     ?__(5,"Camera lets you choose between two different type of cameras."
       "The pinhole camera is the simplest one. Since it has infinite "
       "depth of field, objects can't be out of focus and thus never appear blurred. "
       "The thin lens camera is slightly more complex (and much more plausible) "
@@ -1393,45 +1393,45 @@ help(text, export_dialog) ->
       "     Lens diameter is computed as follow: \n"
       "     lensdiameter = focallength / fstop.\n "      
       "Focal length: focal length of the camera, expressed in meters.\n"
-
+      
       "Additionally, one of the two following parameters must be defined: "
       "focaldistance or autofocus. Focal distance of the camera, expressed in meters. "
       "The focal distance is the distance along the view direction at which "
       "objects will be in focus." 
       "Autofocus is a point, in the image plane, which will be in focus. "
       "Bottom left corner of the image plane is at (-0.5, -0.5), and "
-      "upper right corner is at (0.5, 0.5), regardless of the image resolution. ">>,
-     <<"Pixel Sampling specifies how antialising is done">>,
-     <<"Rendering specifies which kind of lighting method should be used "
+      "upper right corner is at (0.5, 0.5), regardless of the image resolution. "),
+     ?__(6,"Pixel Sampling specifies how antialising is done"),
+     ?__(7,"Rendering specifies which kind of lighting method should be used "
       "There are four types lighting methods: direct lighting, indirect lighting, "
       "specular reflections and caustics. These methods form the global " 
-      "illumination (GI) and each method can be individually enabled or disabled. ">>,
-     <<"Output specifies the rendered image width, height and gamma.">>,
+      "illumination (GI) and each method can be individually enabled or disabled. "),
+     ?__(8,"Output specifies the rendered image width, height and gamma."),
 
-     <<"Rendering Job lets you specify additional command line arguments for "
-      "toxic">>
+     ?__(9,"Rendering Job lets you specify additional command line arguments for "
+      "toxic")
     ];
 
 help(title, {material_dialog,shaders}) ->
-    "Toxic Material Properties: ";
+    ?__(10,"Toxic Material Properties")++": ";
 help(text, {material_dialog,shaders}) ->
-    [<<"The BRDF characterizes how light is reflected by the surface.">>,
-     <<" Lambertian is a perfectly diffuse surface and currently the only "
-      "other option is a perfectly specular surface">>,
-     <<" The diffuse color is used in toxic as the reflectance color"
+    [?__(11,"The BRDF characterizes how light is reflected by the surface."),
+     ?__(12," Lambertian is a perfectly diffuse surface and currently the only "
+      "other option is a perfectly specular surface"),
+     ?__(13," The diffuse color is used in toxic as the reflectance color"
       " for all different types of BRDF."
-      " If the material has an diffuse texture it will replace the reflectance color">>];
+      " If the material has an diffuse texture it will replace the reflectance color")];
 %     <<"If emission is enabled, EDF will be set to lambertian, "
 %       "Radiant Exitance will be multiplied with the emission color, and"
 %       " it is expressed in W.m^-2">>];
 %%
 help(title, light_dialog) ->
-    "Toxic Light Properties";
+    ?__(14,"Toxic Light Properties");
 help(text, light_dialog) ->
-    [<<"Toxic only has one light type, pointlight, it produces true hard shadows."
+    [?__(15,"Toxic only has one light type, pointlight, it produces true hard shadows."
       " The diffuse color is multiplied with the power value, "
-      "to get the emission power in Watts.">>,
-     <<"All Wings3D lights (except area lights) uses the Toxic point light.">>].
+      "to get the emission power in Watts."),
+     ?__(16,"All Wings3D lights (except area lights) uses the Toxic point light.")].
 
 
 

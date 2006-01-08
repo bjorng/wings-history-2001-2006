@@ -8,14 +8,16 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_rwx.erl,v 1.1 2004/01/20 19:18:06 bjorng Exp $
+%%     $Id: wpc_rwx.erl,v 1.2 2006/01/08 18:02:00 giniu Exp $
 %%
 
 -module(wpc_rwx).
 
 -export([init/0,menu/2,command/2]).
+
 -include("e3d.hrl").
 -include("e3d_image.hrl").
+-include("wings_intl.hrl").
 
 init() ->
     true.
@@ -39,7 +41,7 @@ menu_entry(Menu) ->
     Menu ++ [{"Renderware (.rwx)...",rwx,[option]}].
 
 props() ->
-    [{ext,".rwx"},{ext_desc,"Criterion Renderware file"}].
+    [{ext,".rwx"},{ext_desc,?__(1,"Criterion Renderware File")}].
 
 
 %%%
@@ -47,7 +49,7 @@ props() ->
 %%%
 
 do_export(Ask, Op, _Exporter, _St) when is_atom(Ask) ->
-    wpa:dialog(Ask, "Renderware export options",
+    wpa:dialog(Ask, ?__(1,"Renderware export options"),
 	       dialog(export),
 	       fun(Res) ->
 		       {file,{Op,{rwx,Res}}}
@@ -74,17 +76,17 @@ export_1(Filename, Contents0, Attr) ->
     end.
 
 dialog(export) ->
-    [{"Faceted lightsampling",get_pref(faceted_light_sampling,false),[{key,faceted_light_sampling}]},
+    [{?__(1,"Faceted lightsampling"),get_pref(faceted_light_sampling,false),[{key,faceted_light_sampling}]},
      %%{"Write Textures to Jpeg files?",get_pref(write_jpeg,false),[{key,write_jpeg}]},
-     {"Optimize file size?",get_pref(opt_fs,false),[{key,opt_fs}]},	
+     {?__(2,"Optimize file size?"),get_pref(opt_fs,false),[{key,opt_fs}]},	
      {label_column,
-      [{"Ambient",{text,get_pref(ambient_value,0.58),[{key,ambient_value}]}},
-       {"Diffuse",{text,get_pref(diffuse_value,0.15),[{key,diffuse_value}]}},
-       {"Specular",{text,get_pref(specular_value,0.15),[{key,specular_value}]}}]},
+      [{?__(3,"Ambient"),{text,get_pref(ambient_value,0.58),[{key,ambient_value}]}},
+       {?__(4,"Diffuse"),{text,get_pref(diffuse_value,0.15),[{key,diffuse_value}]}},
+       {?__(5,"Specular"),{text,get_pref(specular_value,0.15),[{key,specular_value}]}}]},
 
      {label_column,
-      [{"Export scale",{text,get_pref(export_scale, 0.1),[{key,export_scale}]}},
-       {"Sub-division Steps",{text,get_pref(subdivisions, 0),
+      [{?__(6,"Export scale"),{text,get_pref(export_scale, 0.1),[{key,export_scale}]}},
+       {?__(7,"Sub-division Steps"),{text,get_pref(subdivisions, 0),
 			      [{key,subdivisions},{range,0,4}]}}
 
       ]} ].
