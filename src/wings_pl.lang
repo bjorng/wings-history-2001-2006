@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pl.lang,v 1.16 2006/01/07 18:00:52 giniu Exp $
+%%     $Id: wings_pl.lang,v 1.17 2006/01/08 17:58:04 giniu Exp $
 %%
 %%  Translation:  Andrzej Giniewicz
 %%  Correction:   Małgorzata Napiontek
@@ -2403,7 +2403,7 @@
     {15,"Kolor punktów"},
     {16,"Zastosuj kolor punktów do wybranych punktów"},
     {17,"Pozycjonuj"},
-    {18,"Przesuń wybrany punkt na dokłądną pozycję w koordynatach bezwzględnych"}
+    {18,"Przesuń wybrany punkt na dokładną pozycję w koordynatach bezwzględnych"}
    ]},
   {move_to,
    [
@@ -2424,10 +2424,10 @@
     {1,"Rozmiar negatywu"},
     {4,"Niestandardowy"},
     {5," na "},
-    {6,"Obiektyw szerokokątny"},
-    {7,"Obiektyw pośrednio-szerokokątny"},
-    {8,"Obiektyw zwykły"},
-    {9,"Teleobiekty portretowy"},
+    {6,"Rybie oko"},
+    {7,"Obiektyw szerokokątny"},
+    {8,"Obiektyw standardowy"},
+    {9,"Obiektyw portretowy"},
     {10,"Teleobiektyw"},
     {11,"Obiektyw niestandardowy"},
     {12,"Szerokość"},
@@ -2679,10 +2679,10 @@
     {7,"Standardowy typ pliku tekstury"},
     {color,"Eksportuj kolor punktów"},
     {norms,"Eksportuj wektory normalne i grupy wygładzania"},
-    {tess,"Zagęszczenie"},
+    {tess,"Teselacja"},
     {tess0,"Brak"},
-    {tess3,"Trójkątne"},
-    {tess4,"Kwadratowe"},
+    {tess3,"Trójkątna"},
+    {tess4,"Czworokątna"},
     {uv,"Eksportuj koordynaty UV"}
    ]},
   {do_import,
