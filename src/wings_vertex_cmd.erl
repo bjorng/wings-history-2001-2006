@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.53 2006/01/07 18:00:52 giniu Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.54 2006/01/09 21:38:46 giniu Exp $
 %%
 
 -module(wings_vertex_cmd).
@@ -45,6 +45,8 @@ menu(X, Y, St) ->
 	     ?STR(menu,11,"Delete selected vertices (clearing selection)")},
 	    {?STR(menu,12,"Collapse"),collapse,
 	     ?STR(menu,13,"Delete selected vertices (creating a face selection)")},
+	    {?STR(menu,19,"Weld"),weld,
+	     ?STR(menu,20,"Weld selected vertex to other one")},
 	    separator,
 	    {?STR(menu,14,"Deform"),wings_deform:sub_menu(St)},
 	    separator,
@@ -75,8 +77,6 @@ command(collapse, St) ->
     {save_state,wings_collapse:collapse(St)};
 command({move,Type}, St) ->
     wings_move:setup(Type, St);
-command(move_to, St) ->
-    move_to(St);
 command({rotate,Type}, St) ->
     wings_rotate:setup(Type, St);
 command({scale,Type}, St) ->
@@ -86,7 +86,11 @@ command(vertex_color, St) ->
 			       set_color(Color, St)
 		       end);
 command({'ASK',Ask}, St) ->
-    wings:ask(Ask, St, fun command/2).
+    wings:ask(Ask, St, fun command/2);
+command(move_to, St) ->
+    move_to(St);
+command(weld, St) ->
+    weld(St).
     
 %%%
 %%% The Flatten command.
@@ -454,7 +458,7 @@ move_to(#st{sel=[{Obj,{1,{Vert,_,_}}}],shapes=Shs}=St) ->
          move_to1(Move,St)
       end);
 move_to(St) ->
-   wings_u:error(?__(2,"You can move only one point")),
+   wings_u:error(?__(2,"You can move only one vertex")),
    St.
 
 move_to1([X,Y,Z],#st{sel=[{Obj,{1,{Vert,_,_}}}],shapes=Shs}=St) ->
@@ -464,3 +468,242 @@ move_to1([X,Y,Z],#st{sel=[{Obj,{1,{Vert,_,_}}}],shapes=Shs}=St) ->
    NewWe = We#we{vp=NewVtab},
    NewShs = gb_trees:update(Obj,NewWe,Shs),
    St#st{shapes=NewShs}.
+
+%%
+%% Weld one vertex to other
+%%
+
+weld(#st{sel=[{Obj,{1,{_,_,_}}}],shapes=Shs}=St) ->
+   We = gb_trees:get(Obj, Shs),
+   Vertices = gb_trees:size(We#we.fs),
+   if
+      Vertices < 4 -> 
+         wings_u:error(?__(1,"Object must have at least 4 vertices")),
+         St;
+      true ->
+         wings:ask(weld_select(St), St, fun weld/2)
+   end;
+weld(St) ->
+   wings_u:error(?__(2,"You can weld only one vertex")),
+   St.
+
+weld_select(OrigSt) ->
+    Desc = ?__(1,"Select target vertex you want weld to"),
+    Fun = fun(check, St) -> weld_check_selection(St, OrigSt);
+	     (exit, {_,_,#st{sel=Vert2}=St}) ->
+		  case weld_check_selection(St, OrigSt) of
+		      {_,[]} -> {[],[Vert2]};
+		      {_,_} -> error
+		  end
+	  end,
+    {[{Fun,Desc}],[],[],[vertex]}.
+
+weld_check_selection(#st{sel=[{_Obj,{1,{Vert2,_,_}}}]},#st{sel=[{_Obj,{1,{Vert1,_,_}}}]}=St) ->
+   if
+      Vert1==Vert2 -> {none,?__(1,"You cannot weld vertex to itself")};
+      true -> 
+         St2=wings_sel_conv:mode(vertex,St),
+         [{_,Sel2}]=St2#st.sel,
+         CanDo = gb_sets:is_element(Vert2,Sel2),
+         if
+            CanDo -> {none,""};
+            true -> {none,?__(2,"Vertices you want weld must share edge")}
+         end
+   end;
+weld_check_selection(#st{sel=[{_Obj,_}]},#st{sel=[{_Obj,_}]}) ->
+   {none,?__(3,"You can weld to only one point")};
+weld_check_selection(#st{sel=[]},_) ->
+   {none,?__(4,"Nothing selected")};
+weld_check_selection(_,_) ->
+   {none,?__(5,"You can weld only in same object")}.
+
+weld([{_,{1,{Vert2,_,_}}}]=NewSel,#st{sel=[{Obj,{1,{Vert1,_,_}}}],shapes=Shs}=St) ->
+   We = gb_trees:get(Obj, Shs),
+   NewVP = gb_trees:delete(Vert1,We#we.vp),
+   NewES = fix_edge(Vert1,Vert2,We),
+   WE0 = We#we{vp=NewVP, es=NewES, vc=undefined, fs=undefined},
+   NewWe = wings_we:rebuild(WE0),
+   NewShs = gb_trees:update(Obj,NewWe,Shs),
+   St#st{shapes=NewShs,sel=NewSel}.
+
+fix_edge(Vert1,Vert2,Orig) ->
+   Es = Orig#we.es,
+   RemoveEdge = find_edge(Vert1,Vert2,Es),
+   #edge{lf=LF,rf=RF} = gb_trees:get(RemoveEdge,Es),
+   NLF = wings_face:vertices(LF, Orig),
+   NRF = wings_face:vertices(RF, Orig),
+   if
+      NLF < 4 -> FixMe0 = [LF];
+      true -> FixMe0 = []
+   end,
+   if
+      NRF < 4 -> FixMe = [RF|FixMe0];
+      true -> FixMe = FixMe0
+   end,
+   New = gb_trees:empty(),
+   Etab = fix_edge_1(RemoveEdge,Vert1,Vert2,Es,Orig,New),
+   fix_edge_2(FixMe,Etab).
+
+fix_edge_1(RemoveEdge,Vert1,Vert2,Es,Orig,Result) ->
+   case gb_trees:size(Es) of
+      0 -> Result;
+      _ ->
+         {Key,#edge{vs=V1,ve=V2,a=C1,b=C2,lf=LF,rf=RF,ltpr=LP,ltsu=LS,rtpr=RP,rtsu=RS},Es2} = gb_trees:take_smallest(Es),
+         if
+            Key == RemoveEdge -> fix_edge_1(RemoveEdge,Vert1,Vert2,Es2,Orig,Result);
+            true ->
+               #edge{vs=OV1,a=OC1,b=OC2,lf=OLF,rf=ORF,ltpr=OLP,ltsu=OLS,rtpr=ORP,rtsu=ORS} = gb_trees:get(RemoveEdge,Orig#we.es),
+               case V1 of
+                  Vert1 -> NV1=Vert2,
+                           case OV1 of
+                              Vert2 -> NC1=OC1;
+                              _ -> NC1=OC2
+                           end;
+                  _ -> NV1=V1,
+                       NC1=C1
+               end,
+               case V2 of
+                  Vert1 -> NV2=Vert2,
+                           case OV1 of
+                              Vert2 -> NC2=OC1;
+                              _ -> NC2=OC2
+                           end;
+                  _ -> NV2=V2,
+                       NC2=C2
+               end,
+               case LP of
+                  RemoveEdge ->
+                     if
+                        LF == OLF -> NLP = OLP;
+                        true -> NLP = ORP
+                     end;
+                  _ -> NLP = LP
+               end,
+               case LS of
+                  RemoveEdge ->
+                     if
+                        LF == OLF -> NLS = OLS;
+                        true -> NLS = ORS
+                     end;
+                  _ -> NLS = LS
+               end,
+               case RP of
+                  RemoveEdge ->
+                     if
+                        RF == ORF -> NRP = ORP;
+                        true -> NRP = OLP
+                     end;
+                  _ -> NRP = RP
+               end,
+               case RS of
+                  RemoveEdge ->
+                     if
+                        RF == ORF -> NRS = ORS;
+                        true -> NRS = OLS
+                     end;
+                  _ -> NRS = RS
+               end,
+               if
+                  NV1 > NV2 -> NewEdge = #edge{vs=NV2,ve=NV1,a=NC2,b=NC1,lf=RF,rf=LF,ltpr=NRP,ltsu=NRS,rtpr=NLP,rtsu=NLS};
+                  true -> NewEdge = #edge{vs=NV1,ve=NV2,a=NC1,b=NC2,lf=LF,rf=RF,ltpr=NLP,ltsu=NLS,rtpr=NRP,rtsu=NRS}
+               end,
+               Result2 = gb_trees:insert(Key,NewEdge,Result),
+               fix_edge_1(RemoveEdge,Vert1,Vert2,Es2,Orig,Result2)
+         end
+   end.
+
+fix_edge_2([Remove|FixRest],Etab) ->
+   NewEtab = remove_face(Remove,Etab),
+   fix_edge_2(FixRest,NewEtab);
+fix_edge_2([],Etab) ->
+   Etab.
+
+remove_face(Face,Etab) ->
+   [Key1,Key2]=find_edge2(Face,Etab),
+   OldEdge = gb_trees:get(Key1,Etab),
+   NewEdge = gb_trees:get(Key2,Etab),
+   K1 = find_edge_to_face(OldEdge,Face),
+   K2 = find_edge_to_face(NewEdge,Face),
+   if
+      K1 == K2 ->
+         if
+            K1 == left ->
+               NewEdge2=NewEdge#edge{lf=OldEdge#edge.rf, ltpr=OldEdge#edge.rtpr, ltsu=OldEdge#edge.rtsu};
+            true ->
+               NewEdge2=NewEdge#edge{rf=OldEdge#edge.lf, rtpr=OldEdge#edge.ltpr, rtsu=OldEdge#edge.ltsu}
+         end;
+      true ->
+         if
+            K1 == left ->
+               NewEdge2=NewEdge#edge{rf=OldEdge#edge.rf, rtpr=OldEdge#edge.rtpr, rtsu=OldEdge#edge.rtsu};
+            true ->
+               NewEdge2=NewEdge#edge{lf=OldEdge#edge.lf, ltpr=OldEdge#edge.ltpr, ltsu=OldEdge#edge.ltsu}
+         end
+   end,
+   Etab2 = gb_trees:update(Key2,NewEdge2,Etab),
+   Etab3 = gb_trees:delete(Key1,Etab2),
+   substitute(Key1,Key2,Etab3).
+
+substitute(This,WithThis,Etab) ->
+   New = gb_trees:empty(), 
+   substitute(This,WithThis,Etab,New).
+
+substitute(This,WithThis,Etab,New) ->
+   case gb_trees:size(Etab) of 
+      0 -> New;
+      _ ->
+         {Key,Edge,Etab2} = gb_trees:take_smallest(Etab),
+         NewEdge = substitute_1(This,WithThis,Edge),
+         New2 = gb_trees:insert(Key,NewEdge,New),
+         substitute(This,WithThis,Etab2,New2)
+   end.
+
+substitute_1(This,WithThis,Edge) ->
+   if
+      Edge#edge.rtpr == This -> Rtpr = WithThis;
+      true -> Rtpr = Edge#edge.rtpr
+   end,
+   if
+      Edge#edge.rtsu == This -> Rtsu = WithThis;
+      true -> Rtsu = Edge#edge.rtsu
+   end,
+   if
+      Edge#edge.ltpr == This -> Ltpr = WithThis;
+      true -> Ltpr = Edge#edge.ltpr
+   end,
+   if
+      Edge#edge.ltsu == This -> Ltsu = WithThis;
+      true -> Ltsu = Edge#edge.ltsu
+   end,
+   Edge#edge{ltsu=Ltsu, ltpr=Ltpr, rtsu=Rtsu, rtpr=Rtpr}.
+
+find_edge(Vert1,Vert2,Es) when Vert1>Vert2 ->
+   find_edge(Vert2,Vert1,Es);
+find_edge(Vert1,Vert2,Es) ->
+   {Key,#edge{vs=V1,ve=V2},Es2} = gb_trees:take_smallest(Es),
+   if
+      (Vert1 == V1) and (Vert2 == V2) -> Key;
+      true -> find_edge(Vert1,Vert2,Es2)
+   end.
+
+find_edge2(Face,Etab) ->
+   find_edge2(Face,Etab,[]).
+
+find_edge2(Face,Es,Result) ->
+   case gb_trees:size(Es) of
+      0 -> Result;
+      _ ->
+         {Key,#edge{lf=LF,rf=RF},Es2} = gb_trees:take_smallest(Es),
+         if
+            (LF == Face) or (RF == Face) -> Result2=[Key|Result];
+            true -> Result2=Result
+         end,
+         find_edge2(Face,Es2,Result2)
+   end.
+
+find_edge_to_face(#edge{lf=LF,rf=RF},Face) ->
+   case Face of
+      LF -> left;
+      RF -> right;
+      _ -> none
+   end.

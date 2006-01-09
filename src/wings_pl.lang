@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pl.lang,v 1.17 2006/01/08 17:58:04 giniu Exp $
+%%     $Id: wings_pl.lang,v 1.18 2006/01/09 21:38:46 giniu Exp $
 %%
 %%  Translation:  Andrzej Giniewicz
 %%  Correction:   Małgorzata Napiontek
@@ -2403,12 +2403,31 @@
     {15,"Kolor punktów"},
     {16,"Zastosuj kolor punktów do wybranych punktów"},
     {17,"Pozycjonuj"},
-    {18,"Przesuń wybrany punkt na dokładną pozycję w koordynatach bezwzględnych"}
+    {18,"Przesuń wybrany punkt na dokładną pozycję w koordynatach bezwzględnych"},
+    {19,"Spawaj"},
+    {20,"Przyspawaj zaznaczony punkt do innego punktu połączonego z nim krawędzią"}
    ]},
   {move_to,
    [
     {1,"Podaj pozycję:"},
     {2,"Tym narzędziem możesz przesuwać tylko pojedyńcze punkty"}
+   ]},
+  {weld,
+   [
+    {1,"Obiekt musi mieć przynajmniej 4 punkty"},
+    {2,"Możesz spawać tylko pojedyńcze punkty"}
+   ]},
+  {weld_check_selection,
+   [
+    {1,"Nie możesz spawać punktu z samym sobą"},
+    {2,"Pomiędzy punktami które chcesz spawać musi znajdować się krawędź"},
+    {3,"Możesz spawać tylko do jednego punktu"},
+    {4,"Nic nie zaznaczono"},
+    {5,"Możesz spawać tylko w tym samym obiekcie"}
+   ]},
+  {weld_select,
+   [
+    {1,"Zaznacz punkt do którego chcesz spawać"}
    ]}
  ]}.
 {wings_view,
