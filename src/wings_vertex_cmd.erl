@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.56 2006/01/10 22:54:49 giniu Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.57 2006/01/10 23:04:12 giniu Exp $
 %%
 
 -module(wings_vertex_cmd).
@@ -698,8 +698,6 @@ needs_cleanup(RemoveEdge,Orig) ->
    end,
    FixMe.
 
-find_edge(Vert1,Vert2,Es) when Vert1>Vert2 ->
-   find_edge(Vert2,Vert1,Es);
 find_edge(Vert1,Vert2,Es) ->
    {Key,#edge{vs=V1,ve=V2},Es2} = gb_trees:take_smallest(Es),
    if
