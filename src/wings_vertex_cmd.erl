@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.55 2006/01/10 21:02:48 giniu Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.56 2006/01/10 22:54:49 giniu Exp $
 %%
 
 -module(wings_vertex_cmd).
@@ -523,6 +523,7 @@ weld([{_,{1,{Vert2,_,_}}}]=NewSel,#st{sel=[{Obj,{1,{Vert1,_,_}}}],shapes=Shs}=St
    NewEs = fix_edge(Vert1,Vert2,We),
    NewHe = fix_hardedge(NewEs, We#we.he),
    NewWe = wings_we:rebuild(We#we{vp=NewVp, es=NewEs, he=NewHe, vc=undefined, fs=undefined}),
+   wings_we_util:validate(NewWe),
    NewShs = gb_trees:update(Obj,NewWe,Shs),
    St#st{shapes=NewShs,sel=NewSel}.
 
@@ -596,10 +597,7 @@ fix_edge_1(RemoveEdge,Vert1,Vert2,Es,Orig,Result) ->
                      end;
                   _ -> NRS = RS
                end,
-               if
-                  NV1 > NV2 -> NewEdge = #edge{vs=NV2,ve=NV1,a=NC2,b=NC1,lf=RF,rf=LF,ltpr=NRP,ltsu=NRS,rtpr=NLP,rtsu=NLS};
-                  true -> NewEdge = #edge{vs=NV1,ve=NV2,a=NC1,b=NC2,lf=LF,rf=RF,ltpr=NLP,ltsu=NLS,rtpr=NRP,rtsu=NRS}
-               end,
+               NewEdge = #edge{vs=NV1,ve=NV2,a=NC1,b=NC2,lf=LF,rf=RF,ltpr=NLP,ltsu=NLS,rtpr=NRP,rtsu=NRS},
                Result2 = gb_trees:insert(Key,NewEdge,Result),
                fix_edge_1(RemoveEdge,Vert1,Vert2,Es2,Orig,Result2)
          end
@@ -705,7 +703,7 @@ find_edge(Vert1,Vert2,Es) when Vert1>Vert2 ->
 find_edge(Vert1,Vert2,Es) ->
    {Key,#edge{vs=V1,ve=V2},Es2} = gb_trees:take_smallest(Es),
    if
-      (Vert1 == V1) and (Vert2 == V2) -> Key;
+      ((Vert1 == V1) and (Vert2 == V2)) or ((Vert1 == V2) and (Vert2 == V1)) -> Key;
       true -> find_edge(Vert1,Vert2,Es2)
    end.
 
