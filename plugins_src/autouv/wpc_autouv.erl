@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.321 2005/12/18 14:08:21 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.322 2006/01/11 22:10:10 dgud Exp $
 %%
 
 -module(wpc_autouv).
@@ -31,8 +31,6 @@
 
 %% Exports to auv_seg_ui.
 -export([init_show_maps/4]).
-
-%% Background Image compressed.
 
 init() ->
     true.
@@ -86,7 +84,7 @@ command({face,{?MODULE, Op}} , St) ->
 command({?MODULE, Op}, St) ->
     start_uvmap(Op, St);
 command({window,uv_editor_window}, St) ->
-        start_uvmap(edit, St);
+    start_uvmap(edit, St);
 command(_Cmd, _) -> 
     next.
 
@@ -99,7 +97,6 @@ start_uvmap_1([{Id,_}|T], Action, St) ->
     EditExists = wings_wm:is_window(EditWin),
     SegWin    = {autouv,{segment,Id}},
     SegExists = wings_wm:is_window(SegWin),
-    
     case segment_or_edit(Action,Id,St) of
 	{edit,Fs} when EditExists ->
 	    wings_wm:send(EditWin, {add_faces,Fs,St}),
@@ -108,9 +105,9 @@ start_uvmap_1([{Id,_}|T], Action, St) ->
 	    wings_wm:send(SegWin, {add_faces,Fs,St}),
 	    wings_wm:raise(SegWin);
 	Op when element(1,Op) == edit ->	    
-	    create_window(Op, EditWin, Id, St);
+	    create_window(Op, EditWin, Id, St,St);
 	Op ->	    
-	    create_window(Op, SegWin, Id, St)
+	    create_window(Op, SegWin, Id, St,St)
     end,
     start_uvmap_1(T, Action, St);
 start_uvmap_1([], _, _) -> keep.
@@ -121,7 +118,7 @@ segment_or_edit(segment,Id,#st{selmode=face,sel=Sel,shapes=Shs}) ->
     UVFs = gb_sets:from_ordset(wings_we:uv_mapped_faces(We)),
     {value,{_,Fs}} = lists:keysearch(Id, 1, Sel),
     case gb_sets:is_subset(Fs,UVFs) of
-	false -> {seg_ui, Fs,delete_old};
+	false -> {seg_ui,Fs,delete_old};
 	true ->  {edit, Fs}
     end;
 segment_or_edit(segment,Id,#st{shapes=Shs}) ->
@@ -141,7 +138,7 @@ segment_or_edit(segment_old,Id,#st{selmode=face,sel=Sel}) ->
 segment_or_edit(segment_old,_Id,_) ->
     {seg_ui,object,keep_old}.
 	    
-create_window(Action, Name, Id, #st{shapes=Shs}=St) ->
+create_window(Action, Name, Id, #st{shapes=Shs}=St, OrigSt) ->
     #we{name=ObjName} = We = gb_trees:get(Id, Shs),
     Op = {replace,fun(Ev) -> auv_event(Ev, St) end},
     Segment = if element(1,Action) == edit -> ""; true -> ?__(1,"Segmenting") end,
@@ -153,12 +150,12 @@ create_window(Action, Name, Id, #st{shapes=Shs}=St) ->
     wings_wm:toplevel(Name, Title, {X,Y,highest}, {W,H},
 		      [resizable,closable,menubar,{properties,Props},
 		       {toolbar,CreateToolbar}], Op),
-    wings_wm:send(Name, {init,{Action,We}}).
+    wings_wm:send(Name, {init,{Action,We},OrigSt}).
 
-auv_event({init,Op}, St) ->
+auv_event({init,Op,OrigSt}, St) ->
     wings:init_opengl(St),
     case Op of
-	{{edit,What},We} -> start_edit(What, We, St);
+	{{edit,What},We} -> start_edit(What, We, St, OrigSt);
 	{{seg_ui,_,Oper},We} ->  auv_seg_ui:start(Oper, We, We, St)
     end;
 auv_event(redraw, _) ->
@@ -173,7 +170,7 @@ auv_event(_Ev, _) -> keep.
 %%% Start the UV editor.
 %%%
 
-start_edit(Mode, We, St) ->
+start_edit(Mode, We, St, OrigSt) ->
     MatNames0 = wings_facemat:all(We),
     MatNames1 = sofs:from_external(MatNames0, [{face,material}]),
     MatNames2 = sofs:converse(MatNames1),
@@ -182,15 +179,13 @@ start_edit(Mode, We, St) ->
     MatNames = [Mat || {Name,_}=Mat <- MatNames4, has_texture(Name, St)],
     case MatNames of
 	[{MatName,_}] ->
-	    do_edit(MatName, Mode, We, St);
+	    do_edit(MatName, Mode, We, St, OrigSt);
 	_ ->
-	    do_edit(none, Mode, We, St)
+	    do_edit(none, Mode, We, St,OrigSt)
     end.
 
-do_edit(MatName, Mode, #we{id=Id}=We, #st{shapes=Shs0}=GeomSt) ->
-    Shs = gb_trees:update(Id, We#we{fs=undefined,es=gb_trees:empty()}, Shs0),
-    FakeGeomSt = GeomSt#st{sel=[],shapes=Shs},
-    AuvSt = create_uv_state(gb_trees:empty(), MatName, Mode, We, FakeGeomSt),
+do_edit(MatName, Mode, We, GeomSt, OrigSt) ->
+    AuvSt = create_uv_state(gb_trees:empty(), MatName, Mode, We, GeomSt,OrigSt),
     new_geom_state(GeomSt, AuvSt).
 
 init_show_maps(Charts0, Fs, OldWe=#we{name=WeName,id=Id}, GeomSt0) ->
@@ -213,20 +208,25 @@ init_show_maps(Charts0, Fs, OldWe=#we{name=WeName,id=Id}, GeomSt0) ->
 	    wings_wm:send(EditWin, {add_faces,Fs,GeomSt}),
 	    wings_wm:send(geom, {new_state,GeomSt});
 	false ->
-	    create_window({edit,Fs},EditWin,Id,GeomSt),
+	    create_window({edit,Fs},EditWin,Id,GeomSt,GeomSt0),
 	    wings_wm:send(geom, {new_state,GeomSt})
     end,
     GeomSt.
 
-create_uv_state(Charts, MatName, Fs, We, GeomSt) ->
+create_uv_state(Charts, MatName, Fs, We, GeomSt = #st{shapes=Shs0},OrigSt) ->
     wings:mode_restriction([vertex,edge,face,body]),
     wings_wm:current_state(#st{selmode=body,sel=[]}),
-    Uvs = #uvstate{st=wpa:sel_set(face, [], GeomSt),
+
+    Shs = gb_trees:update(We#we.id, We#we{fs=undefined,es=gb_trees:empty()}, Shs0),
+    FakeGeomSt = GeomSt#st{sel=[],shapes=Shs},
+
+    Uvs = #uvstate{st=wpa:sel_set(face, [], FakeGeomSt),
 		   id=We#we.id,
 		   mode=Fs,
+		   orig_st=OrigSt,
 		   matname=MatName},
-    St = GeomSt#st{selmode=body,sel=[],shapes=Charts,bb=Uvs,
-		   repeatable=ignore,ask_args=none,drag_args=none},
+    St = FakeGeomSt#st{selmode=body,sel=[],shapes=Charts,bb=Uvs,
+		       repeatable=ignore,ask_args=none,drag_args=none},
     Name = wings_wm:this(),
 
     View = #view{origin={0.0,0.0,0.0},
@@ -263,7 +263,7 @@ create_uv_state(Charts, MatName, Fs, We, GeomSt) ->
 				 fun draw_background/1),
     wings_wm:menubar(Win, menubar()),
     wings_wm:send({menubar,Win}, {current_state,St}),
-
+    
     St.
 
 menubar() ->

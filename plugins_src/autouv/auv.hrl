@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv.hrl,v 1.37 2005/08/24 14:01:06 dgud Exp $
+%%     $Id: auv.hrl,v 1.38 2006/01/11 22:10:10 dgud Exp $
 
 %% Chart record (one for each chart).
 %% Stored in the 'name' field in the #we{} record.
@@ -24,7 +24,9 @@
 	{matname,          %% The textured MatName
 	 id,               %% The we id of the shape we are working with.
 	 mode=object,      %% object mode or a gb_sets of faces which we are editing
-	 st                %% Wings st, i.e. no autouv stuff in this one
+	 st,               %% Wings working 'st', i.e. no autouv stuff in this one
+	 orig_st           %% A copy of entering 'st', to keep orig
+	                   %% uv-coords/vertex-colors and materials. 
 	}).
 
 -define(HOLE, 'Ignore Chart').

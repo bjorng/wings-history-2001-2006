@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_seg_ui.erl,v 1.41 2005/12/04 21:37:41 dgud Exp $
+%%     $Id: auv_seg_ui.erl,v 1.42 2006/01/11 22:10:10 dgud Exp $
 %%
 
 -module(auv_seg_ui).
@@ -41,6 +41,8 @@ start(Op, #we{id=Id}=We0, OrigWe, St0) ->
     Menu  = [Item || {_,Name,_}=Item <- get(wings_menu_template),
 		     member(Name, Allowed)],
     wings_wm:menubar(This, Menu),
+    wings_pref:set_value(scene_lights, false), %% ugly hack 
+    
     St1 = seg_create_materials(St0),
     {Fs,We1} = seg_hide_other(Id,We0,St0),
     We = case Op of 
@@ -90,8 +92,6 @@ seg_event(redraw, #seg{st=St,msg=Msg}) ->
     wings_wm:message(Msg, ?__(1,"Segmenting")),
     wings:redraw(St),
     keep;
-%% seq_event({current_state,geom_display_lists,GeomSt},Ss) ->
-%%     keep;
 seg_event({add_faces,_,_},#seg{fs=object}) ->
     keep;
 seg_event({add_faces,Mode0,_St},#seg{fs=Fs,st=St0}=Ss) ->
@@ -377,7 +377,7 @@ seg_map_charts_1([],_, _, _,Charts0,Failed,
 	    GeomSt = wpc_autouv:init_show_maps(Charts, Fs, We, GeomSt0),
 	    case Failed of 
 		[] -> 
-		    %% cleanup_before_exit(),
+		    cleanup_before_exit(),
 		    delete;
 		_ ->
 		    wings_u:message(Ss#seg.err),
@@ -403,3 +403,6 @@ camera_dir(camera) ->
     Matrices = wings_u:get_matrices(0, original),
     {matrices, Matrices};
 camera_dir(_) -> none.
+
+cleanup_before_exit() ->
+    wings_dl:delete_dlists().
