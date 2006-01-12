@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_texture.erl,v 1.11 2006/01/11 22:10:10 dgud Exp $
+%%     $Id: auv_texture.erl,v 1.12 2006/01/12 12:50:25 dgud Exp $
 %%
 
 -module(auv_texture).
@@ -290,26 +290,26 @@ pass({auv_faces, [Type]}) ->
     M = fun(#chart{uv=UV,fs=Fs,mat=Mtab}) ->
 		D=fun({Id,Face=#fs{vs=Vs}}) ->
 			  gl:color4fv(get_diffuse(Face,Mtab)),
-			  draw(Id,Vs,material,UV,ignore)
+			  draw(Id,Vs,material,UV,ignore,ignore)
 		  end,
 		gl:'begin'(?GL_TRIANGLES),
 		foreach(D,Fs),
 		gl:'end'()
 	end,
-    V = fun(#chart{uv=UV,fs=Fs,uvc=UVC,mode=vertex}) ->
-		D=fun({Id,#fs{vs=Vs}}) -> draw(Id,Vs,vertex,UV,UVC) end,
+    V = fun(#chart{uv=UV,fs=Fs,uvc=UVC,vmap=Vmap,mode=vertex}) ->
+		D=fun({Id,#fs{vs=Vs}}) -> draw(Id,Vs,vertex,UV,UVC,Vmap) end,
 		gl:'begin'(?GL_TRIANGLES),		
 		foreach(D,Fs),
 		gl:'end'();
-	   (#chart{uv=UV,fs=Fs,uvc=UVC,mat=Mtab}) ->
+	   (#chart{uv=UV,fs=Fs,uvc=UVC,vmap=Vmap,mat=Mtab}) ->
 		D=fun({Id,Face=#fs{vs=Vs}}) ->
 			  case set_diffuse_tx(Face,Mtab) of
 			      false -> 
 				  gl:'begin'(?GL_TRIANGLES),
-				  draw(Id,Vs,material,UV,UVC);
+				  draw(Id,Vs,material,UV,UVC,Vmap);
 			      true ->  
 				  gl:'begin'(?GL_TRIANGLES),
-				  draw(Id,Vs,uv,UV,UVC)
+				  draw(Id,Vs,uv,UV,UVC,Vmap)
 			  end,
 			  gl:'end'()
 		  end,
@@ -336,31 +336,31 @@ pass({_R, _O}) ->
 	      [?MODULE,?LINE,_R,_O]),
     fun(_) -> ok end.
 
-uvc(material,_Id,_V,_Uvc) -> ok;
-uvc(vertex, Id, V, Uvc) ->
-    case gb_trees:get({Id,V},Uvc) of
+uvc(material,_Id,_V,_Uvc,_Vmap) -> ok;
+uvc(vertex, Id, V, Uvc, Vmap) ->
+    case gb_trees:get({Id,auv_segment:map_vertex(V, Vmap)},Uvc) of
 	Col when size(Col) == 3 ->
 	    gl:color3fv(Col);
 	_ -> 
 	    gl:color3fv({1.0,1.0,1.0})
     end;
-uvc(_, Id,V,Uvc) ->
-    case gb_trees:get({Id,V},Uvc) of
+uvc(_, Id,V,Uvc,Vmap) ->
+    case gb_trees:get({Id,auv_segment:map_vertex(V,Vmap)},Uvc) of
 	UV when size(UV) == 2 ->  
 	    gl:texCoord2fv(UV);
 	_ -> 
 	    gl:texCoord2fv({0.0,0.0})
     end.
 
-draw(Id,[[A,B,C]|Vs],Mode,Pos,UVC) ->
-    uvc(Mode,Id,A,UVC),
+draw(Id,[[A,B,C]|Vs],Mode,Pos,UVC,Vmap) ->
+    uvc(Mode,Id,A,UVC,Vmap),
     gl:vertex3fv(gb_trees:get(A, Pos)),
-    uvc(Mode,Id,B,UVC),
+    uvc(Mode,Id,B,UVC,Vmap),
     gl:vertex3fv(gb_trees:get(B, Pos)),
-    uvc(Mode,Id,C,UVC),
+    uvc(Mode,Id,C,UVC,Vmap),
     gl:vertex3fv(gb_trees:get(C, Pos)),
-    draw(Id,Vs,Mode,Pos,UVC);
-draw(_,[],_,_,_) -> ok.
+    draw(Id,Vs,Mode,Pos,UVC,Vmap);
+draw(_,[],_,_,_,_) -> ok.
 
 get_diffuse(#fs{mat=MatName}, Materials) ->
     Mat = gb_trees:get(MatName, Materials),
