@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.57 2006/01/10 23:04:12 giniu Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.58 2006/01/12 17:03:19 giniu Exp $
 %%
 
 -module(wings_vertex_cmd).
@@ -473,18 +473,32 @@ move_to1([X,Y,Z],#st{sel=[{Obj,{1,{Vert,_,_}}}],shapes=Shs}=St) ->
 %% Weld one vertex to other
 %%
 
-weld(#st{sel=[{Obj,{1,{_,_,_}}}],shapes=Shs}=St) ->
+weld(#st{sel=[{Obj,{1,{Vert,_,_}}}],shapes=Shs}=St) ->
    We = gb_trees:get(Obj, Shs),
    Vertices = gb_trees:size(We#we.fs),
+   Mirror = We#we.mirror,
+   if
+      Mirror /= none -> 
+         Fs = We#we.fs,
+         Edge = gb_trees:get(Mirror,Fs),
+         Verts = get_verts(Mirror, Edge, Edge, We, []),
+         case member(Vert,Verts) of
+            true ->
+               wings_u:error(?__(1,"You cannot weld at mirrot plane")),
+               St;
+            _ -> ok
+         end;
+      true -> ok
+   end,
    if
       Vertices < 4 -> 
-         wings_u:error(?__(1,"Object must have at least 4 vertices")),
+         wings_u:error(?__(2,"Object must have at least 4 vertices")),
          St;
       true ->
          wings:ask(weld_select(St), St, fun weld/2)
    end;
 weld(St) ->
-   wings_u:error(?__(2,"You can weld only one vertex")),
+   wings_u:error(?__(3,"You can weld only one vertex")),
    St.
 
 weld_select(OrigSt) ->
@@ -520,19 +534,27 @@ weld_check_selection(_,_) ->
 weld([{_,{1,{Vert2,_,_}}}]=NewSel,#st{sel=[{Obj,{1,{Vert1,_,_}}}],shapes=Shs}=St) ->
    We = gb_trees:get(Obj, Shs),
    NewVp = gb_trees:delete(Vert1,We#we.vp),
-   NewEs = fix_edge(Vert1,Vert2,We),
+   {NewEs,NewMat} = fix_edge(Vert1,Vert2,We),
    NewHe = fix_hardedge(NewEs, We#we.he),
-   NewWe = wings_we:rebuild(We#we{vp=NewVp, es=NewEs, he=NewHe, vc=undefined, fs=undefined}),
+   NewWe = wings_we:rebuild(We#we{vp=NewVp, es=NewEs, he=NewHe, vc=undefined, fs=undefined, mat=NewMat}),
    wings_we_util:validate(NewWe),
    NewShs = gb_trees:update(Obj,NewWe,Shs),
    St#st{shapes=NewShs,sel=NewSel}.
 
-fix_edge(Vert1,Vert2,Orig) ->
+fix_edge(Vert1,Vert2,#we{mat=Mat}=Orig) ->
    Es = Orig#we.es,
    RemoveEdge = find_edge(Vert1,Vert2,Es),
    FixMe = needs_cleanup(RemoveEdge,Orig),
    Etab = fix_edge_1(RemoveEdge,Vert1,Vert2,Es,Orig),
-   fix_edge_2(FixMe,Etab).
+   NewEs = fix_edge_2(FixMe,Etab),
+   NewMat = fix_mat(FixMe,Orig),
+   {NewEs,NewMat}.
+
+fix_mat([Remove|FixRest],We) ->
+   NewWe = wings_facemat:delete_face(Remove,We),
+   fix_mat(FixRest,NewWe);
+fix_mat([],We) ->
+   We#we.mat.
 
 fix_edge_1(RemoveEdge,Vert1,Vert2,Es,Orig) ->
    New = gb_trees:empty(),
@@ -725,4 +747,14 @@ find_edge_to_face(#edge{lf=LF,rf=RF},Face) ->
       LF -> left;
       RF -> right;
       _ -> none
+   end.
+
+get_verts(_Face, LastEdge, LastEdge, _We, [_|_]=Acc) -> Acc;
+get_verts(Face, Edge, LastEdge, We, Acc) ->
+   #we{es=Etab} = We,
+   case catch gb_trees:get(Edge, Etab) of
+      #edge{vs=V,lf=Face,ltsu=Next} ->
+         get_verts(Face, Next, LastEdge, We, [V|Acc]);
+      #edge{ve=V,rf=Face,rtsu=Next} ->
+         get_verts(Face, Next, LastEdge, We, [V|Acc])
    end.
