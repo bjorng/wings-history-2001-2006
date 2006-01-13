@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_texture.erl,v 1.12 2006/01/12 12:50:25 dgud Exp $
+%%     $Id: auv_texture.erl,v 1.13 2006/01/13 18:41:19 dgud Exp $
 %%
 
 -module(auv_texture).
@@ -22,7 +22,8 @@
 -include("auv.hrl").
 -include("e3d.hrl").
 
--import(lists, [foreach/2, reverse/1, sort/1, min/1,max/1]).
+-import(lists, [foreach/2, reverse/1, sort/1, foldl/3, min/1,max/1]).
+-import(auv_segment, [map_vertex/2]).
 
 -define(OPT_BG, [{type_sel,color},{undefined,ignore},{1.0,1.0,1.0}]).
 -define(OPT_EDGES, [all_edges,{0.0,0.0,0.0}, 1.0, false]).
@@ -34,16 +35,19 @@
 			   {auv_edges, [all_edges]}]
 	     }).
 
+-record(ts,         % What              Type
+	{charts,    % #chart{}          (list)
+         uv,        % UV postions       (binary)
+	 pos,       % Real 3D position  (binary) 
+	 n,         % Normal            (binary)
+	 uvc,       % Previous uv or vertex color (binary)
+	 uvc_mode   % material (uv) or vertex
+	}).
+
 -record(chart, 
 	{id,        % Chart ID
 	 fs,        % Faces see [{Face,#fs{}}]
-	 uv,        % UV postions   (gb_tree) Id -> 2d pos
-	 vmap,      % Vertex Map, from autouv to real vertex no.
-	 pos,       % Real 3D position  (gb_tree) Vertex -> 3d pos
-	 n,         % Normal            (gb_tree) {face,vertex} -> normal
-	 uvc,       % Previous uv or vertex color (gb_tree) {face,vertex} -> uvc
 	 oes=[],    % Outer vertices [[va,vb,face],[vc,vb,face]..]
-	 mat,       % Material table (gb_tree)
 	 mode       % Previous mode material/vertex-colored
 	}).    
 
@@ -242,92 +246,81 @@ pass({auv_background,[{type_sel,image},{_Name,Id},{R,G,B}]}) ->
 pass({auv_background, _}) ->
     pass({auv_background, ?OPT_BG});
 pass({auv_edges, [all_edges,Color,Width,_UseMat]}) ->
-    R=fun(#chart{fs=Fs,uv=UV}) ->
-	      Vertex = fun(V) -> gl:vertex3fv(gb_trees:get(V, UV)) end,
-	      gl:'begin'(?GL_LINES),
-	      foreach(fun({_,#fs{vse=Vs=[H|_]}}) -> 
-			      vs_all(Vertex,Vs,H)
-		      end,Fs),
-	      gl:'end'()
+    R=fun(#chart{fs=Fs}) ->
+	      Draw = fun(#fs{vse=Vs}) ->
+			     Patched = vs_lines(Vs,hd(Vs)),
+			     gl:drawElements(?GL_LINES,length(Patched),
+					     ?GL_UNSIGNED_INT,Patched)
+%% 			     gl:drawElements(?GL_LINE_LOOP,length(Vs),
+%% 					     ?GL_UNSIGNED_INT,Vs)
+			     end,
+	      foreach(Draw,Fs)
       end,
-    fun(Charts) ->  
+    fun(#ts{charts=Charts}) ->  
 	    gl:disable(?GL_DEPTH_TEST),	    
 	    gl:color3fv(Color),
 	    gl:lineWidth(Width),
-	    foreach(R, Charts) 
+	    gl:enableClientState(?GL_VERTEX_ARRAY),
+	    foreach(R, Charts),
+	    gl:disableClientState(?GL_VERTEX_ARRAY)
     end;
 pass({auv_edges, [border_edges,Color,Width,UseMat]}) -> 
-    R=fun(#chart{oes=Es,uv=UV,fs=Fs,mat=Mat}) ->
-	      Vertex = fun(V) -> gl:vertex3fv(gb_trees:get(V, UV)) end,
-	      Draw = 
-		  if UseMat -> 
-			  FT = gb_trees:from_orddict(sort(Fs)),
-			  fun([A,B,FId]) -> 
-				  Face = gb_trees:get(FId,FT),
-				  gl:color4fv(get_diffuse(Face,Mat)),
-				  Vertex(A),
-				  Vertex(B)
-			  end;
-		     true ->
-			  fun([A,B,_FId]) -> 
-				  Vertex(A),
-				  Vertex(B)
-			  end
-		  end,
-	      gl:'begin'(?GL_LINES),
-	      foreach(Draw,Es),
-	      gl:'end'()
-      end,
-    fun(Charts) ->  
+    R= fun(#chart{oes=Es}) when UseMat ->
+	       Draw = fun([A,B,Mat]) ->
+			      gl:color4fv(get_diffuse(Mat)),
+			      gl:drawElements(?GL_LINES,2,?GL_UNSIGNED_INT,[A,B])
+		      end,
+	       foreach(Draw,Es);
+	  (#chart{oes=Es0}) ->
+	       Es = foldl(fun([A,B,_],Acc) -> [A,B|Acc] end, [], Es0),
+	       gl:drawElements(?GL_LINES,length(Es),?GL_UNSIGNED_INT,Es)
+       end,
+    fun(#ts{charts=Charts}) ->  
 	    gl:color3fv(Color),
 	    gl:lineWidth(Width),
+	    gl:enableClientState(?GL_VERTEX_ARRAY),
 	    gl:disable(?GL_DEPTH_TEST),
-	    foreach(R, Charts) 
+	    foreach(R, Charts),
+	    gl:disableClientState(?GL_VERTEX_ARRAY)
     end;
 pass({auv_edges, _}) ->
     pass({auv_edges, ?OPT_EDGES});
+
 pass({auv_faces, [Type]}) ->
-    M = fun(#chart{uv=UV,fs=Fs,mat=Mtab}) ->
-		D=fun({Id,Face=#fs{vs=Vs}}) ->
-			  gl:color4fv(get_diffuse(Face,Mtab)),
-			  draw(Id,Vs,material,UV,ignore,ignore)
-		  end,
-		gl:'begin'(?GL_TRIANGLES),
-		foreach(D,Fs),
-		gl:'end'()
-	end,
-    V = fun(#chart{uv=UV,fs=Fs,uvc=UVC,vmap=Vmap,mode=vertex}) ->
-		D=fun({Id,#fs{vs=Vs}}) -> draw(Id,Vs,vertex,UV,UVC,Vmap) end,
-		gl:'begin'(?GL_TRIANGLES),		
-		foreach(D,Fs),
-		gl:'end'();
-	   (#chart{uv=UV,fs=Fs,uvc=UVC,vmap=Vmap,mat=Mtab}) ->
-		D=fun({Id,Face=#fs{vs=Vs}}) ->
-			  case set_diffuse_tx(Face,Mtab) of
-			      false -> 
-				  gl:'begin'(?GL_TRIANGLES),
-				  draw(Id,Vs,material,UV,UVC,Vmap);
-			      true ->  
-				  gl:'begin'(?GL_TRIANGLES),
-				  draw(Id,Vs,uv,UV,UVC,Vmap)
-			  end,
-			  gl:'end'()
-		  end,
-		foreach(D,Fs)
-	end,
-    R = case Type of
-	    materials -> M;
-	    texture -> V
-	end,
-    fun(Charts) ->  
+    fun(#ts{charts=Charts,uvc_mode=Mode}) ->  
 	    gl:disable(?GL_DEPTH_TEST),
 	    gl:disable(?GL_ALPHA_TEST),
-	    gl:enable(?GL_BLEND),
+	    gl:enable(?GL_BLEND),	   
 	    gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
+	    gl:enableClientState(?GL_VERTEX_ARRAY),
+	    R = case Type of
+		    materials ->			
+			fun(#fs{vs=Vs,mat=Mat}) ->
+				gl:color4fv(get_diffuse(Mat)),
+				gl:drawElements(?GL_TRIANGLES,length(Vs),
+						?GL_UNSIGNED_INT,Vs)
+			end;
+		    _ when Mode == vertex -> 
+			gl:enableClientState(?GL_COLOR_ARRAY),
+			fun(#fs{vs=Vs}) ->
+				gl:drawElements(?GL_TRIANGLES,length(Vs),
+						?GL_UNSIGNED_INT,Vs)
+			end;
+		    _ -> 
+			gl:enableClientState(?GL_TEXTURE_COORD_ARRAY),
+			fun(#fs{vs=Vs,mat=Mat}) ->
+				set_diffuse_tx(Mat),
+				gl:drawElements(?GL_TRIANGLES,length(Vs),
+						?GL_UNSIGNED_INT,Vs)
+			end
+		end,
 	    erase({?MODULE,use_tx}),
 	    gl:disable(?GL_TEXTURE_2D),
-	    foreach(R, Charts),
-	    gl:disable(?GL_TEXTURE_2D)	    
+	    foreach(fun(#chart{fs=Fs}) -> foreach(R,Fs) end,Charts),
+	    gl:disable(?GL_TEXTURE_2D),
+	    gl:disableClientState(?GL_VERTEX_ARRAY),
+	    gl:disableClientState(?GL_COLOR_ARRAY),
+	    gl:disableClientState(?GL_TEXTURE_COORD_ARRAY)
     end;
 pass({auv_faces, _}) ->
     pass({auv_faces,?OPT_FACES});
@@ -336,59 +329,32 @@ pass({_R, _O}) ->
 	      [?MODULE,?LINE,_R,_O]),
     fun(_) -> ok end.
 
-uvc(material,_Id,_V,_Uvc,_Vmap) -> ok;
-uvc(vertex, Id, V, Uvc, Vmap) ->
-    case gb_trees:get({Id,auv_segment:map_vertex(V, Vmap)},Uvc) of
-	Col when size(Col) == 3 ->
-	    gl:color3fv(Col);
-	_ -> 
-	    gl:color3fv({1.0,1.0,1.0})
-    end;
-uvc(_, Id,V,Uvc,Vmap) ->
-    case gb_trees:get({Id,auv_segment:map_vertex(V,Vmap)},Uvc) of
-	UV when size(UV) == 2 ->  
-	    gl:texCoord2fv(UV);
-	_ -> 
-	    gl:texCoord2fv({0.0,0.0})
-    end.
-
-draw(Id,[[A,B,C]|Vs],Mode,Pos,UVC,Vmap) ->
-    uvc(Mode,Id,A,UVC,Vmap),
-    gl:vertex3fv(gb_trees:get(A, Pos)),
-    uvc(Mode,Id,B,UVC,Vmap),
-    gl:vertex3fv(gb_trees:get(B, Pos)),
-    uvc(Mode,Id,C,UVC,Vmap),
-    gl:vertex3fv(gb_trees:get(C, Pos)),
-    draw(Id,Vs,Mode,Pos,UVC,Vmap);
-draw(_,[],_,_,_,_) -> ok.
-
-get_diffuse(#fs{mat=MatName}, Materials) ->
-    Mat = gb_trees:get(MatName, Materials),
+get_diffuse(Mat) ->
     proplists:get_value(diffuse, proplists:get_value(opengl, Mat)).
 
-set_diffuse_tx(#fs{mat=MatName}, Materials) ->
+set_diffuse_tx(Mat) ->
     case get({?MODULE,use_tx}) of
-	{MatName,Tx} -> Tx;
+	Mat -> ok;
 	_ ->
-	    Mat = gb_trees:get(MatName, Materials),
 	    Maps = proplists:get_value(maps, Mat),
 	    case proplists:get_value(diffuse, Maps, none) of
 		none ->
 		    gl:disable(?GL_TEXTURE_2D),
 		    Ogl = proplists:get_value(opengl,Mat),
 		    gl:color4fv(proplists:get_value(diffuse,Ogl)),
-		    put({?MODULE,use_tx},{MatName,false}),
+		    put({?MODULE,use_tx},Mat),
 		    false;
 		Diff0 ->
 		    gl:enable(?GL_TEXTURE_2D),
 		    Diff = wings_image:txid(Diff0),
 		    gl:bindTexture(?GL_TEXTURE_2D,Diff),
-		    put({?MODULE,use_tx},{MatName,true}),
+		    put({?MODULE,use_tx},Mat),
 		    true
 	    end
     end.
 
-render_image(Geom,Passes,#opt{texsz={TexW,TexH}}) ->
+render_image(Geom = #ts{uv=UVpos,n=Ns,uvc=Uvc,uvc_mode=Mode}, 
+	     Passes,#opt{texsz={TexW,TexH}}) ->
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     Current = wings_wm:viewport(),
     {W0,H0} = wings_wm:top_size(),
@@ -396,24 +362,30 @@ render_image(Geom,Passes,#opt{texsz={TexW,TexH}}) ->
     {H,Hd} = calc_texsize(H0, TexH),
     ?DBG("Get texture sz ~p ~p ~n", [{W,Wd},{H,Hd}]),
     set_viewport({0,0,W,H}),
-    Dl = gl:genLists(1),
-    gl:newList(Dl, ?GL_COMPILE),
-    foreach(fun(Pass) -> Pass(Geom) end, Passes),
-    gl:endList(),    
-    ImageBins = get_texture(0, Wd, 0, Hd, {W,H}, Dl, []),
-    gl:deleteLists(Dl,1),
-    ImageBin = merge_texture(ImageBins, Wd, Hd, W*3, H, []),
-    set_viewport(Current),
-    gl:popAttrib(),
-    
-    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
-    case (TexW*TexH *3) == size(ImageBin) of
-	true ->
-	    #e3d_image{image=ImageBin,width=TexW,height=TexH};
-	false ->
-	    BinSzs = [size(Bin) || Bin <- ImageBins],
-	    exit({texture_error,{TexW, TexH, size(ImageBin), 
-				 W,Wd,H,Hd, BinSzs}})
+    %% Load Pointers
+    gl:vertexPointer(3, ?GL_FLOAT, 0, UVpos),
+    gl:normalPointer(?GL_FLOAT, 0, Ns),
+    case Mode of
+	vertex -> gl:colorPointer(3,?GL_FLOAT,0,Uvc);
+	_Other -> gl:texCoordPointer(2,?GL_FLOAT,0,Uvc)
+    end,
+    try 
+	Dl = gl:genLists(1),
+	gl:newList(Dl, ?GL_COMPILE),
+	foreach(fun(Pass) -> Pass(Geom) end, Passes),
+	gl:endList(),
+	ImageBins = get_texture(0, Wd, 0, Hd, {W,H}, Dl, []),
+	gl:deleteLists(Dl,1),
+	ImageBin = merge_texture(ImageBins, Wd, Hd, W*3, H, []),
+	set_viewport(Current),
+	gl:popAttrib(),
+	
+	gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
+	#e3d_image{image=ImageBin,width=TexW,height=TexH}
+    catch _:What ->
+	    gl:endList(),
+	    gl:popAttrib(),
+	    exit({What,erlang:get_stacktrace()})
     end.
 
 get_texture(Wc, Wd, Hc, Hd, {W,H}=Info, DL, ImageAcc)
@@ -524,58 +496,109 @@ setup(St = #st{bb=#uvstate{id=RId, st=#st{mat=Mat,shapes=Sh0},
     We   = gb_trees:get(RId,Sh0),
     Orig = gb_trees:get(RId,OrigSh),
     Mats = merge_mats(gb_trees:to_list(OrigMat),Mat),
-    setup_charts(St, We, Orig, Mats).
-    
-setup_charts(#st{shapes=Cs0},We=#we{vp=Pos},OrigWe, Mats) ->
-    Ns = get_info(We,normal),
-    Ex = get_info(OrigWe,uvOrCol),
-    lists:map(fun(Uv = #we{id=Id, name=#ch{vmap=Vmap},vp=Uvs}) ->
-		      Mat = fun(Face) -> get_material(Face,We,OrigWe) end,
-		      Fs  = create_faces(Uv, Mat),
-		      OEs = outer_verts(Uv), 
-		      #chart{id=Id,fs=Fs,uv=Uvs,vmap=Vmap,oes=OEs,
-			     pos=Pos,n=Ns,uvc=Ex,mat=Mats,mode=OrigWe#we.mode}
-	      end, gb_trees:values(Cs0)).
+    {Charts,{_Cnt,UVpos,Vpos,Ns,Uvc}} = ?TC(setup_charts(St,We,Orig,Mats)),
+    ?TC(#ts{charts=Charts,
+	    uv=to_bin(UVpos,pos),
+	    pos=to_bin(Vpos,pos),
+	    n=to_bin(Ns,pos),
+	    uvc=to_bin(Uvc,Orig#we.mode), uvc_mode=Orig#we.mode}).
 
-create_faces(We, GetMat) ->
+setup_charts(#st{shapes=Cs0},We,OrigWe,Mats) ->
+    Ns = setup_normals(We),
+    Start = {0,[],[],[],[]}, %% {UvPos,3dPos,Normal,Uvc}
+    Mat = fun(Face) -> get_material(Face,We,OrigWe,Mats) end,
+    Setup = fun(Ch,Acc) -> setup_chart(Ch,Mat,Ns,We,OrigWe,Acc) end,
+    lists:mapfoldl(Setup, Start, gb_trees:values(Cs0)).
+
+setup_chart(Uv = #we{id=Id},Mat,Ns,WWe,OWe,State0) ->
+    OEs0 = outer_verts(Uv), 
+    {Fs,{OEs,State}}  = create_faces(Uv,WWe,OWe,Ns,Mat,{OEs0,State0}),
+    {#chart{id=Id,fs=Fs,oes=OEs},State}.
+
+create_faces(We = #we{vp=Vtab,name=#ch{vmap=Vmap}},
+	     #we{vp=Vt3d},OWe=#we{vp=Vt3d,mode=OldMode},
+	     NTab,GetMat,State) ->
     Fs = wings_we:visible(We),
-    lists:map(fun(Face) ->
-		      Vs0 = wings_face:vertices_ccw(Face,We),
-		      Vs = case length(Vs0) of
-			       3 -> [Vs0];
-			       Len -> triangulate(Vs0,Len,We)
-			   end,
-		      {Face,#fs{vs=Vs,vse=Vs0,mat=GetMat(Face)}}
-	      end, Fs).
+    C=fun(Face,{OEs,{Cnt,UVpos,Vpos,Ns,Uvc}}) ->
+	      Vs0 = wings_face:vertices_ccw(Face,We),
+	      UVcoords = [gb_trees:get(V, Vtab) || V <- Vs0],
+	      Coords = [gb_trees:get(map_vertex(V,Vmap),Vt3d) || V <- Vs0],
+	      Normals = fix_normals(gb_trees:get(Face,NTab)),
+	      OldUvc = fix_uvc(Vs0,wings_face:vinfo_ccw(Face,OWe),Vmap,OldMode,[]),
+	      Len = length(Vs0),
+	      FaceVs = lists:seq(0, Len-1),
+	      Vs = case Len of
+		       3 -> [FaceVs];
+		       Len -> triangulate(FaceVs,UVcoords)
+		   end,
+	      Indx = fun(I) -> [V+Cnt || V <- I] end,
+	      Mat = GetMat(Face),
+	      {#fs{vs=Indx(Vs),vse=Indx(FaceVs),mat=Mat},
+	       {map_oes(OEs,Vs0,Cnt,Face,Mat),
+		{Cnt+Len,
+		 lists:reverse(UVcoords) ++ UVpos,
+		 lists:reverse(Coords) ++ Vpos,
+		 Normals ++ Ns,
+		 OldUvc ++ Uvc}}}
+      end,
+    lists:mapfoldl(C, State, Fs).
 
-get_info(We = #we{fs=Ftab},What) ->
+triangulate(FaceVs,Vcoords) ->
+    E3dface = #e3d_face{vs=FaceVs},
+    T3dfaces = e3d_mesh:triangulate_face(E3dface, Vcoords),
+    lists:append([FVs || #e3d_face{vs=FVs} <- T3dfaces]).
+
+map_oes([[A,B,Face]|OEs],Vs0,Cnt,Face,Mat) ->
+    MA = member(A,Vs0,Cnt),
+    MB = member(B,Vs0,Cnt),
+    [[MA,MB,Mat]|map_oes(OEs,Vs0,Cnt,Face,Mat)];
+map_oes([Other|OEs],Vs0,Cnt,Face,Mat) ->
+    [Other|map_oes(OEs,Vs0,Cnt,Face,Mat)];
+map_oes([],_,_,_,_) -> [].
+
+member(Val,[Val|_],Pos) -> Pos;
+member(Val,[_|R],Pos) -> member(Val,R,Pos+1).
+
+fix_normals([H|Ns]) ->        %% Ugly rotate the order is wrong 
+    fix_normals(Ns++[H],[]).  %% or different in wings_face:vinfo
+fix_normals([[_|N]|R],Acc) ->
+    fix_normals(R,[N|Acc]);
+fix_normals([],Acc) -> Acc.
+
+fix_uvc([V|Vs],Uvc,Vmap,Mode, Acc) ->
+    Val = case find(map_vertex(V,Vmap),Uvc) of
+	      Color = {_,_,_} when Mode == vertex ->  Color;
+	      _ when Mode == vertex -> {1.0,1.0,1.0};
+	      Uv = {_,_} -> Uv;
+	      _ -> {0.0,0.0}
+	  end,
+    fix_uvc(Vs,Uvc,Vmap,Mode,[Val|Acc]);
+fix_uvc([],_,_,_,Acc) -> Acc.
+
+find(V, [[V|Info]|_R]) -> Info;
+find(V, [_|R]) -> find(V,R);
+find(_, []) -> none.
+
+setup_normals(We = #we{fs=Ftab}) ->
     FN0	= [{Face,wings_face:normal(Face, We)} || Face <- gb_trees:keys(Ftab)],
-    FVN	= wings_we:normals(FN0, We),  %% gb_tree of {Face, [VInfo|Normal]}
-    get_info(FVN, What, We, []).
-get_info([{Face,[H|VsI]}|R],What,We,Acc0) ->
-    Vis = wings_face:vertices_ccw(Face,We),
-    Acc = zip(Vis,VsI++[H],What,Face,Acc0), %% Ugly rotate
-    get_info(R,What,We,Acc);
-get_info([],_,_,Acc) -> gb_trees:from_orddict(sort(Acc)).
+    Ns = wings_we:normals(FN0, We),  %% gb_tree of {Face, [VInfo|Normal]}    
+    gb_trees:from_orddict(sort(Ns)).
 
-get_material(Face, We, OrigWe) ->
+get_material(Face, We, OrigWe, Materials) ->
     Mat1 = wings_facemat:face(Face,We),
-    try
-	case reverse(atom_to_list(Mat1)) of
-	    "vua_" ++ _ -> 
-		wings_facemat:face(Face,OrigWe);
-	    _ ->
-		Mat1
-	end
-    catch _:_ ->
-	    Mat1
-    end.
-
-zip([V|Vs],[[_|N]|VsI], normal,Face,Acc) ->
-    zip(Vs,VsI,normal,Face,[{{Face,V},N}|Acc]);
-zip([V|Vs],[[Ex|_N]|VsI],W,Face,Acc) ->
-    zip(Vs,VsI,W,Face,[{{Face,V},Ex}|Acc]);
-zip([],[], _, _Face,Acc) -> Acc.
+    Mat = try
+	      case reverse(atom_to_list(Mat1)) of
+		  "vua_" ++ _ = Backup -> 
+		      try wings_facemat:face(Face,OrigWe)
+		      catch _:_ -> Backup
+		      end;
+		  _ ->
+		      Mat1
+	      end
+	  catch _:_ ->
+		  Mat1
+	  end,
+    gb_trees:get(Mat, Materials).
 
 outer_verts(We = #we{es=Etab}) ->
     Fs = wings_we:visible(We),
@@ -586,14 +609,24 @@ outer_verts(We = #we{es=Etab}) ->
 	    end,
     lists:map(Verts, Outer).
 
-%% Workaround for ATI gl:'end' doesn't bite for line loop/strip..
-vs_all(Draw,[A|R=[B|_]],Last) ->
-    Draw(A),
-    Draw(B),
-    vs_all(Draw,R,Last);
-vs_all(Draw,[B],Last) ->
-    Draw(B),
-    Draw(Last).
+%% Start with 64 bytes so that binary will be reference counted 
+%% and not on the process heap spent hours debugging this.. :-(
+to_bin(List, pos) -> to_bin3(List,[<<0:512>>]);
+to_bin(List, vertex) -> to_bin3(List,[<<0:512>>]);  %% Vertex colors
+to_bin(List, material) -> to_bin2(List,[<<0:512>>]).  %% UV coords.
+
+to_bin3([{A,B,C}|R],Acc) -> 
+    to_bin3(R,[<<A:32/native-float,B:32/native-float,C:32/native-float>>|Acc]);
+to_bin3([],Acc) -> list_to_binary(Acc).
+to_bin2([{A,B}|R],Acc) -> 
+    to_bin2(R,[<<A:32/native-float,B:32/native-float>>|Acc]);
+to_bin2([],Acc) -> list_to_binary(Acc).
+%
+% Workaround for ATI gl:'end' doesn't bite for line loop/strip..
+vs_lines([A|R=[B|_]],Last) ->
+    [A,B|vs_lines(R,Last)];
+vs_lines([B],Last) ->
+    [B,Last].
 
 merge_mats([This={MatName,_Def}|R], Mats) ->
     case gb_trees:is_defined(MatName,Mats) of
@@ -603,17 +636,3 @@ merge_mats([This={MatName,_Def}|R], Mats) ->
 	    merge_mats(R,gb_trees:add(This, Mats))
     end;
 merge_mats([],Mats) -> Mats.
-
-triangulate(Vs,Len,#we{vp=Vtab}) ->
-    FaceVs = lists:seq(0, Len-1),
-    Vcoords = [gb_trees:get(V, Vtab) || V <- Vs],
-    E3dface = #e3d_face{vs=FaceVs},
-    T3dfaces = e3d_mesh:triangulate_face(E3dface, Vcoords),
-    VsTuple = list_to_tuple(Vs),
-    [renumber(FVs, VsTuple) || #e3d_face{vs=FVs} <- T3dfaces].
-
-renumber(L, Vtab) ->
-    renumber(L, Vtab, []).
-renumber([V|Vs], Vtab, Acc) ->
-    renumber(Vs, Vtab, [element(V+1, Vtab)|Acc]);
-renumber([], _, Acc) -> reverse(Acc).
