@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pl.lang,v 1.19 2006/01/12 17:28:48 giniu Exp $
+%%     $Id: wings_pl.lang,v 1.20 2006/01/13 21:04:26 giniu Exp $
 %%
 %%  Translation:  Andrzej Giniewicz
 %%  Correction:   Małgorzata Napiontek
@@ -2402,15 +2402,8 @@
     {14,"Zniekształć"},
     {15,"Kolor punktów"},
     {16,"Zastosuj kolor punktów do wybranych punktów"},
-    {17,"Pozycjonuj"},
-    {18,"Przesuń wybrany punkt na dokładną pozycję w koordynatach bezwzględnych"},
-    {19,"Spawaj"},
-    {20,"Przyspawaj zaznaczony punkt do innego punktu połączonego z nim krawędzią"}
-   ]},
-  {move_to,
-   [
-    {1,"Podaj pozycję:"},
-    {2,"Tym narzędziem możesz przesuwać tylko pojedyńcze punkty"}
+    {17,"Spawaj"},
+    {18,"Przyspawaj zaznaczony punkt do innego punktu połączonego z nim krawędzią"}
    ]},
   {weld,
    [
