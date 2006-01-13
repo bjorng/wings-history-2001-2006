@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_texture.erl,v 1.13 2006/01/13 18:41:19 dgud Exp $
+%%     $Id: auv_texture.erl,v 1.14 2006/01/13 22:06:25 dgud Exp $
 %%
 
 -module(auv_texture).
@@ -49,7 +49,7 @@
 	 fs,        % Faces see [{Face,#fs{}}]
 	 oes=[],    % Outer vertices [[va,vb,face],[vc,vb,face]..]
 	 mode       % Previous mode material/vertex-colored
-	}).    
+	}).
 
 -record(fs,
 	{vs,        % triangulated vertex id in uv window [[Id1,Id2,Id3]]
@@ -125,7 +125,7 @@ renderers() ->
 options(auv_background, [{type_sel,Type},{Image,_},Color]) ->
     [{hradio,[{"Image",image},{"Color",color}],Type,[{key,type_sel},layout]},
      {hframe,[{label,"Image"},image_selector(0,Image)],[is_enabled(image)]},
-     {hframe,[{label,"Color"},{color,Color}],[is_enabled(color)]}];
+     {hframe,[{label,"Color"},{color,fix(Color,have_fbo())}],[is_enabled(color)]}];
 options(auv_background, _Bad) ->  
     options(auv_background, ?OPT_BG);
 options(auv_edges,[Type,Color,Size,UseMat]) ->
@@ -220,14 +220,16 @@ get_texture(St = #st{bb=#uvstate{}}, Options) ->
 get_passes(Passes) ->
     lists:map(fun(Pass) -> pass(Pass) end, Passes).
 
-pass({auv_background,[{type_sel,color},_,{R,G,B}]}) ->  
+pass({auv_background,[{type_sel,color},_,Color]}) ->  
     fun(_Geom) ->
-	    gl:clearColor(R,G,B,1.0),
+	    {R,G,B,A} = fix(Color,true),
+	    gl:clearColor(R,G,B,A),
 	    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT)
     end;
-pass({auv_background,[{type_sel,image},{_Name,Id},{R,G,B}]}) ->
+pass({auv_background,[{type_sel,image},{_Name,Id},Color]}) ->
     fun(_Geom) ->
-	    gl:clearColor(R,G,B,1.0),
+	    {R,G,B,A} = fix(Color,true),
+	    gl:clearColor(R,G,B,A),
 	    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
 	    case wings_image:txid(Id) of
 		none -> ignore;
@@ -251,8 +253,9 @@ pass({auv_edges, [all_edges,Color,Width,_UseMat]}) ->
 			     Patched = vs_lines(Vs,hd(Vs)),
 			     gl:drawElements(?GL_LINES,length(Patched),
 					     ?GL_UNSIGNED_INT,Patched)
+%%                     Doesn't work
 %% 			     gl:drawElements(?GL_LINE_LOOP,length(Vs),
-%% 					     ?GL_UNSIGNED_INT,Vs)
+%% 					     ?GL_UNSIGNED_INT,Vs) 
 			     end,
 	      foreach(Draw,Fs)
       end,
@@ -357,10 +360,14 @@ render_image(Geom = #ts{uv=UVpos,n=Ns,uvc=Uvc,uvc_mode=Mode},
 	     Passes,#opt{texsz={TexW,TexH}}) ->
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     Current = wings_wm:viewport(),
-    {W0,H0} = wings_wm:top_size(),
+    UsingFbo = setup_fbo(TexW,TexH),
+    {W0,H0} = case UsingFbo of
+		  false -> wings_wm:top_size();
+		  _ -> {TexW,TexH}
+	      end,
     {W,Wd} = calc_texsize(W0, TexW),
     {H,Hd} = calc_texsize(H0, TexH),
-    ?DBG("Get texture sz ~p ~p ~n", [{W,Wd},{H,Hd}]),
+%%    io:format("Get texture sz ~p ~p ~n", [{W,Wd},{H,Hd}]),
     set_viewport({0,0,W,H}),
     %% Load Pointers
     gl:vertexPointer(3, ?GL_FLOAT, 0, UVpos),
@@ -374,21 +381,66 @@ render_image(Geom = #ts{uv=UVpos,n=Ns,uvc=Uvc,uvc_mode=Mode},
 	gl:newList(Dl, ?GL_COMPILE),
 	foreach(fun(Pass) -> Pass(Geom) end, Passes),
 	gl:endList(),
-	ImageBins = get_texture(0, Wd, 0, Hd, {W,H}, Dl, []),
+	ImageBins = get_texture(0, Wd, 0, Hd, {W,H}, Dl, UsingFbo,[]),
 	gl:deleteLists(Dl,1),
 	ImageBin = merge_texture(ImageBins, Wd, Hd, W*3, H, []),
 	set_viewport(Current),
-	gl:popAttrib(),
-	
+	gl:popAttrib(),	
 	gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
-	#e3d_image{image=ImageBin,width=TexW,height=TexH}
+	case UsingFbo of
+	    false ->
+		#e3d_image{image=ImageBin,width=TexW,height=TexH};
+	    FB ->
+		gl:bindFramebufferEXT(?GL_FRAMEBUFFER_EXT, 0),
+		gl:deleteFramebuffersEXT(1,[FB]),
+ 		#e3d_image{image=ImageBin,width=TexW,height=TexH,
+ 			   type=r8g8b8a8,bytes_pp=4}
+	end
     catch _:What ->
+	    Where = erlang:get_stacktrace(),
+	    catch gl:bindFramebufferEXT(?GL_FRAMEBUFFER_EXT, 0),
+	    catch gl:deleteFramebuffersEXT(1,[UsingFbo]),
 	    gl:endList(),
 	    gl:popAttrib(),
-	    exit({What,erlang:get_stacktrace()})
+	    exit({What,Where})
     end.
 
-get_texture(Wc, Wd, Hc, Hd, {W,H}=Info, DL, ImageAcc)
+have_fbo() -> wings_gl:is_ext('GL_EXT_framebuffer_object').
+
+setup_fbo(W,H) ->
+    case have_fbo() of
+	false -> false;
+	true ->
+	    [FB] = gl:genFramebuffersEXT(1),
+	    [Col] = gl:genTextures(1),
+	    [Depth] = gl:genRenderbuffersEXT(1),
+	    gl:bindFramebufferEXT(?GL_FRAMEBUFFER_EXT, FB),
+	    %% Init color texture
+	    gl:bindTexture(?GL_TEXTURE_2D, Col),
+	    gl:texParameterf(?GL_TEXTURE_2D,?GL_TEXTURE_MIN_FILTER,?GL_LINEAR),
+	    gl:texImage2D(?GL_TEXTURE_2D, 0, ?GL_RGBA8, W, H, 0,
+			  ?GL_RGBA, ?GL_UNSIGNED_BYTE, 0),
+	    gl:framebufferTexture2DEXT(?GL_FRAMEBUFFER_EXT,
+				       ?GL_COLOR_ATTACHMENT0_EXT,
+				       ?GL_TEXTURE_2D, Col, 0),
+	    %% Init depth texture
+	    gl:bindRenderbufferEXT(?GL_RENDERBUFFER_EXT, Depth),
+	    gl:renderbufferStorageEXT(?GL_RENDERBUFFER_EXT,
+				      ?GL_DEPTH_COMPONENT24, W, H),
+	    gl:framebufferRenderbufferEXT(?GL_FRAMEBUFFER_EXT,
+					  ?GL_DEPTH_ATTACHMENT_EXT,
+					  ?GL_RENDERBUFFER_EXT, Depth),
+	    case check_fbo_status(FB) of
+		false -> 
+		    gl:bindFramebufferEXT(?GL_FRAMEBUFFER_EXT, 0), 
+		    false;
+		_ ->
+		    gl:bindFramebufferEXT(?GL_FRAMEBUFFER_EXT, FB),
+		    FB
+	    end
+    end.
+	    
+get_texture(Wc, Wd, Hc, Hd, {W,H}=Info, DL, UsingFbo, ImageAcc)
   when Wc < Wd, Hc < Hd ->
     gl:pixelStorei(?GL_UNPACK_ALIGNMENT, 1),
     gl:clearColor(1, 1, 1, 1),
@@ -398,14 +450,22 @@ get_texture(Wc, Wd, Hc, Hd, {W,H}=Info, DL, ImageAcc)
     texture_view(Wc, Wd, Hc, Hd),
     gl:callList(DL),
     gl:flush(),
-    gl:readBuffer(?GL_BACK),
-    Mem = sdl_util:alloc(W*H*3, ?GL_UNSIGNED_BYTE),
-    gl:readPixels(0, 0, W, H, ?GL_RGB, ?GL_UNSIGNED_BYTE, Mem),
+    {Sz,Type} = 
+	case UsingFbo of
+	    false -> 
+		gl:readBuffer(?GL_BACK),
+		{3,?GL_RGB};
+	    _ -> 
+		gl:readBuffer(?GL_COLOR_ATTACHMENT0_EXT),
+		{4,?GL_RGBA}
+	end,
+    Mem = sdl_util:alloc(W*H*Sz, ?GL_UNSIGNED_BYTE),
+    gl:readPixels(0,0,W,H,Type,?GL_UNSIGNED_BYTE,Mem),
     ImageBin = sdl_util:getBin(Mem),
-    get_texture(Wc+1, Wd, Hc, Hd, Info, DL, [ImageBin|ImageAcc]);
-get_texture(_Wc,Wd,Hc,Hd, Info, Dl, ImageAcc) when Hc < Hd ->
-    get_texture(0, Wd, Hc+1, Hd, Info, Dl, ImageAcc);
-get_texture(_,_,_,_,_,_,ImageAcc) -> reverse(ImageAcc).
+    get_texture(Wc+1, Wd, Hc, Hd, Info, DL, UsingFbo, [ImageBin|ImageAcc]);
+get_texture(_Wc,Wd,Hc,Hd, Info, Dl, UsingFbo, ImageAcc) when Hc < Hd ->
+    get_texture(0, Wd, Hc+1, Hd, Info, Dl, UsingFbo, ImageAcc);
+get_texture(_,_,_,_,_,_,_,ImageAcc) -> reverse(ImageAcc).
 
 texture_view(WC, WD, HC, HD) ->
     gl:matrixMode(?GL_PROJECTION),
@@ -439,10 +499,37 @@ merge_texture(ImageBins,Wd,Hd,W,H,Acc) ->
 calc_texsize(Vp, Tex) ->
     calc_texsize(Vp, Tex, Tex).
 
-calc_texsize(Vp, Tex, Orig) when Tex < Vp ->
+calc_texsize(Vp, Tex, Orig) when Tex =< Vp ->
     {Tex,Orig div Tex};
 calc_texsize(Vp, Tex, Orig) ->
     calc_texsize(Vp, Tex div 2, Orig).
+
+check_fbo_status(FB) ->
+    case gl:checkFramebufferStatusEXT(?GL_FRAMEBUFFER_EXT) of
+	?GL_FRAMEBUFFER_COMPLETE_EXT ->
+	    FB;
+	?GL_FRAMEBUFFER_UNSUPPORTED_EXT ->
+	    io:format("GL_FRAMEBUFFER_UNSUPPORTED_EXT~n",[]),
+	    false;
+	?GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT_EXT ->
+	    io:format("GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT_EXT~n",[]),
+	    false;
+        ?GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT_EXT ->
+	    io:format("GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT_EXT~n",[]),
+	    false;
+        ?GL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS_EXT ->
+	    io:format("GL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS_EXT~n",[]),
+	    false;
+        ?GL_FRAMEBUFFER_INCOMPLETE_FORMATS_EXT    ->
+	    io:format("GL_FRAMEBUFFER_INCOMPLETE_FORMATS_EXT~n",[]),
+	    false;
+        ?GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER_EXT ->
+	    io:format("GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER_EXT~n",[]),
+	    false;
+        ?GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER_EXT ->
+	    io:format("GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER_EXT~n",[]),
+	    false
+    end.
 
 get_pref(Key, Def) ->
     wpa:pref_get(autouv, Key, Def).
@@ -579,6 +666,11 @@ find(V, [[V|Info]|_R]) -> Info;
 find(V, [_|R]) -> find(V,R);
 find(_, []) -> none.
 
+fix(OK = {_,_,_}, false) -> OK;
+fix(OK = {_,_,_,_}, true) -> OK;
+fix({R,G,B,_}, false) -> {R,G,B};
+fix({R,G,B}, true) -> {R,G,B,1.0}.
+    
 setup_normals(We = #we{fs=Ftab}) ->
     FN0	= [{Face,wings_face:normal(Face, We)} || Face <- gb_trees:keys(Ftab)],
     Ns = wings_we:normals(FN0, We),  %% gb_tree of {Face, [VInfo|Normal]}    
