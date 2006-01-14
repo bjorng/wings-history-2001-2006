@@ -8,14 +8,15 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.48 2005/11/12 09:18:59 bjorng Exp $
+%%     $Id: wings_image.erl,v 1.49 2006/01/14 09:59:54 dgud Exp $
 %%
 
 -module(wings_image).
 -export([init/0,init_opengl/0,
 	 from_file/1,new/2,new_temp/2,create/1,
 	 rename/2,txid/1,info/1,images/0,screenshot/0,
-	 bumpid/1, normal_cubemapid/0, default/1,
+	 bumpid/1, default/1,
+	 normal_cubemapid/0, pnoiseid/0,
 	 next_id/0,delete_older/1,delete_from/1,delete/1,
 	 update/2,update_filename/2,draw_preview/5,
 	 window/1]).
@@ -97,6 +98,9 @@ bumpid(Id) ->
 
 normal_cubemapid() ->
     req(normalCM, false).
+
+pnoiseid() ->
+    req(pnoise, false).
 
 default(Type) ->
     req({default,Type}, false).
@@ -224,6 +228,13 @@ handle(normalCM, S) ->
 	 TxId -> 
 	     TxId
      end,S};
+handle(pnoise, S) ->
+    {case get(pnoise) of
+	 undefined -> 
+	     create_pnoise();
+	 TxId -> 
+	     TxId
+     end,S};
 handle({default,all},S) ->
     All = [diffuse, bump, gloss],
     Ids = [{Type,element(1, handle({default,Type},S))} || Type <- All],
@@ -315,6 +326,31 @@ create_normal_cube_map() ->
 	    put(normalCM,CubeMap),
 	    CubeMap;
 	false ->
+	    none
+    end.
+
+create_pnoise() ->
+    try 
+	[NoiseMap] = gl:genTextures(1),
+	gl:bindTexture(?GL_TEXTURE_3D, NoiseMap),
+	Map = pnoise:map3d(127),
+	Assert = size(Map),
+	Assert = 127*127*127,
+	gl:texParameteri(?GL_TEXTURE_3D, ?GL_TEXTURE_MAG_FILTER, ?GL_LINEAR),
+	case wings_gl:is_ext({1,4},'GL_SGIS_generate_mipmap') of
+	    true -> 
+		gl:texParameteri(?GL_TEXTURE_2D, ?GL_GENERATE_MIPMAP, ?GL_TRUE),
+		gl:texParameteri(?GL_TEXTURE_3D, ?GL_TEXTURE_MIN_FILTER, ?GL_NEAREST_MIPMAP_LINEAR);
+	    false ->
+		gl:texParameteri(?GL_TEXTURE_3D, ?GL_TEXTURE_MIN_FILTER, ?GL_LINEAR)
+	end,
+	gl:texParameteri(?GL_TEXTURE_3D, ?GL_TEXTURE_WRAP_S, ?GL_REPEAT),
+	gl:texParameteri(?GL_TEXTURE_3D, ?GL_TEXTURE_WRAP_T, ?GL_REPEAT),
+	gl:texParameteri(?GL_TEXTURE_3D, ?GL_TEXTURE_WRAP_R, ?GL_REPEAT),
+	gl:texImage3D(?GL_TEXTURE_3D, 0, ?GL_LUMINANCE8, 127, 127, 127, 0, 
+		      ?GL_LUMINANCE, ?GL_UNSIGNED_BYTE, Map),
+	NoiseMap
+    catch _:_ -> 
 	    none
     end.
 
