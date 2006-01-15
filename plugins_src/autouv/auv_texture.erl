@@ -3,16 +3,18 @@
 %%
 %%     Render and capture a texture.
 %%
-%%  Copyright (c) 2002-2004 Dan Gudmundsson, Bjorn Gustavsson
+%%  Copyright (c) 2002-2006 Dan Gudmundsson, Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_texture.erl,v 1.14 2006/01/13 22:06:25 dgud Exp $
+%%     $Id: auv_texture.erl,v 1.15 2006/01/15 18:40:36 dgud Exp $
 %%
 
 -module(auv_texture).
 -export([get_texture/1, get_texture/2, draw_options/0]).
+
+-compile(export_all).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -34,6 +36,14 @@
 	      renderers = [{auv_background, ?OPT_BG},
 			   {auv_edges, [all_edges]}]
 	     }).
+
+-record(sh, {id=ignore,
+	     name="Unnamed",   %% Shader menu entry
+	     file="",
+	     vs = "",          %% Vertex shader
+	     fs = "",          %% Fragment shader
+	     args = []         %% Arguments
+	    }).
 
 -record(ts,         % What              Type
 	{charts,    % #chart{}          (list)
@@ -63,36 +73,41 @@ draw_options() ->
     MaxTxs = max([min([4096,MaxTxs0]),256]),
     Prefs = get_pref(tx_prefs, pref_to_list(#opt{})),
     TexSz = proplists:get_value(texsz, Prefs, 512),
+    Shaders = shaders(),
     Qs = [{hframe,[{menu,gen_tx_sizes(MaxTxs,[]),TexSz,
 		    [{key,texsz}]}],
-	   [{title,"Size"}]},
-	  {vframe, render_passes(Prefs), [{title,"Render"}]}],
+	   [{title,?__(1,"Size")}]},
+	  {vframe, render_passes(Prefs,Shaders), [{title,?__(2,"Render")}]}],
     
-    wings_ask:dialog("Draw Options", Qs,
+    wings_ask:dialog(?__(3,"Draw Options"), Qs,
 		     fun(Options) ->
 			     Opt = list_to_prefs(Options),
 			     set_pref([{tx_prefs, pref_to_list(Opt)}]),
-			     {auv,{draw_options,Opt}}
+			     {auv,{draw_options,{Opt,Shaders}}}
 		     end).
 
-render_passes(Prefs) ->
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Menu handling
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+render_passes(Prefs,Shaders) ->
     NoOfPasses = lists:max([((length(Prefs) - 1) div 2)-1,4]),
-    Menu = renderers(),
+    Menu = renderers(Shaders),
     Background = 
 	{hframe, 
 	 [{label, integer_to_list(0) ++ ": "},
-	  {menu,[{"Background", auv_background}],auv_background,
+	  {menu,[{?__(1,"Background"), auv_background}],auv_background,
 	   [{key,{auv_pass,0}},layout]}, 
 	  {value, get_def(Prefs,auv_opt,0), store_opt(0)},
-	  {button,"Options",keep,[option_hook(0,background()),
+	  {button,?__(2,"Options"),keep,[option_hook(0,background(),[]),
 				  drop_flags(0)]}],[]},
     Other = [{hframe, 
 	      [{label, integer_to_list(Id) ++ ": "},
 	       {menu,Menu,default_menu(Id,Prefs),
 		[{key,{auv_pass,Id}},layout,pass_hook(Id)]}, 
 	       {value, get_def(Prefs,auv_opt,Id), store_opt(Id)},
-	       {button,"Options",keep,
-		[option_hook(Id,Menu),
+	       {button,?__(3,"Options"),keep,
+		[option_hook(Id,Menu,Shaders),
 		 drop_flags(Id)]}],
 	      []} 
 	     || Id <- lists:seq(1,NoOfPasses)],
@@ -115,34 +130,42 @@ get_def(List, What, Id) ->
     end.
 
 background() ->
-    [{"Background", auv_background}].
-renderers() ->
-    [{"None", ignore},
-     {"Draw Edges",auv_edges},
-     {"Draw Faces",auv_faces}     
+    [{?__(1,"Background"), auv_background}].
+renderers(Shaders) ->
+    [{?__(1,"None"), ignore},
+     {?__(2,"Draw Edges"),auv_edges},
+     {?__(3,"Draw Faces"),auv_faces}|
+     [{"* "++Name++" *", {shader,Id}} || 
+	 #sh{name=Name,id=Id} <- Shaders]
     ].
 
-options(auv_background, [{type_sel,Type},{Image,_},Color]) ->
-    [{hradio,[{"Image",image},{"Color",color}],Type,[{key,type_sel},layout]},
-     {hframe,[{label,"Image"},image_selector(0,Image)],[is_enabled(image)]},
-     {hframe,[{label,"Color"},{color,fix(Color,have_fbo())}],[is_enabled(color)]}];
-options(auv_background, _Bad) ->  
-    options(auv_background, ?OPT_BG);
-options(auv_edges,[Type,Color,Size,UseMat]) ->
-    [{vradio,[{"Draw All Edges",all_edges},
-	      {"Draw Border Edges", border_edges}], 
+options(auv_background, [{type_sel,Type},{Image,_},Color],_) ->
+    [{hradio,[{?__(1,"Image"),image},{?__(2,"Color"),color}],
+      Type,[{key,type_sel},layout]},
+     {hframe,[{label,?__(1,"Image")},image_selector(0,Image)],
+      [is_enabled(image)]},
+     {hframe,[{label,?__(2,"Color")},{color,fix(Color,have_fbo())}],
+      [is_enabled(color)]}];
+options(auv_background, _Bad,Sh) ->  
+    options(auv_background, ?OPT_BG,Sh);
+options(auv_edges,[Type,Color,Size,UseMat],_) ->
+    [{vradio,[{?__(3,"Draw All Edges"),all_edges},
+	      {?__(4,"Draw Border Edges"), border_edges}], 
       Type, []},
-     {hframe, [{label,"Edge Color:"}, {color, Color}]},
-     {hframe, [{label,"Edge Width:"}, {text,Size,[{range, {0.0,100.0}}]}]},
-     {"Use face material (on border edges)", UseMat}
+     {hframe, [{label,?__(5,"Edge Color:")}, {color, Color}]},
+     {hframe, [{label,?__(6,"Edge Width:")}, {text,Size,[{range, {0.0,100.0}}]}]},
+     {?__(7,"Use face material (on border edges)"), UseMat}
     ];
-options(auv_edges,_) -> options(auv_edges,?OPT_EDGES);
-options(auv_faces,[Type]) ->
-    [{vradio,[{"Use Material Colors",materials},
-	      {"Use (previous) Texture/Vertex colors", texture}],
+options(auv_edges,_,Sh) -> options(auv_edges,?OPT_EDGES,Sh);
+options(auv_faces,[Type],_) ->
+    [{vradio,[{?__(8,"Use Material Colors"),materials},
+	      {?__(9,"Use (previous) Texture/Vertex colors"), texture}],
       Type, []}];
-options(auv_faces,_) -> options(auv_faces,?OPT_FACES);
-options(Command,Vals) ->
+options(auv_faces,_,Sh) -> options(auv_faces,?OPT_FACES,Sh);
+options({shader,Id},Vals,Sh) ->
+    {value,Shader} = lists:keysearch(Id,#sh.id,Sh),
+    get_shader_menu(Shader,Vals);
+options(Command,Vals,_) ->
     io:format("~p: ~p~n",[Command, Vals]),
     exit(unknown_default).
 
@@ -167,14 +190,15 @@ is_enabled(Type) ->
 	      (_,_) -> void
 	   end}.
 
-option_hook(Id,Renderers) ->
+option_hook(Id,Renderers,Shaders) ->
     {hook, fun(is_disabled,{_Var,_I,Sto}) ->
 		   gb_trees:get({auv_pass,Id}, Sto) == ignore;
 	      (is_minimized, _) ->
 		   false;
 	      (update,{_Var,_I,_B,Sto}) ->
 		   Name = gb_trees:get({auv_pass,Id},Sto),
-		   render_option_dialog(Id,renderer(Name,Renderers),Sto);
+		   render_option_dialog(Id,renderer(Name,Renderers),
+					Shaders,Sto);
 	      (_,_) -> void
 	   end}.
 
@@ -189,10 +213,10 @@ pass_hook(Id) ->
 renderer(Id,[Renderer={_,Id}|_R]) ->  Renderer;
 renderer(Id,[_|R]) ->  renderer(Id,R).
 
-render_option_dialog(Id,{StrName,Name},Sto) ->
+render_option_dialog(Id,{StrName,Name},Shaders,Sto) ->
     Fun = render_option_fun(wings_wm:this()),
     Opt = gb_trees:get({auv_opt,Id},Sto),
-    wings_ask:dialog(StrName,options(Name,Opt),Fun).
+    wings_ask:dialog(StrName,options(Name,Opt,Shaders),Fun).
 
 render_option_fun(Parent) ->
     fun(What) -> wpa:drop(Parent, {render_opt, What}) end.
@@ -206,157 +230,23 @@ store_opt(Id) ->
 drop_flags(Id) ->
     {drop_flags, [{index,-1}|store_opt(Id)]}.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%% Texture Creation
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Texture creation
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 get_texture(St) ->    
     Ops = list_to_prefs(get_pref(tx_prefs, list_to_prefs(#opt{}))),
     get_pref(St, Ops).
-get_texture(St = #st{bb=#uvstate{}}, Options) ->
-    Passes = get_passes(Options#opt.renderers),
+get_texture(St = #st{bb=#uvstate{}}, {Options,Shaders}) ->
+    Passes = get_passes(Options#opt.renderers,Shaders),
     Ts = setup(St),
     render_image(Ts, Passes, Options).
 
-get_passes(Passes) ->
-    lists:map(fun(Pass) -> pass(Pass) end, Passes).
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Texture Rendering
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-pass({auv_background,[{type_sel,color},_,Color]}) ->  
-    fun(_Geom) ->
-	    {R,G,B,A} = fix(Color,true),
-	    gl:clearColor(R,G,B,A),
-	    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT)
-    end;
-pass({auv_background,[{type_sel,image},{_Name,Id},Color]}) ->
-    fun(_Geom) ->
-	    {R,G,B,A} = fix(Color,true),
-	    gl:clearColor(R,G,B,A),
-	    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
-	    case wings_image:txid(Id) of
-		none -> ignore;
-		TxId ->
- 		    gl:enable(?GL_TEXTURE_2D),
-		    gl:bindTexture(?GL_TEXTURE_2D, TxId),
-		    gl:'begin'(?GL_QUADS),
-		    gl:texCoord2f(0,0),    gl:vertex3f(0, 0, -0.99),
-		    gl:texCoord2f(1,0),    gl:vertex3f(1, 0, -0.99),
-		    gl:texCoord2f(1,1),    gl:vertex3f(1, 1, -0.99),
-		    gl:texCoord2f(0,1),    gl:vertex3f(0, 1, -0.99),
-		    gl:'end'(),
-		    gl:disable(?GL_TEXTURE_2D)
-	    end
-    end;
-pass({auv_background, _}) ->
-    pass({auv_background, ?OPT_BG});
-pass({auv_edges, [all_edges,Color,Width,_UseMat]}) ->
-    R=fun(#chart{fs=Fs}) ->
-	      Draw = fun(#fs{vse=Vs}) ->
-			     Patched = vs_lines(Vs,hd(Vs)),
-			     gl:drawElements(?GL_LINES,length(Patched),
-					     ?GL_UNSIGNED_INT,Patched)
-%%                     Doesn't work
-%% 			     gl:drawElements(?GL_LINE_LOOP,length(Vs),
-%% 					     ?GL_UNSIGNED_INT,Vs) 
-			     end,
-	      foreach(Draw,Fs)
-      end,
-    fun(#ts{charts=Charts}) ->  
-	    gl:disable(?GL_DEPTH_TEST),	    
-	    gl:color3fv(Color),
-	    gl:lineWidth(Width),
-	    gl:enableClientState(?GL_VERTEX_ARRAY),
-	    foreach(R, Charts),
-	    gl:disableClientState(?GL_VERTEX_ARRAY)
-    end;
-pass({auv_edges, [border_edges,Color,Width,UseMat]}) -> 
-    R= fun(#chart{oes=Es}) when UseMat ->
-	       Draw = fun([A,B,Mat]) ->
-			      gl:color4fv(get_diffuse(Mat)),
-			      gl:drawElements(?GL_LINES,2,?GL_UNSIGNED_INT,[A,B])
-		      end,
-	       foreach(Draw,Es);
-	  (#chart{oes=Es0}) ->
-	       Es = foldl(fun([A,B,_],Acc) -> [A,B|Acc] end, [], Es0),
-	       gl:drawElements(?GL_LINES,length(Es),?GL_UNSIGNED_INT,Es)
-       end,
-    fun(#ts{charts=Charts}) ->  
-	    gl:color3fv(Color),
-	    gl:lineWidth(Width),
-	    gl:enableClientState(?GL_VERTEX_ARRAY),
-	    gl:disable(?GL_DEPTH_TEST),
-	    foreach(R, Charts),
-	    gl:disableClientState(?GL_VERTEX_ARRAY)
-    end;
-pass({auv_edges, _}) ->
-    pass({auv_edges, ?OPT_EDGES});
-
-pass({auv_faces, [Type]}) ->
-    fun(#ts{charts=Charts,uvc_mode=Mode}) ->  
-	    gl:disable(?GL_DEPTH_TEST),
-	    gl:disable(?GL_ALPHA_TEST),
-	    gl:enable(?GL_BLEND),	   
-	    gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
-	    gl:enableClientState(?GL_VERTEX_ARRAY),
-	    R = case Type of
-		    materials ->			
-			fun(#fs{vs=Vs,mat=Mat}) ->
-				gl:color4fv(get_diffuse(Mat)),
-				gl:drawElements(?GL_TRIANGLES,length(Vs),
-						?GL_UNSIGNED_INT,Vs)
-			end;
-		    _ when Mode == vertex -> 
-			gl:enableClientState(?GL_COLOR_ARRAY),
-			fun(#fs{vs=Vs}) ->
-				gl:drawElements(?GL_TRIANGLES,length(Vs),
-						?GL_UNSIGNED_INT,Vs)
-			end;
-		    _ -> 
-			gl:enableClientState(?GL_TEXTURE_COORD_ARRAY),
-			fun(#fs{vs=Vs,mat=Mat}) ->
-				set_diffuse_tx(Mat),
-				gl:drawElements(?GL_TRIANGLES,length(Vs),
-						?GL_UNSIGNED_INT,Vs)
-			end
-		end,
-	    erase({?MODULE,use_tx}),
-	    gl:disable(?GL_TEXTURE_2D),
-	    foreach(fun(#chart{fs=Fs}) -> foreach(R,Fs) end,Charts),
-	    gl:disable(?GL_TEXTURE_2D),
-	    gl:disableClientState(?GL_VERTEX_ARRAY),
-	    gl:disableClientState(?GL_COLOR_ARRAY),
-	    gl:disableClientState(?GL_TEXTURE_COORD_ARRAY)
-    end;
-pass({auv_faces, _}) ->
-    pass({auv_faces,?OPT_FACES});
-pass({_R, _O}) ->    
-    io:format("~p:~p: Unknown Render Pass (~p) or options (~p) ~n",
-	      [?MODULE,?LINE,_R,_O]),
-    fun(_) -> ok end.
-
-get_diffuse(Mat) ->
-    proplists:get_value(diffuse, proplists:get_value(opengl, Mat)).
-
-set_diffuse_tx(Mat) ->
-    case get({?MODULE,use_tx}) of
-	Mat -> ok;
-	_ ->
-	    Maps = proplists:get_value(maps, Mat),
-	    case proplists:get_value(diffuse, Maps, none) of
-		none ->
-		    gl:disable(?GL_TEXTURE_2D),
-		    Ogl = proplists:get_value(opengl,Mat),
-		    gl:color4fv(proplists:get_value(diffuse,Ogl)),
-		    put({?MODULE,use_tx},Mat),
-		    false;
-		Diff0 ->
-		    gl:enable(?GL_TEXTURE_2D),
-		    Diff = wings_image:txid(Diff0),
-		    gl:bindTexture(?GL_TEXTURE_2D,Diff),
-		    put({?MODULE,use_tx},Mat),
-		    true
-	    end
-    end.
-
-render_image(Geom = #ts{uv=UVpos,n=Ns,uvc=Uvc,uvc_mode=Mode}, 
+render_image(Geom = #ts{uv=UVpos,pos=Pos,n=Ns,uvc=Uvc,uvc_mode=Mode}, 
 	     Passes,#opt{texsz={TexW,TexH}}) ->
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     Current = wings_wm:viewport(),
@@ -375,6 +265,13 @@ render_image(Geom = #ts{uv=UVpos,n=Ns,uvc=Uvc,uvc_mode=Mode},
     case Mode of
 	vertex -> gl:colorPointer(3,?GL_FLOAT,0,Uvc);
 	_Other -> gl:texCoordPointer(2,?GL_FLOAT,0,Uvc)
+    end,
+    case have_shaders() of
+	false -> ignore;
+	true  -> 
+	    gl:clientActiveTexture(?GL_TEXTURE1),
+	    gl:texCoordPointer(3,?GL_FLOAT,0,Pos),
+	    gl:clientActiveTexture(?GL_TEXTURE0)
     end,
     try 
 	Dl = gl:genLists(1),
@@ -578,6 +475,11 @@ set_viewport({X,Y,W,H}=Viewport) ->
     put(wm_viewport, Viewport),
     gl:viewport(X, Y, W, H).
 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Data setup 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 setup(St = #st{bb=#uvstate{id=RId, st=#st{mat=Mat,shapes=Sh0},
 			   orig_st=#st{mat=OrigMat,shapes=OrigSh}}}) ->
     We   = gb_trees:get(RId,Sh0),
@@ -728,3 +630,293 @@ merge_mats([This={MatName,_Def}|R], Mats) ->
 	    merge_mats(R,gb_trees:add(This, Mats))
     end;
 merge_mats([],Mats) -> Mats.
+	     
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Builtin Shader Passes
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+get_passes(Passes,Shaders) ->
+    lists:map(fun(Pass) -> pass(Pass,Shaders) end, Passes).
+
+pass({auv_background,[{type_sel,color},_,Color]},_) ->  
+    fun(_Geom) ->
+	    {R,G,B,A} = fix(Color,true),
+	    gl:clearColor(R,G,B,A),
+	    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT)
+    end;
+pass({auv_background,[{type_sel,image},{_Name,Id},Color]},_) ->
+    fun(_Geom) ->
+	    {R,G,B,A} = fix(Color,true),
+	    gl:clearColor(R,G,B,A),
+	    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
+	    case wings_image:txid(Id) of
+		none -> ignore;
+		TxId ->
+ 		    gl:enable(?GL_TEXTURE_2D),
+		    gl:bindTexture(?GL_TEXTURE_2D, TxId),
+		    gl:'begin'(?GL_QUADS),
+		    gl:texCoord2f(0,0),    gl:vertex3f(0, 0, -0.99),
+		    gl:texCoord2f(1,0),    gl:vertex3f(1, 0, -0.99),
+		    gl:texCoord2f(1,1),    gl:vertex3f(1, 1, -0.99),
+		    gl:texCoord2f(0,1),    gl:vertex3f(0, 1, -0.99),
+		    gl:'end'(),
+		    gl:disable(?GL_TEXTURE_2D)
+	    end
+    end;
+pass({auv_background, _},Sh) ->
+    pass({auv_background, ?OPT_BG},Sh);
+pass({auv_edges, [all_edges,Color,Width,_UseMat]},_) ->
+    R=fun(#chart{fs=Fs}) ->
+	      Draw = fun(#fs{vse=Vs}) ->
+			     Patched = vs_lines(Vs,hd(Vs)),
+			     gl:drawElements(?GL_LINES,length(Patched),
+					     ?GL_UNSIGNED_INT,Patched)
+%%                     Doesn't work
+%% 			     gl:drawElements(?GL_LINE_LOOP,length(Vs),
+%% 					     ?GL_UNSIGNED_INT,Vs) 
+			     end,
+	      foreach(Draw,Fs)
+      end,
+    fun(#ts{charts=Charts}) ->  
+	    gl:disable(?GL_DEPTH_TEST),	    
+	    gl:color3fv(Color),
+	    gl:lineWidth(Width),
+	    gl:enableClientState(?GL_VERTEX_ARRAY),
+	    foreach(R, Charts),
+	    gl:disableClientState(?GL_VERTEX_ARRAY)
+    end;
+pass({auv_edges, [border_edges,Color,Width,UseMat]},_) -> 
+    R= fun(#chart{oes=Es}) when UseMat ->
+	       Draw = fun([A,B,Mat]) ->
+			      gl:color4fv(get_diffuse(Mat)),
+			      gl:drawElements(?GL_LINES,2,?GL_UNSIGNED_INT,[A,B])
+		      end,
+	       foreach(Draw,Es);
+	  (#chart{oes=Es0}) ->
+	       Es = foldl(fun([A,B,_],Acc) -> [A,B|Acc] end, [], Es0),
+	       gl:drawElements(?GL_LINES,length(Es),?GL_UNSIGNED_INT,Es)
+       end,
+    fun(#ts{charts=Charts}) ->  
+	    gl:color3fv(Color),
+	    gl:lineWidth(Width),
+	    gl:enableClientState(?GL_VERTEX_ARRAY),
+	    gl:disable(?GL_DEPTH_TEST),
+	    foreach(R, Charts),
+	    gl:disableClientState(?GL_VERTEX_ARRAY)
+    end;
+pass({auv_edges, _},Sh) ->
+    pass({auv_edges, ?OPT_EDGES},Sh);
+
+pass({auv_faces, [Type]},_) ->
+    fun(#ts{charts=Charts,uvc_mode=Mode}) ->  
+	    gl:disable(?GL_DEPTH_TEST),
+	    gl:disable(?GL_ALPHA_TEST),
+	    gl:enable(?GL_BLEND),	   
+	    gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
+	    gl:enableClientState(?GL_VERTEX_ARRAY),
+	    R = case Type of
+		    materials ->			
+			fun(#fs{vs=Vs,mat=Mat}) ->
+				gl:color4fv(get_diffuse(Mat)),
+				gl:drawElements(?GL_TRIANGLES,length(Vs),
+						?GL_UNSIGNED_INT,Vs)
+			end;
+		    _ when Mode == vertex -> 
+			gl:enableClientState(?GL_COLOR_ARRAY),
+			fun(#fs{vs=Vs}) ->
+				gl:drawElements(?GL_TRIANGLES,length(Vs),
+						?GL_UNSIGNED_INT,Vs)
+			end;
+		    _ -> 
+			gl:enableClientState(?GL_TEXTURE_COORD_ARRAY),
+			fun(#fs{vs=Vs,mat=Mat}) ->
+				set_diffuse_tx(Mat),
+				gl:drawElements(?GL_TRIANGLES,length(Vs),
+						?GL_UNSIGNED_INT,Vs)
+			end
+		end,
+	    erase({?MODULE,use_tx}),
+	    gl:disable(?GL_TEXTURE_2D),
+	    foreach(fun(#chart{fs=Fs}) -> foreach(R,Fs) end,Charts),
+	    gl:disable(?GL_TEXTURE_2D),
+	    gl:disableClientState(?GL_VERTEX_ARRAY),
+	    gl:disableClientState(?GL_COLOR_ARRAY),
+	    gl:disableClientState(?GL_TEXTURE_COORD_ARRAY)
+    end;
+pass({auv_faces, _},Sh) ->
+    pass({auv_faces,?OPT_FACES},Sh);
+pass({{shader,Id}, Opts},Sh) ->
+    {value,Shader} = lists:keysearch(Id,#sh.id,Sh),
+    shader_pass(Shader, Opts);
+pass({_R, _O},_) ->    
+    io:format("~p:~p: Unknown Render Pass (~p) or options (~p) ~n",
+	      [?MODULE,?LINE,_R,_O]),
+    fun(_) -> ok end.
+
+get_diffuse(Mat) ->
+    proplists:get_value(diffuse, proplists:get_value(opengl, Mat)).
+
+set_diffuse_tx(Mat) ->
+    case get({?MODULE,use_tx}) of
+	Mat -> ok;
+	_ ->
+	    Maps = proplists:get_value(maps, Mat),
+	    case proplists:get_value(diffuse, Maps, none) of
+		none ->
+		    gl:disable(?GL_TEXTURE_2D),
+		    Ogl = proplists:get_value(opengl,Mat),
+		    gl:color4fv(proplists:get_value(diffuse,Ogl)),
+		    put({?MODULE,use_tx},Mat),
+		    false;
+		Diff0 ->
+		    gl:enable(?GL_TEXTURE_2D),
+		    Diff = wings_image:txid(Diff0),
+		    gl:bindTexture(?GL_TEXTURE_2D,Diff),
+		    put({?MODULE,use_tx},Mat),
+		    true
+	    end
+    end.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Shader loading/handling 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+shaders() ->
+    case have_shaders() of
+	true -> load_shaders_cfg();
+	false -> []
+    end.
+
+have_shaders() ->
+    wings_gl:is_ext({2,0}) andalso 
+	wings_gl:is_ext('GL_EXT_framebuffer_object').
+
+load_shaders_cfg() ->
+    Path  = filename:dirname(code:which(?MODULE)),
+    Files = filelib:wildcard("wpc_*.auv", Path),
+    lists:keysort(#sh.name, load_configs(Files,Path, [])).
+
+load_configs([Name|Fs], Path, Acc) ->
+    File = filename:join(Path,Name),
+    case file:consult(File) of
+	{ok,Info} -> 
+	    Id = list_to_atom(filename:basename(Name,".auv")++"_auv"),
+	    Sh = #sh{file=File,id=Id},
+	    load_configs(Fs,Path,parse_sh_info(Info,Sh,Acc));
+	Other ->
+	    io:format("AUV: Couldn't load ~p ~n",[File]),
+	    io:format("     Error: ~p ~n",[Other]),
+	    load_configs(Fs,Path,Acc)
+    end;
+load_configs([],_Path,Acc) ->
+    Acc.
+
+parse_sh_info([{name,Name}|Opts],Sh,Acc) ->
+    parse_sh_info(Opts, Sh#sh{name=Name}, Acc);
+parse_sh_info([{vertex_shader,Name}|Opts],Sh,Acc) ->
+    parse_sh_info(Opts, Sh#sh{vs=Name}, Acc);
+parse_sh_info([{fragment_shader,Name}|Opts],Sh,Acc) ->
+    parse_sh_info(Opts, Sh#sh{fs=Name}, Acc);
+parse_sh_info([_Error|Opts],Sh,Acc) ->
+    io:format("AUV: In ~p Unknown shader opt ignored ~p",
+	      [Sh#sh.file,_Error]),
+    parse_sh_info(Opts, Sh, Acc);
+parse_sh_info([], Sh, Acc) ->
+    %% Verify shader here
+    [Sh|Acc].
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Shaders
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+get_shader_menu(Shader, Vals) ->
+    io:format("Menu opts for ~p: ~p~n",[Shader, Vals]),
+    [].
+
+shader_pass(Shader = #sh{vs=VsF,fs=FsF},Opts) ->
+    try 
+	io:format("Pass ~p: ~p~n~n",[Shader, Opts]),
+	Vs = compile(?GL_VERTEX_SHADER, read_file(VsF)),
+	Fs = compile(?GL_FRAGMENT_SHADER, read_file(FsF)),
+	Prog = link_prog(Vs,Fs),
+	fun(#ts{charts=Charts}) ->
+		gl:disable(?GL_DEPTH_TEST),
+		gl:disable(?GL_ALPHA_TEST),
+		gl:enable(?GL_BLEND),
+		gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
+		gl:enableClientState(?GL_VERTEX_ARRAY),
+		gl:enableClientState(?GL_NORMAL_ARRAY),
+		gl:clientActiveTexture(?GL_TEXTURE1),
+		gl:enableClientState(?GL_TEXTURE_COORD_ARRAY),
+
+		R = fun(#fs{vs=Vss}) ->
+			    gl:drawElements(?GL_TRIANGLES,length(Vss),
+					    ?GL_UNSIGNED_INT,Vss)
+		    end,
+		gl:useProgram(Prog),
+		foreach(fun(#chart{fs=Fas}) -> foreach(R,Fas) end,Charts),
+		gl:useProgram(0),
+		gl:disable(?GL_TEXTURE_2D),
+		gl:disableClientState(?GL_VERTEX_ARRAY),
+		gl:disableClientState(?GL_NORMAL_ARRAY),
+		gl:disableClientState(?GL_TEXTURE_COORD_ARRAY),
+		gl:clientActiveTexture(?GL_TEXTURE0)
+    end
+    catch throw:What ->
+	    io:format("AUV: ERROR ~s ~n",[What]),
+	    fun(_) -> ok end;
+	_:What ->
+	    Stack = erlang:get_stacktrace(),
+	    io:format("AUV: Internal ERROR ~p:~n~p ~n",[What,Stack]),
+	    fun(_) -> ok end
+    end.
+
+compile(Type,Src) ->
+    Handle = gl:createShaderObjectARB(Type),
+    ok = gl:shaderSource(Handle, 1, [Src], [-1]),
+    ok = gl:compileShader(Handle),
+    check_status(Handle,"Compiled", ?GL_OBJECT_COMPILE_STATUS),
+    Handle.
+
+link_prog(Vs,Fs) ->
+    Prog = gl:createProgramObjectARB(),
+    gl:attachObjectARB(Prog,Vs),
+    gl:attachObjectARB(Prog,Fs),
+    gl:linkProgram(Prog),
+    check_status(Prog,"Linked", ?GL_OBJECT_LINK_STATUS),
+    Prog.
+    
+check_status(Handle,Str, What) ->
+    case gl:getObjectParameterivARB(Handle, What) of
+	1 -> 
+	    io:format("AUV: ~s Status ok ~n",[Str]), 
+	    printInfo(Handle), %% Check status even if ok
+	    Handle;
+	_E -> 	    
+	    printInfo(Handle),
+	    throw("Compilation failed")
+    end.
+
+read_file(Name) ->
+    Path = filename:dirname(code:which(?MODULE)),
+    File = filename:join(Path,Name),
+    case file:read_file(File) of
+	{ok, Bin} -> Bin;
+	_ -> throw("Couldn't read file: " ++ File)
+    end.
+	     
+printInfo(ShaderObj) ->
+    Len = gl:getObjectParameterivARB(ShaderObj, ?GL_OBJECT_INFO_LOG_LENGTH),
+    case Len > 0 of
+	true ->
+	    case catch gl:getInfoLogARB(ShaderObj, Len) of
+		{_, []} ->
+		    ok;
+		{_, InfoStr} ->
+		    io:format("AUV Info: ~s ~n", [InfoStr]);
+		Error ->
+		    io:format("AUV: Internal error PrintInfo crashed with ~p ~n", [Error])
+	    end;
+	false ->
+	    io:format("CompileInfo ~p ~n", [Len])
+    end.
