@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_texture.erl,v 1.15 2006/01/15 18:40:36 dgud Exp $
+%%     $Id: auv_texture.erl,v 1.16 2006/01/16 16:25:52 dgud Exp $
 %%
 
 -module(auv_texture).
@@ -42,6 +42,7 @@
 	     file="",
 	     vs = "",          %% Vertex shader
 	     fs = "",          %% Fragment shader
+	     require = [],     %% Required builtin features 
 	     args = []         %% Arguments
 	    }).
 
@@ -238,6 +239,7 @@ get_texture(St) ->
     Ops = list_to_prefs(get_pref(tx_prefs, list_to_prefs(#opt{}))),
     get_pref(St, Ops).
 get_texture(St = #st{bb=#uvstate{}}, {Options,Shaders}) ->
+    io:format("~p: Err ~p~n",[?LINE,wings_gl:error_string(gl:getError())]),
     Passes = get_passes(Options#opt.renderers,Shaders),
     Ts = setup(St),
     render_image(Ts, Passes, Options).
@@ -249,6 +251,7 @@ get_texture(St = #st{bb=#uvstate{}}, {Options,Shaders}) ->
 render_image(Geom = #ts{uv=UVpos,pos=Pos,n=Ns,uvc=Uvc,uvc_mode=Mode}, 
 	     Passes,#opt{texsz={TexW,TexH}}) ->
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
+    io:format("~p: Err ~p~n",[?LINE,wings_gl:error_string(gl:getError())]),
     Current = wings_wm:viewport(),
     UsingFbo = setup_fbo(TexW,TexH),
     {W0,H0} = case UsingFbo of
@@ -274,22 +277,31 @@ render_image(Geom = #ts{uv=UVpos,pos=Pos,n=Ns,uvc=Uvc,uvc_mode=Mode},
 	    gl:clientActiveTexture(?GL_TEXTURE0)
     end,
     try 
-	Dl = gl:genLists(1),
-	gl:newList(Dl, ?GL_COMPILE),
-	foreach(fun(Pass) -> Pass(Geom) end, Passes),
-	gl:endList(),
+        Dl = fun() -> 
+		     foreach(fun(Pass) -> 
+				     io:format("~p: Err ~p~n",[?LINE,wings_gl:error_string(gl:getError())]),
+				     Pass(Geom) 
+			     end, Passes) end,
+
 	ImageBins = get_texture(0, Wd, 0, Hd, {W,H}, Dl, UsingFbo,[]),
-	gl:deleteLists(Dl,1),
 	ImageBin = merge_texture(ImageBins, Wd, Hd, W*3, H, []),
-	set_viewport(Current),
+        set_viewport(Current),
+        io:format("~p: Err ~p~n",[?LINE,wings_gl:error_string(gl:getError())]),
+
 	gl:popAttrib(),	
+        io:format("~p: Err ~p~n",[?LINE,wings_gl:error_string(gl:getError())]),
+
 	gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
+        io:format("~p: Err ~p~n",[?LINE,wings_gl:error_string(gl:getError())]),
+
 	case UsingFbo of
 	    false ->
 		#e3d_image{image=ImageBin,width=TexW,height=TexH};
 	    FB ->
 		gl:bindFramebufferEXT(?GL_FRAMEBUFFER_EXT, 0),
 		gl:deleteFramebuffersEXT(1,[FB]),
+		io:format("~p: Err ~p~n",[?LINE,wings_gl:error_string(gl:getError())]),
+
  		#e3d_image{image=ImageBin,width=TexW,height=TexH,
  			   type=r8g8b8a8,bytes_pp=4}
 	end
@@ -345,7 +357,10 @@ get_texture(Wc, Wd, Hc, Hd, {W,H}=Info, DL, UsingFbo, ImageAcc)
     gl:disable(?GL_CULL_FACE),
     gl:disable(?GL_LIGHTING),
     texture_view(Wc, Wd, Hc, Hd),
-    gl:callList(DL),
+    io:format("~p: Err ~p~n",[?LINE,wings_gl:error_string(gl:getError())]),
+    DL(),
+    io:format("~p: Err ~p~n",[?LINE,wings_gl:error_string(gl:getError())]),
+
     gl:flush(),
     {Sz,Type} = 
 	case UsingFbo of
@@ -517,7 +532,7 @@ create_faces(We = #we{vp=Vtab,name=#ch{vmap=Vmap}},
 	      Len = length(Vs0),
 	      FaceVs = lists:seq(0, Len-1),
 	      Vs = case Len of
-		       3 -> [FaceVs];
+		       3 -> FaceVs;
 		       Len -> triangulate(FaceVs,UVcoords)
 		   end,
 	      Indx = fun(I) -> [V+Cnt || V <- I] end,
@@ -817,6 +832,9 @@ parse_sh_info([{vertex_shader,Name}|Opts],Sh,Acc) ->
     parse_sh_info(Opts, Sh#sh{vs=Name}, Acc);
 parse_sh_info([{fragment_shader,Name}|Opts],Sh,Acc) ->
     parse_sh_info(Opts, Sh#sh{fs=Name}, Acc);
+parse_sh_info([{require,List}|Opts],Sh,Acc) ->
+    parse_sh_info(Opts, Sh#sh{require=List}, Acc);
+
 parse_sh_info([_Error|Opts],Sh,Acc) ->
     io:format("AUV: In ~p Unknown shader opt ignored ~p",
 	      [Sh#sh.file,_Error]),
@@ -833,12 +851,15 @@ get_shader_menu(Shader, Vals) ->
     io:format("Menu opts for ~p: ~p~n",[Shader, Vals]),
     [].
 
-shader_pass(Shader = #sh{vs=VsF,fs=FsF},Opts) ->
+shader_pass(Shader = #sh{vs=VsF,fs=FsF,require=Req},Opts) ->
     try 
 	io:format("Pass ~p: ~p~n~n",[Shader, Opts]),
-	Vs = compile(?GL_VERTEX_SHADER, read_file(VsF)),
-	Fs = compile(?GL_FRAGMENT_SHADER, read_file(FsF)),
-	Prog = link_prog(Vs,Fs),
+        io:format("~p: Err ~p~n",[?LINE,wings_gl:error_string(gl:getError())]),
+        Vs = compile(?GL_VERTEX_SHADER, read_file(VsF)),
+        Fs = compile(?GL_FRAGMENT_SHADER, read_file(FsF)),
+        Prog = link_prog(Vs,Fs),
+        gl:deleteShader(Vs), % Flag for delete
+        gl:deleteShader(Vs),% Flag for delete
 	fun(#ts{charts=Charts}) ->
 		gl:disable(?GL_DEPTH_TEST),
 		gl:disable(?GL_ALPHA_TEST),
@@ -848,19 +869,25 @@ shader_pass(Shader = #sh{vs=VsF,fs=FsF},Opts) ->
 		gl:enableClientState(?GL_NORMAL_ARRAY),
 		gl:clientActiveTexture(?GL_TEXTURE1),
 		gl:enableClientState(?GL_TEXTURE_COORD_ARRAY),
+		io:format("~p: Err ~p~n",[?LINE,wings_gl:error_string(gl:getError())]),
+		gl:useProgram(Prog),
+		setup_requirements(Req,Prog,Shader),
+		io:format("~p: Err ~p~n",[?LINE,wings_gl:error_string(gl:getError())]),
 
 		R = fun(#fs{vs=Vss}) ->
 			    gl:drawElements(?GL_TRIANGLES,length(Vss),
 					    ?GL_UNSIGNED_INT,Vss)
 		    end,
-		gl:useProgram(Prog),
 		foreach(fun(#chart{fs=Fas}) -> foreach(R,Fas) end,Charts),
+		io:format("~p: Err ~p~n",[?LINE,wings_gl:error_string(gl:getError())]),
 		gl:useProgram(0),
 		gl:disable(?GL_TEXTURE_2D),
 		gl:disableClientState(?GL_VERTEX_ARRAY),
 		gl:disableClientState(?GL_NORMAL_ARRAY),
 		gl:disableClientState(?GL_TEXTURE_COORD_ARRAY),
-		gl:clientActiveTexture(?GL_TEXTURE0)
+		gl:clientActiveTexture(?GL_TEXTURE0),
+		gl:activeTexture(?GL_TEXTURE0),
+		gl:deleteProgram(Prog)
     end
     catch throw:What ->
 	    io:format("AUV: ERROR ~s ~n",[What]),
@@ -869,6 +896,33 @@ shader_pass(Shader = #sh{vs=VsF,fs=FsF},Opts) ->
 	    Stack = erlang:get_stacktrace(),
 	    io:format("AUV: Internal ERROR ~p:~n~p ~n",[What,Stack]),
 	    fun(_) -> ok end
+    end.
+
+setup_requirements([],_,_) -> ok;
+setup_requirements([auv_noise|Rest],P,Sh) ->
+    case wings_image:pnoiseid() of
+	0 -> throw("No noise texture available");
+	TxId -> 
+	    try 
+		Loc = getLocation(P, "auv_noise"),
+ 	        gl:activeTexture(?GL_TEXTURE0 + 1),
+	        gl:bindTexture(?GL_TEXTURE_3D, TxId),
+	        io:format("Location ~p ~n",[Loc]),
+ 	        gl:uniform1i(Loc, 1),
+                io:format("~p: Err ~p~n",[?LINE,wings_gl:error_string(gl:getError())])
+	    catch throw:Msg ->
+		     io:format("AUV: ~s",[Msg])
+	    end,
+            setup_requirements(Rest,P,Sh)
+    end;
+setup_requirements([Unknown|Rest],P,Sh=#sh{file=File}) ->
+    io:format("AUV: Ignored Unknown Requirement ~p in ~p~n",[Unknown,File]),
+    setup_requirements(Rest,P,Sh).
+
+getLocation(Prog, What) ->
+    case gl:getUniformLocation(Prog, What) of
+	0 -> throw("Warning: Uniform not used " ++ What);
+	Where -> Where
     end.
 
 compile(Type,Src) ->

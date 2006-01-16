@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.4 2004/10/24 07:12:07 bjorng Exp $
+#     $Id: Makefile,v 1.5 2006/01/16 16:25:53 dgud Exp $
 #
 
 ifeq ($(findstring CYGWIN,$(shell uname -s)),CYGWIN)
@@ -24,6 +24,7 @@ LIBS = -shared -ljpeg
 
 ERLC = erlc
 ERLC_FLAGS = -o $(LIBDIR) -I ../../e3d -I ../../src -I $(ESDL_PATH)/include -pa $(ESDL_PATH)
+ERL_COMPILE_FLAGS += -W $(TYPE_FLAGS) +warn_unused_vars +debug_info
 
 ifdef CYGWIN
 SO_EXT = dll
@@ -37,7 +38,7 @@ all: $(BEAM) $(DRV)
 
 $(LIBDIR)/%.beam: %.erl
 	install -d $(LIBDIR)
-	$(ERLC) $(ERLC_FLAGS) $<
+	$(ERLC) $(ERLC_FLAGS) $(ERL_COMPILE_FLAGS) $<
 
 ifdef CYGWIN
 

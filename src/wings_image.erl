@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.49 2006/01/14 09:59:54 dgud Exp $
+%%     $Id: wings_image.erl,v 1.50 2006/01/16 16:25:54 dgud Exp $
 %%
 
 -module(wings_image).
@@ -339,16 +339,20 @@ create_pnoise() ->
 	gl:texParameteri(?GL_TEXTURE_3D, ?GL_TEXTURE_MAG_FILTER, ?GL_LINEAR),
 	case wings_gl:is_ext({1,4},'GL_SGIS_generate_mipmap') of
 	    true -> 
-		gl:texParameteri(?GL_TEXTURE_2D, ?GL_GENERATE_MIPMAP, ?GL_TRUE),
-		gl:texParameteri(?GL_TEXTURE_3D, ?GL_TEXTURE_MIN_FILTER, ?GL_NEAREST_MIPMAP_LINEAR);
+		gl:texParameteri(?GL_TEXTURE_2D, ?GL_GENERATE_MIPMAP, 
+				 ?GL_TRUE),
+		gl:texParameteri(?GL_TEXTURE_3D, ?GL_TEXTURE_MIN_FILTER, 
+				 ?GL_NEAREST_MIPMAP_LINEAR);
 	    false ->
-		gl:texParameteri(?GL_TEXTURE_3D, ?GL_TEXTURE_MIN_FILTER, ?GL_LINEAR)
+		gl:texParameteri(?GL_TEXTURE_3D, ?GL_TEXTURE_MIN_FILTER, 
+				 ?GL_LINEAR)
 	end,
 	gl:texParameteri(?GL_TEXTURE_3D, ?GL_TEXTURE_WRAP_S, ?GL_REPEAT),
 	gl:texParameteri(?GL_TEXTURE_3D, ?GL_TEXTURE_WRAP_T, ?GL_REPEAT),
 	gl:texParameteri(?GL_TEXTURE_3D, ?GL_TEXTURE_WRAP_R, ?GL_REPEAT),
 	gl:texImage3D(?GL_TEXTURE_3D, 0, ?GL_LUMINANCE8, 127, 127, 127, 0, 
 		      ?GL_LUMINANCE, ?GL_UNSIGNED_BYTE, Map),
+        put(pnoise,NoiseMap),
 	NoiseMap
     catch _:_ -> 
 	    none
