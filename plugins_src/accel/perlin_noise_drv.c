@@ -8,7 +8,7 @@
  *  See the file "license.terms" for information on usage and redistribution
  *  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
  *
- *     $Id: perlin_noise_drv.c,v 1.1 2006/01/14 09:02:38 dgud Exp $
+ *     $Id: perlin_noise_drv.c,v 1.2 2006/01/17 02:21:26 dgud Exp $
  */
 
 #include <stdio.h>
@@ -33,6 +33,8 @@ double   lerp(double t, double a, double b);
 double   grad(int hash, double x, double y, double z); 
 void     init();
 double   pnoise(double x, double y, double z);
+
+#define to_byte(X) floor(((X)+1.0)*127.5)  /* from -1,1 => 0 - 255 */
 
 /*
  * Interface routines.
@@ -122,7 +124,7 @@ static int control(ErlDrvData handle, unsigned int command,
       for(i=0; i < sz ; i++) {
 	 double where = (double)i/(sz-1);
 	 double temp = pnoise(where,where,where);
-	 *noise++ = (unsigned char) floor((temp*255.0)+127.5);
+	 *noise++ = (unsigned char) to_byte(temp);
       }
       
       *res = (char *) bin;
@@ -139,7 +141,7 @@ static int control(ErlDrvData handle, unsigned int command,
 	 for(j=0; j < sz ; j++) {
 	    double where = (double)i/(sz-1);
 	    double temp = pnoise(where,(double)j/(sz-1),where);
-	    *noise++ = (unsigned char) floor((temp*255.0)+127.5);
+	    *noise++ = (unsigned char) to_byte(temp);
 	 }
       }
       
@@ -156,11 +158,24 @@ static int control(ErlDrvData handle, unsigned int command,
       
       for(i=0; i < sz ; i++) {
 	 for(j=0; j < sz ; j++) {
-	    for(k=0; k < sz ; k++) {
-	       double temp = pnoise((double)i/(sz-1),
-				    (double)j/(sz-1),
-				    (double)k/(sz-1));
-	       * noise++ = (unsigned char) floor((temp*255.0)+127.5);
+	    for(k=0; k < sz ; k++) {		
+		double temp;
+		temp  = pnoise(((double)i/(sz-1)*2.0),
+			       ((double)j/(sz-1)*2.0),
+			       ((double)k/(sz-1)*2.0))*0.6666;
+/* 		temp += pnoise(((double)i/(sz-1))*3.0, */
+/* 			      ((double)j/(sz-1))*3.0, */
+/* 			      ((double)k/(sz-1))*3.0) *0.3; */
+		temp += pnoise(((double)i/(sz-1))*27.0,
+			       ((double)j/(sz-1))*27.0,
+			       ((double)k/(sz-1))*27.0)*0.3333;
+
+/* 		temp = pnoise(((double)i/(sz-1))*49.0, */
+/* 			      ((double)j/(sz-1))*49.0, */
+/* 			      ((double)k/(sz-1))*49.0); */
+
+
+		* noise++ = (unsigned char) to_byte(temp);
 	    }
 	 } 
       }	 

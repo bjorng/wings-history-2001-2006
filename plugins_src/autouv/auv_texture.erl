@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_texture.erl,v 1.16 2006/01/16 16:25:52 dgud Exp $
+%%     $Id: auv_texture.erl,v 1.17 2006/01/17 02:21:29 dgud Exp $
 %%
 
 -module(auv_texture).
@@ -279,20 +279,14 @@ render_image(Geom = #ts{uv=UVpos,pos=Pos,n=Ns,uvc=Uvc,uvc_mode=Mode},
     try 
         Dl = fun() -> 
 		     foreach(fun(Pass) -> 
-				     io:format("~p: Err ~p~n",[?LINE,wings_gl:error_string(gl:getError())]),
 				     Pass(Geom) 
 			     end, Passes) end,
 
 	ImageBins = get_texture(0, Wd, 0, Hd, {W,H}, Dl, UsingFbo,[]),
 	ImageBin = merge_texture(ImageBins, Wd, Hd, W*3, H, []),
         set_viewport(Current),
-        io:format("~p: Err ~p~n",[?LINE,wings_gl:error_string(gl:getError())]),
-
 	gl:popAttrib(),	
-        io:format("~p: Err ~p~n",[?LINE,wings_gl:error_string(gl:getError())]),
-
 	gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
-        io:format("~p: Err ~p~n",[?LINE,wings_gl:error_string(gl:getError())]),
 
 	case UsingFbo of
 	    false ->
@@ -357,10 +351,7 @@ get_texture(Wc, Wd, Hc, Hd, {W,H}=Info, DL, UsingFbo, ImageAcc)
     gl:disable(?GL_CULL_FACE),
     gl:disable(?GL_LIGHTING),
     texture_view(Wc, Wd, Hc, Hd),
-    io:format("~p: Err ~p~n",[?LINE,wings_gl:error_string(gl:getError())]),
     DL(),
-    io:format("~p: Err ~p~n",[?LINE,wings_gl:error_string(gl:getError())]),
-
     gl:flush(),
     {Sz,Type} = 
 	case UsingFbo of
@@ -520,7 +511,7 @@ setup_chart(Uv = #we{id=Id},Mat,Ns,WWe,OWe,State0) ->
     {#chart{id=Id,fs=Fs,oes=OEs},State}.
 
 create_faces(We = #we{vp=Vtab,name=#ch{vmap=Vmap}},
-	     #we{vp=Vt3d},OWe=#we{vp=Vt3d,mode=OldMode},
+	     #we{vp=Vt3d},OWe=#we{mode=OldMode},
 	     NTab,GetMat,State) ->
     Fs = wings_we:visible(We),
     C=fun(Face,{OEs,{Cnt,UVpos,Vpos,Ns,Uvc}}) ->
@@ -854,7 +845,6 @@ get_shader_menu(Shader, Vals) ->
 shader_pass(Shader = #sh{vs=VsF,fs=FsF,require=Req},Opts) ->
     try 
 	io:format("Pass ~p: ~p~n~n",[Shader, Opts]),
-        io:format("~p: Err ~p~n",[?LINE,wings_gl:error_string(gl:getError())]),
         Vs = compile(?GL_VERTEX_SHADER, read_file(VsF)),
         Fs = compile(?GL_FRAGMENT_SHADER, read_file(FsF)),
         Prog = link_prog(Vs,Fs),
@@ -869,17 +859,13 @@ shader_pass(Shader = #sh{vs=VsF,fs=FsF,require=Req},Opts) ->
 		gl:enableClientState(?GL_NORMAL_ARRAY),
 		gl:clientActiveTexture(?GL_TEXTURE1),
 		gl:enableClientState(?GL_TEXTURE_COORD_ARRAY),
-		io:format("~p: Err ~p~n",[?LINE,wings_gl:error_string(gl:getError())]),
 		gl:useProgram(Prog),
 		setup_requirements(Req,Prog,Shader),
-		io:format("~p: Err ~p~n",[?LINE,wings_gl:error_string(gl:getError())]),
-
 		R = fun(#fs{vs=Vss}) ->
 			    gl:drawElements(?GL_TRIANGLES,length(Vss),
 					    ?GL_UNSIGNED_INT,Vss)
 		    end,
 		foreach(fun(#chart{fs=Fas}) -> foreach(R,Fas) end,Charts),
-		io:format("~p: Err ~p~n",[?LINE,wings_gl:error_string(gl:getError())]),
 		gl:useProgram(0),
 		gl:disable(?GL_TEXTURE_2D),
 		gl:disableClientState(?GL_VERTEX_ARRAY),

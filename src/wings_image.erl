@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.50 2006/01/16 16:25:54 dgud Exp $
+%%     $Id: wings_image.erl,v 1.51 2006/01/17 02:21:29 dgud Exp $
 %%
 
 -module(wings_image).
@@ -333,13 +333,15 @@ create_pnoise() ->
     try 
 	[NoiseMap] = gl:genTextures(1),
 	gl:bindTexture(?GL_TEXTURE_3D, NoiseMap),
-	Map = pnoise:map3d(127),
+	Map = pnoise:map3d(128),
+
 	Assert = size(Map),
-	Assert = 127*127*127,
+	Assert = 128*128*128,
+
 	gl:texParameteri(?GL_TEXTURE_3D, ?GL_TEXTURE_MAG_FILTER, ?GL_LINEAR),
 	case wings_gl:is_ext({1,4},'GL_SGIS_generate_mipmap') of
 	    true -> 
-		gl:texParameteri(?GL_TEXTURE_2D, ?GL_GENERATE_MIPMAP, 
+		gl:texParameteri(?GL_TEXTURE_3D, ?GL_GENERATE_MIPMAP, 
 				 ?GL_TRUE),
 		gl:texParameteri(?GL_TEXTURE_3D, ?GL_TEXTURE_MIN_FILTER, 
 				 ?GL_NEAREST_MIPMAP_LINEAR);
@@ -347,10 +349,13 @@ create_pnoise() ->
 		gl:texParameteri(?GL_TEXTURE_3D, ?GL_TEXTURE_MIN_FILTER, 
 				 ?GL_LINEAR)
 	end,
-	gl:texParameteri(?GL_TEXTURE_3D, ?GL_TEXTURE_WRAP_S, ?GL_REPEAT),
-	gl:texParameteri(?GL_TEXTURE_3D, ?GL_TEXTURE_WRAP_T, ?GL_REPEAT),
-	gl:texParameteri(?GL_TEXTURE_3D, ?GL_TEXTURE_WRAP_R, ?GL_REPEAT),
-	gl:texImage3D(?GL_TEXTURE_3D, 0, ?GL_LUMINANCE8, 127, 127, 127, 0, 
+	gl:texParameteri(?GL_TEXTURE_3D, ?GL_TEXTURE_WRAP_S, 
+			 ?GL_MIRRORED_REPEAT),
+	gl:texParameteri(?GL_TEXTURE_3D, ?GL_TEXTURE_WRAP_T, 
+			 ?GL_MIRRORED_REPEAT),
+	gl:texParameteri(?GL_TEXTURE_3D, ?GL_TEXTURE_WRAP_R, 
+			 ?GL_MIRRORED_REPEAT),
+	gl:texImage3D(?GL_TEXTURE_3D, 0, ?GL_LUMINANCE, 128, 128, 128, 0, 
 		      ?GL_LUMINANCE, ?GL_UNSIGNED_BYTE, Map),
         put(pnoise,NoiseMap),
 	NoiseMap
