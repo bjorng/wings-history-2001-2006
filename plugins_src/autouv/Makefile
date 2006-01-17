@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.15 2005/09/23 19:37:58 giniu Exp $
+#     $Id: Makefile,v 1.16 2006/01/17 23:22:01 dgud Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -55,7 +55,10 @@ ERL_COMPILE_FLAGS += -W $(TYPE_FLAGS) +warn_unused_vars +debug_info
 opt debug:
 	$(MAKE) TYPE=$@ common
 
-common: $(TARGET_FILES)
+common: $(TARGET_FILES) subdirs
+
+subdirs: 
+	(cd shaders; $(MAKE))
 
 template: opt
 	erl -pa $(WINGS_INTL) -noinput -run tools generate_template $(EBIN) -run erlang halt
@@ -69,7 +72,7 @@ lang: template
 	 erl -pa $(WINGS_INTL) -noinput -eval "tools:diff(\"$$i\")" -run erlang halt >> $$i ;; \
 		esac \
 	done
-	
+
 clean:
 	rm -f $(TARGET_FILES)
 	rm -f core

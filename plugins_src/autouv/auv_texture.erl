@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_texture.erl,v 1.17 2006/01/17 02:21:29 dgud Exp $
+%%     $Id: auv_texture.erl,v 1.18 2006/01/17 23:22:01 dgud Exp $
 %%
 
 -module(auv_texture).
@@ -42,8 +42,9 @@
 	     file="",
 	     vs = "",          %% Vertex shader
 	     fs = "",          %% Fragment shader
-	     require = [],     %% Required builtin features 
-	     args = []         %% Arguments
+	     tex_units = 1,    %% No of texture units used
+	     args = [],        %% Arguments
+	     def  = []         %% Gui Strings
 	    }).
 
 -record(ts,         % What              Type
@@ -143,7 +144,7 @@ renderers(Shaders) ->
 options(auv_background, [{type_sel,Type},{Image,_},Color],_) ->
     [{hradio,[{?__(1,"Image"),image},{?__(2,"Color"),color}],
       Type,[{key,type_sel},layout]},
-     {hframe,[{label,?__(1,"Image")},image_selector(0,Image)],
+     {hframe,[{label,?__(1,"Image")},image_selector(Image)],
       [is_enabled(image)]},
      {hframe,[{label,?__(2,"Color")},{color,fix(Color,have_fbo())}],
       [is_enabled(color)]}];
@@ -165,12 +166,52 @@ options(auv_faces,[Type],_) ->
 options(auv_faces,_,Sh) -> options(auv_faces,?OPT_FACES,Sh);
 options({shader,Id},Vals,Sh) ->
     {value,Shader} = lists:keysearch(Id,#sh.id,Sh),
-    get_shader_menu(Shader,Vals);
+    shader_options(Shader,Vals);
 options(Command,Vals,_) ->
     io:format("~p: ~p~n",[Command, Vals]),
     exit(unknown_default).
 
-image_selector(_Id,Default) ->
+shader_options(#sh{args=Args,def=Defs,file=File}, Vals) ->
+    case shader_menu(Args,reverse(Vals),[]) of
+	{failed,_} -> 
+	    case shader_menu(Args,Defs,[]) of
+		{failed,What} -> 
+		    io:format("AUV: Bad default value ~p in ~p~n",
+			      [What, File]),
+		    [];
+		Menues -> Menues
+	    end;
+	Menues -> Menues
+    end.
+shader_menu([{uniform,color,_,_,Label}|As],[Col={_,_,_,_}|Vs],Acc) ->
+    Menu = {hframe, [{label,Label},{color,Col}]},
+    shader_menu(As,Vs,[Menu|Acc]);
+shader_menu([{uniform,float,_,_,Label}|As],[Def|Vs],Acc) 
+  when is_number(Def) ->
+    Menu = {hframe,[{label,Label},
+		    {text,Def,[{range,{'-infinity',infinity}}]}]},
+    shader_menu(As,Vs,[Menu|Acc]);
+shader_menu([{uniform,bool,_,_,Label}|As],[Def|Vs],Acc) 
+  when is_boolean(Def) ->
+    Menu = {Label, Def},
+    shader_menu(As,Vs,[Menu|Acc]);
+shader_menu([{uniform,{slider,From,To},_,_,Label}|As],[Def|Vs],Acc) 
+  when is_number(Def) ->
+    Menu = {hframe,[{label,Label},
+		    {slider,{text,Def,[{range,{From,To}},{width,5}]}}]},
+    shader_menu(As,Vs,[Menu|Acc]);
+shader_menu([{uniform,image,_,Def,Label}|As],[Def|Vs],Acc) ->
+    Image = case Def of {Im,_} -> Im; _ -> Def end,
+    Menu = {hframe,[{label,Label},image_selector(Image)]},
+    shader_menu(As,Vs,[Menu|Acc]);
+shader_menu([{auv,_}|As],Vs,Acc) ->
+    shader_menu(As,Vs,Acc);
+shader_menu([What|_],_,_) ->
+    {failed,What};
+shader_menu([],_,Acc) -> 
+    Acc.
+
+image_selector(Default) ->
     Is = wings_image:images(),
     Menu = [{Name,{Name,TexId}} || {TexId, #e3d_image{name=Name}} <- Is],
     case lists:keysearch(Default,1,Menu) of 
@@ -239,7 +280,6 @@ get_texture(St) ->
     Ops = list_to_prefs(get_pref(tx_prefs, list_to_prefs(#opt{}))),
     get_pref(St, Ops).
 get_texture(St = #st{bb=#uvstate{}}, {Options,Shaders}) ->
-    io:format("~p: Err ~p~n",[?LINE,wings_gl:error_string(gl:getError())]),
     Passes = get_passes(Options#opt.renderers,Shaders),
     Ts = setup(St),
     render_image(Ts, Passes, Options).
@@ -251,7 +291,6 @@ get_texture(St = #st{bb=#uvstate{}}, {Options,Shaders}) ->
 render_image(Geom = #ts{uv=UVpos,pos=Pos,n=Ns,uvc=Uvc,uvc_mode=Mode}, 
 	     Passes,#opt{texsz={TexW,TexH}}) ->
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
-    io:format("~p: Err ~p~n",[?LINE,wings_gl:error_string(gl:getError())]),
     Current = wings_wm:viewport(),
     UsingFbo = setup_fbo(TexW,TexH),
     {W0,H0} = case UsingFbo of
@@ -755,10 +794,106 @@ pass({{shader,Id}, Opts},Sh) ->
     {value,Shader} = lists:keysearch(Id,#sh.id,Sh),
     shader_pass(Shader, Opts);
 pass({_R, _O},_) ->    
-    io:format("~p:~p: Unknown Render Pass (~p) or options (~p) ~n",
+    io:format("AUV: ~p:~p: Unknown Render Pass (~p) or options (~p) ~n",
 	      [?MODULE,?LINE,_R,_O]),
     fun(_) -> ok end.
 
+shader_pass(#sh{vs=VsF,fs=FsF,args=Args,tex_units=TexUnits},Opts) ->
+    try 
+        Vs = compile(?GL_VERTEX_SHADER, "Vertex Shader", read_file(VsF)),
+        Fs = compile(?GL_FRAGMENT_SHADER, "Fragment Shader", read_file(FsF)),
+        Prog = link_prog(Vs,Fs),
+        gl:deleteShader(Vs), % Flag for delete
+        gl:deleteShader(Vs),% Flag for delete
+	fun(#ts{charts=Charts}) ->
+		gl:disable(?GL_DEPTH_TEST),
+		gl:disable(?GL_ALPHA_TEST),
+		gl:enable(?GL_BLEND),
+		gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
+		gl:enableClientState(?GL_VERTEX_ARRAY),
+		gl:enableClientState(?GL_NORMAL_ARRAY),
+		gl:clientActiveTexture(?GL_TEXTURE1),
+		gl:enableClientState(?GL_TEXTURE_COORD_ARRAY),
+		gl:useProgram(Prog),
+		try 
+		    shader_uniforms(reverse(Args),Opts,Prog),
+		    R = fun(#fs{vs=Vss}) ->
+				gl:drawElements(?GL_TRIANGLES,length(Vss),
+						?GL_UNSIGNED_INT,Vss)
+			end,
+		    foreach(fun(#chart{fs=Fas}) -> foreach(R,Fas) end,Charts)
+		catch throw:What ->
+			io:format("AUV: ERROR ~s ~n",[What]),
+			fun(_) -> ok end;
+		    _:What ->
+			Stack = erlang:get_stacktrace(),
+			io:format("AUV: Internal ERROR ~p:~n~p ~n",[What,Stack]),
+			fun(_) -> ok end
+		after
+		  gl:useProgram(0),
+		  gl:disable(?GL_TEXTURE_2D),
+		  gl:disableClientState(?GL_VERTEX_ARRAY),
+		  gl:disableClientState(?GL_NORMAL_ARRAY),
+		  gl:disableClientState(?GL_TEXTURE_COORD_ARRAY),
+		  gl:clientActiveTexture(?GL_TEXTURE0),
+		  disable_tex_units(TexUnits),
+		  gl:activeTexture(?GL_TEXTURE0),
+		  gl:deleteProgram(Prog)
+		end
+	end
+    catch throw:What ->
+	    io:format("AUV: ERROR ~s ~n",[What]),
+	    fun(_) -> ok end;
+	_:What ->
+	    Stack = erlang:get_stacktrace(),
+	    io:format("AUV: Internal ERROR ~p:~n~p ~n",[What,Stack]),
+	    fun(_) -> ok end
+    end.
+
+shader_uniforms([{uniform,color,Name,_,_}|As],[Val|Opts],Prog) ->
+    Loc = getLocation(Prog,Name),
+    gl:uniform4fv(Loc,1,Val),
+    shader_uniforms(As,Opts,Prog);
+shader_uniforms([{uniform,float,Name,_,_}|As],[Val|Opts],Prog) ->
+    Loc = getLocation(Prog,Name),
+    gl:uniform1f(Loc,Val),
+    shader_uniforms(As,Opts,Prog);
+shader_uniforms([{uniform,bool,Name,_,_}|As],[Val|Opts],Prog) ->
+    Loc = getLocation(Prog,Name),
+    BoolF = if Val -> 1.0; true -> 0.0 end,
+    gl:uniform1f(Loc, BoolF),
+    shader_uniforms(As,Opts,Prog);
+shader_uniforms([{uniform,{slider,_,_},Name,_,_}|As],[Val|Opts],Prog) ->
+    Loc = getLocation(Prog,Name),
+    gl:uniform1f(Loc,Val),
+    shader_uniforms(As,Opts,Prog);
+shader_uniforms([{uniform,{image,Unit},Name,_,_}|As],[{_,TxId}|Opts],Prog) ->
+    Loc = getLocation(Prog,Name),
+    gl:activeTexture(?GL_TEXTURE0 + Unit),
+    gl:bindTexture(?GL_TEXTURE_2D, TxId),
+    gl:uniform1i(Loc, Unit),
+    shader_uniforms(As,Opts,Prog);
+shader_uniforms([{auv,{auv_noise,Unit}}|Rest],Opts,Prog) ->
+    case wings_image:pnoiseid() of
+	0 -> throw("No noise texture available");
+	TxId -> 
+	    Loc = getLocation(Prog, "auv_noise"),
+	    gl:activeTexture(?GL_TEXTURE0 + Unit),
+	    gl:bindTexture(?GL_TEXTURE_3D, TxId),
+	    gl:uniform1i(Loc, Unit),
+            shader_uniforms(Rest,Opts,Prog)
+    end;
+shader_uniforms([],[],_) ->
+    ok.
+
+disable_tex_units(Unit) when Unit > 0 ->
+    gl:activeTexture(?GL_TEXTURE0 + Unit-1),
+    gl:bindTexture(?GL_TEXTURE_2D, 0),
+    disable_tex_units(Unit-1);
+disable_tex_units(_) -> ok.
+
+%%%%%%%%%%%%%%%% 
+%% Materials
 get_diffuse(Mat) ->
     proplists:get_value(diffuse, proplists:get_value(opengl, Mat)).
 
@@ -808,7 +943,7 @@ load_configs([Name|Fs], Path, Acc) ->
 	{ok,Info} -> 
 	    Id = list_to_atom(filename:basename(Name,".auv")++"_auv"),
 	    Sh = #sh{file=File,id=Id},
-	    load_configs(Fs,Path,parse_sh_info(Info,Sh,Acc));
+	    load_configs(Fs,Path,parse_sh_info(Info,Sh,1,Acc));
 	Other ->
 	    io:format("AUV: Couldn't load ~p ~n",[File]),
 	    io:format("     Error: ~p ~n",[Other]),
@@ -817,105 +952,58 @@ load_configs([Name|Fs], Path, Acc) ->
 load_configs([],_Path,Acc) ->
     Acc.
 
-parse_sh_info([{name,Name}|Opts],Sh,Acc) ->
-    parse_sh_info(Opts, Sh#sh{name=Name}, Acc);
-parse_sh_info([{vertex_shader,Name}|Opts],Sh,Acc) ->
-    parse_sh_info(Opts, Sh#sh{vs=Name}, Acc);
-parse_sh_info([{fragment_shader,Name}|Opts],Sh,Acc) ->
-    parse_sh_info(Opts, Sh#sh{fs=Name}, Acc);
-parse_sh_info([{require,List}|Opts],Sh,Acc) ->
-    parse_sh_info(Opts, Sh#sh{require=List}, Acc);
-
-parse_sh_info([_Error|Opts],Sh,Acc) ->
+parse_sh_info([{name,Name}|Opts],Sh,NI,Acc) ->
+    parse_sh_info(Opts, Sh#sh{name=Name},NI,Acc);
+parse_sh_info([{vertex_shader,Name}|Opts],Sh,NI,Acc) ->
+    parse_sh_info(Opts, Sh#sh{vs=Name},NI, Acc);
+parse_sh_info([{fragment_shader,Name}|Opts],Sh,NI,Acc) ->
+    parse_sh_info(Opts, Sh#sh{fs=Name},NI, Acc);
+parse_sh_info([{auv,auv_noise}|Opts],Sh,NI,Acc) ->
+    What = {auv,{auv_noise,1}},
+    parse_sh_info(Opts, Sh#sh{args=[What|Sh#sh.args]},NI+1,Acc);
+parse_sh_info([What={uniform,color,_,Def={_,_,_,_},_}|Opts],Sh,NI,Acc) ->
+    parse_sh_info(Opts, Sh#sh{args=[What|Sh#sh.args],def=[Def|Sh#sh.def]},NI,Acc);
+parse_sh_info([What={uniform,float,_,Def,_}|Opts],Sh,NI,Acc)
+  when is_number(Def) ->
+    parse_sh_info(Opts, Sh#sh{args=[What|Sh#sh.args],def=[Def|Sh#sh.def]},NI,Acc);
+parse_sh_info([What={uniform,bool,_,Def,_}|Opts],Sh,NI,Acc) ->
+    parse_sh_info(Opts, Sh#sh{args=[What|Sh#sh.args],def=[Def|Sh#sh.def]},NI,Acc);
+parse_sh_info([{uniform,image,Id,Def,Str}|Opts],Sh,NI,Acc) ->
+    What = {uniform,{image,NI},Id,Def,Str},
+    parse_sh_info(Opts, Sh#sh{args=[What|Sh#sh.args],def=[Def|Sh#sh.def]},NI+1,Acc);
+parse_sh_info([What={uniform,{slider,F,T},_,Def,_}|Opts],Sh,NI,Acc) 
+  when is_number(F),is_number(T),is_number(Def) ->
+    parse_sh_info(Opts, Sh#sh{args=[What|Sh#sh.args],def=[Def|Sh#sh.def]},NI,Acc);
+parse_sh_info([_Error|Opts],Sh,NI,Acc) ->
     io:format("AUV: In ~p Unknown shader opt ignored ~p",
 	      [Sh#sh.file,_Error]),
-    parse_sh_info(Opts, Sh, Acc);
-parse_sh_info([], Sh, Acc) ->
+    parse_sh_info(Opts,Sh,NI,Acc);
+parse_sh_info([],Sh,NI,Acc) ->
     %% Verify shader here
-    [Sh|Acc].
+    [Sh#sh{tex_units=NI}|Acc].
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%% Shaders
+%%% Shader compilation
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-get_shader_menu(Shader, Vals) ->
-    io:format("Menu opts for ~p: ~p~n",[Shader, Vals]),
-    [].
-
-shader_pass(Shader = #sh{vs=VsF,fs=FsF,require=Req},Opts) ->
-    try 
-	io:format("Pass ~p: ~p~n~n",[Shader, Opts]),
-        Vs = compile(?GL_VERTEX_SHADER, read_file(VsF)),
-        Fs = compile(?GL_FRAGMENT_SHADER, read_file(FsF)),
-        Prog = link_prog(Vs,Fs),
-        gl:deleteShader(Vs), % Flag for delete
-        gl:deleteShader(Vs),% Flag for delete
-	fun(#ts{charts=Charts}) ->
-		gl:disable(?GL_DEPTH_TEST),
-		gl:disable(?GL_ALPHA_TEST),
-		gl:enable(?GL_BLEND),
-		gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
-		gl:enableClientState(?GL_VERTEX_ARRAY),
-		gl:enableClientState(?GL_NORMAL_ARRAY),
-		gl:clientActiveTexture(?GL_TEXTURE1),
-		gl:enableClientState(?GL_TEXTURE_COORD_ARRAY),
-		gl:useProgram(Prog),
-		setup_requirements(Req,Prog,Shader),
-		R = fun(#fs{vs=Vss}) ->
-			    gl:drawElements(?GL_TRIANGLES,length(Vss),
-					    ?GL_UNSIGNED_INT,Vss)
-		    end,
-		foreach(fun(#chart{fs=Fas}) -> foreach(R,Fas) end,Charts),
-		gl:useProgram(0),
-		gl:disable(?GL_TEXTURE_2D),
-		gl:disableClientState(?GL_VERTEX_ARRAY),
-		gl:disableClientState(?GL_NORMAL_ARRAY),
-		gl:disableClientState(?GL_TEXTURE_COORD_ARRAY),
-		gl:clientActiveTexture(?GL_TEXTURE0),
-		gl:activeTexture(?GL_TEXTURE0),
-		gl:deleteProgram(Prog)
-    end
-    catch throw:What ->
-	    io:format("AUV: ERROR ~s ~n",[What]),
-	    fun(_) -> ok end;
-	_:What ->
-	    Stack = erlang:get_stacktrace(),
-	    io:format("AUV: Internal ERROR ~p:~n~p ~n",[What,Stack]),
-	    fun(_) -> ok end
-    end.
-
-setup_requirements([],_,_) -> ok;
-setup_requirements([auv_noise|Rest],P,Sh) ->
-    case wings_image:pnoiseid() of
-	0 -> throw("No noise texture available");
-	TxId -> 
-	    try 
-		Loc = getLocation(P, "auv_noise"),
- 	        gl:activeTexture(?GL_TEXTURE0 + 1),
-	        gl:bindTexture(?GL_TEXTURE_3D, TxId),
-	        io:format("Location ~p ~n",[Loc]),
- 	        gl:uniform1i(Loc, 1),
-                io:format("~p: Err ~p~n",[?LINE,wings_gl:error_string(gl:getError())])
-	    catch throw:Msg ->
-		     io:format("AUV: ~s",[Msg])
-	    end,
-            setup_requirements(Rest,P,Sh)
-    end;
-setup_requirements([Unknown|Rest],P,Sh=#sh{file=File}) ->
-    io:format("AUV: Ignored Unknown Requirement ~p in ~p~n",[Unknown,File]),
-    setup_requirements(Rest,P,Sh).
 
 getLocation(Prog, What) ->
-    case gl:getUniformLocation(Prog, What) of
-	0 -> throw("Warning: Uniform not used " ++ What);
+    try gl:getUniformLocation(Prog, What) of
+	-1 -> io:format("AUV: Warning the uniform variable '~p' is not used~n",
+			[What]),
+	      -1;
 	Where -> Where
+    catch _:_ -> 
+	    Err = io_lib:format("AUV: ERROR The uniform variable"
+				" ~p should be a string~n",
+				[What]),
+	    throw(lists:flatten(Err))
     end.
 
-compile(Type,Src) ->
+compile(Type,Str,Src) ->
     Handle = gl:createShaderObjectARB(Type),
     ok = gl:shaderSource(Handle, 1, [Src], [-1]),
     ok = gl:compileShader(Handle),
-    check_status(Handle,"Compiled", ?GL_OBJECT_COMPILE_STATUS),
+    check_status(Handle,Str ++ " Compiled", ?GL_OBJECT_COMPILE_STATUS),
     Handle.
 
 link_prog(Vs,Fs) ->
