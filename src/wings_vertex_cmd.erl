@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.59 2006/01/13 21:04:26 giniu Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.60 2006/01/17 22:14:28 giniu Exp $
 %%
 
 -module(wings_vertex_cmd).
@@ -446,9 +446,7 @@ weld(#st{sel=[{Obj,{1,{Vert,_,_}}}],shapes=Shs}=St) ->
    Mirror = We#we.mirror,
    if
       Mirror /= none -> 
-         Fs = We#we.fs,
-         Edge = gb_trees:get(Mirror,Fs),
-         Verts = get_verts(Mirror, Edge, Edge, We, []),
+         Verts = wings_face:vertices_cw(Mirror,We),
          case member(Vert,Verts) of
             true ->
                wings_u:error(?__(1,"You cannot weld at mirrot plane")),
@@ -508,7 +506,7 @@ weld([{_,{1,{Vert2,_,_}}}]=NewSel,#st{sel=[{Obj,{1,{Vert1,_,_}}}],shapes=Shs}=St
    NewShs = gb_trees:update(Obj,NewWe,Shs),
    St#st{shapes=NewShs,sel=NewSel}.
 
-fix_edge(Vert1,Vert2,#we{mat=Mat}=Orig) ->
+fix_edge(Vert1,Vert2,Orig) ->
    Es = Orig#we.es,
    RemoveEdge = find_edge(Vert1,Vert2,Es),
    FixMe = needs_cleanup(RemoveEdge,Orig),
@@ -525,32 +523,28 @@ fix_mat([],We) ->
 
 fix_edge_1(RemoveEdge,Vert1,Vert2,Es,Orig) ->
    New = gb_trees:empty(),
-   fix_edge_1(RemoveEdge,Vert1,Vert2,Es,Orig,New).
-
-fix_edge_1(RemoveEdge,Vert1,Vert2,Es,Orig,Result) ->
+   #edge{lf=LF,rf=RF} = gb_trees:get(RemoveEdge,Orig#we.es),
+   ABTransform = calculate_ab(Vert1,Vert2,LF,RF,Orig),
+   fix_edge_1(RemoveEdge,ABTransform,Vert1,Vert2,Es,Orig,New).
+   
+fix_edge_1(RemoveEdge,ABTransform,Vert1,Vert2,Es,Orig,Result) ->
    case gb_trees:size(Es) of
       0 -> Result;
       _ ->
          {Key,#edge{vs=V1,ve=V2,a=C1,b=C2,lf=LF,rf=RF,ltpr=LP,ltsu=LS,rtpr=RP,rtsu=RS},Es2} = gb_trees:take_smallest(Es),
          if
-            Key == RemoveEdge -> fix_edge_1(RemoveEdge,Vert1,Vert2,Es2,Orig,Result);
+            Key == RemoveEdge -> fix_edge_1(RemoveEdge,ABTransform,Vert1,Vert2,Es2,Orig,Result);
             true ->
-               #edge{vs=OV1,a=OC1,b=OC2,lf=OLF,rf=ORF,ltpr=OLP,ltsu=OLS,rtpr=ORP,rtsu=ORS} = gb_trees:get(RemoveEdge,Orig#we.es),
+               #edge{lf=OLF,rf=ORF,ltpr=OLP,ltsu=OLS,rtpr=ORP,rtsu=ORS} = gb_trees:get(RemoveEdge,Orig#we.es),
                case V1 of
                   Vert1 -> NV1=Vert2,
-                           case OV1 of
-                              Vert2 -> NC1=OC1;
-                              _ -> NC1=OC2
-                           end;
+                           NC1=transformAB(C1,ABTransform);
                   _ -> NV1=V1,
                        NC1=C1
                end,
                case V2 of
                   Vert1 -> NV2=Vert2,
-                           case OV1 of
-                              Vert2 -> NC2=OC1;
-                              _ -> NC2=OC2
-                           end;
+                           NC2=transformAB(C2,ABTransform);
                   _ -> NV2=V2,
                        NC2=C2
                end,
@@ -588,7 +582,7 @@ fix_edge_1(RemoveEdge,Vert1,Vert2,Es,Orig,Result) ->
                end,
                NewEdge = #edge{vs=NV1,ve=NV2,a=NC1,b=NC2,lf=LF,rf=RF,ltpr=NLP,ltsu=NLS,rtpr=NRP,rtsu=NRS},
                Result2 = gb_trees:insert(Key,NewEdge,Result),
-               fix_edge_1(RemoveEdge,Vert1,Vert2,Es2,Orig,Result2)
+               fix_edge_1(RemoveEdge,ABTransform,Vert1,Vert2,Es2,Orig,Result2)
          end
    end.
 
@@ -608,16 +602,16 @@ remove_face(Face,Etab) ->
       K1 == K2 ->
          if
             K1 == left ->
-               NewEdge2=NewEdge#edge{lf=OldEdge#edge.rf, ltpr=OldEdge#edge.rtpr, ltsu=OldEdge#edge.rtsu};
+               NewEdge2=NewEdge#edge{a=OldEdge#edge.b, lf=OldEdge#edge.rf, ltpr=OldEdge#edge.rtpr, ltsu=OldEdge#edge.rtsu};
             true ->
-               NewEdge2=NewEdge#edge{rf=OldEdge#edge.lf, rtpr=OldEdge#edge.ltpr, rtsu=OldEdge#edge.ltsu}
+               NewEdge2=NewEdge#edge{b=OldEdge#edge.a, rf=OldEdge#edge.lf, rtpr=OldEdge#edge.ltpr, rtsu=OldEdge#edge.ltsu}
          end;
       true ->
          if
             K1 == left ->
-               NewEdge2=NewEdge#edge{rf=OldEdge#edge.rf, rtpr=OldEdge#edge.rtpr, rtsu=OldEdge#edge.rtsu};
+               NewEdge2=NewEdge#edge{b=OldEdge#edge.b, rf=OldEdge#edge.rf, rtpr=OldEdge#edge.rtpr, rtsu=OldEdge#edge.rtsu};
             true ->
-               NewEdge2=NewEdge#edge{lf=OldEdge#edge.lf, ltpr=OldEdge#edge.ltpr, ltsu=OldEdge#edge.ltsu}
+               NewEdge2=NewEdge#edge{a=OldEdge#edge.a, lf=OldEdge#edge.lf, ltpr=OldEdge#edge.ltpr, ltsu=OldEdge#edge.ltsu}
          end
    end,
    Etab2 = gb_trees:update(Key2,NewEdge2,Etab),
@@ -709,19 +703,36 @@ find_edge2(Face,Es,Result) ->
          find_edge2(Face,Es2,Result2)
    end.
 
-find_edge_to_face(#edge{lf=LF,rf=RF},Face) ->
-   case Face of
-      LF -> left;
-      RF -> right;
-      _ -> none
+find_edge_to_face(#edge{lf=Face},Face) -> left;
+find_edge_to_face(#edge{rf=Face},Face) -> right;
+find_edge_to_face(_,_) -> none.
+
+calculate_ab(VA,VB,FA,FB,We) ->
+   VA1 = calculate_ab_1(VA,FA,We),
+   VB1 = calculate_ab_1(VB,FA,We),
+   VA2 = calculate_ab_1(VA,FB,We),
+   VB2 = calculate_ab_1(VB,FB,We),
+   [{VA1,VB1},{VA2,VB2}].
+
+calculate_ab_1(Vertex,Face,We) ->
+   Edge = gb_trees:get(Face,We#we.fs),
+   calculate_ab_2(Vertex,Face,Edge,Edge,We#we.es,nil).
+
+calculate_ab_2(_,_,Edge,Edge,_,Value) when (Value =/= nil) -> Value;
+calculate_ab_2(_,_,_,_,_,Value) when ((Value =/= nil) and (Value =/= none)) -> Value;
+calculate_ab_2(Vertex,Face,Edge,LastEdge,Etab,_) ->
+   case catch gb_trees:get(Edge,Etab) of
+      #edge{vs=Vertex,a=Value,lf=Face,ltsu=Next} ->
+         calculate_ab_2(Vertex,Face,Next,LastEdge,Etab,Value);
+      #edge{ve=Vertex,b=Value,rf=Face,rtsu=Next} ->
+         calculate_ab_2(Vertex,Face,Next,LastEdge,Etab,Value);
+      #edge{rf=Face,rtsu=Next} ->
+         calculate_ab_2(Vertex,Face,Next,LastEdge,Etab,none);
+      #edge{lf=Face,ltsu=Next} ->
+         calculate_ab_2(Vertex,Face,Next,LastEdge,Etab,none)
    end.
 
-get_verts(_Face, LastEdge, LastEdge, _We, [_|_]=Acc) -> Acc;
-get_verts(Face, Edge, LastEdge, We, Acc) ->
-   #we{es=Etab} = We,
-   case catch gb_trees:get(Edge, Etab) of
-      #edge{vs=V,lf=Face,ltsu=Next} ->
-         get_verts(Face, Next, LastEdge, We, [V|Acc]);
-      #edge{ve=V,rf=Face,rtsu=Next} ->
-         get_verts(Face, Next, LastEdge, We, [V|Acc])
-   end.
+transformAB(Value,[]) -> Value;
+transformAB(_Value,[{_Value,To}|_]) -> To;
+transformAB(Value,[{_,_}|Rest]) ->
+   transformAB(Value,Rest).
