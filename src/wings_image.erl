@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.51 2006/01/17 02:21:29 dgud Exp $
+%%     $Id: wings_image.erl,v 1.52 2006/01/17 15:48:37 dgud Exp $
 %%
 
 -module(wings_image).
@@ -333,10 +333,10 @@ create_pnoise() ->
     try 
 	[NoiseMap] = gl:genTextures(1),
 	gl:bindTexture(?GL_TEXTURE_3D, NoiseMap),
-	Map = pnoise:map3d(128),
+	Map = pnoise:s_map3d(128),
 
 	Assert = size(Map),
-	Assert = 128*128*128,
+	Assert = 128*128*128*4,
 
 	gl:texParameteri(?GL_TEXTURE_3D, ?GL_TEXTURE_MAG_FILTER, ?GL_LINEAR),
 	case wings_gl:is_ext({1,4},'GL_SGIS_generate_mipmap') of
@@ -355,8 +355,8 @@ create_pnoise() ->
 			 ?GL_MIRRORED_REPEAT),
 	gl:texParameteri(?GL_TEXTURE_3D, ?GL_TEXTURE_WRAP_R, 
 			 ?GL_MIRRORED_REPEAT),
-	gl:texImage3D(?GL_TEXTURE_3D, 0, ?GL_LUMINANCE, 128, 128, 128, 0, 
-		      ?GL_LUMINANCE, ?GL_UNSIGNED_BYTE, Map),
+	gl:texImage3D(?GL_TEXTURE_3D, 0, ?GL_RGBA, 128, 128, 128, 0, 
+		      ?GL_RGBA, ?GL_UNSIGNED_BYTE, Map),
         put(pnoise,NoiseMap),
 	NoiseMap
     catch _:_ -> 
