@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_texture.erl,v 1.18 2006/01/17 23:22:01 dgud Exp $
+%%     $Id: auv_texture.erl,v 1.19 2006/01/18 15:21:21 dgud Exp $
 %%
 
 -module(auv_texture).
@@ -154,8 +154,8 @@ options(auv_edges,[Type,Color,Size,UseMat],_) ->
     [{vradio,[{?__(3,"Draw All Edges"),all_edges},
 	      {?__(4,"Draw Border Edges"), border_edges}], 
       Type, []},
-     {hframe, [{label,?__(5,"Edge Color:")}, {color, Color}]},
-     {hframe, [{label,?__(6,"Edge Width:")}, {text,Size,[{range, {0.0,100.0}}]}]},
+     {hframe,[{label,?__(5,"Edge Color:")},{color, Color}]},
+     {hframe,[{label,?__(6,"Edge Width:")},{text,Size,[{range,{0.0,100.0}}]}]},
      {?__(7,"Use face material (on border edges)"), UseMat}
     ];
 options(auv_edges,_,Sh) -> options(auv_edges,?OPT_EDGES,Sh);
@@ -280,9 +280,12 @@ get_texture(St) ->
     Ops = list_to_prefs(get_pref(tx_prefs, list_to_prefs(#opt{}))),
     get_pref(St, Ops).
 get_texture(St = #st{bb=#uvstate{}}, {Options,Shaders}) ->
-    Passes = get_passes(Options#opt.renderers,Shaders),
+    Compiled = compile_shaders(Options#opt.renderers,Shaders),
+    Passes = get_passes(Options#opt.renderers,{Shaders,Compiled}),
     Ts = setup(St),
-    render_image(Ts, Passes, Options).
+    Res = render_image(Ts, Passes, Options),
+    delete_shaders(Compiled),
+    Res.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Texture Rendering
@@ -291,11 +294,11 @@ get_texture(St = #st{bb=#uvstate{}}, {Options,Shaders}) ->
 render_image(Geom = #ts{uv=UVpos,pos=Pos,n=Ns,uvc=Uvc,uvc_mode=Mode}, 
 	     Passes,#opt{texsz={TexW,TexH}}) ->
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
+    
     Current = wings_wm:viewport(),
     UsingFbo = setup_fbo(TexW,TexH),
-    {W0,H0} = case UsingFbo of
-		  false -> wings_wm:top_size();
-		  _ -> {TexW,TexH}
+    {W0,H0} = if not UsingFbo -> wings_wm:top_size();
+		 true -> {TexW,TexH}
 	      end,
     {W,Wd} = calc_texsize(W0, TexW),
     {H,Hd} = calc_texsize(H0, TexH),
@@ -316,36 +319,28 @@ render_image(Geom = #ts{uv=UVpos,pos=Pos,n=Ns,uvc=Uvc,uvc_mode=Mode},
 	    gl:clientActiveTexture(?GL_TEXTURE0)
     end,
     try 
-        Dl = fun() -> 
-		     foreach(fun(Pass) -> 
-				     Pass(Geom) 
-			     end, Passes) end,
-
+        Dl = fun() -> foreach(fun(Pass) -> Pass(Geom) end, Passes) end,
 	ImageBins = get_texture(0, Wd, 0, Hd, {W,H}, Dl, UsingFbo,[]),
 	ImageBin = merge_texture(ImageBins, Wd, Hd, W*3, H, []),
-        set_viewport(Current),
-	gl:popAttrib(),	
-	gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
-
-	case UsingFbo of
-	    false ->
+	if not UsingFbo -> 
 		#e3d_image{image=ImageBin,width=TexW,height=TexH};
-	    FB ->
-		gl:bindFramebufferEXT(?GL_FRAMEBUFFER_EXT, 0),
-		gl:deleteFramebuffersEXT(1,[FB]),
-		io:format("~p: Err ~p~n",[?LINE,wings_gl:error_string(gl:getError())]),
-
- 		#e3d_image{image=ImageBin,width=TexW,height=TexH,
- 			   type=r8g8b8a8,bytes_pp=4}
+	   true -> 
+		#e3d_image{image=ImageBin,width=TexW,height=TexH,
+			   type=r8g8b8a8,bytes_pp=4}
 	end
     catch _:What ->
 	    Where = erlang:get_stacktrace(),
-	    catch gl:bindFramebufferEXT(?GL_FRAMEBUFFER_EXT, 0),
-	    catch gl:deleteFramebuffersEXT(1,[UsingFbo]),
-	    gl:endList(),
-	    gl:popAttrib(),
 	    exit({What,Where})
+    after 
+      if not UsingFbo -> ignore;
+	 true -> UsingFbo()
+      end,
+      set_viewport(Current),
+      gl:readBuffer(?GL_BACK),
+      gl:popAttrib(),
+      gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT)
     end.
+
 
 have_fbo() -> wings_gl:is_ext('GL_EXT_framebuffer_object').
 
@@ -373,12 +368,24 @@ setup_fbo(W,H) ->
 					  ?GL_DEPTH_ATTACHMENT_EXT,
 					  ?GL_RENDERBUFFER_EXT, Depth),
 	    case check_fbo_status(FB) of
-		false -> 
+		false -> 		    
 		    gl:bindFramebufferEXT(?GL_FRAMEBUFFER_EXT, 0), 
+		    gl:deleteFramebuffersEXT(1,[FB]),
 		    false;
 		_ ->
 		    gl:bindFramebufferEXT(?GL_FRAMEBUFFER_EXT, FB),
-		    FB
+		    fun() ->
+			    gl:framebufferTexture2DEXT(?GL_FRAMEBUFFER_EXT,
+						       ?GL_COLOR_ATTACHMENT0_EXT,
+						       ?GL_TEXTURE_2D,0,0),
+			    gl:deleteTextures(1,[Col]),
+			    gl:framebufferRenderbufferEXT(?GL_FRAMEBUFFER_EXT,
+							  ?GL_DEPTH_ATTACHMENT_EXT,
+							  ?GL_RENDERBUFFER_EXT, 0),
+			    gl:deleteRenderbuffersEXT(1,[Depth]),
+			    gl:bindFramebufferEXT(?GL_FRAMEBUFFER_EXT, 0),
+			    gl:deleteFramebuffersEXT(1,[FB])
+		    end
 	    end
     end.
 	    
@@ -558,7 +565,8 @@ create_faces(We = #we{vp=Vtab,name=#ch{vmap=Vmap}},
 	      UVcoords = [gb_trees:get(V, Vtab) || V <- Vs0],
 	      Coords = [gb_trees:get(map_vertex(V,Vmap),Vt3d) || V <- Vs0],
 	      Normals = fix_normals(gb_trees:get(Face,NTab)),
-	      OldUvc = fix_uvc(Vs0,wings_face:vinfo_ccw(Face,OWe),Vmap,OldMode,[]),
+	      OldUvc = fix_uvc(Vs0,wings_face:vinfo_ccw(Face,OWe),
+			       Vmap,OldMode,[]),
 	      Len = length(Vs0),
 	      FaceVs = lists:seq(0, Len-1),
 	      Vs = case Len of
@@ -790,64 +798,57 @@ pass({auv_faces, [Type]},_) ->
     end;
 pass({auv_faces, _},Sh) ->
     pass({auv_faces,?OPT_FACES},Sh);
-pass({{shader,Id}, Opts},Sh) ->
-    {value,Shader} = lists:keysearch(Id,#sh.id,Sh),
-    shader_pass(Shader, Opts);
+pass({{shader,Id}, Opts},{Sh,Compiled}) ->
+    shader_pass(lists:keysearch(Id,#sh.id,Sh),
+		lists:keysearch(Id,1,Compiled),Opts);
 pass({_R, _O},_) ->    
     io:format("AUV: ~p:~p: Unknown Render Pass (~p) or options (~p) ~n",
 	      [?MODULE,?LINE,_R,_O]),
     fun(_) -> ok end.
 
-shader_pass(#sh{vs=VsF,fs=FsF,args=Args,tex_units=TexUnits},Opts) ->
-    try 
-        Vs = compile(?GL_VERTEX_SHADER, "Vertex Shader", read_file(VsF)),
-        Fs = compile(?GL_FRAGMENT_SHADER, "Fragment Shader", read_file(FsF)),
-        Prog = link_prog(Vs,Fs),
-        gl:deleteShader(Vs), % Flag for delete
-        gl:deleteShader(Vs),% Flag for delete
-	fun(#ts{charts=Charts}) ->
-		gl:disable(?GL_DEPTH_TEST),
-		gl:disable(?GL_ALPHA_TEST),
-		gl:enable(?GL_BLEND),
-		gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
-		gl:enableClientState(?GL_VERTEX_ARRAY),
-		gl:enableClientState(?GL_NORMAL_ARRAY),
-		gl:clientActiveTexture(?GL_TEXTURE1),
-		gl:enableClientState(?GL_TEXTURE_COORD_ARRAY),
-		gl:useProgram(Prog),
-		try 
-		    shader_uniforms(reverse(Args),Opts,Prog),
-		    R = fun(#fs{vs=Vss}) ->
-				gl:drawElements(?GL_TRIANGLES,length(Vss),
-						?GL_UNSIGNED_INT,Vss)
-			end,
-		    foreach(fun(#chart{fs=Fas}) -> foreach(R,Fas) end,Charts)
-		catch throw:What ->
-			io:format("AUV: ERROR ~s ~n",[What]),
-			fun(_) -> ok end;
-		    _:What ->
-			Stack = erlang:get_stacktrace(),
-			io:format("AUV: Internal ERROR ~p:~n~p ~n",[What,Stack]),
-			fun(_) -> ok end
-		after
-		  gl:useProgram(0),
-		  gl:disable(?GL_TEXTURE_2D),
-		  gl:disableClientState(?GL_VERTEX_ARRAY),
-		  gl:disableClientState(?GL_NORMAL_ARRAY),
-		  gl:disableClientState(?GL_TEXTURE_COORD_ARRAY),
-		  gl:clientActiveTexture(?GL_TEXTURE0),
-		  disable_tex_units(TexUnits),
-		  gl:activeTexture(?GL_TEXTURE0),
-		  gl:deleteProgram(Prog)
-		end
-	end
-    catch throw:What ->
-	    io:format("AUV: ERROR ~s ~n",[What]),
-	    fun(_) -> ok end;
-	_:What ->
-	    Stack = erlang:get_stacktrace(),
-	    io:format("AUV: Internal ERROR ~p:~n~p ~n",[What,Stack]),
-	    fun(_) -> ok end
+shader_pass(Shader={value,#sh{def=Def}},Prog,[]) ->    
+    shader_pass(Shader, Prog, reverse(Def));
+shader_pass(_,false,_) ->    
+    io:format("AUV: Not found shader skipped ~p~n", [?LINE]),
+    fun(_) -> ok end;
+shader_pass(false,_,_) ->    
+    io:format("AUV: Not found shader skipped ~p~n", [?LINE]),
+    fun(_) -> ok end;
+shader_pass({value,#sh{args=Args,tex_units=TexUnits}},{value,{_,Prog}},Opts) ->
+    fun(#ts{charts=Charts}) ->
+	    gl:disable(?GL_DEPTH_TEST),
+	    gl:disable(?GL_ALPHA_TEST),
+	    gl:enable(?GL_BLEND),
+	    gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
+	    gl:enableClientState(?GL_VERTEX_ARRAY),
+	    gl:enableClientState(?GL_NORMAL_ARRAY),
+	    gl:clientActiveTexture(?GL_TEXTURE1),
+	    gl:enableClientState(?GL_TEXTURE_COORD_ARRAY),
+	    gl:useProgram(Prog),
+	    try 
+		shader_uniforms(reverse(Args),Opts,Prog),
+		R = fun(#fs{vs=Vss}) ->
+			    gl:drawElements(?GL_TRIANGLES,length(Vss),
+					    ?GL_UNSIGNED_INT,Vss)
+		    end,
+		foreach(fun(#chart{fs=Fas}) -> foreach(R,Fas) end,Charts)
+	    catch throw:What ->
+		    io:format("AUV: ERROR ~s ~n",[What]),
+		    fun(_) -> ok end;
+		_:What ->
+		    Stack = erlang:get_stacktrace(),
+		    io:format("AUV: Internal ERROR ~p:~n~p ~n",[What,Stack]),
+		    fun(_) -> ok end
+	    after
+	      gl:useProgram(0),
+	      gl:disable(?GL_TEXTURE_2D),
+	      gl:disableClientState(?GL_VERTEX_ARRAY),
+	      gl:disableClientState(?GL_NORMAL_ARRAY),
+	      gl:disableClientState(?GL_TEXTURE_COORD_ARRAY),
+	      gl:clientActiveTexture(?GL_TEXTURE0),
+	      disable_tex_units(TexUnits),
+	      gl:activeTexture(?GL_TEXTURE0)
+	    end
     end.
 
 shader_uniforms([{uniform,color,Name,_,_}|As],[Val|Opts],Prog) ->
@@ -891,6 +892,9 @@ disable_tex_units(Unit) when Unit > 0 ->
     gl:bindTexture(?GL_TEXTURE_2D, 0),
     disable_tex_units(Unit-1);
 disable_tex_units(_) -> ok.
+
+delete_shaders(List) ->
+    foreach(fun({_,Prog}) -> gl:deleteProgram(Prog) end, List).
 
 %%%%%%%%%%%%%%%% 
 %% Materials
@@ -998,6 +1002,37 @@ getLocation(Prog, What) ->
 				[What]),
 	    throw(lists:flatten(Err))
     end.
+
+compile_shaders(Passes, Available) ->
+    foldl(fun({{shader,Id},_},Acc) -> 
+		  case lists:keysearch(Id,1,Acc) of
+		      {value, _} -> Acc; %  Already compiled
+		      false ->
+			  compile_shader(Id,lists:keysearch(Id,#sh.id,Available),Acc)
+		  end;	  
+	     (_NormalPass,Acc) -> 
+		  Acc
+	  end, [], Passes).
+		   
+compile_shader(Id, {value,#sh{vs=VsF,fs=FsF}}, Acc) ->
+    try 
+	Vs = compile(?GL_VERTEX_SHADER, "Vertex Shader", read_file(VsF)),
+        Fs = compile(?GL_FRAGMENT_SHADER, "Fragment Shader", read_file(FsF)),
+        Prog = link_prog(Vs,Fs),
+	gl:deleteShader(Vs), % Flag for delete
+        gl:deleteShader(Fs), % Flag for delete
+	[{Id,Prog}|Acc]
+    catch throw:What ->
+	    io:format("AUV: Error ~s ~n",[What]),
+	    Acc;
+	_:Err ->
+	    Stack = erlang:get_stacktrace(),
+	    io:format("AUV: Internal Error ~s in~n ~p~n",[Err,Stack]),
+	    Acc
+    end;
+compile_shader(Id, false, Acc) ->
+    io:format("AUV: Error did not find shader ~p ~n",[Id]),
+    Acc.
 
 compile(Type,Str,Src) ->
     Handle = gl:createShaderObjectARB(Type),
