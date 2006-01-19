@@ -8,13 +8,14 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.5 2006/01/16 16:25:53 dgud Exp $
+#     $Id: Makefile,v 1.6 2006/01/19 22:01:02 giniu Exp $
 #
 
 ifeq ($(findstring CYGWIN,$(shell uname -s)),CYGWIN)
   CYGWIN := true
 endif
 
+WINGS_INTL=../../intl_tools
 LIBDIR = ../../plugins/jpeg
 
 ERL_DIR := $(shell echo 'io:format("~s~n",[code:root_dir()]),init:stop().' | erl | sed -n '/^1>/s/^1> //p')
@@ -24,7 +25,7 @@ LIBS = -shared -ljpeg
 
 ERLC = erlc
 ERLC_FLAGS = -o $(LIBDIR) -I ../../e3d -I ../../src -I $(ESDL_PATH)/include -pa $(ESDL_PATH)
-ERL_COMPILE_FLAGS += -W $(TYPE_FLAGS) +warn_unused_vars +debug_info
+ERL_COMPILE_FLAGS += -W $(TYPE_FLAGS) +warn_unused_vars +debug_info -pa $(WINGS_INTL) -I $(WINGS_INTL)
 
 ifdef CYGWIN
 SO_EXT = dll
@@ -34,7 +35,20 @@ endif
 
 DRV = $(LIBDIR)/wings_jpeg_image_drv.$(SO_EXT)
 
-all: $(BEAM) $(DRV)
+opt: $(BEAM) $(DRV)
+
+template: opt
+	erl -pa $(WINGS_INTL) -noinput -run tools generate_template_file $(LIBDIR) wp8_jpeg_image -run erlang halt
+
+lang: template
+	@cp *.lang $(LIBDIR)
+	for LANG_FILE in $(LIBDIR)/wp8_jpeg_image_*.lang; do \
+		case $$LANG_FILE  in \
+			$(LIBDIR)/wp8_jpeg_image_en.lang) ;; \
+			*) echo "Processing: $$LANG_FILE"; \
+	erl -pa $(WINGS_INTL) -noinput -eval "tools:diff(\"$$LANG_FILE\")" -run erlang halt >> $$LANG_FILE ;; \
+		esac \
+	done
 
 $(LIBDIR)/%.beam: %.erl
 	install -d $(LIBDIR)

@@ -3,7 +3,7 @@
 - Dan fixed (hopefully finally) the Rotate commands speed so they work as before.
 - Dan fixed rotate in vertex mode so it centers around all selected vertices.
 
-- Giniu made primitives and import-export plug-ins translatable and 
+- Giniu made primitives, jpeg and import-export plug-ins translatable and 
   translated them to Polish (the toxic and yafray plugins still aren't translated).
 
 - Giniu added 4 selection methods: select by vertices with 6 or more edges,

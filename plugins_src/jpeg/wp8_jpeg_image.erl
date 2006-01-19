@@ -11,7 +11,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp8_jpeg_image.erl,v 1.5 2004/10/24 07:01:54 bjorng Exp $
+%%     $Id: wp8_jpeg_image.erl,v 1.6 2006/01/19 22:01:02 giniu Exp $
 %%
 
 -module(wp8_jpeg_image).
@@ -19,6 +19,7 @@
 -export([init/1,format_error/1]).
 
 -include("e3d_image.hrl").
+-include("wings_intl.hrl").
 
 %% Operations supported by driver.
 -define(OP_IMAGE_READ, 0).
@@ -40,9 +41,9 @@ init(Next) ->
 	_ -> Next
     end.
 
-format_error(format) -> "File format not recognized";
+format_error(format) -> ?__(1,"File format not recognized");
 format_error({message,Str}) -> binary_to_list(Str);
-format_error(_) -> "Unknown error".
+format_error(_) -> ?__(2,"Unknown error").
 
 fileop({image,formats,Fs0}, Next) ->
     Fs = image_formats(Fs0),
@@ -127,4 +128,4 @@ lower([H|T]) ->
 lower([]) -> [].
 
 image_formats(Fs) ->
-    [{".jpg","JPEG File"}|Fs].
+    [{".jpg",?__(1,"JPEG File")}|Fs].

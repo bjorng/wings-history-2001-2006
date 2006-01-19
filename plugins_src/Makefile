@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.18 2006/01/08 18:02:00 giniu Exp $
+#     $Id: Makefile,v 1.19 2006/01/19 22:01:02 giniu Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -74,6 +74,7 @@ lang: subdirs_lang template
 	done
 
 subdirs_lang:
+	(cd jpeg; $(MAKE) clean)
 	(cd import_export; $(MAKE) lang)
 	(cd primitives; $(MAKE) lang)
 	(cd commands; $(MAKE) lang)
