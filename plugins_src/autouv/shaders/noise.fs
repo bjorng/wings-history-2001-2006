@@ -8,35 +8,43 @@
 //  See the file "license.terms" for information on usage and redistribution
 //  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 //
-//     $Id: noise.fs,v 1.2 2006/01/18 15:21:22 dgud Exp $
+//     $Id: noise.fs,v 1.3 2006/01/19 23:20:11 dgud Exp $
 //
 
-varying vec3 auv_pos2d;
-varying vec3 auv_pos3d;
-varying vec3 auv_normal;
+
 uniform sampler3D auv_noise;
 
 // T = fun(P) -> T=1+1/(P)+1/(P*P)+1/(P*P*P*P),All=[1/T,1/(P*T),1/(P*P*T),1/(P*P*P*P*T)], {T,list_to_tuple(All), lists:sum(All)} end.
 
 float auv_noise(float P, vec3 pos)
 {
-  float temp = 1.0/P, total;
-  vec4 per = vec4(1.0,temp,temp*temp,temp*temp*temp*temp);
-  total = 1.0/dot(per, vec4(1.0));
-  per  *= total;
-  vec4 noise = texture3D(auv_noise, auv_pos3d);
-  return dot(per,noise);
+    float temp = P, total;
+    vec4 per = vec4(1.0,temp,temp*temp,temp*temp*temp*temp);
+    total = 1.0/dot(per, vec4(1.0));
+    per  *= total;
+    vec4 noise = texture3D(auv_noise, pos);
+    return dot(per,noise);
 }
+varying vec3 auv_pos2d;
+varying vec3 auv_pos3d;
+//varying vec3 auv_normal;
+uniform float persistance, blend, scale;
+uniform vec4 color1, color2;
+uniform sampler2D auv_bg;
 
 void main(void)
 {   
-    vec4 fColor = vec4(1.0,0.0,0.0,0.8); // {0.3,0.4,0.8,0.5};
-    // P=2 => [0.551724,0.275862,0.137931,3.44828e-2]
-//      vec4 s2 = vec4(0.551724,0.275862,0.137931,3.44828e-2);
-//      vec4 temp = texture3D(auv_noise, auv_pos3d);
-     //     fColor.xyz = vec3(dot(s2,temp));
-     fColor.xyz = vec3(auv_noise(0.5, auv_pos3d));
+    float noise;
+    vec4 fColor = vec4(1.0); 
+    noise = auv_noise(persistance, (scale*auv_pos3d)+0.5); // *0.159155
+    vec4 bg = texture2D(auv_bg, auv_pos2d.xy);
+    fColor = mix(color2, color1, noise);
+    float alpha = fColor.w;
+    if(blend > 0.5) alpha *= abs(noise*2.0-1.0);
+    // I make my own blending I want keep alpha to be max 
+    fColor = mix(bg,fColor,alpha);
+    fColor.w = max(alpha,bg.w);
     // Return the calculated color
-    gl_FragColor = fColor;  
-}
+    gl_FragColor = fColor;
+} 
 

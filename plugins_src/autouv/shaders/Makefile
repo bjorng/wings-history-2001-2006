@@ -8,14 +8,16 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.2 2006/01/18 15:21:22 dgud Exp $
+#     $Id: Makefile,v 1.3 2006/01/19 23:20:11 dgud Exp $
 #
 
 DIR = ../../../plugins/autouv
 
 FILES = standard.vs \
 	wpc_noise.auv \
-	noise.fs
+	noise.fs \
+	wpc_wood.auv \
+	wood.fs
 
 TARGETFILES = $(FILES:%=$(DIR)/%)
 

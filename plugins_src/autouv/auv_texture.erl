@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_texture.erl,v 1.19 2006/01/18 15:21:21 dgud Exp $
+%%     $Id: auv_texture.erl,v 1.20 2006/01/19 23:20:10 dgud Exp $
 %%
 
 -module(auv_texture).
@@ -18,7 +18,7 @@
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
-
+-define(ERROR, error(?LINE)).
 -include("wings.hrl").
 -include("e3d_image.hrl").
 -include("auv.hrl").
@@ -319,7 +319,18 @@ render_image(Geom = #ts{uv=UVpos,pos=Pos,n=Ns,uvc=Uvc,uvc_mode=Mode},
 	    gl:clientActiveTexture(?GL_TEXTURE0)
     end,
     try 
-        Dl = fun() -> foreach(fun(Pass) -> Pass(Geom) end, Passes) end,
+        Dl = fun() ->
+		     foreach(fun(Pass) -> 
+				     case UsingFbo of 
+					 false -> 
+					     Pass(Geom,undefined);
+					 {Bg,Prev,_Delete} -> 
+					     fill_bg_tex(Prev),
+					     Pass(Geom,Bg)
+				     end
+			     end,
+			     Passes) 
+	     end,
 	ImageBins = get_texture(0, Wd, 0, Hd, {W,H}, Dl, UsingFbo,[]),
 	ImageBin = merge_texture(ImageBins, Wd, Hd, W*3, H, []),
 	if not UsingFbo -> 
@@ -332,16 +343,18 @@ render_image(Geom = #ts{uv=UVpos,pos=Pos,n=Ns,uvc=Uvc,uvc_mode=Mode},
 	    Where = erlang:get_stacktrace(),
 	    exit({What,Where})
     after 
-      if not UsingFbo -> ignore;
-	 true -> UsingFbo()
+      case UsingFbo of 
+	  false -> ignore;
+	  {_,_,DeleteMe} -> DeleteMe()
       end,
       set_viewport(Current),
       gl:readBuffer(?GL_BACK),
       gl:popAttrib(),
-      gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT)
+      gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
+      ?ERROR    
     end.
 
-
+%%%%%%%%% FBO stuff
 have_fbo() -> wings_gl:is_ext('GL_EXT_framebuffer_object').
 
 setup_fbo(W,H) ->
@@ -349,17 +362,26 @@ setup_fbo(W,H) ->
 	false -> false;
 	true ->
 	    [FB] = gl:genFramebuffersEXT(1),
-	    [Col] = gl:genTextures(1),
+	    [Col1,Col2] = gl:genTextures(2),
 	    [Depth] = gl:genRenderbuffersEXT(1),
 	    gl:bindFramebufferEXT(?GL_FRAMEBUFFER_EXT, FB),
 	    %% Init color texture
-	    gl:bindTexture(?GL_TEXTURE_2D, Col),
+	    gl:bindTexture(?GL_TEXTURE_2D, Col1),
 	    gl:texParameterf(?GL_TEXTURE_2D,?GL_TEXTURE_MIN_FILTER,?GL_LINEAR),
 	    gl:texImage2D(?GL_TEXTURE_2D, 0, ?GL_RGBA8, W, H, 0,
 			  ?GL_RGBA, ?GL_UNSIGNED_BYTE, 0),
 	    gl:framebufferTexture2DEXT(?GL_FRAMEBUFFER_EXT,
 				       ?GL_COLOR_ATTACHMENT0_EXT,
-				       ?GL_TEXTURE_2D, Col, 0),
+				       ?GL_TEXTURE_2D, Col1, 0),
+
+	    gl:bindTexture(?GL_TEXTURE_2D, Col2),
+	    gl:texParameterf(?GL_TEXTURE_2D,?GL_TEXTURE_MIN_FILTER,?GL_LINEAR),
+	    gl:texImage2D(?GL_TEXTURE_2D, 0, ?GL_RGBA8, W, H, 0,
+			  ?GL_RGBA, ?GL_UNSIGNED_BYTE, 0),
+	    gl:framebufferTexture2DEXT(?GL_FRAMEBUFFER_EXT,
+				       ?GL_COLOR_ATTACHMENT1_EXT,
+				       ?GL_TEXTURE_2D, Col2, 0),
+
 	    %% Init depth texture
 	    gl:bindRenderbufferEXT(?GL_RENDERBUFFER_EXT, Depth),
 	    gl:renderbufferStorageEXT(?GL_RENDERBUFFER_EXT,
@@ -374,20 +396,43 @@ setup_fbo(W,H) ->
 		    false;
 		_ ->
 		    gl:bindFramebufferEXT(?GL_FRAMEBUFFER_EXT, FB),
-		    fun() ->
-			    gl:framebufferTexture2DEXT(?GL_FRAMEBUFFER_EXT,
-						       ?GL_COLOR_ATTACHMENT0_EXT,
-						       ?GL_TEXTURE_2D,0,0),
-			    gl:deleteTextures(1,[Col]),
-			    gl:framebufferRenderbufferEXT(?GL_FRAMEBUFFER_EXT,
-							  ?GL_DEPTH_ATTACHMENT_EXT,
-							  ?GL_RENDERBUFFER_EXT, 0),
-			    gl:deleteRenderbuffersEXT(1,[Depth]),
-			    gl:bindFramebufferEXT(?GL_FRAMEBUFFER_EXT, 0),
-			    gl:deleteFramebuffersEXT(1,[FB])
-		    end
+		    {Col1,Col2,
+		     fun() ->
+			     gl:framebufferTexture2DEXT(?GL_FRAMEBUFFER_EXT,
+							?GL_COLOR_ATTACHMENT0_EXT,
+							?GL_TEXTURE_2D,0,0),
+			     gl:deleteTextures(2,[Col1,Col2]),
+			     gl:framebufferRenderbufferEXT(?GL_FRAMEBUFFER_EXT,
+							   ?GL_DEPTH_ATTACHMENT_EXT,
+							   ?GL_RENDERBUFFER_EXT, 0),
+			     gl:deleteRenderbuffersEXT(1,[Depth]),
+			     gl:bindFramebufferEXT(?GL_FRAMEBUFFER_EXT, 0),
+			     gl:deleteFramebuffersEXT(1,[FB])
+		     end}
 	    end
     end.
+	
+error(Line) ->
+    case wings_gl:error_string(gl:getError()) of 
+	no_error -> ok; 
+	Err -> io:format("~p: ~p ~n",[Line,Err])
+    end.
+
+fill_bg_tex(Prev) ->
+    gl:drawBuffer(?GL_COLOR_ATTACHMENT1_EXT),
+    gl:bindTexture(?GL_TEXTURE_2D, Prev),
+    gl:enable(?GL_TEXTURE_2D),
+    gl:disable(?GL_BLEND),
+    gl:'begin'(?GL_QUADS),
+    gl:texCoord2f(0,0),    gl:vertex3f(0, 0, -0.99),
+    gl:texCoord2f(1,0),    gl:vertex3f(1, 0, -0.99),
+    gl:texCoord2f(1,1),    gl:vertex3f(1, 1, -0.99),
+    gl:texCoord2f(0,1),    gl:vertex3f(0, 1, -0.99),
+    gl:'end'(),
+    gl:disable(?GL_TEXTURE_2D),
+    gl:drawBuffer(?GL_COLOR_ATTACHMENT0_EXT),
+    ok.
+
 	    
 get_texture(Wc, Wd, Hc, Hd, {W,H}=Info, DL, UsingFbo, ImageAcc)
   when Wc < Wd, Hc < Hd ->
@@ -537,12 +582,12 @@ setup(St = #st{bb=#uvstate{id=RId, st=#st{mat=Mat,shapes=Sh0},
     We   = gb_trees:get(RId,Sh0),
     Orig = gb_trees:get(RId,OrigSh),
     Mats = merge_mats(gb_trees:to_list(OrigMat),Mat),
-    {Charts,{_Cnt,UVpos,Vpos,Ns,Uvc}} = ?TC(setup_charts(St,We,Orig,Mats)),
-    ?TC(#ts{charts=Charts,
-	    uv=to_bin(UVpos,pos),
-	    pos=to_bin(Vpos,pos),
-	    n=to_bin(Ns,pos),
-	    uvc=to_bin(Uvc,Orig#we.mode), uvc_mode=Orig#we.mode}).
+    {Charts,{_Cnt,UVpos,Vpos,Ns,Uvc}} = setup_charts(St,We,Orig,Mats),
+    #ts{charts=Charts,
+	uv=to_bin(UVpos,pos),
+	pos=to_bin(Vpos,pos),
+	n=to_bin(Ns,pos),
+	uvc=to_bin(Uvc,Orig#we.mode), uvc_mode=Orig#we.mode}.
 
 setup_charts(#st{shapes=Cs0},We,OrigWe,Mats) ->
     Ns = setup_normals(We),
@@ -565,8 +610,7 @@ create_faces(We = #we{vp=Vtab,name=#ch{vmap=Vmap}},
 	      UVcoords = [gb_trees:get(V, Vtab) || V <- Vs0],
 	      Coords = [gb_trees:get(map_vertex(V,Vmap),Vt3d) || V <- Vs0],
 	      Normals = fix_normals(gb_trees:get(Face,NTab)),
-	      OldUvc = fix_uvc(Vs0,wings_face:vinfo_ccw(Face,OWe),
-			       Vmap,OldMode,[]),
+	      OldUvc = fix_uvc(Vs0,Face,OWe,Vmap,OldMode),
 	      Len = length(Vs0),
 	      FaceVs = lists:seq(0, Len-1),
 	      Vs = case Len of
@@ -607,15 +651,22 @@ fix_normals([[_|N]|R],Acc) ->
     fix_normals(R,[N|Acc]);
 fix_normals([],Acc) -> Acc.
 
-fix_uvc([V|Vs],Uvc,Vmap,Mode, Acc) ->
+fix_uvc(Vs,Face,OWe,Vmap,Mode) ->
+    try 
+	Uvc = wings_face:vinfo_ccw(Face,OWe),
+	fix_uvc1(Vs,Uvc,Vmap,Mode,[])
+    catch error:_ ->
+	    fix_uvc1(Vs,[],Vmap,Mode,[])
+    end.
+fix_uvc1([V|Vs],Uvc,Vmap,Mode, Acc) ->
     Val = case find(map_vertex(V,Vmap),Uvc) of
 	      Color = {_,_,_} when Mode == vertex ->  Color;
 	      _ when Mode == vertex -> {1.0,1.0,1.0};
 	      Uv = {_,_} -> Uv;
 	      _ -> {0.0,0.0}
 	  end,
-    fix_uvc(Vs,Uvc,Vmap,Mode,[Val|Acc]);
-fix_uvc([],_,_,_,Acc) -> Acc.
+    fix_uvc1(Vs,Uvc,Vmap,Mode,[Val|Acc]);
+fix_uvc1([],_,_,_,Acc) -> Acc.
 
 find(V, [[V|Info]|_R]) -> Info;
 find(V, [_|R]) -> find(V,R);
@@ -692,13 +743,13 @@ get_passes(Passes,Shaders) ->
     lists:map(fun(Pass) -> pass(Pass,Shaders) end, Passes).
 
 pass({auv_background,[{type_sel,color},_,Color]},_) ->  
-    fun(_Geom) ->
+    fun(_Geom,_) ->
 	    {R,G,B,A} = fix(Color,true),
 	    gl:clearColor(R,G,B,A),
 	    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT)
     end;
 pass({auv_background,[{type_sel,image},{_Name,Id},Color]},_) ->
-    fun(_Geom) ->
+    fun(_Geom,_) ->
 	    {R,G,B,A} = fix(Color,true),
 	    gl:clearColor(R,G,B,A),
 	    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
@@ -730,7 +781,7 @@ pass({auv_edges, [all_edges,Color,Width,_UseMat]},_) ->
 			     end,
 	      foreach(Draw,Fs)
       end,
-    fun(#ts{charts=Charts}) ->  
+    fun(#ts{charts=Charts},_) ->  
 	    gl:disable(?GL_DEPTH_TEST),	    
 	    gl:color3fv(Color),
 	    gl:lineWidth(Width),
@@ -749,7 +800,7 @@ pass({auv_edges, [border_edges,Color,Width,UseMat]},_) ->
 	       Es = foldl(fun([A,B,_],Acc) -> [A,B|Acc] end, [], Es0),
 	       gl:drawElements(?GL_LINES,length(Es),?GL_UNSIGNED_INT,Es)
        end,
-    fun(#ts{charts=Charts}) ->  
+    fun(#ts{charts=Charts},_) ->  
 	    gl:color3fv(Color),
 	    gl:lineWidth(Width),
 	    gl:enableClientState(?GL_VERTEX_ARRAY),
@@ -761,7 +812,7 @@ pass({auv_edges, _},Sh) ->
     pass({auv_edges, ?OPT_EDGES},Sh);
 
 pass({auv_faces, [Type]},_) ->
-    fun(#ts{charts=Charts,uvc_mode=Mode}) ->  
+    fun(#ts{charts=Charts,uvc_mode=Mode},_) ->  
 	    gl:disable(?GL_DEPTH_TEST),
 	    gl:disable(?GL_ALPHA_TEST),
 	    gl:enable(?GL_BLEND),	   
@@ -804,18 +855,18 @@ pass({{shader,Id}, Opts},{Sh,Compiled}) ->
 pass({_R, _O},_) ->    
     io:format("AUV: ~p:~p: Unknown Render Pass (~p) or options (~p) ~n",
 	      [?MODULE,?LINE,_R,_O]),
-    fun(_) -> ok end.
+    fun(_,_) -> ok end.
 
 shader_pass(Shader={value,#sh{def=Def}},Prog,[]) ->    
     shader_pass(Shader, Prog, reverse(Def));
 shader_pass(_,false,_) ->    
-    io:format("AUV: Not found shader skipped ~p~n", [?LINE]),
-    fun(_) -> ok end;
+    io:format("AUV: No shader program found skipped ~p~n", [?LINE]),
+    fun(_,_) -> ok end;
 shader_pass(false,_,_) ->    
-    io:format("AUV: Not found shader skipped ~p~n", [?LINE]),
-    fun(_) -> ok end;
+    io:format("AUV: Not shader found skipped ~p~n", [?LINE]),
+    fun(_,_) -> ok end;
 shader_pass({value,#sh{args=Args,tex_units=TexUnits}},{value,{_,Prog}},Opts) ->
-    fun(#ts{charts=Charts}) ->
+    fun(#ts{charts=Charts},BackGroundTex) ->
 	    gl:disable(?GL_DEPTH_TEST),
 	    gl:disable(?GL_ALPHA_TEST),
 	    gl:enable(?GL_BLEND),
@@ -824,6 +875,8 @@ shader_pass({value,#sh{args=Args,tex_units=TexUnits}},{value,{_,Prog}},Opts) ->
 	    gl:enableClientState(?GL_NORMAL_ARRAY),
 	    gl:clientActiveTexture(?GL_TEXTURE1),
 	    gl:enableClientState(?GL_TEXTURE_COORD_ARRAY),
+	    gl:activeTexture(?GL_TEXTURE0),
+	    gl:bindTexture(?GL_TEXTURE_2D, BackGroundTex),
 	    gl:useProgram(Prog),
 	    try 
 		shader_uniforms(reverse(Args),Opts,Prog),
@@ -833,12 +886,10 @@ shader_pass({value,#sh{args=Args,tex_units=TexUnits}},{value,{_,Prog}},Opts) ->
 		    end,
 		foreach(fun(#chart{fs=Fas}) -> foreach(R,Fas) end,Charts)
 	    catch throw:What ->
-		    io:format("AUV: ERROR ~s ~n",[What]),
-		    fun(_) -> ok end;
+		    io:format("AUV: ERROR ~s ~n",[What]);
 		_:What ->
 		    Stack = erlang:get_stacktrace(),
-		    io:format("AUV: Internal ERROR ~p:~n~p ~n",[What,Stack]),
-		    fun(_) -> ok end
+		    io:format("AUV: Internal ERROR ~p:~n~p ~n",[What,Stack])
 	    after
 	      gl:useProgram(0),
 	      gl:disable(?GL_TEXTURE_2D),
@@ -857,6 +908,7 @@ shader_uniforms([{uniform,color,Name,_,_}|As],[Val|Opts],Prog) ->
     shader_uniforms(As,Opts,Prog);
 shader_uniforms([{uniform,float,Name,_,_}|As],[Val|Opts],Prog) ->
     Loc = getLocation(Prog,Name),
+    io:format("~p ~p ~p",[Loc,Name,Val]),
     gl:uniform1f(Loc,Val),
     shader_uniforms(As,Opts,Prog);
 shader_uniforms([{uniform,bool,Name,_,_}|As],[Val|Opts],Prog) ->
@@ -884,6 +936,10 @@ shader_uniforms([{auv,{auv_noise,Unit}}|Rest],Opts,Prog) ->
 	    gl:uniform1i(Loc, Unit),
             shader_uniforms(Rest,Opts,Prog)
     end;
+shader_uniforms([{auv,{auv_bg,Unit}}|Rest],Opts,Prog) ->
+    Loc = getLocation(Prog, "auv_bg"),
+    gl:uniform1i(Loc, Unit),
+    shader_uniforms(Rest,Opts,Prog);
 shader_uniforms([],[],_) ->
     ok.
 
@@ -965,6 +1021,9 @@ parse_sh_info([{fragment_shader,Name}|Opts],Sh,NI,Acc) ->
 parse_sh_info([{auv,auv_noise}|Opts],Sh,NI,Acc) ->
     What = {auv,{auv_noise,1}},
     parse_sh_info(Opts, Sh#sh{args=[What|Sh#sh.args]},NI+1,Acc);
+parse_sh_info([{auv,auv_bg}|Opts],Sh,NI,Acc) ->
+    What = {auv,{auv_bg,0}},
+    parse_sh_info(Opts, Sh#sh{args=[What|Sh#sh.args]},NI,Acc);
 parse_sh_info([What={uniform,color,_,Def={_,_,_,_},_}|Opts],Sh,NI,Acc) ->
     parse_sh_info(Opts, Sh#sh{args=[What|Sh#sh.args],def=[Def|Sh#sh.def]},NI,Acc);
 parse_sh_info([What={uniform,float,_,Def,_}|Opts],Sh,NI,Acc)
@@ -1038,7 +1097,7 @@ compile(Type,Str,Src) ->
     Handle = gl:createShaderObjectARB(Type),
     ok = gl:shaderSource(Handle, 1, [Src], [-1]),
     ok = gl:compileShader(Handle),
-    check_status(Handle,Str ++ " Compiled", ?GL_OBJECT_COMPILE_STATUS),
+    check_status(Handle,Str, ?GL_OBJECT_COMPILE_STATUS),
     Handle.
 
 link_prog(Vs,Fs) ->
@@ -1046,17 +1105,16 @@ link_prog(Vs,Fs) ->
     gl:attachObjectARB(Prog,Vs),
     gl:attachObjectARB(Prog,Fs),
     gl:linkProgram(Prog),
-    check_status(Prog,"Linked", ?GL_OBJECT_LINK_STATUS),
+    check_status(Prog,"Link result", ?GL_OBJECT_LINK_STATUS),
     Prog.
     
 check_status(Handle,Str, What) ->
     case gl:getObjectParameterivARB(Handle, What) of
 	1 -> 
-	    io:format("AUV: ~s Status ok ~n",[Str]), 
-	    printInfo(Handle), %% Check status even if ok
+	    printInfo(Handle,Str), %% Check status even if ok
 	    Handle;
 	_E -> 	    
-	    printInfo(Handle),
+	    printInfo(Handle,Str),
 	    throw("Compilation failed")
     end.
 
@@ -1068,7 +1126,7 @@ read_file(Name) ->
 	_ -> throw("Couldn't read file: " ++ File)
     end.
 	     
-printInfo(ShaderObj) ->
+printInfo(ShaderObj,Str) ->
     Len = gl:getObjectParameterivARB(ShaderObj, ?GL_OBJECT_INFO_LOG_LENGTH),
     case Len > 0 of
 	true ->
@@ -1076,7 +1134,12 @@ printInfo(ShaderObj) ->
 		{_, []} ->
 		    ok;
 		{_, InfoStr} ->
-		    io:format("AUV Info: ~s ~n", [InfoStr]);
+		    io:format("AUV: ~s:~n~s ~n", [Str,InfoStr]),
+		    case string:str(InfoStr, "oftware") of
+			0 -> ok;
+			_ -> 
+			    throw("Shader disabled would run in Software mode")
+		    end;
 		Error ->
 		    io:format("AUV: Internal error PrintInfo crashed with ~p ~n", [Error])
 	    end;
