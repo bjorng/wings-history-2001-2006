@@ -9,12 +9,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp8_file.erl,v 1.15 2004/01/18 18:11:15 bjorng Exp $
+%%     $Id: wp8_file.erl,v 1.16 2006/01/19 22:30:47 giniu Exp $
 %%
 
 -module(wp8_file).
 
 -export([menus/0, init/1]).
+
+-include("wings_intl.hrl").
 
 %% Operations supported by driver.
 -define(OP_READ, 1).
@@ -42,10 +44,10 @@ init(Next) ->
     end.
 
 fileop({file,open_dialog,Prop,Cont}, _Next) ->
-    Title = proplists:get_value(title, Prop, "Open"),
+    Title = proplists:get_value(title, Prop, ?__(1,"Open")),
     file_dialog(?OP_READ, Prop, Title, Cont);
 fileop({file,save_dialog,Prop,Cont}, _Next) ->
-    Title = proplists:get_value(title, Prop, "Save"),
+    Title = proplists:get_value(title, Prop, ?__(2,"Save")),
     file_dialog(?OP_WRITE, Prop, Title, Cont);
 fileop(What, Next) ->
     Next(What).
@@ -92,11 +94,11 @@ file_filters(Prop) ->
 	       none ->
 		   Ext = proplists:get_value(ext, Prop, ".wings"),
 		   ExtDesc = proplists:get_value(ext_desc, Prop,
-						 "Wings File"),
+						 ?__(1,"Wings File")),
 		   [{Ext,ExtDesc}];
 	       Other -> Other
 	   end,
-    [file_add_all(Exts),file_filters_1(Exts++[{".*","All Files"}], [])].
+    [file_add_all(Exts),file_filters_1(Exts++[{".*",?__(2,"All Files")}], [])].
 
 file_filters_1([{Ext,Desc}|T], Acc0) ->
     Wildcard = "*" ++ Ext,
@@ -108,7 +110,7 @@ file_add_all([_]) -> [];
 file_add_all(Exts) ->
     All0 = ["*"++E || {E,_} <- Exts],
     All = file_add_semicolons(All0),
-    ["All Formats (",All,")",0,All,0].
+    [?__(1,"All Formats")++" (",All,")",0,All,0].
 
 file_add_semicolons([E1|[_|_]=T]) ->
     [E1,";"|file_add_semicolons(T)];
