@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp8_mac_file.erl,v 1.18 2004/08/28 07:29:47 bjorng Exp $
+%%     $Id: wp8_mac_file.erl,v 1.19 2006/01/20 14:47:03 giniu Exp $
 %%
 
 -module(wp8_mac_file).
@@ -53,14 +53,14 @@ fileop(What, Next) ->
     end.
 
 fileop_1({file,open_dialog,Prop,Cont}, _Next) ->
-    Title = proplists:get_value(title, Prop, "Open"),
+    Title = proplists:get_value(title, Prop, ?__(1,"Open")),
     Dir = proplists:get_value(directory, Prop),
     case file_dialog(?OP_READ, Dir, Prop, Title) of
 	aborted -> keep;
 	Res -> Cont(Res)
     end;
 fileop_1({file,save_dialog,Prop,Cont}, _Next) ->
-    Title = proplists:get_value(title, Prop, "Save"),
+    Title = proplists:get_value(title, Prop, ?__(2,"Save")),
     Dir = proplists:get_value(directory, Prop),
     case file_dialog(?OP_WRITE, Dir, Prop, Title) of
 	aborted -> keep;

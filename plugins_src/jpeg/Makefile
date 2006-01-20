@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.6 2006/01/19 22:01:02 giniu Exp $
+#     $Id: Makefile,v 1.7 2006/01/20 14:47:02 giniu Exp $
 #
 
 ifeq ($(findstring CYGWIN,$(shell uname -s)),CYGWIN)
@@ -42,7 +42,7 @@ template: opt
 
 lang: template
 	@cp *.lang $(LIBDIR)
-	for LANG_FILE in $(LIBDIR)/wp8_jpeg_image_*.lang; do \
+	@for LANG_FILE in $(LIBDIR)/wp8_jpeg_image_*.lang; do \
 		case $$LANG_FILE  in \
 			$(LIBDIR)/wp8_jpeg_image_en.lang) ;; \
 			*) echo "Processing: $$LANG_FILE"; \

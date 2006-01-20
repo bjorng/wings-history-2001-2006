@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp8_mac_image.erl,v 1.8 2004/06/30 09:03:13 bjorng Exp $
+%%     $Id: wp8_mac_image.erl,v 1.9 2006/01/20 14:47:03 giniu Exp $
 %%
 
 -module(wp8_mac_image).
@@ -16,6 +16,7 @@
 -export([init/1,format_error/1]).
 
 -include("e3d_image.hrl").
+-include("wings_intl.hrl").
 
 %% Operations supported by driver.
 -define(OP_IMAGE_READ, 0).
@@ -44,7 +45,7 @@ init(Next) ->
 	_ -> Next
     end.
 
-format_error(format) -> "Unknown or unsupported format.".
+format_error(format) -> ?__(1,"Unknown or unsupported format.").
 
 fileop({image,formats,Fs0}, Next) ->
     Fs = image_formats(Fs0),
@@ -132,9 +133,9 @@ lower([H|T]) ->
 lower([]) -> [].
 
 image_formats(Fs) ->
-    [{".png","PNG File"},
-     {".gif","Compuserve GIF"},
-     {".jpg","JPEG File"}|Fs].
+    [{".png",?__(1,"PNG File")},
+     {".gif",?__(2,"Compuserve GIF")},
+     {".jpg",?__(3,"JPEG File")}|Fs].
 
 image_format(".png") -> ?IMG_FORMAT_PNG;
 image_format(".gif") -> ?IMG_FORMAT_GIF;

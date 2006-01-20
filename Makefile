@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.22 2006/01/19 22:30:45 giniu Exp $
+#     $Id: Makefile,v 1.23 2006/01/20 14:47:02 giniu Exp $
 #
 include vsn.mk
 
@@ -50,6 +50,7 @@ win32: all lang
 	(cd plugins_src/jpeg; $(MAKE))
 	(cd plugins_src/jpeg; $(MAKE) lang)
 	(cd plugins_src/fbx; $(MAKE))
+	(cd plugins_src/fbx; $(MAKE) lang)
 	(cd win32; $(MAKE))
 	win32/make_installer
 
@@ -58,7 +59,9 @@ win32: all lang
 #
 macosx: all lang
 	(cd plugins_src/mac_file; $(MAKE))
+	(cd plugins_src/mac_file; $(MAKE) lang)
 	(cd plugins_src/fbx; $(MAKE))
+	(cd plugins_src/fbx; $(MAKE) lang)
 	(cd macosx; xcodebuild)
 	sh tools/mac_make_dmg $(WINGS_VSN)
 
@@ -69,4 +72,3 @@ unix: all lang
 	(cd plugins_src/jpeg; $(MAKE))
 	(cd plugins_src/jpeg; $(MAKE) lang)
 	unix/make_installer
-

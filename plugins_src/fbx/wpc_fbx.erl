@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_fbx.erl,v 1.9 2005/03/16 20:26:15 bjorng Exp $
+%%     $Id: wpc_fbx.erl,v 1.10 2006/01/20 14:47:02 giniu Exp $
 %%
 
 -module(wpc_fbx).
@@ -18,6 +18,7 @@
 -include("e3d.hrl").
 -include("e3d_image.hrl").
 -include("fbx_ops.hrl").
+-include("wings_intl.hrl").
 
 -import(lists, [reverse/1,reverse/2,foldl/3,sort/1,keydelete/3,foreach/2]).
 
@@ -78,14 +79,14 @@ menu_entry(Menu) ->
     Menu ++ [{"Alias FBX (.fbx)...",fbx,[option]}].
 
 props() ->
-    [{ext,".fbx"},{ext_desc,"Alias FBX file"}].
+    [{ext,".fbx"},{ext_desc,?__(1,"Alias FBX file")}].
 
 %%%
 %%% Export.
 %%%
 
 do_export(Ask, Op, _Exporter, _St) when is_atom(Ask) ->
-    wpa:dialog(Ask, "FBX Export Options", dialog(export),
+    wpa:dialog(Ask, ?__(1,"FBX Export Options"), dialog(export),
 	       fun(Res) ->
 		       {file,{Op,{fbx,Res}}}
 	       end);
@@ -417,7 +418,7 @@ create_node(Name) ->
 %%%
 
 do_import(Ask, _St) when is_atom(Ask) ->
-    wpa:dialog(Ask, "FBX Import Options", dialog(import),
+    wpa:dialog(Ask, ?__(1,"FBX Import Options"), dialog(import),
 	       fun(Res) ->
 		       {file,{import,{fbx,Res}}}
 	       end);
@@ -447,7 +448,7 @@ do_import_2(Filename, Attr, St) ->
     Password = proplists:get_value(password, Attr, []),
     case call(?ImpLoadScene, [Filename,0,Password,0]) of
         ok ->
-            io:format("FBX version: ~s\n", [call(?ImpVersion)]),
+            io:format(?__(1,"FBX version:")++" ~s\n", [call(?ImpVersion)]),
             do_import_3(Attr, St);
         password_protected ->
             ask_for_password(Filename, Attr);
@@ -477,7 +478,7 @@ do_import_3(Attr, St0) ->
     {ok,wpa:import(File, St)}.
 
 ask_for_password(Filename, Attr) ->
-    wpa:dialog("Enter Password",
+    wpa:dialog(?__(1,"Enter Password"),
                [{text,[],[password]}],
 	       fun([Pass]) ->
 		       {file,{import,{fbx,{Filename,[{password,Pass}|Attr]}}}}
@@ -663,7 +664,7 @@ import_mat_mapping(MapMode, Mesh, Mat) ->
         by_polygon -> import_mat_by_polygon(Mesh, MatNames);
         all_same -> import_mat_all_same(Mesh, MatNames);
 	Other ->
-	    io:format("Cannot handle material mapping mode: ~p\n",
+	    io:format(?__(1,"Cannot handle material mapping mode:")++" ~p\n",
 		      [Other]),
 	    Mesh
     end.
@@ -719,7 +720,7 @@ import_uvs_1(MM, #e3d_mesh{vs=Vtab}=Mesh0) ->
         all_same when length(Tx) =:= length(Vtab) ->
             import_ctrl_point_uvs(Mesh);
         Other ->
-            io:format("Can't handle mapping type: ~p\n", [Other]),
+            io:format(?__(1,"Can't handle mapping type:")++" ~p\n", [Other]),
             Mesh
     end.
 
@@ -860,8 +861,8 @@ import_vc(Mesh) ->
     end.
 
 import_vc_1(Mesh, MM, RM) ->
-    io:format("NYI: vertex color import:\n  "
-	      "mapping mode = ~p, ref mode = ~p\n",
+    io:format(?__(1,"NYI: vertex color import:")++"\n  " ++
+	      ?__(2,"mapping mode")++" = ~p, "++?__(3,"ref mode")++" = ~p\n",
 	      [MM,RM]),
     Mesh.
 
@@ -1003,21 +1004,21 @@ get_integer(B) ->
     
 dialog(import) ->
     [{label_column,
-      [{"Import scale",{text,import_scale([]),[{key,import_scale}]}},
-       {"(Export scale)",{text,export_scale([]),[{key,export_scale}]}}]}
+      [{?__(1,"Import scale"),{text,import_scale([]),[{key,import_scale}]}},
+       {"("++?__(2,"Export scale")++")",{text,export_scale([]),[{key,export_scale}]}}]}
     ];
 dialog(export) ->
     [{label_column,
-      [{"(Import scale)",{text,import_scale([]),[{key,import_scale}]}},
-       {"Export scale",{text,export_scale([]),[{key,export_scale}]}},
-       {"Password",{text,[],[{key,password},password]}}
+      [{"("++?__(3,"Import scale")++")",{text,import_scale([]),[{key,import_scale}]}},
+       {?__(4,"Export scale"),{text,export_scale([]),[{key,export_scale}]}},
+       {?__(5,"Password"),{text,[],[{key,password},password]}}
       ]},
      {vframe,
       [{hradio,[{"FBX 5",fbx_5},
 		{"FBX 6",fbx_6}],
 	get_pref(fbx_format, fbx_6), [{key,fbx_format}]},
        {"ASCII FBX",get_pref(ascii_format, false),[{key,ascii_format}]}
-      ],[{title,"Format"}]}
+      ],[{title,?__(6,"Format")}]}
     ].
 
 get_pref(Key, Def) ->

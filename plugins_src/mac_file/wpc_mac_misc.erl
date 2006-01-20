@@ -8,12 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_mac_misc.erl,v 1.3 2004/12/14 06:41:58 bjorng Exp $
+%%     $Id: wpc_mac_misc.erl,v 1.4 2006/01/20 14:47:03 giniu Exp $
 %%
 
 -module(wpc_mac_misc).
 
 -export([init/0,menu/2,command/2]).
+
+-include("wings_intl.hrl").
 
 init() ->
     wpa:pref_set_default(?MODULE, native_file_dialog, true),
@@ -36,8 +38,8 @@ add_our_stuff([]) ->
     [separator|mac_stuff([])].
 
 mac_stuff(Menu) ->
-    [{"Mac OS File Dialog",native_file_dialog,
-      "Choose whether to use the Mac OS standard file dialog or Wings' own file dialog",
+    [{?__(1,"Mac OS File Dialog"),native_file_dialog,
+      ?__(2,"Choose whether to use the Mac OS standard file dialog or Wings' own file dialog"),
       case wpa:pref_get(?MODULE, native_file_dialog) of
 	  false -> [];
 	  true -> [crossmark]

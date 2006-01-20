@@ -8,10 +8,11 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.6 2005/05/12 04:26:24 bjorng Exp $
+#     $Id: Makefile,v 1.7 2006/01/20 14:47:02 giniu Exp $
 #
 FBXSDK = FBXSDK60
 LIBDIR=../../plugins/fbx
+WINGS_INTL=../../intl_tools
 
 OS := $(shell uname -s)
 
@@ -61,11 +62,24 @@ LD_FLAGS = $(OS_LDFLAGS) $(LIBS)
 LIBS = -L$(LIB_DIR) -lfbxsdk
 
 ERLC = erlc
-ERLC_FLAGS = -I$(WINGS_E3D) -o $(LIBDIR) +debug_info
+ERLC_FLAGS = -I$(WINGS_E3D) -o $(LIBDIR) +debug_info -pa $(WINGS_INTL) -I $(WINGS_INTL)
 
 OBJS = wings_fbx_driver.$(OBJ) wings_fbx.$(OBJ)
 
-all: $(LIBDIR)/wpc_fbx.beam $(LIBDIR)/$(DRIVER_FILE)
+opt: $(LIBDIR)/wpc_fbx.beam $(LIBDIR)/$(DRIVER_FILE)
+
+template: opt
+	erl -pa $(WINGS_INTL) -noinput -run tools generate_template_file $(LIBDIR) wpc_fbx -run erlang halt
+
+lang: template
+	@cp *.lang $(LIBDIR)
+	@for LANG_FILE in $(LIBDIR)/wpc_fbx_*.lang; do \
+		case $$LANG_FILE  in \
+			$(LIBDIR)/wpc_fbx_en.lang) ;; \
+			*) echo "Processing: $$LANG_FILE"; \
+	erl -pa $(WINGS_INTL) -noinput -eval "tools:diff(\"$$LANG_FILE\")" -run erlang halt >> $$LANG_FILE ;; \
+		esac \
+	done
 
 $(LIBDIR)/$(DRIVER_NAME).so: $(OBJS)
 	$(CXX) -o $(LIBDIR)/$(DRIVER_NAME).so $(OBJS) $(LD_FLAGS)

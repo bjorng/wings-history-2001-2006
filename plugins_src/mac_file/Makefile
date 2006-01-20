@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.13 2005/09/21 18:55:53 bjorng Exp $
+#     $Id: Makefile,v 1.14 2006/01/20 14:47:03 giniu Exp $
 #
 LIBDIR = ../../plugins/mac_file
 WINGS_EBIN = ../../ebin
@@ -21,11 +21,24 @@ BEAM = $(LIBDIR)/wp8_mac_file.beam \
        $(LIBDIR)/wpc_mac_misc.beam
 
 ERLC = erlc
-ERLC_FLAGS = -W +debug_info -o $(LIBDIR) -I ../../e3d -I ../../src -I $(ESDL_PATH)/include -pa $(ESDL_PATH) -pa $(WINGS_EBIN) -pa $(WINGS_INTL) 
+ERLC_FLAGS = -W +debug_info -o $(LIBDIR) -I ../../e3d -I ../../src -I $(ESDL_PATH)/include -pa $(ESDL_PATH) -pa $(WINGS_EBIN) -pa $(WINGS_INTL) -I $(WINGS_INTL) 
 
 DRV = $(LIBDIR)/mac_wings_file_drv.so $(LIBDIR)/mac_wings_image_drv.so
 
-all: $(DRV) $(BEAM)
+opt: $(DRV) $(BEAM)
+
+template: opt
+	erl -pa $(WINGS_INTL) -noinput -run tools generate_template $(LIBDIR) -run erlang halt
+
+lang: template
+	@cp *.lang $(LIBDIR)
+	@for i in $(LIBDIR)/mac_file_*.lang; do \
+		case $$i in \
+			*/mac_file_en.lang) ;; \
+			*) echo "Processing: $$i"; \
+	 erl -pa $(WINGS_INTL) -noinput -eval "tools:diff(\"$$i\")" -run erlang halt >> $$i ;; \
+		esac \
+	done
 
 $(LIBDIR)/%.beam: %.erl
 	install -d $(LIBDIR)
