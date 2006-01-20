@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_texture.erl,v 1.20 2006/01/19 23:20:10 dgud Exp $
+%%     $Id: auv_texture.erl,v 1.21 2006/01/20 09:30:13 dgud Exp $
 %%
 
 -module(auv_texture).
@@ -908,7 +908,6 @@ shader_uniforms([{uniform,color,Name,_,_}|As],[Val|Opts],Prog) ->
     shader_uniforms(As,Opts,Prog);
 shader_uniforms([{uniform,float,Name,_,_}|As],[Val|Opts],Prog) ->
     Loc = getLocation(Prog,Name),
-    io:format("~p ~p ~p",[Loc,Name,Val]),
     gl:uniform1f(Loc,Val),
     shader_uniforms(As,Opts,Prog);
 shader_uniforms([{uniform,bool,Name,_,_}|As],[Val|Opts],Prog) ->

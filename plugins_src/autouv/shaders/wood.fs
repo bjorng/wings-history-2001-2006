@@ -1,15 +1,15 @@
-%%
-%%  wood.fs --
-%%
-%%     Simple wood shader stolen from RenderMonkey
-%%
-%%  Copyright (c) 2006 Dan Gudmundsson
-%%
-%%  See the file "license.terms" for information on usage and redistribution
-%%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%
-%%     $Id: wood.fs,v 1.1 2006/01/19 23:20:11 dgud Exp $
-%%
+//
+//  wood.fs --
+//
+//     Simple wood shader stolen from RenderMonkey
+//
+//  Copyright (c) 2006 Dan Gudmundsson
+//
+//  See the file "license.terms" for information on usage and redistribution
+//  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+//
+//     $Id: wood.fs,v 1.2 2006/01/20 09:30:13 dgud Exp $
+//
 
 uniform vec4  darkWood;
 uniform vec4  liteWood;
@@ -46,3 +46,4 @@ void main(void)
     float lrp = ring + snoise;
     gl_FragColor = mix(darkWood, liteWood, lrp);
 }
+
