@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_texture.erl,v 1.21 2006/01/20 09:30:13 dgud Exp $
+%%     $Id: auv_texture.erl,v 1.22 2006/01/20 15:40:27 dgud Exp $
 %%
 
 -module(auv_texture).
@@ -42,10 +42,17 @@
 	     file="",
 	     vs = "",          %% Vertex shader
 	     fs = "",          %% Fragment shader
+	     filter = false,
 	     tex_units = 1,    %% No of texture units used
 	     args = [],        %% Arguments
 	     def  = []         %% Gui Strings
 	    }).
+
+-record(sh_conf, {texsz,      % More shader options
+		  fbo_r,      % Fbo read buffer
+		  fbo_w,      % Fbo write buffer
+		  fbo_d,      % Clean up fbo
+		  prog}).     % Shader Id
 
 -record(ts,         % What              Type
 	{charts,    % #chart{}          (list)
@@ -204,6 +211,9 @@ shader_menu([{uniform,image,_,Def,Label}|As],[Def|Vs],Acc) ->
     Image = case Def of {Im,_} -> Im; _ -> Def end,
     Menu = {hframe,[{label,Label},image_selector(Image)]},
     shader_menu(As,Vs,[Menu|Acc]);
+shader_menu([{uniform,menu,_,_,Labels}|As],[Def|Vs],Acc) ->
+    Menu = {menu,Labels,Def,[]},
+    shader_menu(As,Vs,[Menu|Acc]);
 shader_menu([{auv,_}|As],Vs,Acc) ->
     shader_menu(As,Vs,Acc);
 shader_menu([What|_],_,_) ->
@@ -321,12 +331,11 @@ render_image(Geom = #ts{uv=UVpos,pos=Pos,n=Ns,uvc=Uvc,uvc_mode=Mode},
     try 
         Dl = fun() ->
 		     foreach(fun(Pass) -> 
-				     case UsingFbo of 
-					 false -> 
+				     if not UsingFbo -> 
 					     Pass(Geom,undefined);
-					 {Bg,Prev,_Delete} -> 
-					     fill_bg_tex(Prev),
-					     Pass(Geom,Bg)
+					true ->
+					     fill_bg_tex(UsingFbo),
+					     Pass(Geom,UsingFbo)
 				     end
 			     end,
 			     Passes) 
@@ -343,9 +352,9 @@ render_image(Geom = #ts{uv=UVpos,pos=Pos,n=Ns,uvc=Uvc,uvc_mode=Mode},
 	    Where = erlang:get_stacktrace(),
 	    exit({What,Where})
     after 
-      case UsingFbo of 
+	case UsingFbo of 
 	  false -> ignore;
-	  {_,_,DeleteMe} -> DeleteMe()
+	  #sh_conf{fbo_d=DeleteMe} -> DeleteMe()
       end,
       set_viewport(Current),
       gl:readBuffer(?GL_BACK),
@@ -360,56 +369,60 @@ have_fbo() -> wings_gl:is_ext('GL_EXT_framebuffer_object').
 setup_fbo(W,H) ->
     case have_fbo() of
 	false -> false;
-	true ->
-	    [FB] = gl:genFramebuffersEXT(1),
-	    [Col1,Col2] = gl:genTextures(2),
-	    [Depth] = gl:genRenderbuffersEXT(1),
+	true -> setup_fbo2(W,H) 
+    end.
+
+setup_fbo2(W,H) ->
+    [FB] = gl:genFramebuffersEXT(1),
+    [Col1,Col2] = gl:genTextures(2),
+    [Depth] = gl:genRenderbuffersEXT(1),
+    gl:bindFramebufferEXT(?GL_FRAMEBUFFER_EXT, FB),
+    %% Init color texture
+    gl:bindTexture(?GL_TEXTURE_2D, Col1),
+    gl:texParameterf(?GL_TEXTURE_2D,?GL_TEXTURE_MIN_FILTER,?GL_LINEAR),
+    gl:texImage2D(?GL_TEXTURE_2D, 0, ?GL_RGBA8, W, H, 0,
+		  ?GL_RGBA, ?GL_UNSIGNED_BYTE, 0),
+    gl:framebufferTexture2DEXT(?GL_FRAMEBUFFER_EXT,
+			       ?GL_COLOR_ATTACHMENT0_EXT,
+			       ?GL_TEXTURE_2D, Col1, 0),
+    
+    gl:bindTexture(?GL_TEXTURE_2D, Col2),
+    gl:texParameterf(?GL_TEXTURE_2D,?GL_TEXTURE_MIN_FILTER,?GL_LINEAR),
+    gl:texImage2D(?GL_TEXTURE_2D, 0, ?GL_RGBA8, W, H, 0,
+		  ?GL_RGBA, ?GL_UNSIGNED_BYTE, 0),
+    gl:framebufferTexture2DEXT(?GL_FRAMEBUFFER_EXT,
+			       ?GL_COLOR_ATTACHMENT1_EXT,
+			       ?GL_TEXTURE_2D, Col2, 0),
+    
+    %% Init depth texture
+    gl:bindRenderbufferEXT(?GL_RENDERBUFFER_EXT, Depth),
+    gl:renderbufferStorageEXT(?GL_RENDERBUFFER_EXT,
+			      ?GL_DEPTH_COMPONENT24, W, H),
+    gl:framebufferRenderbufferEXT(?GL_FRAMEBUFFER_EXT,
+				  ?GL_DEPTH_ATTACHMENT_EXT,
+				  ?GL_RENDERBUFFER_EXT, Depth),
+    Delete = 
+	fun() ->
+		gl:framebufferTexture2DEXT(?GL_FRAMEBUFFER_EXT,
+					   ?GL_COLOR_ATTACHMENT0_EXT,
+					   ?GL_TEXTURE_2D,0,0),
+		gl:deleteTextures(2,[Col1,Col2]),
+		gl:framebufferRenderbufferEXT(?GL_FRAMEBUFFER_EXT,
+					      ?GL_DEPTH_ATTACHMENT_EXT,
+					      ?GL_RENDERBUFFER_EXT, 0),
+		gl:deleteRenderbuffersEXT(1,[Depth]),
+		gl:bindFramebufferEXT(?GL_FRAMEBUFFER_EXT, 0),
+		gl:deleteFramebuffersEXT(1,[FB])
+	end,
+    case check_fbo_status(FB) of
+	false -> 		    
+	    gl:bindFramebufferEXT(?GL_FRAMEBUFFER_EXT, 0), 
+	    gl:deleteFramebuffersEXT(1,[FB]),
+	    false;
+	_ ->	    
 	    gl:bindFramebufferEXT(?GL_FRAMEBUFFER_EXT, FB),
-	    %% Init color texture
-	    gl:bindTexture(?GL_TEXTURE_2D, Col1),
-	    gl:texParameterf(?GL_TEXTURE_2D,?GL_TEXTURE_MIN_FILTER,?GL_LINEAR),
-	    gl:texImage2D(?GL_TEXTURE_2D, 0, ?GL_RGBA8, W, H, 0,
-			  ?GL_RGBA, ?GL_UNSIGNED_BYTE, 0),
-	    gl:framebufferTexture2DEXT(?GL_FRAMEBUFFER_EXT,
-				       ?GL_COLOR_ATTACHMENT0_EXT,
-				       ?GL_TEXTURE_2D, Col1, 0),
-
-	    gl:bindTexture(?GL_TEXTURE_2D, Col2),
-	    gl:texParameterf(?GL_TEXTURE_2D,?GL_TEXTURE_MIN_FILTER,?GL_LINEAR),
-	    gl:texImage2D(?GL_TEXTURE_2D, 0, ?GL_RGBA8, W, H, 0,
-			  ?GL_RGBA, ?GL_UNSIGNED_BYTE, 0),
-	    gl:framebufferTexture2DEXT(?GL_FRAMEBUFFER_EXT,
-				       ?GL_COLOR_ATTACHMENT1_EXT,
-				       ?GL_TEXTURE_2D, Col2, 0),
-
-	    %% Init depth texture
-	    gl:bindRenderbufferEXT(?GL_RENDERBUFFER_EXT, Depth),
-	    gl:renderbufferStorageEXT(?GL_RENDERBUFFER_EXT,
-				      ?GL_DEPTH_COMPONENT24, W, H),
-	    gl:framebufferRenderbufferEXT(?GL_FRAMEBUFFER_EXT,
-					  ?GL_DEPTH_ATTACHMENT_EXT,
-					  ?GL_RENDERBUFFER_EXT, Depth),
-	    case check_fbo_status(FB) of
-		false -> 		    
-		    gl:bindFramebufferEXT(?GL_FRAMEBUFFER_EXT, 0), 
-		    gl:deleteFramebuffersEXT(1,[FB]),
-		    false;
-		_ ->
-		    gl:bindFramebufferEXT(?GL_FRAMEBUFFER_EXT, FB),
-		    {Col1,Col2,
-		     fun() ->
-			     gl:framebufferTexture2DEXT(?GL_FRAMEBUFFER_EXT,
-							?GL_COLOR_ATTACHMENT0_EXT,
-							?GL_TEXTURE_2D,0,0),
-			     gl:deleteTextures(2,[Col1,Col2]),
-			     gl:framebufferRenderbufferEXT(?GL_FRAMEBUFFER_EXT,
-							   ?GL_DEPTH_ATTACHMENT_EXT,
-							   ?GL_RENDERBUFFER_EXT, 0),
-			     gl:deleteRenderbuffersEXT(1,[Depth]),
-			     gl:bindFramebufferEXT(?GL_FRAMEBUFFER_EXT, 0),
-			     gl:deleteFramebuffersEXT(1,[FB])
-		     end}
-	    end
+	    #sh_conf{texsz={W,H},fbo_r=Col1,fbo_w=Col2,
+		     fbo_d=Delete}
     end.
 	
 error(Line) ->
@@ -418,21 +431,24 @@ error(Line) ->
 	Err -> io:format("~p: ~p ~n",[Line,Err])
     end.
 
-fill_bg_tex(Prev) ->
-    gl:drawBuffer(?GL_COLOR_ATTACHMENT1_EXT),
-    gl:bindTexture(?GL_TEXTURE_2D, Prev),
-    gl:enable(?GL_TEXTURE_2D),
-    gl:disable(?GL_BLEND),
+draw_texture_square() ->
     gl:'begin'(?GL_QUADS),
     gl:texCoord2f(0,0),    gl:vertex3f(0, 0, -0.99),
     gl:texCoord2f(1,0),    gl:vertex3f(1, 0, -0.99),
     gl:texCoord2f(1,1),    gl:vertex3f(1, 1, -0.99),
     gl:texCoord2f(0,1),    gl:vertex3f(0, 1, -0.99),
-    gl:'end'(),
+    gl:'end'().
+
+
+fill_bg_tex(#sh_conf{fbo_w=Prev}) ->
+    gl:drawBuffer(?GL_COLOR_ATTACHMENT1_EXT),
+    gl:bindTexture(?GL_TEXTURE_2D, Prev),
+    gl:enable(?GL_TEXTURE_2D),
+    gl:disable(?GL_BLEND),
+    draw_texture_square(),
     gl:disable(?GL_TEXTURE_2D),
     gl:drawBuffer(?GL_COLOR_ATTACHMENT0_EXT),
     ok.
-
 	    
 get_texture(Wc, Wd, Hc, Hd, {W,H}=Info, DL, UsingFbo, ImageAcc)
   when Wc < Wd, Hc < Hd ->
@@ -758,12 +774,7 @@ pass({auv_background,[{type_sel,image},{_Name,Id},Color]},_) ->
 		TxId ->
  		    gl:enable(?GL_TEXTURE_2D),
 		    gl:bindTexture(?GL_TEXTURE_2D, TxId),
-		    gl:'begin'(?GL_QUADS),
-		    gl:texCoord2f(0,0),    gl:vertex3f(0, 0, -0.99),
-		    gl:texCoord2f(1,0),    gl:vertex3f(1, 0, -0.99),
-		    gl:texCoord2f(1,1),    gl:vertex3f(1, 1, -0.99),
-		    gl:texCoord2f(0,1),    gl:vertex3f(0, 1, -0.99),
-		    gl:'end'(),
+		    draw_texture_square(),
 		    gl:disable(?GL_TEXTURE_2D)
 	    end
     end;
@@ -865,26 +876,29 @@ shader_pass(_,false,_) ->
 shader_pass(false,_,_) ->    
     io:format("AUV: Not shader found skipped ~p~n", [?LINE]),
     fun(_,_) -> ok end;
-shader_pass({value,#sh{args=Args,tex_units=TexUnits}},{value,{_,Prog}},Opts) ->
-    fun(#ts{charts=Charts},BackGroundTex) ->
+shader_pass({value,#sh{filter=Filter,args=Args,tex_units=TexUnits}},
+	    {value,{_,Prog}},Opts) ->
+    fun(#ts{charts=Charts},Config) ->
 	    gl:disable(?GL_DEPTH_TEST),
 	    gl:disable(?GL_ALPHA_TEST),
 	    gl:enable(?GL_BLEND),
 	    gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
-	    gl:enableClientState(?GL_VERTEX_ARRAY),
-	    gl:enableClientState(?GL_NORMAL_ARRAY),
-	    gl:clientActiveTexture(?GL_TEXTURE1),
-	    gl:enableClientState(?GL_TEXTURE_COORD_ARRAY),
-	    gl:activeTexture(?GL_TEXTURE0),
-	    gl:bindTexture(?GL_TEXTURE_2D, BackGroundTex),
 	    gl:useProgram(Prog),
 	    try 
-		shader_uniforms(reverse(Args),Opts,Prog),
+		shader_uniforms(reverse(Args),Opts,Config#sh_conf{prog=Prog}),
 		R = fun(#fs{vs=Vss}) ->
 			    gl:drawElements(?GL_TRIANGLES,length(Vss),
 					    ?GL_UNSIGNED_INT,Vss)
 		    end,
-		foreach(fun(#chart{fs=Fas}) -> foreach(R,Fas) end,Charts)
+		case Filter of 
+		    true -> draw_texture_square();
+		    false -> 
+			gl:enableClientState(?GL_VERTEX_ARRAY),
+			gl:enableClientState(?GL_NORMAL_ARRAY),
+			gl:clientActiveTexture(?GL_TEXTURE1),
+			gl:enableClientState(?GL_TEXTURE_COORD_ARRAY),
+			foreach(fun(#chart{fs=Fas}) -> foreach(R,Fas) end,Charts)
+		end
 	    catch throw:What ->
 		    io:format("AUV: ERROR ~s ~n",[What]);
 		_:What ->
@@ -902,43 +916,56 @@ shader_pass({value,#sh{args=Args,tex_units=TexUnits}},{value,{_,Prog}},Opts) ->
 	    end
     end.
 
-shader_uniforms([{uniform,color,Name,_,_}|As],[Val|Opts],Prog) ->
-    Loc = getLocation(Prog,Name),
+shader_uniforms([{uniform,color,Name,_,_}|As],[Val|Opts],Conf) ->
+    Loc = getLocation(Conf#sh_conf.prog,Name),
     gl:uniform4fv(Loc,1,Val),
-    shader_uniforms(As,Opts,Prog);
-shader_uniforms([{uniform,float,Name,_,_}|As],[Val|Opts],Prog) ->
-    Loc = getLocation(Prog,Name),
+    shader_uniforms(As,Opts,Conf);
+shader_uniforms([{uniform,float,Name,_,_}|As],[Val|Opts],Conf) ->
+    Loc = getLocation(Conf#sh_conf.prog,Name),
     gl:uniform1f(Loc,Val),
-    shader_uniforms(As,Opts,Prog);
-shader_uniforms([{uniform,bool,Name,_,_}|As],[Val|Opts],Prog) ->
-    Loc = getLocation(Prog,Name),
+    shader_uniforms(As,Opts,Conf);
+shader_uniforms([{uniform,menu,Name,_,_}|As],[Vals|Opts],Conf) 
+  when is_list(Vals) ->
+    Loc = getLocation(Conf#sh_conf.prog,Name),
+    %% Bug in esdl gl uniformXfv can't send arrays of values.
+    foldl(fun(Val,Cnt) -> gl:uniform1f(Loc+Cnt,Val),Cnt+1 end,0,Vals),
+    shader_uniforms(As,Opts,Conf);
+
+shader_uniforms([{uniform,bool,Name,_,_}|As],[Val|Opts],Conf) ->
+    Loc = getLocation(Conf#sh_conf.prog,Name),
     BoolF = if Val -> 1.0; true -> 0.0 end,
     gl:uniform1f(Loc, BoolF),
-    shader_uniforms(As,Opts,Prog);
-shader_uniforms([{uniform,{slider,_,_},Name,_,_}|As],[Val|Opts],Prog) ->
-    Loc = getLocation(Prog,Name),
+    shader_uniforms(As,Opts,Conf);
+shader_uniforms([{uniform,{slider,_,_},Name,_,_}|As],[Val|Opts],Conf) ->
+    Loc = getLocation(Conf#sh_conf.prog,Name),
     gl:uniform1f(Loc,Val),
-    shader_uniforms(As,Opts,Prog);
-shader_uniforms([{uniform,{image,Unit},Name,_,_}|As],[{_,TxId}|Opts],Prog) ->
-    Loc = getLocation(Prog,Name),
+    shader_uniforms(As,Opts,Conf);
+shader_uniforms([{uniform,{image,Unit},Name,_,_}|As],[{_,TxId}|Opts],Conf) ->
+    Loc = getLocation(Conf#sh_conf.prog,Name),
     gl:activeTexture(?GL_TEXTURE0 + Unit),
     gl:bindTexture(?GL_TEXTURE_2D, TxId),
     gl:uniform1i(Loc, Unit),
-    shader_uniforms(As,Opts,Prog);
-shader_uniforms([{auv,{auv_noise,Unit}}|Rest],Opts,Prog) ->
+    shader_uniforms(As,Opts,Conf);
+shader_uniforms([{auv,{auv_noise,Unit}}|Rest],Opts,Conf) ->
     case wings_image:pnoiseid() of
 	0 -> throw("No noise texture available");
 	TxId -> 
-	    Loc = getLocation(Prog, "auv_noise"),
+	    Loc = getLocation(Conf#sh_conf.prog, "auv_noise"),
 	    gl:activeTexture(?GL_TEXTURE0 + Unit),
 	    gl:bindTexture(?GL_TEXTURE_3D, TxId),
 	    gl:uniform1i(Loc, Unit),
-            shader_uniforms(Rest,Opts,Prog)
+            shader_uniforms(Rest,Opts,Conf)
     end;
-shader_uniforms([{auv,{auv_bg,Unit}}|Rest],Opts,Prog) ->
-    Loc = getLocation(Prog, "auv_bg"),
+shader_uniforms([{auv,{auv_bg,Unit}}|Rest],Opts,Conf) ->
+    Loc = getLocation(Conf#sh_conf.prog, "auv_bg"),
+    gl:activeTexture(?GL_TEXTURE0),
+    gl:bindTexture(?GL_TEXTURE_2D, Conf#sh_conf.fbo_r),
     gl:uniform1i(Loc, Unit),
-    shader_uniforms(Rest,Opts,Prog);
+    shader_uniforms(Rest,Opts,Conf);
+shader_uniforms([{auv,auv_texsz}|As],Opts,Conf = #sh_conf{texsz={W,H}}) ->
+    Loc = getLocation(Conf#sh_conf.prog,"auv_texsz"),
+    gl:uniform2f(Loc,W,H),
+    shader_uniforms(As,Opts,Conf);
 shader_uniforms([],[],_) ->
     ok.
 
@@ -1023,6 +1050,11 @@ parse_sh_info([{auv,auv_noise}|Opts],Sh,NI,Acc) ->
 parse_sh_info([{auv,auv_bg}|Opts],Sh,NI,Acc) ->
     What = {auv,{auv_bg,0}},
     parse_sh_info(Opts, Sh#sh{args=[What|Sh#sh.args]},NI,Acc);
+parse_sh_info([What={auv,auv_texsz}|Opts],Sh,NI,Acc) ->
+    parse_sh_info(Opts, Sh#sh{args=[What|Sh#sh.args]},NI,Acc);
+parse_sh_info([{auv,auv_bg_filter}|Opts],Sh,NI,Acc) ->
+    What = {auv,{auv_bg,0}},
+    parse_sh_info(Opts, Sh#sh{filter=true,args=[What|Sh#sh.args]},NI,Acc);
 parse_sh_info([What={uniform,color,_,Def={_,_,_,_},_}|Opts],Sh,NI,Acc) ->
     parse_sh_info(Opts, Sh#sh{args=[What|Sh#sh.args],def=[Def|Sh#sh.def]},NI,Acc);
 parse_sh_info([What={uniform,float,_,Def,_}|Opts],Sh,NI,Acc)
@@ -1036,6 +1068,16 @@ parse_sh_info([{uniform,image,Id,Def,Str}|Opts],Sh,NI,Acc) ->
 parse_sh_info([What={uniform,{slider,F,T},_,Def,_}|Opts],Sh,NI,Acc) 
   when is_number(F),is_number(T),is_number(Def) ->
     parse_sh_info(Opts, Sh#sh{args=[What|Sh#sh.args],def=[Def|Sh#sh.def]},NI,Acc);
+parse_sh_info([What={uniform,menu,_,DefKey,List}|Opts],Sh,NI,Acc) ->
+    case lists:keysearch(DefKey,1, List) of
+	{value, {_,Def}} -> 
+	    parse_sh_info(Opts, Sh#sh{args=[What|Sh#sh.args],
+				      def=[Def|Sh#sh.def]},NI,Acc);
+	false -> 
+	    io:format("AUV: ~p Bad default value ignored menu ~p ~n",
+		      [Sh#sh.file,What]),
+	    parse_sh_info(Opts,Sh,NI,Acc)
+    end;
 parse_sh_info([_Error|Opts],Sh,NI,Acc) ->
     io:format("AUV: In ~p Unknown shader opt ignored ~p",
 	      [Sh#sh.file,_Error]),
@@ -1053,7 +1095,9 @@ getLocation(Prog, What) ->
 	-1 -> io:format("AUV: Warning the uniform variable '~p' is not used~n",
 			[What]),
 	      -1;
-	Where -> Where
+	Where -> 
+%%	    io:format("Location ~p ~p ~n",[What,Where]),
+	    Where
     catch _:_ -> 
 	    Err = io_lib:format("AUV: ERROR The uniform variable"
 				" ~p should be a string~n",

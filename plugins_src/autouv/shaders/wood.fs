@@ -8,7 +8,7 @@
 //  See the file "license.terms" for information on usage and redistribution
 //  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 //
-//     $Id: wood.fs,v 1.2 2006/01/20 09:30:13 dgud Exp $
+//     $Id: wood.fs,v 1.3 2006/01/20 15:40:27 dgud Exp $
 //
 
 uniform vec4  darkWood;
@@ -33,17 +33,18 @@ float auv_noise(float P, vec3 pos)
 void main(void)
 {
     // Signed noise
-    float snoise = 2.0 * auv_noise(0.5,scale*auv_pos3d+0.5) - 1.0;
-
-    // Stretch along y axis
-    vec2 adjustedScaledPos = vec2(auv_pos3d.x, auv_pos3d.y*.25);
-    // Rings are defined by distance to z axis and wobbled along it
-    // and perturbed with some noise
-    float ring = 0.5*(1.0+sin(5.0*sin(frequency*auv_pos3d.z)+
-			      frequency*(noiseScale*snoise+
-					 6.28*length(adjustedScaledPos.xy))));    
-    // Add some noise and get base color
-    float lrp = ring + snoise;
-    gl_FragColor = mix(darkWood, liteWood, lrp);
+  vec3 pos = auv_pos3d*scale+0.5;
+  float snoise = 2.0 * auv_noise(0.5,pos) - 1.0;
+  
+  // Stretch along y axis
+  vec2 adjustedScaledPos = vec2(pos.x, pos.y*.25);
+  // Rings are defined by distance to z axis and wobbled along it
+  // and perturbed with some noise
+  float ring = 0.5*(1.0+sin(5.0*sin(frequency*pos.z)+
+			    frequency*(noiseScale*snoise+
+				       6.28*length(adjustedScaledPos.xy))));    
+  // Add some noise and get base color
+  float lrp = ring + snoise;
+  gl_FragColor = mix(darkWood, liteWood, lrp);
 }
 
