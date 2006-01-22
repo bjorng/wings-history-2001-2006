@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_texture.erl,v 1.22 2006/01/20 15:40:27 dgud Exp $
+%%     $Id: auv_texture.erl,v 1.23 2006/01/22 14:19:14 dgud Exp $
 %%
 
 -module(auv_texture).
@@ -421,7 +421,8 @@ setup_fbo2(W,H) ->
 	    false;
 	_ ->	    
 	    gl:bindFramebufferEXT(?GL_FRAMEBUFFER_EXT, FB),
-	    #sh_conf{texsz={W,H},fbo_r=Col1,fbo_w=Col2,
+	    gl:drawBuffer(?GL_COLOR_ATTACHMENT0_EXT),
+	    #sh_conf{texsz={W,H},fbo_r=Col2,fbo_w=Col1,
 		     fbo_d=Delete}
     end.
 	
@@ -433,10 +434,10 @@ error(Line) ->
 
 draw_texture_square() ->
     gl:'begin'(?GL_QUADS),
-    gl:texCoord2f(0,0),    gl:vertex3f(0, 0, -0.99),
-    gl:texCoord2f(1,0),    gl:vertex3f(1, 0, -0.99),
-    gl:texCoord2f(1,1),    gl:vertex3f(1, 1, -0.99),
-    gl:texCoord2f(0,1),    gl:vertex3f(0, 1, -0.99),
+    gl:texCoord2f(0,0), gl:vertex2f(0,0),
+    gl:texCoord2f(1,0), gl:vertex2f(1,0),
+    gl:texCoord2f(1,1), gl:vertex2f(1,1),
+    gl:texCoord2f(0,1), gl:vertex2f(0,1),
     gl:'end'().
 
 
@@ -910,6 +911,7 @@ shader_pass({value,#sh{filter=Filter,args=Args,tex_units=TexUnits}},
 	      gl:disableClientState(?GL_VERTEX_ARRAY),
 	      gl:disableClientState(?GL_NORMAL_ARRAY),
 	      gl:disableClientState(?GL_TEXTURE_COORD_ARRAY),
+	      gl:disableClientState(?GL_TEXTURE_COORD_ARRAY),
 	      gl:clientActiveTexture(?GL_TEXTURE0),
 	      disable_tex_units(TexUnits),
 	      gl:activeTexture(?GL_TEXTURE0)
@@ -928,7 +930,9 @@ shader_uniforms([{uniform,menu,Name,_,_}|As],[Vals|Opts],Conf)
   when is_list(Vals) ->
     Loc = getLocation(Conf#sh_conf.prog,Name),
     %% Bug in esdl gl uniformXfv can't send arrays of values.
+    ?ERROR,    
     foldl(fun(Val,Cnt) -> gl:uniform1f(Loc+Cnt,Val),Cnt+1 end,0,Vals),
+    ?ERROR,    
     shader_uniforms(As,Opts,Conf);
 
 shader_uniforms([{uniform,bool,Name,_,_}|As],[Val|Opts],Conf) ->

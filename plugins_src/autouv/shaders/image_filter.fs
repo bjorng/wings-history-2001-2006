@@ -8,46 +8,61 @@
 //  See the file "license.terms" for information on usage and redistribution
 //  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 //
-//     $Id: image_filter.fs,v 1.1 2006/01/20 15:40:27 dgud Exp $
+//     $Id: image_filter.fs,v 1.2 2006/01/22 14:19:15 dgud Exp $
 //
 // Grabbed from tutorial By Jérôme Guinot jegx [at] ozone3d [dot] net
 //
 
 #define KERNEL_SIZE 9
 
+varying vec3 auv_pos2d;
 uniform sampler2D auv_bg;
 uniform float kernel[KERNEL_SIZE];
 uniform vec2 auv_texsz;
-varying vec3 auv_pos2d;
+
 
 void main(void)
 {
-  float step_w = 1.0/(auv_texsz.x);
-  float step_h = 1.0/(auv_texsz.y);
+    float alpha = 1.0;
+    float step_w = 1.0/(auv_texsz.x);
+    float step_h = 1.0/(auv_texsz.y);
 
-  vec4 sum = vec4(0.0), tmp;
-  float scale = kernel[0]+kernel[1]+kernel[2]+kernel[4]+kernel[5]+
-    kernel[6]+kernel[7]+kernel[8];
+    vec4 sum = vec4(0.0), tmp;
+    float scale = kernel[0]+kernel[1]+kernel[2]+kernel[4]+kernel[5]+
+	kernel[6]+kernel[7]+kernel[8];
+    scale = max(1.0,scale);
+    
+    float orig_x  = auv_pos2d.x;
+    float orig_y  = auv_pos2d.y;
+    float orig_up = orig_y + step_h;
+    float orig_dw = orig_y - step_h;
+    float orig_lt = orig_x - step_w;
+    float orig_rt = orig_x + step_w;
 
-  tmp = texture2D(auv_bg, auv_pos2d.st + vec2(-step_w, -step_h));
-  sum += tmp * kernel[0];
-  tmp = texture2D(auv_bg, auv_pos2d.st + vec2(0.0, -step_h));
-  sum += tmp * kernel[1];
-  tmp = texture2D(auv_bg, auv_pos2d.st + vec2(step_w, -step_h));
-  sum += tmp * kernel[2];
-  tmp = texture2D(auv_bg, auv_pos2d.st + vec2(-step_w, 0.0));
-  sum += tmp * kernel[3];
-  tmp = texture2D(auv_bg, auv_pos2d.st + vec2(0.0, 0.0));
-  sum += tmp * kernel[4];
-  tmp = texture2D(auv_bg, auv_pos2d.st + vec2(step_w, 0.0));
-  sum += tmp * kernel[5];
-  tmp = texture2D(auv_bg, auv_pos2d.st + vec2(-step_w, step_h));
-  sum += tmp * kernel[6];
-  tmp = texture2D(auv_bg, auv_pos2d.st + vec2(0.0, step_h));
-  sum += tmp * kernel[7];
-  tmp = texture2D(auv_bg, auv_pos2d.st + vec2(step_w, step_h));
-  sum += tmp * kernel[8];
-  
-  sum = sum/scale;
-  gl_FragColor = sum;
+    tmp = texture2D(auv_bg, vec2(orig_lt,orig_up));
+    sum += tmp * kernel[0];
+    tmp = texture2D(auv_bg, vec2(orig_x, orig_up));
+    sum += tmp * kernel[1];
+    tmp = texture2D(auv_bg, vec2(orig_rt,orig_up));
+    sum += tmp * kernel[2];
+   
+    tmp = texture2D(auv_bg, vec2(orig_lt,orig_y));
+    sum += tmp * kernel[3];
+    tmp = texture2D(auv_bg, vec2(orig_x, orig_y));
+    sum += tmp * kernel[4]; 
+    alpha = tmp.w;
+    tmp = texture2D(auv_bg, vec2(orig_rt,orig_y));
+    sum += tmp * kernel[5];
+    
+    tmp = texture2D(auv_bg, vec2(orig_lt,orig_dw));
+    sum += tmp * kernel[6]; 			   
+    tmp = texture2D(auv_bg, vec2(orig_x, orig_dw));  
+    sum += tmp * kernel[7]; 			   
+    tmp = texture2D(auv_bg, vec2(orig_rt,orig_dw));
+    sum += tmp * kernel[8];
+    
+    sum = sum/scale;  
+    sum.w = alpha;
+    //    vec2 where   = vec2(auv_pos2d.x, 0.5+auv_pos2d.y);
+    gl_FragColor = sum; // texture2D(auv_bg, where); //sum;
 }
