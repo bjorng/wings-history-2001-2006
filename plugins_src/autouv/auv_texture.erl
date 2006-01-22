@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_texture.erl,v 1.24 2006/01/22 15:13:10 dgud Exp $
+%%     $Id: auv_texture.erl,v 1.25 2006/01/22 18:27:02 dgud Exp $
 %%
 
 -module(auv_texture).
@@ -85,13 +85,18 @@ draw_options() ->
     Qs = [{hframe,[{menu,gen_tx_sizes(MaxTxs,[]),TexSz,
 		    [{key,texsz}]}],
 	   [{title,?__(1,"Size")}]},
-	  {vframe, render_passes(Prefs,Shaders), [{title,?__(2,"Render")}]}],
+	  {vframe, render_passes(Prefs,Shaders), [{title,?__(2,"Render")}]},
+	  {button,"Add Shader Pass", done, [{key,add_shader}]}],
     
     wings_ask:dialog(?__(3,"Draw Options"), Qs,
 		     fun(Options) ->
-			     Opt = list_to_prefs(Options),
+			     {{add_shader,New},Opt} = list_to_prefs(Options),
 			     set_pref([{tx_prefs, pref_to_list(Opt)}]),
-			     {auv,{draw_options,{Opt,Shaders}}}
+			     if New -> 
+				     {auv,{draw_options,restart}};
+				true  ->
+				     {auv,{draw_options,{Opt,Shaders}}}
+			     end
 		     end).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -99,7 +104,7 @@ draw_options() ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 render_passes(Prefs,Shaders) ->
-    NoOfPasses = lists:max([((length(Prefs) - 1) div 2)-1,4]),
+    NoOfPasses = lists:min([((length(Prefs) - 1) div 2)-1,4]),
     Menu = renderers(Shaders),
     Background = 
 	{hframe, 
@@ -108,7 +113,7 @@ render_passes(Prefs,Shaders) ->
 	   [{key,{auv_pass,0}},layout]}, 
 	  {value, get_def(Prefs,auv_opt,0), store_opt(0)},
 	  {button,?__(2,"Options"),keep,[option_hook(0,background(),[]),
-				  drop_flags(0)]}],[]},
+					 drop_flags(0)]}],[]},
     Other = [{hframe, 
 	      [{label, integer_to_list(Id) ++ ": "},
 	       {menu,Menu,default_menu(Id,Prefs),
@@ -221,7 +226,6 @@ shader_menu([{auv,{auv_send_texture,Label,_}}|As],[Def0|Vs],Acc) ->
     Menu = {Label, Def, [{key,auv_send_texture}]},
     shader_menu(As,Vs,[Menu|Acc]);
 shader_menu([{auv,_Skip}|As],Vs,Acc) ->
-    io:format("Skipped ~p ~p ~n",[_Skip,Vs]),
     shader_menu(As,Vs,Acc);
 shader_menu([What|_],_,_) ->
     {failed,What};
@@ -296,6 +300,7 @@ drop_flags(Id) ->
 get_texture(St) ->    
     Ops = list_to_prefs(get_pref(tx_prefs, list_to_prefs(#opt{}))),
     get_pref(St, Ops).
+
 get_texture(St = #st{bb=#uvstate{}}, {Options,Shaders}) ->
     Compiled = compile_shaders(Options#opt.renderers,Shaders),
     Passes = get_passes(Options#opt.renderers,{Shaders,Compiled}),
@@ -565,10 +570,12 @@ r2list([], Id, Max) when Id < Max ->
     [{{auv_pass,Id}, ignore},{{auv_opt,Id},[]}|r2list([],Id+1,Max)];
 r2list([], _Id, _Max)  -> [].
 
-list_to_prefs([{texsz, TexSz}|Rest]) ->
-    {LR,Num} = listOfRenders(Rest,0, []),
-    #opt{texsz={TexSz,TexSz},no_renderers=Num,
-	 renderers=LR}.
+list_to_prefs([{texsz, TexSz}|Rest]) ->    
+    [{add_shader, Add}|ROpts] = reverse(Rest),
+    {LR,Num} = listOfRenders(reverse(ROpts),0, []),
+    New = if Add -> 1; true -> 0 end,
+    {{add_shader, Add},#opt{texsz={TexSz,TexSz},no_renderers=Num+New,
+			    renderers=LR}}.
 
 listOfRenders([{{auv_pass,_},ignore},_|Rest],Id,Acc) ->
     if Id < 5 -> listOfRenders(Rest,Id+1,Acc);
@@ -613,12 +620,19 @@ setup(St = #st{bb=#uvstate{id=RId, st=#st{mat=Mat,shapes=Sh0},
 	n=to_bin(Ns,pos),
 	uvc=to_bin(Uvc,Orig#we.mode), uvc_mode=Orig#we.mode}.
 
-setup_charts(#st{shapes=Cs0},We,OrigWe,Mats) ->
+setup_charts(#st{shapes=Cs0,selmode=Mode,sel=Sel},We,OrigWe,Mats) ->
     Ns = setup_normals(We),
     Start = {0,[],[],[],[]}, %% {UvPos,3dPos,Normal,Uvc}
     Mat = fun(Face) -> get_material(Face,We,OrigWe,Mats) end,
+    Shapes = if Sel =:= [] -> 
+		     gb_trees:values(Cs0);
+		Mode =:= body -> 
+		     [gb_trees:get(Id,Cs0) || {Id,_} <- Sel];
+		true -> 
+		     gb_trees:values(Cs0)
+	     end,
     Setup = fun(Ch,Acc) -> setup_chart(Ch,Mat,Ns,We,OrigWe,Acc) end,
-    lists:mapfoldl(Setup, Start, gb_trees:values(Cs0)).
+    lists:mapfoldl(Setup, Start, Shapes).
 
 setup_chart(Uv = #we{id=Id},Mat,Ns,WWe,OWe,State0) ->
     OEs0 = outer_verts(Uv), 
@@ -710,9 +724,9 @@ get_material(Face, We, OrigWe, Materials) ->
     Mat1 = wings_facemat:face(Face,We),
     Mat = try
 	      case reverse(atom_to_list(Mat1)) of
-		  "vua_" ++ _ = Backup -> 
+		  "vua_" ++ _ -> 
 		      try wings_facemat:face(Face,OrigWe)
-		      catch _:_ -> Backup
+		      catch _:_ -> Mat1
 		      end;
 		  _ ->
 		      Mat1

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.323 2006/01/14 13:53:26 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.324 2006/01/22 18:31:02 dgud Exp $
 %%
 
 -module(wpc_autouv).
@@ -655,6 +655,8 @@ handle_event_3(#mousebutton{button=?SDL_BUTTON_RIGHT}=Ev,
 handle_event_3({drop,_,DropData}, St) ->
     handle_drop(DropData, St);
 handle_event_3({action,{auv,create_texture}},_St) ->
+    auv_texture:draw_options();
+handle_event_3({action,{auv,{draw_options,restart}}}, _St) ->
     auv_texture:draw_options();
 handle_event_3({action,{auv,{draw_options,Opt}}}, #st{bb=Uvs}=St) ->
     #uvstate{st=GeomSt0,matname=MatName0} = Uvs,
