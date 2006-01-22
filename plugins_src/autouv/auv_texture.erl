@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_texture.erl,v 1.23 2006/01/22 14:19:14 dgud Exp $
+%%     $Id: auv_texture.erl,v 1.24 2006/01/22 15:13:10 dgud Exp $
 %%
 
 -module(auv_texture).
@@ -42,7 +42,6 @@
 	     file="",
 	     vs = "",          %% Vertex shader
 	     fs = "",          %% Fragment shader
-	     filter = false,
 	     tex_units = 1,    %% No of texture units used
 	     args = [],        %% Arguments
 	     def  = []         %% Gui Strings
@@ -214,7 +213,15 @@ shader_menu([{uniform,image,_,Def,Label}|As],[Def|Vs],Acc) ->
 shader_menu([{uniform,menu,_,_,Labels}|As],[Def|Vs],Acc) ->
     Menu = {menu,Labels,Def,[]},
     shader_menu(As,Vs,[Menu|Acc]);
-shader_menu([{auv,_}|As],Vs,Acc) ->
+shader_menu([{auv,{auv_send_texture,Label,_}}|As],[Def0|Vs],Acc) ->
+    case Def0 of
+	{auv_send_texture, Def} -> Def;
+	Def -> Def
+    end,
+    Menu = {Label, Def, [{key,auv_send_texture}]},
+    shader_menu(As,Vs,[Menu|Acc]);
+shader_menu([{auv,_Skip}|As],Vs,Acc) ->
+    io:format("Skipped ~p ~p ~n",[_Skip,Vs]),
     shader_menu(As,Vs,Acc);
 shader_menu([What|_],_,_) ->
     {failed,What};
@@ -877,7 +884,7 @@ shader_pass(_,false,_) ->
 shader_pass(false,_,_) ->    
     io:format("AUV: Not shader found skipped ~p~n", [?LINE]),
     fun(_,_) -> ok end;
-shader_pass({value,#sh{filter=Filter,args=Args,tex_units=TexUnits}},
+shader_pass({value,#sh{args=Args,tex_units=TexUnits}},
 	    {value,{_,Prog}},Opts) ->
     fun(#ts{charts=Charts},Config) ->
 	    gl:disable(?GL_DEPTH_TEST),
@@ -891,9 +898,10 @@ shader_pass({value,#sh{filter=Filter,args=Args,tex_units=TexUnits}},
 			    gl:drawElements(?GL_TRIANGLES,length(Vss),
 					    ?GL_UNSIGNED_INT,Vss)
 		    end,
-		case Filter of 
-		    true -> draw_texture_square();
-		    false -> 
+		case lists:keysearch(auv_send_texture,1,Opts) of 
+		    {value,{auv_send_texture,true}} -> 
+			draw_texture_square();
+		    _ -> 
 			gl:enableClientState(?GL_VERTEX_ARRAY),
 			gl:enableClientState(?GL_NORMAL_ARRAY),
 			gl:clientActiveTexture(?GL_TEXTURE1),
@@ -969,6 +977,8 @@ shader_uniforms([{auv,{auv_bg,Unit}}|Rest],Opts,Conf) ->
 shader_uniforms([{auv,auv_texsz}|As],Opts,Conf = #sh_conf{texsz={W,H}}) ->
     Loc = getLocation(Conf#sh_conf.prog,"auv_texsz"),
     gl:uniform2f(Loc,W,H),
+    shader_uniforms(As,Opts,Conf);
+shader_uniforms([{auv,{auv_send_texture,_,_}}|As],[_Val|Opts],Conf) ->
     shader_uniforms(As,Opts,Conf);
 shader_uniforms([],[],_) ->
     ok.
@@ -1056,22 +1066,28 @@ parse_sh_info([{auv,auv_bg}|Opts],Sh,NI,Acc) ->
     parse_sh_info(Opts, Sh#sh{args=[What|Sh#sh.args]},NI,Acc);
 parse_sh_info([What={auv,auv_texsz}|Opts],Sh,NI,Acc) ->
     parse_sh_info(Opts, Sh#sh{args=[What|Sh#sh.args]},NI,Acc);
-parse_sh_info([{auv,auv_bg_filter}|Opts],Sh,NI,Acc) ->
-    What = {auv,{auv_bg,0}},
-    parse_sh_info(Opts, Sh#sh{filter=true,args=[What|Sh#sh.args]},NI,Acc);
+parse_sh_info([What={auv,{auv_send_texture,L,Def}}|Opts],Sh,NI,Acc) 
+  when is_list(L) ->
+    parse_sh_info(Opts, Sh#sh{args=[What|Sh#sh.args],def=[Def|Sh#sh.def]},
+		  NI,Acc);
 parse_sh_info([What={uniform,color,_,Def={_,_,_,_},_}|Opts],Sh,NI,Acc) ->
-    parse_sh_info(Opts, Sh#sh{args=[What|Sh#sh.args],def=[Def|Sh#sh.def]},NI,Acc);
+    parse_sh_info(Opts, Sh#sh{args=[What|Sh#sh.args],def=[Def|Sh#sh.def]},
+		  NI,Acc);
 parse_sh_info([What={uniform,float,_,Def,_}|Opts],Sh,NI,Acc)
   when is_number(Def) ->
-    parse_sh_info(Opts, Sh#sh{args=[What|Sh#sh.args],def=[Def|Sh#sh.def]},NI,Acc);
+    parse_sh_info(Opts, Sh#sh{args=[What|Sh#sh.args],def=[Def|Sh#sh.def]},
+		  NI,Acc);
 parse_sh_info([What={uniform,bool,_,Def,_}|Opts],Sh,NI,Acc) ->
-    parse_sh_info(Opts, Sh#sh{args=[What|Sh#sh.args],def=[Def|Sh#sh.def]},NI,Acc);
+    parse_sh_info(Opts, Sh#sh{args=[What|Sh#sh.args],def=[Def|Sh#sh.def]},
+		  NI,Acc);
 parse_sh_info([{uniform,image,Id,Def,Str}|Opts],Sh,NI,Acc) ->
     What = {uniform,{image,NI},Id,Def,Str},
-    parse_sh_info(Opts, Sh#sh{args=[What|Sh#sh.args],def=[Def|Sh#sh.def]},NI+1,Acc);
+    parse_sh_info(Opts, Sh#sh{args=[What|Sh#sh.args],def=[Def|Sh#sh.def]},
+		  NI+1,Acc);
 parse_sh_info([What={uniform,{slider,F,T},_,Def,_}|Opts],Sh,NI,Acc) 
   when is_number(F),is_number(T),is_number(Def) ->
-    parse_sh_info(Opts, Sh#sh{args=[What|Sh#sh.args],def=[Def|Sh#sh.def]},NI,Acc);
+    parse_sh_info(Opts, Sh#sh{args=[What|Sh#sh.args],def=[Def|Sh#sh.def]},
+		  NI,Acc);
 parse_sh_info([What={uniform,menu,_,DefKey,List}|Opts],Sh,NI,Acc) ->
     case lists:keysearch(DefKey,1, List) of
 	{value, {_,Def}} -> 
