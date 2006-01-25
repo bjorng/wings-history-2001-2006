@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_texture.erl,v 1.25 2006/01/22 18:27:02 dgud Exp $
+%%     $Id: auv_texture.erl,v 1.26 2006/01/25 23:43:16 dgud Exp $
 %%
 
 -module(auv_texture).
@@ -43,6 +43,7 @@
 	     vs = "",          %% Vertex shader
 	     fs = "",          %% Fragment shader
 	     tex_units = 1,    %% No of texture units used
+	     reqs = [],        %% Requirements: normals and/or binormals
 	     args = [],        %% Arguments
 	     def  = []         %% Gui Strings
 	    }).
@@ -56,8 +57,9 @@
 -record(ts,         % What              Type
 	{charts,    % #chart{}          (list)
          uv,        % UV postions       (binary)
-	 pos,       % Real 3D position  (binary) 
-	 n,         % Normal            (binary)
+	 pos,       % Real 3D position  (binary)
+ 	 n,         % Normal            (binary) Optional
+	 bi,        % BiNormal          (binary) Optional
 	 uvc,       % Previous uv or vertex color (binary)
 	 uvc_mode   % material (uv) or vertex
 	}).
@@ -211,7 +213,7 @@ shader_menu([{uniform,{slider,From,To},_,_,Label}|As],[Def|Vs],Acc)
     Menu = {hframe,[{label,Label},
 		    {slider,{text,Def,[{range,{From,To}},{width,5}]}}]},
     shader_menu(As,Vs,[Menu|Acc]);
-shader_menu([{uniform,image,_,Def,Label}|As],[Def|Vs],Acc) ->
+shader_menu([{uniform,{image,_},_,_Def,Label}|As],[Def|Vs],Acc) ->
     Image = case Def of {Im,_} -> Im; _ -> Def end,
     Menu = {hframe,[{label,Label},image_selector(Image)]},
     shader_menu(As,Vs,[Menu|Acc]);
@@ -227,7 +229,9 @@ shader_menu([{auv,{auv_send_texture,Label,_}}|As],[Def0|Vs],Acc) ->
     shader_menu(As,Vs,[Menu|Acc]);
 shader_menu([{auv,_Skip}|As],Vs,Acc) ->
     shader_menu(As,Vs,Acc);
-shader_menu([What|_],_,_) ->
+shader_menu([What|_],[Def|_],_) ->
+    {failed,{What,value,Def}};
+shader_menu([What|_],[],_) ->
     {failed,What};
 shader_menu([],_,Acc) -> 
     Acc.
@@ -304,8 +308,9 @@ get_texture(St) ->
 get_texture(St = #st{bb=#uvstate{}}, {Options,Shaders}) ->
     Compiled = compile_shaders(Options#opt.renderers,Shaders),
     Passes = get_passes(Options#opt.renderers,{Shaders,Compiled}),
-    Ts = setup(St),
-    Res = render_image(Ts, Passes, Options),
+    Reqs = get_requirements(Shaders),
+    Ts   = setup(St,Reqs),
+    Res  = render_image(Ts, Passes, Options, Reqs),
     delete_shaders(Compiled),
     Res.
 
@@ -313,8 +318,8 @@ get_texture(St = #st{bb=#uvstate{}}, {Options,Shaders}) ->
 %% Texture Rendering
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-render_image(Geom = #ts{uv=UVpos,pos=Pos,n=Ns,uvc=Uvc,uvc_mode=Mode}, 
-	     Passes,#opt{texsz={TexW,TexH}}) ->
+render_image(Geom = #ts{uv=UVpos,pos=Pos,n=Ns,bi=BiNs,uvc=Uvc,uvc_mode=Mode}, 
+	     Passes,#opt{texsz={TexW,TexH}},Reqs) ->
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     
     Current = wings_wm:viewport(),
@@ -328,7 +333,10 @@ render_image(Geom = #ts{uv=UVpos,pos=Pos,n=Ns,uvc=Uvc,uvc_mode=Mode},
     set_viewport({0,0,W,H}),
     %% Load Pointers
     gl:vertexPointer(3, ?GL_FLOAT, 0, UVpos),
-    gl:normalPointer(?GL_FLOAT, 0, Ns),
+    case lists:member(normal, Reqs) of
+	true -> gl:normalPointer(?GL_FLOAT, 0, Ns);
+	false -> ignore
+    end,
     case Mode of
 	vertex -> gl:colorPointer(3,?GL_FLOAT,0,Uvc);
 	_Other -> gl:texCoordPointer(2,?GL_FLOAT,0,Uvc)
@@ -340,6 +348,14 @@ render_image(Geom = #ts{uv=UVpos,pos=Pos,n=Ns,uvc=Uvc,uvc_mode=Mode},
 	    gl:texCoordPointer(3,?GL_FLOAT,0,Pos),
 	    gl:clientActiveTexture(?GL_TEXTURE0)
     end,
+    case lists:member(binormal, Reqs) of
+	true -> 	    
+	    gl:clientActiveTexture(?GL_TEXTURE2),
+	    gl:texCoordPointer(3,?GL_FLOAT,0,BiNs);
+	false ->
+	    ignore
+    end,
+
     try 
         Dl = fun() ->
 		     foreach(fun(Pass) -> 
@@ -609,20 +625,26 @@ set_viewport({X,Y,W,H}=Viewport) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 setup(St = #st{bb=#uvstate{id=RId, st=#st{mat=Mat,shapes=Sh0},
-			   orig_st=#st{mat=OrigMat,shapes=OrigSh}}}) ->
+			   orig_st=#st{mat=OrigMat,shapes=OrigSh}}},
+      Reqs) ->
     We   = gb_trees:get(RId,Sh0),
     Orig = gb_trees:get(RId,OrigSh),
     Mats = merge_mats(gb_trees:to_list(OrigMat),Mat),
-    {Charts,{_Cnt,UVpos,Vpos,Ns,Uvc}} = setup_charts(St,We,Orig,Mats),
+    {Charts,{_Cnt,UVpos,Vpos,Ns,Ts,Uvc}} = setup_charts(St,We,Orig,Mats,Reqs),
     #ts{charts=Charts,
-	uv=to_bin(UVpos,pos),
+	uv =to_bin(UVpos,pos),
 	pos=to_bin(Vpos,pos),
-	n=to_bin(Ns,pos),
-	uvc=to_bin(Uvc,Orig#we.mode), uvc_mode=Orig#we.mode}.
+	n  =to_bin(Ns,pos),
+	bi =to_bin(Ts,pos),
+	uvc=to_bin(Uvc,Orig#we.mode), 
+	uvc_mode=Orig#we.mode}.
 
-setup_charts(#st{shapes=Cs0,selmode=Mode,sel=Sel},We,OrigWe,Mats) ->
-    Ns = setup_normals(We),
-    Start = {0,[],[],[],[]}, %% {UvPos,3dPos,Normal,Uvc}
+setup_charts(#st{shapes=Cs0,selmode=Mode,sel=Sel},We,OrigWe,Mats,Reqs) ->
+    Ns = case lists:member(normal,Reqs) orelse lists:member(binormal,Reqs) of
+	     true -> setup_normals(We);
+	     false -> []
+	 end,
+    Start = {0,[],[],[],[],[]}, %% {UvPos,3dPos,Normal,Tangent,Uvc}
     Mat = fun(Face) -> get_material(Face,We,OrigWe,Mats) end,
     Shapes = if Sel =:= [] -> 
 		     gb_trees:values(Cs0);
@@ -631,39 +653,50 @@ setup_charts(#st{shapes=Cs0,selmode=Mode,sel=Sel},We,OrigWe,Mats) ->
 		true -> 
 		     gb_trees:values(Cs0)
 	     end,
-    Setup = fun(Ch,Acc) -> setup_chart(Ch,Mat,Ns,We,OrigWe,Acc) end,
+    Setup = fun(Ch,Acc) -> setup_chart(Ch,Mat,Ns,Reqs,We,OrigWe,Acc) end,
     lists:mapfoldl(Setup, Start, Shapes).
 
-setup_chart(Uv = #we{id=Id},Mat,Ns,WWe,OWe,State0) ->
+setup_chart(Uv = #we{id=Id},Mat,Ns,Reqs,WWe,OWe,State0) ->
     OEs0 = outer_verts(Uv), 
-    {Fs,{OEs,State}}  = create_faces(Uv,WWe,OWe,Ns,Mat,{OEs0,State0}),
+    {Fs,{OEs,State}}  = create_faces(Uv,WWe,OWe,Ns,Mat,Reqs,{OEs0,State0}),
     {#chart{id=Id,fs=Fs,oes=OEs},State}.
 
 create_faces(We = #we{vp=Vtab,name=#ch{vmap=Vmap}},
-	     #we{vp=Vt3d},OWe=#we{mode=OldMode},
-	     NTab,GetMat,State) ->
+	     RWe = #we{vp=Vt3d},OWe=#we{mode=OldMode},
+	     NTab,GetMat,Reqs,State) ->
     Fs = wings_we:visible(We),
-    C=fun(Face,{OEs,{Cnt,UVpos,Vpos,Ns,Uvc}}) ->
+    C=fun(Face,{OEs,{Cnt,UVpos,Vpos,Ns,Ts,Uvc}}) ->
 	      Vs0 = wings_face:vertices_ccw(Face,We),
 	      UVcoords = [gb_trees:get(V, Vtab) || V <- Vs0],
-	      Coords = [gb_trees:get(map_vertex(V,Vmap),Vt3d) || V <- Vs0],
-	      Normals = fix_normals(gb_trees:get(Face,NTab)),
-	      OldUvc = fix_uvc(Vs0,Face,OWe,Vmap,OldMode),
+	      Coords   = [gb_trees:get(map_vertex(V,Vmap),Vt3d) 
+			  || V <- Vs0],
+	      Normals = if
+			    NTab=:= [] -> [];
+			    true -> fix_normals(Vs0,Vmap,
+						wings_face:vinfo_ccw(Face,RWe),
+						gb_trees:get(Face,NTab))
+			end,
+	      OldUvc  = fix_uvc(Vs0,Face,OWe,Vmap,OldMode),
 	      Len = length(Vs0),
 	      FaceVs = lists:seq(0, Len-1),
 	      Vs = case Len of
 		       3 -> FaceVs;
 		       Len -> triangulate(FaceVs,UVcoords)
 		   end,
+	      Tangents = fix_tang_vecs(Vs,Coords,UVcoords,Normals,Reqs), 
+%%	      io:format("Normals ~p~nWinded ~p~n", [gb_trees:get(Face,NTab),Normals]),
+%%	      io:format("UV ~p ~n~n~n", [UVcoords]),
+
 	      Indx = fun(I) -> [V+Cnt || V <- I] end,
-	      Mat = GetMat(Face),
+	      Mat  = GetMat(Face),
 	      {#fs{vs=Indx(Vs),vse=Indx(FaceVs),mat=Mat},
 	       {map_oes(OEs,Vs0,Cnt,Face,Mat),
 		{Cnt+Len,
-		 lists:reverse(UVcoords) ++ UVpos,
-		 lists:reverse(Coords) ++ Vpos,
-		 Normals ++ Ns,
-		 OldUvc ++ Uvc}}}
+		 UVcoords ++ UVpos,
+		 Coords   ++ Vpos,
+		 Normals  ++ Ns,
+		 Tangents ++ Ts,
+		 OldUvc   ++ Uvc}}}
       end,
     lists:mapfoldl(C, State, Fs).
 
@@ -683,11 +716,75 @@ map_oes([],_,_,_,_) -> [].
 member(Val,[Val|_],Pos) -> Pos;
 member(Val,[_|R],Pos) -> member(Val,R,Pos+1).
 
-fix_normals([H|Ns]) ->        %% Ugly rotate the order is wrong 
-    fix_normals(Ns++[H],[]).  %% or different in wings_face:vinfo
-fix_normals([[_|N]|R],Acc) ->
-    fix_normals(R,[N|Acc]);
-fix_normals([],Acc) -> Acc.
+fix_normals(Vs,Vmap,VsI,Ns0) -> %% can be different order 
+    fix_normals(Vs,n_zip(VsI,Ns0),Vmap).  
+fix_normals([V|R],Ns,Vmap) ->
+    [find(map_vertex(V,Vmap),Ns)|fix_normals(R,Ns,Vmap)];
+fix_normals([],_,_) -> [].
+
+fix_tang_vecs(_,_,_,[],_) -> [];
+fix_tang_vecs(Vs,Coords,UVCoords,Normals,Reqs) ->
+    case lists:member(binormal,Reqs) of
+	true ->
+	    All = fix_tang_vecs1(Vs,Coords,UVCoords,Normals,[]),
+	    fix_tang_vecs2(sort(All),[]);
+	false ->
+	    []
+    end.
+
+%%% This code should be inside wings somewhere its copied 
+%%% from wpc_opengl.erl
+fix_tang_vecs1([A,B,C|Vs],Coords,UVCoords,Normals,Acc) ->
+    {UV1x,UV1y,_} = lists:nth(A+1,UVCoords),
+    {UV2x,UV2y,_} = lists:nth(B+1,UVCoords),
+    {UV3x,UV3y,_} = lists:nth(C+1,UVCoords),
+    V1 = lists:nth(A+1,Coords),N1 = lists:nth(A+1,Coords),
+    V2 = lists:nth(B+1,Coords),N2 = lists:nth(B+1,Coords),
+    V3 = lists:nth(C+1,Coords),N3 = lists:nth(C+1,Coords),
+    TBN1 = calcTS(V3,V1,V2,UV3x,UV3y,UV1x,UV1y,UV2x,UV2y,N1),
+    TBN2 = calcTS(V1,V2,V3,UV1x,UV1y,UV2x,UV2y,UV3x,UV3y,N2),
+    TBN3 = calcTS(V2,V3,V1,UV2x,UV2y,UV3x,UV3y,UV1x,UV1y,N3),
+    fix_tang_vecs1(Vs,Coords,UVCoords,Normals,
+		   [{A,TBN1},{B,TBN2},{C,TBN3}|Acc]);
+fix_tang_vecs1([],_Coords,_UVCoords,_Normals,Acc) -> 
+    Acc.
+   
+calcTS(V1,V2,V3,S1,T1,S2,T2,S3,T3,N) ->
+    Side1 = e3d_vec:sub(V1,V2),
+    Side2 = e3d_vec:sub(V3,V2),
+    DT1 = T1-T2,
+    DT2 = T3-T2,
+    Stan1 = e3d_vec:norm(e3d_vec:sub(e3d_vec:mul(Side1,DT2),
+				     e3d_vec:mul(Side2,DT1))),	    
+    DS1 = S1-S2,
+    DS2 = S3-S2,
+    Ttan1 = e3d_vec:norm(e3d_vec:sub(e3d_vec:mul(Side1,DS2),
+				     e3d_vec:mul(Side2,DS1))),
+    %% OK we have the 2 tangents but cross them again with normal
+    %% so they are orthogonal
+    Stan  = e3d_vec:norm(e3d_vec:cross(Ttan1,N)),
+    Ttan  = e3d_vec:norm(e3d_vec:cross(Stan1,N)),
+    check_coordsys(Stan,Ttan,N).
+
+fix_tang_vecs2([{_,{S1,_,_}},{_,{S2,_,_}},{_,{S3,_,_}}],[]) ->
+    [S1,S2,S3];
+fix_tang_vecs2(List=[{Id,{_,_,N}}|_], Acc) ->
+    {Stans,R} = get_same(Id, List,[]),
+    T = e3d_vec:cross(e3d_vec:average(Stans),N),
+    fix_tang_vecs2(R,[e3d_vec:norm(T)|Acc]);
+fix_tang_vecs2([],Acc) ->
+    lists:reverse(Acc).
+
+get_same(Id, [{Id,{S,_,_}}|R],Acc) ->
+    get_same(Id,R,[S|Acc]);
+get_same(_,R,Acc) -> {Acc,R}.
+
+check_coordsys(Stan,Ttan,N) ->
+    Check = e3d_vec:dot(e3d_vec:cross(Stan,Ttan),N),
+    if 
+	Check < 0.0 -> {e3d_vec:mul(Stan,-1.0),e3d_vec:mul(Ttan,-1.0),N};
+	true ->        {Stan,Ttan,N}
+    end.
 
 fix_uvc(Vs,Face,OWe,Vmap,Mode) ->
     try 
@@ -704,11 +801,16 @@ fix_uvc1([V|Vs],Uvc,Vmap,Mode, Acc) ->
 	      _ -> {0.0,0.0}
 	  end,
     fix_uvc1(Vs,Uvc,Vmap,Mode,[Val|Acc]);
-fix_uvc1([],_,_,_,Acc) -> Acc.
+fix_uvc1([],_,_,_,Acc) -> reverse(Acc).
 
 find(V, [[V|Info]|_R]) -> Info;
 find(V, [_|R]) -> find(V,R);
 find(_, []) -> none.
+
+n_zip([[V|_]|R1],[[_|N]|R2]) -> 
+    [[V|N]|n_zip(R1,R2)];
+n_zip([],[]) -> [].
+    
 
 fix(OK = {_,_,_}, false) -> OK;
 fix(OK = {_,_,_,_}, true) -> OK;
@@ -890,7 +992,7 @@ pass({_R, _O},_) ->
 	      [?MODULE,?LINE,_R,_O]),
     fun(_,_) -> ok end.
 
-shader_pass(Shader={value,#sh{def=Def}},Prog,[]) ->    
+shader_pass(Shader={value,#sh{def=Def}},Prog,[]) when Def /= [] ->    
     shader_pass(Shader, Prog, reverse(Def));
 shader_pass(_,false,_) ->    
     io:format("AUV: No shader program found skipped ~p~n", [?LINE]),
@@ -898,7 +1000,7 @@ shader_pass(_,false,_) ->
 shader_pass(false,_,_) ->    
     io:format("AUV: Not shader found skipped ~p~n", [?LINE]),
     fun(_,_) -> ok end;
-shader_pass({value,#sh{args=Args,tex_units=TexUnits}},
+shader_pass({value,#sh{args=Args,tex_units=TexUnits,reqs=Reqs}},
 	    {value,{_,Prog}},Opts) ->
     fun(#ts{charts=Charts},Config) ->
 	    gl:disable(?GL_DEPTH_TEST),
@@ -917,9 +1019,19 @@ shader_pass({value,#sh{args=Args,tex_units=TexUnits}},
 			draw_texture_square();
 		    _ -> 
 			gl:enableClientState(?GL_VERTEX_ARRAY),
-			gl:enableClientState(?GL_NORMAL_ARRAY),
 			gl:clientActiveTexture(?GL_TEXTURE1),
 			gl:enableClientState(?GL_TEXTURE_COORD_ARRAY),
+			case lists:member(binormal,Reqs) of
+			    true -> 
+				gl:clientActiveTexture(?GL_TEXTURE2),
+				gl:enableClientState(?GL_TEXTURE_COORD_ARRAY);
+			    false -> ignore
+			end,
+			case lists:member(normal,Reqs) of
+			    true ->
+				gl:enableClientState(?GL_NORMAL_ARRAY);
+			    false -> ignore
+			end,
 			foreach(fun(#chart{fs=Fas}) -> foreach(R,Fas) end,Charts)
 		end
 	    catch throw:What ->
@@ -966,9 +1078,10 @@ shader_uniforms([{uniform,{slider,_,_},Name,_,_}|As],[Val|Opts],Conf) ->
     Loc = getLocation(Conf#sh_conf.prog,Name),
     gl:uniform1f(Loc,Val),
     shader_uniforms(As,Opts,Conf);
-shader_uniforms([{uniform,{image,Unit},Name,_,_}|As],[{_,TxId}|Opts],Conf) ->
+shader_uniforms([{uniform,{image,Unit},Name,_,_}|As],[{_,Id}|Opts],Conf) ->
     Loc = getLocation(Conf#sh_conf.prog,Name),
     gl:activeTexture(?GL_TEXTURE0 + Unit),
+    TxId = wings_image:txid(Id),
     gl:bindTexture(?GL_TEXTURE_2D, TxId),
     gl:uniform1i(Loc, Unit),
     shader_uniforms(As,Opts,Conf);
@@ -1005,6 +1118,11 @@ disable_tex_units(_) -> ok.
 
 delete_shaders(List) ->
     foreach(fun({_,Prog}) -> gl:deleteProgram(Prog) end, List).
+
+get_requirements(Shaders) ->
+    lists:foldl(fun(#sh{reqs=List},Acc) ->
+			List ++ Acc
+		end, [], Shaders).
 
 %%%%%%%%%%%%%%%% 
 %% Materials
@@ -1072,6 +1190,8 @@ parse_sh_info([{vertex_shader,Name}|Opts],Sh,NI,Acc) ->
     parse_sh_info(Opts, Sh#sh{vs=Name},NI, Acc);
 parse_sh_info([{fragment_shader,Name}|Opts],Sh,NI,Acc) ->
     parse_sh_info(Opts, Sh#sh{fs=Name},NI, Acc);
+parse_sh_info([{requires,List}|Opts],Sh,NI,Acc) when is_list(List) ->
+    parse_sh_info(Opts, Sh#sh{reqs=List},NI, Acc);
 parse_sh_info([{auv,auv_noise}|Opts],Sh,NI,Acc) ->
     What = {auv,{auv_noise,1}},
     parse_sh_info(Opts, Sh#sh{args=[What|Sh#sh.args]},NI+1,Acc);
