@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.52 2006/01/17 15:48:37 dgud Exp $
+%%     $Id: wings_image.erl,v 1.53 2006/01/25 21:15:12 dgud Exp $
 %%
 
 -module(wings_image).
@@ -16,7 +16,7 @@
 	 from_file/1,new/2,new_temp/2,create/1,
 	 rename/2,txid/1,info/1,images/0,screenshot/0,
 	 bumpid/1, default/1,
-	 normal_cubemapid/0, pnoiseid/0,
+	 is_normalmap/1, normal_cubemapid/0, pnoiseid/0,
 	 next_id/0,delete_older/1,delete_from/1,delete/1,
 	 update/2,update_filename/2,draw_preview/5,
 	 window/1]).
@@ -92,6 +92,9 @@ screenshot() ->
     Image = #e3d_image{image=ImageBin,width=W,height=H},
     Id = new_temp(?__(1,"<<Screenshot>>"), Image),
     wings_image:window(Id).
+
+is_normalmap(Id) ->
+    req({is_normalmap,Id},false).
 
 bumpid(Id) ->
     req({bumpid,Id}, false).
@@ -217,10 +220,17 @@ handle({txid,Id}, S) ->
 handle({bumpid,Id}, S) ->
     {case get({Id,bump}) of
 	 undefined -> 
-	     create_bump(Id, S);
+	     create_bump(Id,undefined,S);
 	 TxId -> 
 	     TxId
      end,S};
+handle({is_normalmap,Id},S) ->
+    {case {get({Id,bump}),get(Id)} of
+	 {undefined,undefined} -> none;
+	 {undefined, ImId} -> create_bump(Id,ImId,S);
+	 {TxId,_} -> TxId
+     end,S};
+
 handle(normalCM, S) ->
     {case get(normalCM) of
 	 undefined -> 
@@ -274,30 +284,35 @@ handle({draw_preview,X,Y,W,H,Id}, S) ->
 	 TxId -> draw_image(X, Y, W, H, TxId)
      end,S}.
 
-create_bump(Id, #ist{images=Images0}) ->
+create_bump(Id, BumpId, #ist{images=Images0}) ->
     delete_bump(Id),  %% update case..
     case gb_trees:lookup(Id, Images0) of
 	{value, E3D} -> 
-	    %% Scale ?? 4 is used in the only example I've seen.
 	    gl:pushAttrib(?GL_TEXTURE_BIT),
-	    Img = maybe_scale(maybe_convert(E3D)),
-	    {#e3d_image{width=W,height=H,image=Bits},MipMaps} 
-		= e3d_image:height2normal(Img, 4, true),
-	    [TxId] = gl:genTextures(1),
+	    case get(Id) of
+		BumpId ->
+		    gl:bindTexture(?GL_TEXTURE_2D, BumpId),
+		    Image = case e3d_image:convert(maybe_scale(E3D),r8g8b8,1,lower_left) of
+				E3D -> E3D;
+				New = #e3d_image{width=W,height=H,image=Bits} ->
+				    gl:texImage2D(?GL_TEXTURE_2D,0,?GL_RGB,W,H,0,?GL_RGB,
+						  ?GL_UNSIGNED_BYTE,Bits),
+				    New
+			    end,
+		    MipMaps = e3d_image:buildNormalMipmaps(Image),
+		    TxId = BumpId;
+		_ ->
+		    %% Scale ?? 4 is used in the only example I've seen.
+		    Img = e3d_image:convert(maybe_scale(E3D), r8g8b8, 1, lower_left),
+		    {#e3d_image{width=W,height=H,image=Bits},MipMaps} 
+			= e3d_image:height2normal(Img, 4, true),
+		    [TxId] = gl:genTextures(1),
+		    gl:bindTexture(?GL_TEXTURE_2D, TxId),
+		    gl:texImage2D(?GL_TEXTURE_2D,0,?GL_RGB,W,H,0,?GL_RGB,
+				  ?GL_UNSIGNED_BYTE,Bits)
+	    end,
 	    put({Id,bump}, TxId),
-	    gl:bindTexture(?GL_TEXTURE_2D, TxId),
-	    gl:enable(?GL_TEXTURE_2D),
-	    gl:bindTexture(?GL_TEXTURE_2D, TxId),
-	    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_MAG_FILTER, ?GL_LINEAR),
-	    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_MIN_FILTER, ?GL_LINEAR_MIPMAP_LINEAR),
-	    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_S, ?GL_REPEAT),
-	    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_T, ?GL_REPEAT),
-	    gl:texImage2D(?GL_TEXTURE_2D,0,?GL_RGB,W,H,0,?GL_RGB,?GL_UNSIGNED_BYTE,Bits),
- 	    Load = fun({Level,MW,MH, Bin}) ->
- 			   gl:texImage2D(?GL_TEXTURE_2D,Level,?GL_RGB,MW,MH,0,
- 					 ?GL_RGB, ?GL_UNSIGNED_BYTE, Bin)
- 		   end,
-	    [Load(MM) || MM <- MipMaps],
+	    update_mipmaps(TxId,MipMaps),
 	    gl:popAttrib(),
 	    TxId;
 	_ ->
@@ -362,6 +377,21 @@ create_pnoise() ->
     catch _:_ -> 
 	    none
     end.
+
+
+update_mipmaps(TxId, MipMaps) ->
+    gl:enable(?GL_TEXTURE_2D),
+    gl:bindTexture(?GL_TEXTURE_2D, TxId),
+    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_MAG_FILTER, ?GL_LINEAR),
+    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_MIN_FILTER, ?GL_LINEAR_MIPMAP_LINEAR),
+    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_S, ?GL_REPEAT),
+    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_T, ?GL_REPEAT),
+    Load = fun({Level,MW,MH, Bin}) ->
+		   gl:texImage2D(?GL_TEXTURE_2D,Level,?GL_RGB,MW,MH,0,
+				 ?GL_RGB, ?GL_UNSIGNED_BYTE, Bin)
+	   end,
+    [Load(MM) || MM <- MipMaps].
+
 
 maybe_convert(#e3d_image{type=Type0,order=Order}=Im) ->
     case {img_type(Type0),Order} of
@@ -468,8 +498,8 @@ internal_format(?GL_RGBA, true) -> ?GL_COMPRESSED_RGBA;
 internal_format(Else, _) -> Else.
 
 delete(Id, #ist{images=Images0}=S) ->
-    gl:deleteTextures(1, [erase(Id)]),
     delete_bump(Id),
+    gl:deleteTextures(1, [erase(Id)]),
     Images = gb_trees:delete(Id, Images0),
     S#ist{images=Images}.
 
@@ -479,8 +509,8 @@ delete_older(Id, #ist{images=Images0}=S) ->
     S#ist{images=Images}.
 
 delete_older_1([{Id,_}|T], Limit) when Id < Limit ->
-    gl:deleteTextures(1, [erase(Id)]),
     delete_bump(Id),
+    gl:deleteTextures(1, [erase(Id)]),
     delete_older_1(T, Limit);
 delete_older_1(Images, _) -> Images.
 
@@ -492,17 +522,17 @@ delete_from(Id, #ist{images=Images0}=S) ->
 delete_from_1([{Id,_}=Im|T], Limit, Acc) when Id < Limit ->
     delete_from_1(T, Limit, [Im|Acc]);
 delete_from_1([{Id,_}|T], Limit, Acc) ->
-    gl:deleteTextures(1, [erase(Id)]),
     delete_bump(Id),
+    gl:deleteTextures(1, [erase(Id)]),
     delete_from_1(T, Limit, Acc);
 delete_from_1([], _, Acc) -> reverse(Acc).
 
 delete_bump(Id) ->
+    TxId = get(Id), 
     case erase({Id,bump}) of
-	undefined ->
-	    ok;
-	Bid ->
-	    gl:deleteTextures(1, [Bid])
+	undefined -> ok;
+	TxId -> ok;
+	Bid ->  gl:deleteTextures(1, [Bid])
     end.
 
 do_update(Id, In = #e3d_image{width=W,height=H,type=Type,name=NewName}, 
@@ -527,8 +557,8 @@ do_update(Id, In = #e3d_image{width=W,height=H,type=Type,name=NewName},
     case get({Id,bump}) of
 	undefined ->     
 	    S#ist{images=Images};
-	_Bid -> 
-	    create_bump(Id, S#ist{images=Images}),
+	Bid -> 
+	    create_bump(Id, Bid, S#ist{images=Images}),
 	    S#ist{images=Images}
     end.
 

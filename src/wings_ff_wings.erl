@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.64 2005/11/29 22:25:44 raimo_niskanen Exp $
+%%     $Id: wings_ff_wings.erl,v 1.65 2006/01/25 21:15:12 dgud Exp $
 %%
 
 -module(wings_ff_wings).
@@ -291,6 +291,9 @@ translate_map_images_2([{Type,Im0}|T], Mat, ImMap) when is_integer(Im0) ->
 		       [Mat,Type,Im0]),
 	    translate_map_images_2(T, Mat, ImMap);
 	{value,Im} ->
+	    if Type == normal -> wings_image:is_normalmap(Im);
+	       true -> ok
+	    end,
 	    [{Type,Im}|translate_map_images_2(T, Mat, ImMap)]
     end;
 translate_map_images_2([H|T], Mat, ImMap) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.59 2005/11/20 15:46:25 dgud Exp $
+%%     $Id: wings_outliner.erl,v 1.60 2006/01/25 21:15:12 dgud Exp $
 %%
 
 -module(wings_outliner).
@@ -178,7 +178,8 @@ handle_drop({image,Id,_}, {material,Name,_,_}, {X0,Y0}, _Ost) ->
 	    separator,
 	    {?__(2,"Diffuse"),tx_cmd(diffuse, Id, Name)},
 	    {?__(3,"Gloss"),tx_cmd(gloss, Id, Name)},
-	    {?__(4,"Bump"),tx_cmd(bump, Id, Name)}],
+	    {?__(4,"Bump (HeightMap)"),tx_cmd(bump, Id, Name)},
+	    {?__(5,"Bump (NormalMap)"),tx_cmd(normal, Id, Name)}],
     wings_menu:popup_menu(X, Y, outliner, Menu);
 handle_drop(_Drop, _On, _, _) -> 
     keep.
@@ -286,7 +287,11 @@ command({assign_texture,Type,Id,Name0}, #ost{st=#st{mat=Mtab}}) ->
     Mat0 = gb_trees:get(Name, Mtab),
     {Maps0,Mat1} = prop_get_delete(maps, Mat0),
     Maps = [{Type,Id}|keydelete(Type, 1, Maps0)],
-    Mat = [{maps,Maps}|Mat1],
+    Mat  = [{maps,Maps}|Mat1],
+    case Type of 
+	normal -> wings_image:is_normalmap(Id);
+	_ -> ignore
+    end,
     wings_wm:send(geom, {action,{material,{update,Name,Mat}}});
 command({duplicate_object,Id}, _) ->
     wings_wm:send(geom, {action,{body,{duplicate_object,[Id]}}});
