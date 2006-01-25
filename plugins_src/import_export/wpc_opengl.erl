@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.73 2006/01/08 18:02:00 giniu Exp $
+%%     $Id: wpc_opengl.erl,v 1.74 2006/01/25 20:30:01 dgud Exp $
 
 -module(wpc_opengl).
 
@@ -1347,8 +1347,12 @@ apply_bumped_mat(Mat, Programmable) ->
 		  none -> DefDiff;
 		  Diff0 -> wings_image:txid(Diff0)
 	      end,
-    Bump    = case proplists:get_value(bump, Maps, none) of
-		  none -> DefBump;
+    Bump    = case proplists:get_value(normal, Maps, none) of
+		  none -> 
+		      case proplists:get_value(bump, Maps, none) of
+			  none -> DefBump;
+			  Bump0 -> wings_image:bumpid(Bump0)
+		      end;
 		  Bump0 -> wings_image:bumpid(Bump0)
 	      end,
     Gloss   = case proplists:get_value(gloss, Maps, none) of
