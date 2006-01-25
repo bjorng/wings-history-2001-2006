@@ -20,6 +20,8 @@
     the failed charts stays in the segmenting window.
   - MMB on uv-mapping, finds and marks the old chart cuts.
   - Repeat implemented.
+  - Re-written the texture image creator, move images with your uv's or 
+    use it to draw vertex color or materials it can also use opengl shaders.
 
 - Programmers: 
   Update to the latest erlang release. (png requires it)
