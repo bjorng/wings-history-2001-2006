@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.324 2006/01/22 18:31:02 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.325 2006/01/26 23:16:17 dgud Exp $
 %%
 
 -module(wpc_autouv).
@@ -27,7 +27,7 @@
 		member/2,foreach/2,keysearch/3]).
 
 %% Exports to auv_texture.
--export([has_texture/2]).
+%%-export([has_texture/2]).
 
 %% Exports to auv_seg_ui.
 -export([init_show_maps/4]).
@@ -175,7 +175,7 @@ start_edit(Mode, We, St, OrigSt) ->
     MatNames2 = sofs:converse(MatNames1),
     MatNames3 = sofs:relation_to_family(MatNames2),
     MatNames4 = sofs:to_external(MatNames3),
-    MatNames = [Mat || {Name,_}=Mat <- MatNames4, has_texture(Name, St)],
+    MatNames = [Mat || {Name,_}=Mat <- MatNames4, get_texture(Name, St) /= false],
     case MatNames of
 	[{MatName,_}] ->
 	    do_edit(MatName, Mode, We, St, OrigSt);
@@ -187,18 +187,17 @@ do_edit(MatName, Mode, We, GeomSt, OrigSt) ->
     AuvSt = create_uv_state(gb_trees:empty(), MatName, Mode, We, GeomSt,OrigSt),
     new_geom_state(GeomSt, AuvSt).
 
-init_show_maps(Charts0, Fs, OldWe=#we{name=WeName,id=Id}, GeomSt0) ->
+init_show_maps(Charts0, Fs, #we{name=WeName,id=Id}, GeomSt0) ->
     Charts1 = auv_placement:place_areas(Charts0),
     Charts  = gb_trees:from_orddict(keysort(1, Charts1)),
-    ExistingMats = wings_facemat:used_materials(OldWe),
     MatName0 = list_to_atom(WeName++"_auv"),
     {GeomSt1,MatName} = 
-	case lists:member(MatName0,ExistingMats) of
+	case gb_trees:is_defined(MatName0,GeomSt0#st.mat) of
 	    true -> 
 		{GeomSt0,MatName0};
 	    false ->
-		Tx = bg_image(),
-		add_material(Tx, WeName, none, GeomSt0)
+		Tx = bg_img_id(),
+		add_material(Tx, WeName, GeomSt0)
 	end,
     GeomSt = insert_initial_uvcoords(Charts, Id, MatName, GeomSt1),
     EditWin = {autouv,Id},
@@ -219,11 +218,16 @@ create_uv_state(Charts, MatName, Fs, We, GeomSt = #st{shapes=Shs0},OrigSt) ->
     Shs = gb_trees:update(We#we.id, We#we{fs=undefined,es=gb_trees:empty()}, Shs0),
     FakeGeomSt = GeomSt#st{sel=[],shapes=Shs},
 
+    Image = case get_texture(MatName,GeomSt) of
+		false -> bg_img_id();
+		ImId -> ImId
+	    end,
     Uvs = #uvstate{st=wpa:sel_set(face, [], FakeGeomSt),
-		   id=We#we.id,
-		   mode=Fs,
-		   orig_st=OrigSt,
-		   matname=MatName},
+		   id      = We#we.id,
+		   mode    = Fs,
+		   bg_img  = Image,
+		   orig_st = OrigSt,
+		   matname = MatName},
     St = FakeGeomSt#st{selmode=body,sel=[],shapes=Charts,bb=Uvs,
 		       repeatable=ignore,ask_args=none,drag_args=none},
     Name = wings_wm:this(),
@@ -386,17 +390,17 @@ insert_material(Cs, MatName, We) ->
 
 %%%%% Material handling
 
-has_texture(MatName, #st{mat=Materials}) ->
-    has_texture(MatName, Materials);
-has_texture(MatName, Materials) ->
+get_texture(MatName, #st{mat=Materials}) ->
+    get_texture(MatName, Materials);
+get_texture(MatName, Materials) ->
     case gb_trees:lookup(MatName, Materials) of
 	none -> false;
 	{value,Mat} ->
 	    Maps = proplists:get_value(maps, Mat, []),
-	    none /= proplists:get_value(diffuse, Maps, none)
+	    proplists:get_value(diffuse, Maps, false)
     end.
 
-add_material(#e3d_image{}=Tx, Name, none, St0) ->
+add_material(Tx, Name, St0) ->
     MatName0 = list_to_atom(Name++"_auv"),
     Mat = {MatName0,[{opengl,[]},{maps,[{diffuse,Tx}]}]},
     case wings_material:add_materials([Mat], St0) of
@@ -404,11 +408,30 @@ add_material(#e3d_image{}=Tx, Name, none, St0) ->
 	    {St,MatName0};
 	{St,[{MatName0,MatName}]} ->
 	    {St,MatName}
-    end;
-add_material(Im = #e3d_image{}, _, MatName,St) ->
+    end.
+update_texture(Im = #e3d_image{},MatName,St) ->
     catch wings_material:update_image(MatName, diffuse, Im, St),
     {St,MatName}.
-   
+
+bg_img_id() ->
+    Is = wings_image:images(),
+    case [ImId || {ImId,#e3d_image{name="auvBG"}} <- Is] of
+	[ImId] -> ImId;
+	_ -> wings_image:new("auvBG",bg_image())
+    end.
+  
+change_texture_id(NewId, MatName, GeomSt0=#st{mat=Materials}) -> 
+    case gb_trees:lookup(MatName, Materials) of
+	none -> 
+	    GeomSt0;
+	{value,Mat0} ->
+	    Maps0 = proplists:get_value(maps, Mat0, []),
+	    Maps = lists:keyreplace(diffuse,1,Maps0,{diffuse,NewId}),
+	    Mat  = lists:keyreplace(maps,1,Mat0,{maps,Maps}),
+	    GeomSt0#st{mat=gb_trees:update(MatName,Mat,Materials)}
+    end.
+    
+
 %%%% Menus.
 
 command_menu(body, X, Y) ->
@@ -659,17 +682,23 @@ handle_event_3({action,{auv,create_texture}},_St) ->
 handle_event_3({action,{auv,{draw_options,restart}}}, _St) ->
     auv_texture:draw_options();
 handle_event_3({action,{auv,{draw_options,Opt}}}, #st{bb=Uvs}=St) ->
-    #uvstate{st=GeomSt0,matname=MatName0} = Uvs,
+    #uvstate{st=GeomSt0,matname=MatName0,bg_img=Image} = Uvs,
     Tx = ?SLOW(auv_texture:get_texture(St, Opt)),
     case MatName0 of 
 	none -> 
-	    Id = wings_image:new("UVmap", Tx),
-	    wings_image:window(Id),
+	    wings_image:update(Image, Tx),
+	    put({?MODULE,show_background}, true),
 	    get_event(St);
 	_ ->
+	    TexName = case get_texture(MatName0, St) of
+			  false -> atom_to_list(MatName0);
+			  Old  -> 
+			      OldE3d = wings_image:info(Old), 
+			      OldE3d#e3d_image.name
+		      end,
 	    {GeomSt,MatName} = 
-		add_material(Tx#e3d_image{name=atom_to_list(MatName0)}, 
-			     undefined, MatName0, GeomSt0),
+		update_texture(Tx#e3d_image{name=TexName}, 
+			       MatName0, GeomSt0),
 	    wings_wm:send(geom, {new_state,GeomSt}),
 	    get_event(St#st{bb=Uvs#uvstate{st=GeomSt,matname=MatName}})
     end;
@@ -1403,28 +1432,23 @@ drag_filter({image,_,_}) ->
     {yes,?__(1,"Drop: Change the texture image")};
 drag_filter(_) -> no.
 
-handle_drop({image,_,#e3d_image{width=W,height=H}=Im}, #st{bb=Uvs0}=St) ->
-    case W =:= H andalso is_power_of_two(W) of
-	false -> keep;
-	true ->
-	    #uvstate{st=GeomSt0,matname=MatName0} = Uvs0,
-	    case MatName0 of 
-		none -> 
-		    wings_u:error(?__(1,"Your are editing the uv-coords of several\n"
-				  "materials, quit the uv-window set all faces\n"
-				  "to the same material"));
-		_ ->
-		    {GeomSt,MatName} = add_material(Im, undefined, MatName0, GeomSt0),
-		    wings_wm:send(geom, {new_state,GeomSt}),
-		    Uvs = Uvs0#uvstate{st=GeomSt,matname=MatName},
-		    get_event(St#st{bb=Uvs})
-	    end
+handle_drop({image,Id,_Im}, #st{bb=Uvs0}=St) ->
+    #uvstate{st=GeomSt0,matname=MatName} = Uvs0,
+    case MatName of 
+	none -> 
+	    Uvs = Uvs0#uvstate{bg_img=Id},
+	    get_event(St#st{bb=Uvs});
+	_ ->
+	    GeomSt = change_texture_id(Id,MatName,GeomSt0),
+	    wings_wm:send(geom, {new_state,GeomSt}),
+	    Uvs = Uvs0#uvstate{st=GeomSt,matname=MatName},
+	    get_event(St#st{bb=Uvs})
     end;
 handle_drop(_DropData, _) ->
     keep.
 
-is_power_of_two(X) ->
-    (X band -X ) == X.
+%% is_power_of_two(X) ->
+%%     (X band -X ) == X.
 
 %%%
 %%% Update charts from new state of Geometry window.
@@ -1467,8 +1491,7 @@ rebuild_charts(We, St = #st{bb=UVS=#uvstate{st=Old,mode=Mode}}, ExtraCuts) ->
 	end,
     Charts2 = auv_segment:cut_model(Charts1, Cuts, We),
     Charts = update_uv_tab(Charts2, FvUvMap),
-    wings_wm:set_prop(wireframed_objects,
-		      gb_sets:from_ordset(lists:seq(1, lists:max([gb_trees:size(Charts),1])))),
+    wings_wm:set_prop(wireframed_objects,gb_sets:from_list(gb_trees:keys(Charts))),
     St#st{sel=[],bb=UVS#uvstate{mode=update_mode(Faces,We),st=Old#st{sel=[]}},
 	  shapes=Charts}.
 
@@ -1860,7 +1883,7 @@ update_and_scale_chart(Vs0,We0) ->
 %%% Draw routines.
 %%%
 
-draw_background(#st{mat=Mats,bb=#uvstate{matname=MatN}}) ->
+draw_background(#st{bb=#uvstate{matname=MatName,st=St,bg_img=Image}}) ->
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     wings_view:load_matrices(false),
 
@@ -1884,9 +1907,15 @@ draw_background(#st{mat=Mats,bb=#uvstate{matname=MatN}}) ->
     %% Draw the background texture.
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
     gl:color3f(1, 1, 1),			%Clear
-    case get({?MODULE,show_background}) andalso has_texture(MatN, Mats) of
+    case get({?MODULE,show_background}) of
 	false -> ok;
-	_ -> wings_material:apply_material(MatN, Mats)
+	_ -> 
+	    Tx = case get_texture(MatName,St) of
+		     false -> wings_image:txid(Image);
+		     DiffId -> wings_image:txid(DiffId)
+		 end,
+	    gl:enable(?GL_TEXTURE_2D),
+	    gl:bindTexture(?GL_TEXTURE_2D, Tx)
     end,
     gl:'begin'(?GL_QUADS),
     gl:texCoord2f(0, 0),    gl:vertex3f(0, 0, -0.99999),
