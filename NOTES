@@ -25,6 +25,11 @@
 
 - Programmers: 
   Update to the latest erlang release. (png requires it)
+  Both the #we and #st have a new field pst (plugin state)
+    That requires a re-compilation of most (all?) of the external plugins.
+    Plugins that use the pst field should export two functions: 
+       PLUGIN:merge_we([We1,We2..]) and PLUGIN:merge_st(NewData,OldSt) both should
+       return the new data of the plugin.
 
 --- 0.98.32b -----------------------------------------------------------------
 

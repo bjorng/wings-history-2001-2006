@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.110 2005/09/13 09:15:58 giniu Exp $
+%%     $Id: wings.hrl,v 1.111 2006/01/26 20:37:33 dgud Exp $
 %%
 
 -include("../intl_tools/wings_intl.hrl").
@@ -122,6 +122,8 @@
 	 bb=none,				%Saved bounding box.
 	 edge_loop=none,			%Previous edge loop.
 	 views={0,{}},				%{Current,TupleOfViews}
+	 pst=gb_trees:empty(),                  %Plugin State Info
+						%   gb_tree where key is plugin	module 
 
 	 %% Previous commands.
 	 repeatable,			        %Last repeatable command.
@@ -154,6 +156,8 @@
 	 vc,					%Connection info (=incident edge)
 						% for vertices.
 	 vp,					%Vertex positions.
+	 pst=gb_trees:empty(),                  %Plugin State Info, 
+						%   gb_tree where key is plugin module
 	 mat=default,				%Materials.
 	 next_id,				%Next free ID for vertices,
 						% edges, and faces.

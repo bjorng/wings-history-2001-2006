@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.65 2006/01/25 21:15:12 dgud Exp $
+%%     $Id: wings_ff_wings.erl,v 1.66 2006/01/26 20:37:33 dgud Exp $
 %%
 
 -module(wings_ff_wings).
@@ -30,12 +30,12 @@ import(Name, St) ->
 import_1(Name, St0) ->
     case file:read_file(Name) of
 	{ok,<<?WINGS_HEADER,Sz:32,Data/binary>>} when size(Data) =:= Sz ->
-	   wings_pb:update(0.08, ?__(1,"converting binary")),
+	    wings_pb:update(0.08, ?__(1,"converting binary")),
 	    case catch binary_to_term(Data) of
 		{wings,0,_Shapes} ->
                     {error, ?__(2,"Pre-0.80 Wings format no longer supported.")};
 		{wings,1,_,_,_} ->
-                     %% Pre-0.92. No longer supported.
+		    %% Pre-0.92. No longer supported.
                     {error,?__(3,"Pre-0.92 Wings format no longer supported.")};
 		{wings,2,{Shapes,Materials,Props}} ->
                     import_vsn2(Shapes, Materials, Props, St0);
@@ -55,7 +55,7 @@ import_vsn2(Shapes, Materials0, Props, St0) ->
     wings_pb:update(0.10, ?__(1,"images and materials")),
     Images = import_images(Props),
     Materials1 = translate_materials(Materials0),
-    Materials = translate_map_images(Materials1, Images),
+    Materials  = translate_map_images(Materials1, Images),
     {St1,NameMap0} = wings_material:add_materials(Materials, St0),
     NameMap1 = gb_trees:from_orddict(sort(NameMap0)),
     NameMap = optimize_name_map(Materials, NameMap1, []),
@@ -86,7 +86,11 @@ import_objects([Sh0|Shs], Mode, NameMap, Oid, ShAcc) ->
     Htab = gb_sets:from_list(He),
     Perm = import_perm(Props),
     Mirror = proplists:get_value(mirror_face, Props, none),
-    We = #we{es=Etab,vp=Vtab,he=Htab,perm=Perm,
+    Pst0 = proplists:get_value(plugin_states, Props, []),
+    Pst = try gb_trees:from_orddict(Pst0)
+	  catch error:_ -> gb_trees:empty()
+	  end,
+    We = #we{es=Etab,vp=Vtab,he=Htab,perm=Perm,pst=Pst,
 	     id=Oid,name=Name,mode=ObjMode,mirror=Mirror,mat=FaceMat},
     HiddenFaces = proplists:get_value(num_hidden_faces, Props, 0),
     import_objects(Shs, Mode, NameMap, Oid+1, [{HiddenFaces,We}|ShAcc]);
@@ -198,6 +202,37 @@ import_props([{scene_prefs,ScenePrefs}|Ps], St) ->
 		  end,
 		  ScenePrefs),
     import_props(Ps, St);
+import_props([{plugin_states,Pst0}|Ps], St0 =#st{pst=Previous}) ->
+    St = try 
+	     case gb_trees:keys(Previous) of
+		 [] -> 
+		     Pst = gb_trees:from_orddict(lists:sort(Pst0)),
+		     St0#st{pst=Pst};
+		 _ when Pst0 =:= [] -> 
+		     St0;
+		 PrevKeys ->
+		     M=fun({Mod,Data},Acc) ->
+			       case lists:member(Mod,PrevKeys) of
+				   true -> 
+				       try
+					   Pst = Mod:merge_st(Data,St0),
+					   [{Mod,Pst}|lists:keydelete(Mod,1,Acc)]
+				       catch _:_ -> Acc
+				       end;
+				   false ->
+				       [{Mod,Data}|Acc]
+			       end
+		       end,
+		     Pst1 = lists:foldl(M,gb_trees:to_list(Previous),Pst0),
+		     Pst  = gb_trees:from_orddict(lists:sort(Pst1)),
+		     St0#st{pst=Pst}
+	     end
+	 catch error:Reason -> 
+		 io:format("Failed importing plugins state Not a gb_tree ~p ~n",
+			   [Reason]),
+		 St0
+	 end,
+    import_props(Ps,St);
 import_props([_|Ps], St) ->
     import_props(Ps, St);
 import_props([], St) -> St.
@@ -465,7 +500,8 @@ export(Name, St0) ->
 		 [] -> Props3;
 		 Palette -> [{palette, Palette}|Props3]
 	     end,
-    Props  = [{scene_prefs,wings_pref:get_scene_value()}|Props4],
+    Props5 = export_pst(St#st.pst,Props4),
+    Props  = [{scene_prefs,wings_pref:get_scene_value()}|Props5],
     Wings = {wings,2,{Shs,Materials,Props}},
     wings_pb:update(0.99, ?__(5,"compressing")),
     Bin = term_to_binary(Wings, [compressed]),
@@ -520,6 +556,19 @@ export_props_1([{{What,Mode},Sel}|T], Acc) ->
     export_props_1(T, [{What,{Mode,Sel}}|Acc]);
 export_props_1([], Acc) -> Acc.
 
+export_pst(undefined, Props0) -> Props0;
+export_pst(Pst0,Props0) ->
+    try 
+	Pst1 = gb_trees:to_list(Pst0),
+	Pst = lists:filter(fun({Mod,_}) when is_atom(Mod) -> true;
+			      (_) -> false end, Pst1),
+	[{plugin_states,Pst}|Props0]
+    catch error:Reason -> 
+	    io:format("Failed exporting plugins state NOT a gb_tree ~p ~n",
+		      [Reason]),
+	    Props0
+    end.
+
 write_file(Name, Bin) ->
     Data = <<?WINGS_HEADER,(size(Bin)):32,Bin/binary>>,
     case file:write_file(Name, Data) of
@@ -527,7 +576,7 @@ write_file(Name, Bin) ->
 	{error,Reason} -> {error,file:format_error(Reason)}
     end.
 
-shape({Hidden,#we{mode=ObjMode,name=Name,vp=Vs0,es=Es0,he=Htab}=We}, Acc) ->
+shape({Hidden,#we{mode=ObjMode,name=Name,vp=Vs0,es=Es0,he=Htab,pst=Pst}=We}, Acc) ->
     Vs1 = foldl(fun export_vertex/2, [], gb_trees:values(Vs0)),
     Vs = reverse(Vs1),
     UvFaces = gb_sets:from_ordset(wings_we:uv_mapped_faces(We)),
@@ -540,7 +589,8 @@ shape({Hidden,#we{mode=ObjMode,name=Name,vp=Vs0,es=Es0,he=Htab}=We}, Acc) ->
     He = gb_sets:to_list(Htab),
     Props0 = [{mode,ObjMode}|export_perm(We)],
     Props1 = hidden_faces(Hidden, Props0),
-    Props = mirror(We, Props1),
+    Props2 = mirror(We, Props1),
+    Props  = export_pst(Pst,Props2),
     [{object,Name,{winged,Es,Fs,Vs,He},Props}|Acc].
 
 mirror(#we{mirror=none}, Props) -> Props;

@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.108 2005/01/30 11:34:56 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.109 2006/01/26 20:37:33 dgud Exp $
 %%
 
 -module(wings_we).
@@ -594,6 +594,7 @@ merge(We0, We1) ->
 merge([]) -> [];
 merge([We]) -> We;
 merge([#we{id=Id,name=Name}|_]=Wes0) ->
+    Pst  = merge_plugins(Wes0),
     Wes1 = merge_renumber(Wes0),
     MatTab = wings_facemat:merge(Wes1),
     {Vpt0,Et0,Ht0} = merge_1(Wes1),
@@ -601,7 +602,7 @@ merge([#we{id=Id,name=Name}|_]=Wes0) ->
     Et = gb_trees:from_orddict(Et0),
     Ht = gb_sets:from_ordset(Ht0),
     rebuild(#we{id=Id,name=Name,vc=undefined,fs=undefined,
-		vp=Vpt,es=Et,he=Ht,mat=MatTab}).
+		pst=Pst,vp=Vpt,es=Et,he=Ht,mat=MatTab}).
 
 merge_1([We]) -> We;
 merge_1(Wes) -> merge_1(Wes, [], [], []).
@@ -616,7 +617,20 @@ merge_1([], Vpt0, Et0, Ht0) ->
     Et = lists:merge(Et0),
     Ht = lists:merge(Ht0),
     {Vpt,Et,Ht}.
-			       
+
+merge_plugins(Wes) ->
+    Psts  = [gb_trees:to_list(We#we.pst) || We <- Wes],
+    PMods = lists:usort(Psts),
+    Merge = fun(Mod,Acc) ->
+		    try
+			Pst = Mod:merge_we(Wes),
+			[{Mod, Pst}|Acc]
+		    catch _:_ -> Acc
+		    end
+	    end,
+    Merged = lists:foldl(Merge, [], PMods),
+    gb_trees:from_orddict(Merged).
+		    
 merge_renumber(Wes0) ->
     [{_,We}|Wes] = merge_bounds(Wes0, []),
     merge_renumber(Wes, [We], []).
