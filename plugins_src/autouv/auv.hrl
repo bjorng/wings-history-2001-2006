@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv.hrl,v 1.38 2006/01/11 22:10:10 dgud Exp $
+%%     $Id: auv.hrl,v 1.39 2006/01/26 23:17:31 dgud Exp $
 
 %% Chart record (one for each chart).
 %% Stored in the 'name' field in the #we{} record.
@@ -22,6 +22,7 @@
 
 -record(uvstate,
 	{matname,          %% The textured MatName
+	 bg_img,           %% The background image
 	 id,               %% The we id of the shape we are working with.
 	 mode=object,      %% object mode or a gb_sets of faces which we are editing
 	 st,               %% Wings working 'st', i.e. no autouv stuff in this one

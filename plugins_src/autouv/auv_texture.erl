@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_texture.erl,v 1.26 2006/01/25 23:43:16 dgud Exp $
+%%     $Id: auv_texture.erl,v 1.27 2006/01/26 23:17:31 dgud Exp $
 %%
 
 -module(auv_texture).
@@ -29,7 +29,7 @@
 
 -define(OPT_BG, [{type_sel,color},{undefined,ignore},{1.0,1.0,1.0}]).
 -define(OPT_EDGES, [all_edges,{0.0,0.0,0.0}, 1.0, false]).
--define(OPT_FACES, [materials]).
+-define(OPT_FACES, [texture]).
 
 -record(opt, {texsz = {512,512},   %% Texture size
 	      no_renderers = 4,
@@ -150,7 +150,7 @@ renderers(Shaders) ->
     [{?__(1,"None"), ignore},
      {?__(2,"Draw Edges"),auv_edges},
      {?__(3,"Draw Faces"),auv_faces}|
-     [{"* "++Name++" *", {shader,Id}} || 
+     [{"*"++Name++"*", {shader,Id}} || 
 	 #sh{name=Name,id=Id} <- Shaders]
     ].
 
