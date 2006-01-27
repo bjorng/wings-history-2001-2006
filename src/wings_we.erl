@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.109 2006/01/26 20:37:33 dgud Exp $
+%%     $Id: wings_we.erl,v 1.110 2006/01/27 09:20:55 dgud Exp $
 %%
 
 -module(wings_we).
@@ -619,8 +619,8 @@ merge_1([], Vpt0, Et0, Ht0) ->
     {Vpt,Et,Ht}.
 
 merge_plugins(Wes) ->
-    Psts  = [gb_trees:to_list(We#we.pst) || We <- Wes],
-    PMods = lists:usort(Psts),
+    Psts  = [gb_trees:keys(We#we.pst) || We <- Wes],
+    PMods = lists:usort(lists:append(Psts)),
     Merge = fun(Mod,Acc) ->
 		    try
 			Pst = Mod:merge_we(Wes),
