@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.325 2006/01/26 23:16:17 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.326 2006/01/27 19:16:09 dgud Exp $
 %%
 
 -module(wpc_autouv).
@@ -694,7 +694,10 @@ handle_event_3({action,{auv,{draw_options,Opt}}}, #st{bb=Uvs}=St) ->
 			  false -> atom_to_list(MatName0);
 			  Old  -> 
 			      OldE3d = wings_image:info(Old), 
-			      OldE3d#e3d_image.name
+			      case OldE3d#e3d_image.name of
+				  "auvBG" -> atom_to_list(MatName0);
+				  Other -> Other
+			      end
 		      end,
 	    {GeomSt,MatName} = 
 		update_texture(Tx#e3d_image{name=TexName}, 

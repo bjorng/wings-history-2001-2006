@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_texture.erl,v 1.28 2006/01/27 15:17:55 dgud Exp $
+%%     $Id: auv_texture.erl,v 1.29 2006/01/27 19:16:09 dgud Exp $
 %%
 
 -module(auv_texture).
@@ -342,19 +342,21 @@ render_image(Geom = #ts{uv=UVpos,pos=Pos,n=Ns,bi=BiNs,uvc=Uvc,uvc_mode=Mode},
     end,
     case Mode of
 	vertex -> gl:colorPointer(3,?GL_FLOAT,0,Uvc);
-	_Other -> gl:texCoordPointer(2,?GL_FLOAT,0,Uvc)
+	_Other -> (catch gl:clientActiveTexture(?GL_TEXTURE0)),
+		  gl:texCoordPointer(2,?GL_FLOAT,0,Uvc)
     end,
     case have_shaders() of
 	false -> ignore;
 	true  -> 
-	    gl:clientActiveTexture(?GL_TEXTURE1),
-	    gl:texCoordPointer(3,?GL_FLOAT,0,Pos),
-	    gl:clientActiveTexture(?GL_TEXTURE0)
+ 	    gl:clientActiveTexture(?GL_TEXTURE1),
+ 	    gl:texCoordPointer(3,?GL_FLOAT,0,Pos),
+ 	    gl:clientActiveTexture(?GL_TEXTURE0)
     end,
     case lists:member(binormal, Reqs) of
 	true -> 	    
 	    gl:clientActiveTexture(?GL_TEXTURE2),
-	    gl:texCoordPointer(3,?GL_FLOAT,0,BiNs);
+	    gl:texCoordPointer(3,?GL_FLOAT,0,BiNs),
+	    gl:clientActiveTexture(?GL_TEXTURE0);
 	false ->
 	    ignore
     end,
@@ -691,8 +693,6 @@ create_faces(We = #we{vp=Vtab,name=#ch{vmap=Vmap}},
 		   end,
 	      Tangents = fix_tang_vecs(Vs,Coords,UVcoords,Normals,Reqs), 
 %%	      io:format("Normals ~p~nWinded ~p~n", [gb_trees:get(Face,NTab),Normals]),
-%%	      io:format("UV ~p ~n~n~n", [UVcoords]),
-
 	      Indx = fun(I) -> [V+Cnt || V <- I] end,
 	      Mat  = GetMat(Face),
 	      {#fs{vs=Indx(Vs),vse=Indx(FaceVs),mat=Mat},
@@ -857,7 +857,7 @@ outer_verts(We = #we{es=Etab}) ->
 
 %% Start with 64 bytes so that binary will be reference counted 
 %% and not on the process heap spent hours debugging this.. :-(
-to_bin(List, uv) -> to_bin2(List,[<<0:512>>]);
+to_bin(List, uv) -> to_bin3to2(List,[<<0:512>>]);
 to_bin(List, pos) -> to_bin3(List,[<<0:512>>]);
 to_bin(List, vertex) -> to_bin3(List,[<<0:512>>]);  %% Vertex colors
 to_bin(List, material) -> to_bin2(List,[<<0:512>>]).  %% UV coords.
@@ -868,6 +868,10 @@ to_bin3([],Acc) -> list_to_binary(Acc).
 to_bin2([{A,B}|R],Acc) -> 
     to_bin2(R,[<<A:32/native-float,B:32/native-float>>|Acc]);
 to_bin2([],Acc) -> list_to_binary(Acc).
+to_bin3to2([{A,B,_}|R],Acc) -> 
+    to_bin3to2(R,[<<A:32/native-float,B:32/native-float>>|Acc]);
+to_bin3to2([],Acc) -> list_to_binary(Acc).
+
 %
 % Workaround for ATI gl:'end' doesn't bite for line loop/strip..
 vs_lines([A|R=[B|_]],Last) ->
@@ -962,6 +966,7 @@ pass({auv_faces, [Type]},_) ->
 	    gl:enable(?GL_BLEND),	   
 	    gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
 	    gl:enableClientState(?GL_VERTEX_ARRAY),
+	    gl:clientActiveTexture(?GL_TEXTURE0),
 	    R = case Type of
 		    materials ->			
 			fun(#fs{vs=Vs,mat=Mat}) ->
@@ -1059,7 +1064,9 @@ shader_pass({value,#sh{args=Args,tex_units=TexUnits,reqs=Reqs}},
 	      gl:disable(?GL_TEXTURE_2D),
 	      gl:disableClientState(?GL_VERTEX_ARRAY),
 	      gl:disableClientState(?GL_NORMAL_ARRAY),
+	      gl:clientActiveTexture(?GL_TEXTURE2),
 	      gl:disableClientState(?GL_TEXTURE_COORD_ARRAY),
+	      gl:clientActiveTexture(?GL_TEXTURE1),
 	      gl:disableClientState(?GL_TEXTURE_COORD_ARRAY),
 	      gl:clientActiveTexture(?GL_TEXTURE0),
 	      disable_tex_units(TexUnits),
@@ -1079,9 +1086,7 @@ shader_uniforms([{uniform,menu,Name,_,_}|As],[Vals|Opts],Conf)
   when is_list(Vals) ->
     Loc = getLocation(Conf#sh_conf.prog,Name),
     %% Bug in esdl gl uniformXfv can't send arrays of values.
-    ?ERROR,    
     foldl(fun(Val,Cnt) -> gl:uniform1f(Loc+Cnt,Val),Cnt+1 end,0,Vals),
-    ?ERROR,    
     shader_uniforms(As,Opts,Conf);
 
 shader_uniforms([{uniform,bool,Name,_,_}|As],[Val|Opts],Conf) ->
@@ -1169,11 +1174,11 @@ set_diffuse_tx(Mat) ->
 	Mat -> ok;
 	_ ->
 	    Maps = proplists:get_value(maps, Mat),
+	    Ogl = proplists:get_value(opengl,Mat),
+	    gl:color4fv(proplists:get_value(diffuse,Ogl)),
 	    case proplists:get_value(diffuse, Maps, none) of
 		none ->
 		    gl:disable(?GL_TEXTURE_2D),
-		    Ogl = proplists:get_value(opengl,Mat),
-		    gl:color4fv(proplists:get_value(diffuse,Ogl)),
 		    put({?MODULE,use_tx},Mat),
 		    false;
 		Diff0 ->
