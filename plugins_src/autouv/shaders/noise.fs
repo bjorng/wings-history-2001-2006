@@ -8,7 +8,7 @@
 //  See the file "license.terms" for information on usage and redistribution
 //  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 //
-//     $Id: noise.fs,v 1.3 2006/01/19 23:20:11 dgud Exp $
+//     $Id: noise.fs,v 1.4 2006/01/27 15:17:56 dgud Exp $
 //
 
 
@@ -25,10 +25,11 @@ float auv_noise(float P, vec3 pos)
     vec4 noise = texture3D(auv_noise, pos);
     return dot(per,noise);
 }
-varying vec3 auv_pos2d;
-varying vec3 auv_pos3d;
-//varying vec3 auv_normal;
+
+varying vec2 w3d_uv;
+varying vec3 w3d_pos;
 uniform float persistance, blend, scale;
+uniform vec3 auv_bbpos3d[2];
 uniform vec4 color1, color2;
 uniform sampler2D auv_bg;
 
@@ -36,8 +37,11 @@ void main(void)
 {   
     float noise;
     vec4 fColor = vec4(1.0); 
-    noise = auv_noise(persistance, (scale*auv_pos3d)+0.5); // *0.159155
-    vec4 bg = texture2D(auv_bg, auv_pos2d.xy);
+    vec3 ch_center = (auv_bbpos3d[1]-auv_bbpos3d[0]);
+    float ch_scale  = scale*1.41421/length(ch_center);
+    ch_center = (ch_center/2.0) + auv_bbpos3d[0];
+    noise = auv_noise(persistance,(ch_scale*(w3d_pos-ch_center))+0.5); // *0.159155
+    vec4 bg = texture2D(auv_bg, w3d_uv);
     fColor = mix(color2, color1, noise);
     float alpha = fColor.w;
     if(blend > 0.5) alpha *= abs(noise*2.0-1.0);

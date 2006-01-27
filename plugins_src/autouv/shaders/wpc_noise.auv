@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_noise.auv,v 1.3 2006/01/19 23:20:11 dgud Exp $
+%%     $Id: wpc_noise.auv,v 1.4 2006/01/27 15:17:56 dgud Exp $
 %%
  
 %%  Everything behind a '%' is a comment
@@ -18,6 +18,7 @@
 {fragment_shader, "noise.fs"}.  % Fragment shader used
 {auv, auv_noise}.               % Use builtin 3d noise texture
 {auv, auv_bg}.                  % Require previous passes
+{auv, auv_bbpos3d}.
 %% Uses these uniforms:  
 %% {uniform, Type, VarID in shader, DefaultValue, StringInGUI}
 {uniform, color, "color1", {0.0,0.0,0.0,1.0}, "Color 1"}.

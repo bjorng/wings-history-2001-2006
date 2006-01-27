@@ -8,7 +8,7 @@
 //  See the file "license.terms" for information on usage and redistribution
 //  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 //
-//     $Id: wood.fs,v 1.3 2006/01/20 15:40:27 dgud Exp $
+//     $Id: wood.fs,v 1.4 2006/01/27 15:17:56 dgud Exp $
 //
 
 uniform vec4  darkWood;
@@ -16,8 +16,8 @@ uniform vec4  liteWood;
 uniform float frequency;
 uniform float noiseScale;
 uniform float scale;
-
-varying vec3 auv_pos3d;
+uniform vec3 auv_bbpos3d[2];
+varying vec3 w3d_pos;
 uniform sampler3D auv_noise;
 
 float auv_noise(float P, vec3 pos)
@@ -32,15 +32,18 @@ float auv_noise(float P, vec3 pos)
 
 void main(void)
 {
-    // Signed noise
-  vec3 pos = auv_pos3d*scale+0.5;
+  // Signed noise
+  vec3 ch_center = (auv_bbpos3d[1]-auv_bbpos3d[0]);
+  float ch_scale  = scale*1.41421/length(ch_center);
+  ch_center = (ch_center/2.0) + auv_bbpos3d[0];
+  vec3 pos = (ch_scale*(w3d_pos-ch_center))+0.5;
   float snoise = 2.0 * auv_noise(0.5,pos) - 1.0;
   
   // Stretch along y axis
-  vec2 adjustedScaledPos = vec2(pos.x, pos.y*.25);
+  vec2 adjustedScaledPos = vec2(w3d_pos.x, w3d_pos.y*.25);
   // Rings are defined by distance to z axis and wobbled along it
   // and perturbed with some noise
-  float ring = 0.5*(1.0+sin(5.0*sin(frequency*pos.z)+
+  float ring = 0.5*(1.0+sin(5.0*sin(frequency*w3d_pos.z)+
 			    frequency*(noiseScale*snoise+
 				       6.28*length(adjustedScaledPos.xy))));    
   // Add some noise and get base color

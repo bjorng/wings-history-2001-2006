@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.4 2006/01/20 15:40:27 dgud Exp $
+#     $Id: Makefile,v 1.5 2006/01/27 15:17:56 dgud Exp $
 #
 
 DIR = ../../../plugins/autouv
@@ -19,7 +19,8 @@ FILES = standard.vs \
 	wpc_wood.auv \
 	wood.fs \
 	wpc_filter.auv \
-	image_filter.fs
+	image_filter.fs \
+	README-shaders.txt
 
 
 TARGETFILES = $(FILES:%=$(DIR)/%)

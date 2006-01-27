@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_texture.erl,v 1.27 2006/01/26 23:17:31 dgud Exp $
+%%     $Id: auv_texture.erl,v 1.28 2006/01/27 15:17:55 dgud Exp $
 %%
 
 -module(auv_texture).
@@ -52,7 +52,8 @@
 		  fbo_r,      % Fbo read buffer
 		  fbo_w,      % Fbo write buffer
 		  fbo_d,      % Clean up fbo
-		  prog}).     % Shader Id
+		  prog,       % Shader Id
+		  ts}).       % Shader data
 
 -record(ts,         % What              Type
 	{charts,    % #chart{}          (list)
@@ -60,6 +61,7 @@
 	 pos,       % Real 3D position  (binary)
  	 n,         % Normal            (binary) Optional
 	 bi,        % BiNormal          (binary) Optional
+	 bb,        % BoundingBox 3D pos
 	 uvc,       % Previous uv or vertex color (binary)
 	 uvc_mode   % material (uv) or vertex
 	}).
@@ -67,7 +69,8 @@
 -record(chart, 
 	{id,        % Chart ID
 	 fs,        % Faces see [{Face,#fs{}}]
-	 oes=[],    % Outer vertices [[va,vb,face],[vc,vb,face]..]
+	 oes=[],    % Outer vertices [[va,vb,face],[vc,vb,face]..],
+	 bb_uv,     % Uv Bounding Box {{minX,minY,0},{maxX,maxY,0}}
 	 mode       % Previous mode material/vertex-colored
 	}).
 
@@ -332,7 +335,7 @@ render_image(Geom = #ts{uv=UVpos,pos=Pos,n=Ns,bi=BiNs,uvc=Uvc,uvc_mode=Mode},
 %%    io:format("Get texture sz ~p ~p ~n", [{W,Wd},{H,Hd}]),
     set_viewport({0,0,W,H}),
     %% Load Pointers
-    gl:vertexPointer(3, ?GL_FLOAT, 0, UVpos),
+    gl:vertexPointer(2, ?GL_FLOAT, 0, UVpos),
     case lists:member(normal, Reqs) of
 	true -> gl:normalPointer(?GL_FLOAT, 0, Ns);
 	false -> ignore
@@ -630,12 +633,13 @@ setup(St = #st{bb=#uvstate{id=RId, st=#st{mat=Mat,shapes=Sh0},
     We   = gb_trees:get(RId,Sh0),
     Orig = gb_trees:get(RId,OrigSh),
     Mats = merge_mats(gb_trees:to_list(OrigMat),Mat),
-    {Charts,{_Cnt,UVpos,Vpos,Ns,Ts,Uvc}} = setup_charts(St,We,Orig,Mats,Reqs),
+    {Charts,{_Cnt,UVpos,Vpos,Ns,Ts,BB,Uvc}} = setup_charts(St,We,Orig,Mats,Reqs),
     #ts{charts=Charts,
-	uv =to_bin(UVpos,pos),
+	uv =to_bin(UVpos,uv),
 	pos=to_bin(Vpos,pos),
 	n  =to_bin(Ns,pos),
 	bi =to_bin(Ts,pos),
+	bb = BB,
 	uvc=to_bin(Uvc,Orig#we.mode), 
 	uvc_mode=Orig#we.mode}.
 
@@ -644,7 +648,7 @@ setup_charts(#st{shapes=Cs0,selmode=Mode,sel=Sel},We,OrigWe,Mats,Reqs) ->
 	     true -> setup_normals(We);
 	     false -> []
 	 end,
-    Start = {0,[],[],[],[],[]}, %% {UvPos,3dPos,Normal,Tangent,Uvc}
+    Start = {0,[],[],[],[],[],[]}, %% {UvPos,3dPos,Normal,Tangent,Uvc}
     Mat = fun(Face) -> get_material(Face,We,OrigWe,Mats) end,
     Shapes = if Sel =:= [] -> 
 		     gb_trees:values(Cs0);
@@ -658,14 +662,16 @@ setup_charts(#st{shapes=Cs0,selmode=Mode,sel=Sel},We,OrigWe,Mats,Reqs) ->
 
 setup_chart(Uv = #we{id=Id},Mat,Ns,Reqs,WWe,OWe,State0) ->
     OEs0 = outer_verts(Uv), 
-    {Fs,{OEs,State}}  = create_faces(Uv,WWe,OWe,Ns,Mat,Reqs,{OEs0,State0}),
-    {#chart{id=Id,fs=Fs,oes=OEs},State}.
+    BB = [],
+    {Fs,{OEs,UvBB,State}}  = 
+	create_faces(Uv,WWe,OWe,Ns,Mat,Reqs,{OEs0,BB,State0}),
+    {#chart{id=Id,fs=Fs,oes=OEs,bb_uv=UvBB},State}.
 
 create_faces(We = #we{vp=Vtab,name=#ch{vmap=Vmap}},
 	     RWe = #we{vp=Vt3d},OWe=#we{mode=OldMode},
 	     NTab,GetMat,Reqs,State) ->
     Fs = wings_we:visible(We),
-    C=fun(Face,{OEs,{Cnt,UVpos,Vpos,Ns,Ts,Uvc}}) ->
+    C=fun(Face,{OEs,UvBB,{Cnt,UVpos,Vpos,Ns,Ts,PosBB,Uvc}}) ->
 	      Vs0 = wings_face:vertices_ccw(Face,We),
 	      UVcoords = [gb_trees:get(V, Vtab) || V <- Vs0],
 	      Coords   = [gb_trees:get(map_vertex(V,Vmap),Vt3d) 
@@ -691,11 +697,13 @@ create_faces(We = #we{vp=Vtab,name=#ch{vmap=Vmap}},
 	      Mat  = GetMat(Face),
 	      {#fs{vs=Indx(Vs),vse=Indx(FaceVs),mat=Mat},
 	       {map_oes(OEs,Vs0,Cnt,Face,Mat),
+		e3d_vec:bounding_box(UvBB ++ UVcoords),
 		{Cnt+Len,
 		 UVcoords ++ UVpos,
 		 Coords   ++ Vpos,
 		 Normals  ++ Ns,
 		 Tangents ++ Ts,
+		 e3d_vec:bounding_box(PosBB ++ Coords),
 		 OldUvc   ++ Uvc}}}
       end,
     lists:mapfoldl(C, State, Fs).
@@ -849,6 +857,7 @@ outer_verts(We = #we{es=Etab}) ->
 
 %% Start with 64 bytes so that binary will be reference counted 
 %% and not on the process heap spent hours debugging this.. :-(
+to_bin(List, uv) -> to_bin2(List,[<<0:512>>]);
 to_bin(List, pos) -> to_bin3(List,[<<0:512>>]);
 to_bin(List, vertex) -> to_bin3(List,[<<0:512>>]);  %% Vertex colors
 to_bin(List, material) -> to_bin2(List,[<<0:512>>]).  %% UV coords.
@@ -1002,18 +1011,15 @@ shader_pass(false,_,_) ->
     fun(_,_) -> ok end;
 shader_pass({value,#sh{args=Args,tex_units=TexUnits,reqs=Reqs}},
 	    {value,{_,Prog}},Opts) ->
-    fun(#ts{charts=Charts},Config) ->
+    fun(Ts = #ts{charts=Charts},Config) ->
 	    gl:disable(?GL_DEPTH_TEST),
 	    gl:disable(?GL_ALPHA_TEST),
 	    gl:enable(?GL_BLEND),
 	    gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
 	    gl:useProgram(Prog),
 	    try 
-		shader_uniforms(reverse(Args),Opts,Config#sh_conf{prog=Prog}),
-		R = fun(#fs{vs=Vss}) ->
-			    gl:drawElements(?GL_TRIANGLES,length(Vss),
-					    ?GL_UNSIGNED_INT,Vss)
-		    end,
+		Conf = Config#sh_conf{prog=Prog,ts=Ts},
+		PerChartUniF = shader_uniforms(reverse(Args),Opts,Conf),
 		case lists:keysearch(auv_send_texture,1,Opts) of 
 		    {value,{auv_send_texture,true}} -> 
 			draw_texture_square();
@@ -1032,7 +1038,16 @@ shader_pass({value,#sh{args=Args,tex_units=TexUnits,reqs=Reqs}},
 				gl:enableClientState(?GL_NORMAL_ARRAY);
 			    false -> ignore
 			end,
-			foreach(fun(#chart{fs=Fas}) -> foreach(R,Fas) end,Charts)
+			foreach(fun(Chart = #chart{fs=Fas}) -> 
+					PerFaceUniF = sh_uniforms(PerChartUniF,Chart,Conf),
+					R = fun(Face = #fs{vs=Vss}) ->			    
+						    sh_uniforms(PerFaceUniF,Face,Conf),
+						    gl:drawElements(?GL_TRIANGLES,length(Vss),
+								    ?GL_UNSIGNED_INT,Vss)
+					    end,
+					foreach(R,Fas) 
+				end,
+				Charts)
 		end
 	    catch throw:What ->
 		    io:format("AUV: ERROR ~s ~n",[What]);
@@ -1107,8 +1122,28 @@ shader_uniforms([{auv,auv_texsz}|As],Opts,Conf = #sh_conf{texsz={W,H}}) ->
     shader_uniforms(As,Opts,Conf);
 shader_uniforms([{auv,{auv_send_texture,_,_}}|As],[_Val|Opts],Conf) ->
     shader_uniforms(As,Opts,Conf);
+shader_uniforms([{auv,auv_bbpos3d}|R],Opts,Conf) ->
+    Loc = getLocation(Conf#sh_conf.prog,"auv_bbpos3d"),
+    [{MinX,MinY,MinZ},{MaxX,MaxY,MaxZ}] = (Conf#sh_conf.ts)#ts.bb,
+    gl:uniform3f(Loc,MinX,MinY,MinZ),
+    gl:uniform3f(Loc+1,MaxX,MaxY,MaxZ),
+    shader_uniforms(R,Opts,Conf);
+shader_uniforms([{auv,What}|As],Opts,Conf) ->
+    [What|shader_uniforms(As,Opts,Conf)];
 shader_uniforms([],[],_) ->
-    ok.
+    [].
+
+%% Per Face or per Chart uniforms
+sh_uniforms([auv_bbpos2d|R],Chart=#chart{bb_uv=BB},Conf) ->
+    Loc = getLocation(Conf#sh_conf.prog,"auv_bbpos2d"),
+    [{MinX,MinY,_},{MaxX,MaxY,_}] = BB,
+    gl:uniform2f(Loc,MinX,MinY),
+    gl:uniform2f(Loc+1,MaxX,MaxY),
+    sh_uniforms(R,Chart,Conf);
+sh_uniforms([_|R],Chart,Conf) ->
+    sh_uniforms(R,Chart,Conf);
+sh_uniforms([],_,_) ->
+    [].
 
 disable_tex_units(Unit) when Unit > 0 ->
     gl:activeTexture(?GL_TEXTURE0 + Unit-1),
@@ -1199,6 +1234,10 @@ parse_sh_info([{auv,auv_bg}|Opts],Sh,NI,Acc) ->
     What = {auv,{auv_bg,0}},
     parse_sh_info(Opts, Sh#sh{args=[What|Sh#sh.args]},NI,Acc);
 parse_sh_info([What={auv,auv_texsz}|Opts],Sh,NI,Acc) ->
+    parse_sh_info(Opts, Sh#sh{args=[What|Sh#sh.args]},NI,Acc);
+parse_sh_info([What={auv,auv_bbpos2d}|Opts],Sh,NI,Acc) ->
+    parse_sh_info(Opts, Sh#sh{args=[What|Sh#sh.args]},NI,Acc);
+parse_sh_info([What={auv,auv_bbpos3d}|Opts],Sh,NI,Acc) ->
     parse_sh_info(Opts, Sh#sh{args=[What|Sh#sh.args]},NI,Acc);
 parse_sh_info([What={auv,{auv_send_texture,L,Def}}|Opts],Sh,NI,Acc) 
   when is_list(L) ->

@@ -8,21 +8,18 @@
 //  See the file "license.terms" for information on usage and redistribution
 //  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 //
-//     $Id: standard.vs,v 1.1 2006/01/17 23:22:02 dgud Exp $
+//     $Id: standard.vs,v 1.2 2006/01/27 15:17:56 dgud Exp $
 //
  
-varying vec3 auv_pos2d;
-varying vec3 auv_pos3d;
-varying vec3 auv_normal;
+varying vec2 w3d_uv;
+varying vec3 w3d_pos;
 
 void main(void)
 {
     // UV coords comes here since we are actually drawing on a texture    
-    auv_pos2d    = gl_Vertex.xyz;
+    w3d_uv    = gl_Vertex.xy;
     // The vertex positions comes here in world space
-    auv_pos3d    = gl_MultiTexCoord1.xyz;
-    // The normals comes here in world space
-    auv_normal   = gl_Normal.xyz;
+    w3d_pos   = gl_MultiTexCoord1.xyz;
     
     vec4 Position = gl_Vertex;
     gl_Position   = gl_ModelViewProjectionMatrix * Position;

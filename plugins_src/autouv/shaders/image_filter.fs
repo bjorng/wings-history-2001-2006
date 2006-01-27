@@ -8,18 +8,17 @@
 //  See the file "license.terms" for information on usage and redistribution
 //  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 //
-//     $Id: image_filter.fs,v 1.2 2006/01/22 14:19:15 dgud Exp $
+//     $Id: image_filter.fs,v 1.3 2006/01/27 15:17:56 dgud Exp $
 //
 // Grabbed from tutorial By Jérôme Guinot jegx [at] ozone3d [dot] net
 //
 
 #define KERNEL_SIZE 9
 
-varying vec3 auv_pos2d;
+varying vec2 w3d_uv;
 uniform sampler2D auv_bg;
 uniform float kernel[KERNEL_SIZE];
 uniform vec2 auv_texsz;
-
 
 void main(void)
 {
@@ -32,8 +31,8 @@ void main(void)
 	kernel[6]+kernel[7]+kernel[8];
     scale = max(1.0,scale);
     
-    float orig_x  = auv_pos2d.x;
-    float orig_y  = auv_pos2d.y;
+    float orig_x  = w3d_uv.x;
+    float orig_y  = w3d_uv.y;
     float orig_up = orig_y + step_h;
     float orig_dw = orig_y - step_h;
     float orig_lt = orig_x - step_w;
