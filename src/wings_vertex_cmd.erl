@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.60 2006/01/17 22:14:28 giniu Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.61 2006/01/28 17:01:35 giniu Exp $
 %%
 
 -module(wings_vertex_cmd).
@@ -442,14 +442,14 @@ set_color_1([], _, We) -> We.
 
 weld(#st{sel=[{Obj,{1,{Vert,_,_}}}],shapes=Shs}=St) ->
    We = gb_trees:get(Obj, Shs),
-   Vertices = gb_trees:size(We#we.fs),
+   Vertices = gb_trees:size(We#we.vp),
    Mirror = We#we.mirror,
    if
       Mirror /= none -> 
          Verts = wings_face:vertices_cw(Mirror,We),
          case member(Vert,Verts) of
             true ->
-               wings_u:error(?__(1,"You cannot weld at mirrot plane")),
+               wings_u:error(?__(1,"You cannot weld at mirror plane")),
                St;
             _ -> ok
          end;
@@ -498,42 +498,42 @@ weld_check_selection(_,_) ->
 
 weld([{_,{1,{Vert2,_,_}}}]=NewSel,#st{sel=[{Obj,{1,{Vert1,_,_}}}],shapes=Shs}=St) ->
    We = gb_trees:get(Obj, Shs),
+   {RemoveEdge,LF,RF,FixMe} = get_edge_info(Vert1,Vert2,We),
    NewVp = gb_trees:delete(Vert1,We#we.vp),
-   {NewEs,NewMat} = fix_edge(Vert1,Vert2,We),
+   NewEs = fix_edge(Vert1,Vert2,RemoveEdge,FixMe,LF,RF,We),
+   NewMat = fix_mat(FixMe,We),
    NewHe = fix_hardedge(NewEs, We#we.he),
    NewWe = wings_we:rebuild(We#we{vp=NewVp, es=NewEs, he=NewHe, vc=undefined, fs=undefined, mat=NewMat}),
-   wings_we_util:validate(NewWe),
    NewShs = gb_trees:update(Obj,NewWe,Shs),
    St#st{shapes=NewShs,sel=NewSel}.
 
-fix_edge(Vert1,Vert2,Orig) ->
-   Es = Orig#we.es,
-   RemoveEdge = find_edge(Vert1,Vert2,Es),
-   FixMe = needs_cleanup(RemoveEdge,Orig),
-   Etab = fix_edge_1(RemoveEdge,Vert1,Vert2,Es,Orig),
-   NewEs = fix_edge_2(FixMe,Etab),
-   NewMat = fix_mat(FixMe,Orig),
-   {NewEs,NewMat}.
+get_edge_info(Vert1,Vert2,We) ->
+   [{RemoveEdge,LF,RF}] = wings_vertex:edge_through(Vert1, Vert2, We),
+   NLF = wings_face:vertices(LF, We),
+   NRF = wings_face:vertices(RF, We),
+   if
+      NLF < 4 -> FixMe0 = [LF];
+      true -> FixMe0 = []
+   end,
+   if
+      NRF < 4 -> FixMe = [RF|FixMe0];
+      true -> FixMe = FixMe0
+   end,
+   {RemoveEdge,LF,RF,FixMe}.
 
-fix_mat([Remove|FixRest],We) ->
-   NewWe = wings_facemat:delete_face(Remove,We),
-   fix_mat(FixRest,NewWe);
-fix_mat([],We) ->
-   We#we.mat.
-
-fix_edge_1(RemoveEdge,Vert1,Vert2,Es,Orig) ->
+fix_edge(Vert1,Vert2,RemoveEdge,FixMe,LF,RF,We) ->
    New = gb_trees:empty(),
-   #edge{lf=LF,rf=RF} = gb_trees:get(RemoveEdge,Orig#we.es),
-   ABTransform = calculate_ab(Vert1,Vert2,LF,RF,Orig),
-   fix_edge_1(RemoveEdge,ABTransform,Vert1,Vert2,Es,Orig,New).
-   
-fix_edge_1(RemoveEdge,ABTransform,Vert1,Vert2,Es,Orig,Result) ->
+   ABTransform = calculate_ab(Vert1,Vert2,LF,RF,We),
+   Etab = fix_edge_1(Vert1,Vert2,RemoveEdge,ABTransform,We#we.es,We,New),
+   foldl(fun(Face,ParseEtab) -> remove_face(Face,ParseEtab) end,Etab,FixMe).
+
+fix_edge_1(Vert1,Vert2,RemoveEdge,ABTransform,Es,Orig,Result) ->
    case gb_trees:size(Es) of
       0 -> Result;
       _ ->
          {Key,#edge{vs=V1,ve=V2,a=C1,b=C2,lf=LF,rf=RF,ltpr=LP,ltsu=LS,rtpr=RP,rtsu=RS},Es2} = gb_trees:take_smallest(Es),
          if
-            Key == RemoveEdge -> fix_edge_1(RemoveEdge,ABTransform,Vert1,Vert2,Es2,Orig,Result);
+            Key == RemoveEdge -> fix_edge_1(Vert1,Vert2,RemoveEdge,ABTransform,Es2,Orig,Result);
             true ->
                #edge{lf=OLF,rf=ORF,ltpr=OLP,ltsu=OLS,rtpr=ORP,rtsu=ORS} = gb_trees:get(RemoveEdge,Orig#we.es),
                case V1 of
@@ -582,18 +582,32 @@ fix_edge_1(RemoveEdge,ABTransform,Vert1,Vert2,Es,Orig,Result) ->
                end,
                NewEdge = #edge{vs=NV1,ve=NV2,a=NC1,b=NC2,lf=LF,rf=RF,ltpr=NLP,ltsu=NLS,rtpr=NRP,rtsu=NRS},
                Result2 = gb_trees:insert(Key,NewEdge,Result),
-               fix_edge_1(RemoveEdge,ABTransform,Vert1,Vert2,Es2,Orig,Result2)
+               fix_edge_1(Vert1,Vert2,RemoveEdge,ABTransform,Es2,Orig,Result2)
          end
    end.
 
-fix_edge_2([Remove|FixRest],Etab) ->
-   NewEtab = remove_face(Remove,Etab),
-   fix_edge_2(FixRest,NewEtab);
-fix_edge_2([],Etab) ->
-   Etab.
+fix_mat(FixMe,We) ->
+   NewMat = foldl(fun(Face,ParseWe) -> wings_facemat:delete_face(Face,ParseWe) end,We,FixMe),
+   NewMat#we.mat.
+
+fix_hardedge(Etab,He) ->
+   New = gb_sets:empty(),
+   fix_hardedge(Etab,He,New).
+
+fix_hardedge(Etab,He,Result) ->
+   case gb_sets:size(He) of
+      0 -> Result;
+      _ -> 
+         {Edge,He2} = gb_sets:take_smallest(He),
+         case gb_trees:is_defined(Edge, Etab) of
+            true -> Result2 = gb_sets:add(Edge,Result);
+            _ -> Result2 = Result
+         end,
+         fix_hardedge(Etab,He2,Result2)
+   end.
 
 remove_face(Face,Etab) ->
-   [Key1,Key2]=find_edge2(Face,Etab),
+   [Key1,Key2]=find_edge(Face,Etab),
    OldEdge = gb_trees:get(Key1,Etab),
    NewEdge = gb_trees:get(Key2,Etab),
    K1 = find_edge_to_face(OldEdge,Face),
@@ -651,47 +665,10 @@ substitute_1(This,WithThis,Edge) ->
    end,
    Edge#edge{ltsu=Ltsu, ltpr=Ltpr, rtsu=Rtsu, rtpr=Rtpr}.
 
-fix_hardedge(Etab,He) ->
-   New = gb_sets:empty(),
-   fix_hardedge(Etab,He,New).
+find_edge(Face,Etab) ->
+   find_edge(Face,Etab,[]).
 
-fix_hardedge(Etab,He,Result) ->
-   case gb_sets:size(He) of
-      0 -> Result;
-      _ -> 
-         {Edge,He2} = gb_sets:take_smallest(He),
-         case gb_trees:is_defined(Edge, Etab) of
-            true -> Result2 = gb_sets:add(Edge,Result);
-            _ -> Result2 = Result
-         end,
-         fix_hardedge(Etab,He2,Result2)
-   end.
-
-needs_cleanup(RemoveEdge,Orig) ->
-   #edge{lf=LF,rf=RF} = gb_trees:get(RemoveEdge,Orig#we.es),
-   NLF = wings_face:vertices(LF, Orig),
-   NRF = wings_face:vertices(RF, Orig),
-   if
-      NLF < 4 -> FixMe0 = [LF];
-      true -> FixMe0 = []
-   end,
-   if
-      NRF < 4 -> FixMe = [RF|FixMe0];
-      true -> FixMe = FixMe0
-   end,
-   FixMe.
-
-find_edge(Vert1,Vert2,Es) ->
-   {Key,#edge{vs=V1,ve=V2},Es2} = gb_trees:take_smallest(Es),
-   if
-      ((Vert1 == V1) and (Vert2 == V2)) or ((Vert1 == V2) and (Vert2 == V1)) -> Key;
-      true -> find_edge(Vert1,Vert2,Es2)
-   end.
-
-find_edge2(Face,Etab) ->
-   find_edge2(Face,Etab,[]).
-
-find_edge2(Face,Es,Result) ->
+find_edge(Face,Es,Result) ->
    case gb_trees:size(Es) of
       0 -> Result;
       _ ->
@@ -700,7 +677,7 @@ find_edge2(Face,Es,Result) ->
             (LF == Face) or (RF == Face) -> Result2=[Key|Result];
             true -> Result2=Result
          end,
-         find_edge2(Face,Es2,Result2)
+         find_edge(Face,Es2,Result2)
    end.
 
 find_edge_to_face(#edge{lf=Face},Face) -> left;
