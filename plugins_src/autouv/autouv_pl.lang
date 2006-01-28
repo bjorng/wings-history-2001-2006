@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: autouv_pl.lang,v 1.4 2005/12/16 00:10:36 giniu Exp $
+%%     $Id: autouv_pl.lang,v 1.5 2006/01/28 20:59:58 giniu Exp $
 %%
 %%  Translation:  Andrzej Giniewicz
 %%  Correction:   Małgorzata Napiontek
@@ -112,20 +112,39 @@
  ]}.
 {auv_texture,
  [
+  {background,
+   [
+    {1,"Tło"}
+   ]},
   {draw_options,
    [
-    {1,"Nanieś wszystkie krawędzie"},
-    {2,"Nanieś krawędzie brzegu"},
-    {3,"Nie nanoś krawędzi"},
-    {4,"Opcje krawędzi"},
-    {5,"Użyj koloru płaszczyzn/punktów na krawędziach brzegu"},
-    {6,"Grubość krawędzi"},
-    {7,"Opcje przerysowania"},
-    {8,"Pokaż kolory (lub tekstury)"},
-    {9,"Tekstura tła (jeśli istnieje)"},
-    {10,"Wyświetlanie kolorów i tekstur"},
-    {11,"Rozmiar tekstury"},
-    {12,"Opcje rysowania"}
+    {1,"Rozmiar"},
+    {2,"Renderuj kanały"},
+    {3,"Opcje rysowania"}
+   ]},
+  {options,
+   [
+    {1,"Obraz"},
+    {2,"Kolor"},
+    {3,"Nanieś wszystkie krawędzie"},
+    {4,"Nanieś krawędzie brzegu"},
+    {5,"Kolor krawędzi:"},
+    {6,"Grubość krawędzi:"},
+    {7,"Użyj materiału płaszczyzn/punktów (na brzegu)"},
+    {8,"Użyj koloru materiału"},
+    {9,"Użyj istniejącej tekstury/koloru punktów"}
+   ]},
+  {render_passes,
+   [
+    {1,"Tło"},
+    {2,"Opcje"},
+    {3,"Opcje"}
+   ]},
+  {renderers,
+   [
+    {1,"Nic"},
+    {2,"Krawędzie"},
+    {3,"Płaszczyzny"}
    ]}
  ]}.
 {wpc_autouv,
@@ -259,10 +278,6 @@
   {drag_filter,
    [
     {1,"Opuść: Zmień plik tekstury"}
-   ]},
-  {handle_drop,
-   [
-    {1,"Edytujesz koordynaty UV kilku materiałów,\nzamknij okno edutora UV i ustaw wszystkie\npłaszczyzny na jeden materiał"}
    ]},
   {handle_event_3,
    [
