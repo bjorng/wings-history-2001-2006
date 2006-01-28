@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pl.lang,v 1.20 2006/01/13 21:04:26 giniu Exp $
+%%     $Id: wings_pl.lang,v 1.21 2006/01/28 17:12:20 giniu Exp $
 %%
 %%  Translation:  Andrzej Giniewicz
 %%  Correction:   Małgorzata Napiontek
@@ -1588,9 +1588,10 @@
   {handle_drop,
    [
     {1,"Typ tekstury"},
-    {2,"Rozproszeniowa"},
-    {3,"Połysku"},
-    {4,"Wypukłości (Bump)"}
+    {2,"Rozproszenie"},
+    {3,"Odblask"},
+    {4,"Mapa typu bump"},
+    {5,"Mapa wektorów normalnych"}
    ]},
   {image_menu,
    [
