@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_texture.erl,v 1.29 2006/01/27 19:16:09 dgud Exp $
+%%     $Id: auv_texture.erl,v 1.30 2006/01/29 15:25:19 dgud Exp $
 %%
 
 -module(auv_texture).
@@ -90,8 +90,12 @@ draw_options() ->
     Qs = [{hframe,[{menu,gen_tx_sizes(MaxTxs,[]),TexSz,
 		    [{key,texsz}]}],
 	   [{title,?__(1,"Size")}]},
-	  {vframe, render_passes(Prefs,Shaders), [{title,?__(2,"Render")}]},
-	  {button,"Add Shader Pass", done, [{key,add_shader}]}],
+	  {vframe, render_passes(Prefs,Shaders), [{title,?__(2,"Render")}]}|
+	  case have_shaders() of
+	      false -> [];
+	      true -> 
+		  [{button,?__(4,"Add Shader Pass"),done,[{key,add_shader}]}]
+	  end],
     
     wings_ask:dialog(?__(3,"Draw Options"), Qs,
 		     fun(Options) ->
@@ -109,7 +113,7 @@ draw_options() ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 render_passes(Prefs,Shaders) ->
-    NoOfPasses = lists:min([((length(Prefs) - 1) div 2)-1,4]),
+    NoOfPasses = lists:max([((length(Prefs) - 1) div 2)-1,4]),
     Menu = renderers(Shaders),
     Background = 
 	{hframe, 
@@ -592,9 +596,17 @@ r2list([], Id, Max) when Id < Max ->
 r2list([], _Id, _Max)  -> [].
 
 list_to_prefs([{texsz, TexSz}|Rest]) ->    
-    [{add_shader, Add}|ROpts] = reverse(Rest),
-    {LR,Num} = listOfRenders(reverse(ROpts),0, []),
-    New = if Add -> 1; true -> 0 end,
+    {LR,New,Add} = 
+	case reverse(Rest) of 
+	    [{add_shader, Add0}|ROpts] -> 
+		{LR0,Num} = listOfRenders(reverse(ROpts),0, []),	    
+		if Add0 ->  {LR0 ++[{ignore,none}],1,true}; 
+		   true -> {LR0,0,false} 
+		end;
+	    _ -> 
+		{LR0,Num} = listOfRenders(Rest,0, []),
+		{LR0, 0,false}
+	end,
     {{add_shader, Add},#opt{texsz={TexSz,TexSz},no_renderers=Num+New,
 			    renderers=LR}}.
 
@@ -1202,7 +1214,7 @@ shaders() ->
 
 have_shaders() ->
     wings_gl:is_ext({2,0}) andalso 
-	wings_gl:is_ext('GL_EXT_framebuffer_object').
+ 	wings_gl:is_ext('GL_EXT_framebuffer_object').
 
 load_shaders_cfg() ->
     Path  = filename:dirname(code:which(?MODULE)),
