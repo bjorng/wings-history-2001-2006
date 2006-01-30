@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_texture.erl,v 1.30 2006/01/29 15:25:19 dgud Exp $
+%%     $Id: auv_texture.erl,v 1.31 2006/01/30 09:23:19 dgud Exp $
 %%
 
 -module(auv_texture).
@@ -1213,8 +1213,9 @@ shaders() ->
     end.
 
 have_shaders() ->
-    wings_gl:is_ext({2,0}) andalso 
- 	wings_gl:is_ext('GL_EXT_framebuffer_object').
+    wings_gl:is_ext(['GL_ARB_fragment_shader', 
+		     'GL_ARB_vertex_shader']) 
+	andalso wings_gl:is_ext('GL_EXT_framebuffer_object').
 
 load_shaders_cfg() ->
     Path  = filename:dirname(code:which(?MODULE)),
