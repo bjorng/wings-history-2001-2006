@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_texture.erl,v 1.31 2006/01/30 09:23:19 dgud Exp $
+%%     $Id: auv_texture.erl,v 1.32 2006/01/31 15:03:22 dgud Exp $
 %%
 
 -module(auv_texture).
@@ -90,16 +90,14 @@ draw_options() ->
     Qs = [{hframe,[{menu,gen_tx_sizes(MaxTxs,[]),TexSz,
 		    [{key,texsz}]}],
 	   [{title,?__(1,"Size")}]},
-	  {vframe, render_passes(Prefs,Shaders), [{title,?__(2,"Render")}]}|
-	  case have_shaders() of
-	      false -> [];
-	      true -> 
-		  [{button,?__(4,"Add Shader Pass"),done,[{key,add_shader}]}]
-	  end],
+	  {vframe, render_passes(Prefs,Shaders), [{title,?__(2,"Render")}]},
+	  {hframe, [{button,?__(4,"New Pass"),done,[{key,add_shader}]},
+		    {button,?__(5,"Delete Unused Pass"),done,[{key,del_shader}]}]}
+	 ],
     
     wings_ask:dialog(?__(3,"Draw Options"), Qs,
 		     fun(Options) ->
-			     {{add_shader,New},Opt} = list_to_prefs(Options),
+			     {{changed,New},Opt} = list_to_prefs(Options),
 			     set_pref([{tx_prefs, pref_to_list(Opt)}]),
 			     if New -> 
 				     {auv,{draw_options,restart}};
@@ -113,7 +111,8 @@ draw_options() ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 render_passes(Prefs,Shaders) ->
-    NoOfPasses = lists:max([((length(Prefs) - 1) div 2)-1,4]),
+    %% Ugly count of shaders
+    NoOfPasses = length([ok || {{auv_pass,_},_} <- Prefs])-1, 
     Menu = renderers(Shaders),
     Background = 
 	{hframe, 
@@ -596,27 +595,27 @@ r2list([], Id, Max) when Id < Max ->
 r2list([], _Id, _Max)  -> [].
 
 list_to_prefs([{texsz, TexSz}|Rest]) ->    
-    {LR,New,Add} = 
-	case reverse(Rest) of 
-	    [{add_shader, Add0}|ROpts] -> 
-		{LR0,Num} = listOfRenders(reverse(ROpts),0, []),	    
-		if Add0 ->  {LR0 ++[{ignore,none}],1,true}; 
-		   true -> {LR0,0,false} 
-		end;
-	    _ -> 
-		{LR0,Num} = listOfRenders(Rest,0, []),
-		{LR0, 0,false}
-	end,
-    {{add_shader, Add},#opt{texsz={TexSz,TexSz},no_renderers=Num+New,
-			    renderers=LR}}.
+    case reverse(Rest) of
+	[{del_shader, true},{add_shader,_}|ROpts] -> 
+	    LR = listOfRenders(reverse(ROpts),delete,[]),
+	    Changed = true;
+	[{del_shader, false},{add_shader, true}|ROpts] -> 
+	    LR = listOfRenders(reverse(ROpts),keep,[]) ++ [{ignore, none}],
+	    Changed = true;
+	[{del_shader, false},{add_shader, false}|ROpts] ->
+	    LR = listOfRenders(reverse(ROpts),keep,[]),
+	    Changed = false
+    end,
+    {{changed, Changed},
+     #opt{texsz={TexSz,TexSz},no_renderers=length(LR),renderers=LR}}.
 
-listOfRenders([{{auv_pass,_},ignore},_|Rest],Id,Acc) ->
-    if Id < 5 -> listOfRenders(Rest,Id+1,Acc);
-       true ->   listOfRenders(Rest,Id,Acc)
-    end;	    
-listOfRenders([{{auv_pass,_},Type},{{auv_opt,_},Opts}|Rest],Id,Acc) ->
-    listOfRenders(Rest,Id+1,[{Type,Opts}|Acc]);
-listOfRenders([],Id,Acc) -> {reverse(Acc),Id}.
+listOfRenders([{{auv_pass,_},ignore},_|Rest],delete,Acc) ->
+    listOfRenders(Rest,delete,Acc);
+listOfRenders([{{auv_pass,_},ignore},_|Rest],keep,Acc) ->
+    listOfRenders(Rest,keep,[{ignore,[]}|Acc]);
+listOfRenders([{{auv_pass,_},Type},{{auv_opt,_},Opts}|Rest],Op,Acc) ->
+    listOfRenders(Rest,Op,[{Type,Opts}|Acc]);
+listOfRenders([],_,Acc) -> reverse(Acc).
     
 gen_tx_sizes(Sz, Acc) when Sz < 128 -> Acc;
 gen_tx_sizes(Sz, Acc) ->
@@ -905,8 +904,16 @@ merge_mats([],Mats) -> Mats.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 get_passes(Passes,Shaders) ->
-    lists:map(fun(Pass) -> pass(Pass,Shaders) end, Passes).
+    lists:foldr(fun(Pass,Acc) -> 
+			case pass(Pass,Shaders) of
+			    Fun when is_function(Fun) ->
+				[Fun|Acc];
+			    _ ->
+				Acc
+			end
+		end, [], Passes).
 
+pass({ignore,_},_) ->  ignore;
 pass({auv_background,[{type_sel,color},_,Color]},_) ->  
     fun(_Geom,_) ->
 	    {R,G,B,A} = fix(Color,true),
@@ -1016,16 +1023,16 @@ pass({{shader,Id}, Opts},{Sh,Compiled}) ->
 pass({_R, _O},_) ->    
     io:format("AUV: ~p:~p: Unknown Render Pass (~p) or options (~p) ~n",
 	      [?MODULE,?LINE,_R,_O]),
-    fun(_,_) -> ok end.
+    ignore.
 
 shader_pass(Shader={value,#sh{def=Def}},Prog,[]) when Def /= [] ->    
     shader_pass(Shader, Prog, reverse(Def));
 shader_pass(_,false,_) ->    
     io:format("AUV: No shader program found skipped ~p~n", [?LINE]),
-    fun(_,_) -> ok end;
+    ignore;
 shader_pass(false,_,_) ->    
     io:format("AUV: Not shader found skipped ~p~n", [?LINE]),
-    fun(_,_) -> ok end;
+    ignore;
 shader_pass({value,#sh{args=Args,tex_units=TexUnits,reqs=Reqs}},
 	    {value,{_,Prog}},Opts) ->
     fun(Ts = #ts{charts=Charts},Config) ->
@@ -1327,13 +1334,14 @@ compile_shaders(Passes, Available) ->
 		  Acc
 	  end, [], Passes).
 		   
-compile_shader(Id, {value,#sh{vs=VsF,fs=FsF}}, Acc) ->
+compile_shader(Id, {value,#sh{name=Name,vs=VsF,fs=FsF}}, Acc) ->
     try 
 	Vs = compile(?GL_VERTEX_SHADER, "Vertex Shader", read_file(VsF)),
         Fs = compile(?GL_FRAGMENT_SHADER, "Fragment Shader", read_file(FsF)),
         Prog = link_prog(Vs,Fs),
 	gl:deleteShader(Vs), % Flag for delete
         gl:deleteShader(Fs), % Flag for delete
+	io:format("AUV: ~s ok~n", [Name]),
 	[{Id,Prog}|Acc]
     catch throw:What ->
 	    io:format("AUV: Error ~s ~n",[What]),
@@ -1388,15 +1396,16 @@ printInfo(ShaderObj,Str) ->
 		{_, []} ->
 		    ok;
 		{_, InfoStr} ->
-		    io:format("AUV: ~s:~n~s ~n", [Str,InfoStr]),
+		    io:format("AUV: ~s:~n ~s ~n", [Str,InfoStr]),
 		    case string:str(InfoStr, "oftware") of
 			0 -> ok;
 			_ -> 
 			    throw("Shader disabled would run in Software mode")
 		    end;
 		Error ->
-		    io:format("AUV: Internal error PrintInfo crashed with ~p ~n", [Error])
+		    io:format("AUV: Internal error PrintInfo crashed with ~p ~n", 
+			      [Error])
 	    end;
 	false ->
-	    io:format("CompileInfo ~p ~n", [Len])
+	    ok
     end.
