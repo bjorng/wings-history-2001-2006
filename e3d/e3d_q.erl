@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_q.erl,v 1.5 2004/06/10 05:49:27 bjorng Exp $
+%%     $Id: e3d_q.erl,v 1.6 2006/02/01 16:20:11 dgud Exp $
 %%
 
 %% Quaternions are represented as a {{Qx,Qy,Qz},Qw}
@@ -23,6 +23,7 @@
 	 magnitude/1, conjugate/1,
 	 to_rotation_matrix/1, from_rotation_matrix/1,
 	 from_angle_axis/2, to_angle_axis/1,
+	 rotate_s_to_t/2,
 	 vec_rotate/2]).
 
 -compile(inline).
@@ -148,3 +149,24 @@ vec_rotate({X2,Y2,Z2}, {{X1,Y1,Z1},W1})
     {-W3*X1+X3*W1-Y3*Z1+Z3*Y1,
      -W3*Y1+Y3*W1-Z3*X1+X3*Z1,
      -W3*Z1+Z3*W1-X3*Y1+Y3*X1}.
+
+%% rotate_s_to_t(S,T) -> Q   Both S and T should be normalized before usage
+%%
+%% Code converted from David Eberly's Geometric Tools website 
+%%    www.geometrictools.com
+
+rotate_s_to_t(V1={X,Y,Z},V2) 
+  when is_float(X), is_float(Y), is_float(Z) ->
+    Bisector = e3d_vec:norm(e3d_vec:add(V1,V2)),
+    CosHalfAngle = e3d_vec:dot(V1,Bisector),
+    if CosHalfAngle =/= 0.0 ->
+	    {e3d_vec:cross(V1,Bisector), CosHalfAngle};
+       abs(X) >= abs(Y) ->
+	    %% V1.x or V1.z is the largest magnitude component
+	    InvLength = 1.0/math:sqrt(X*X + Z*Z),
+	    {{-Z*InvLength,0.0,X*InvLength},CosHalfAngle};
+       true ->
+	    %% V1.y or V1.z is the largest magnitude component
+	    InvLength = 1.0/math:sqrt(Y*Y + Z*Z),
+	    {{0.0,Z*InvLength,-Y*InvLength},CosHalfAngle}
+    end.
