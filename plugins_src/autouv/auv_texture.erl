@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_texture.erl,v 1.32 2006/01/31 15:03:22 dgud Exp $
+%%     $Id: auv_texture.erl,v 1.33 2006/02/04 17:39:42 dgud Exp $
 %%
 
 -module(auv_texture).
@@ -702,8 +702,8 @@ create_faces(We = #we{vp=Vtab,name=#ch{vmap=Vmap}},
 		       3 -> FaceVs;
 		       Len -> triangulate(FaceVs,UVcoords)
 		   end,
+%	      io:format("Face ~p Normals ~p~n", [Face,Normals]),
 	      Tangents = fix_tang_vecs(Vs,Coords,UVcoords,Normals,Reqs), 
-%%	      io:format("Normals ~p~nWinded ~p~n", [gb_trees:get(Face,NTab),Normals]),
 	      Indx = fun(I) -> [V+Cnt || V <- I] end,
 	      Mat  = GetMat(Face),
 	      {#fs{vs=Indx(Vs),vse=Indx(FaceVs),mat=Mat},
@@ -742,14 +742,29 @@ fix_normals([V|R],Ns,Vmap) ->
 fix_normals([],_,_) -> [].
 
 fix_tang_vecs(_,_,_,[],_) -> [];
-fix_tang_vecs(Vs,Coords,UVCoords,Normals,Reqs) ->
+fix_tang_vecs(_Vs,Coords,_UVCoords,Normals,Reqs) ->
     case lists:member(binormal,Reqs) of
-	true ->
-	    All = fix_tang_vecs1(Vs,Coords,UVCoords,Normals,[]),
-	    fix_tang_vecs2(sort(All),[]);
+	true -> % Not tested enough, but I think it's better 
+% 	    All = fix_tang_vecs1(Vs,Coords,UVCoords,Normals,[]),
+% 	    R1 = fix_tang_vecs2(sort(All),[]),
+	    R2 = binormals(Normals,e3d_vec:normal(Coords)),
+%	    io:format("~p~n~p~n~n",[R1,R2]),
+	    R2;
 	false ->
 	    []
     end.
+
+binormals(Normals,FaceNormal) ->
+    Q = e3d_q:rotate_s_to_t({0.0,0.0,1.0},FaceNormal),
+    R = fun(N) -> 
+		D = e3d_q:rotate_s_to_t(FaceNormal,N),
+%		io:format("Z-N ~p~nN-n ~p~n",[Q,D]),
+		R = e3d_q:mul(D,Q),
+		Bi = e3d_q:vec_rotate({0.0,1.0,0.0},R),
+		io:format("~p ~p~n",[R,Bi]),
+		e3d_vec:norm(e3d_vec:cross(Bi,N))
+	end,
+    [R(N) || N <- Normals].
 
 %%% This code should be inside wings somewhere its copied 
 %%% from wpc_opengl.erl
