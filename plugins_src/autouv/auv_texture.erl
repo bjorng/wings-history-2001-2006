@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_texture.erl,v 1.33 2006/02/04 17:39:42 dgud Exp $
+%%     $Id: auv_texture.erl,v 1.34 2006/02/04 21:51:11 dgud Exp $
 %%
 
 -module(auv_texture).
@@ -761,7 +761,7 @@ binormals(Normals,FaceNormal) ->
 %		io:format("Z-N ~p~nN-n ~p~n",[Q,D]),
 		R = e3d_q:mul(D,Q),
 		Bi = e3d_q:vec_rotate({0.0,1.0,0.0},R),
-		io:format("~p ~p~n",[R,Bi]),
+%		io:format("~p ~p~n",[R,Bi]),
 		e3d_vec:norm(e3d_vec:cross(Bi,N))
 	end,
     [R(N) || N <- Normals].
