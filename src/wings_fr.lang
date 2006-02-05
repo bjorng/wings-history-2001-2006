@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_fr.lang,v 1.13 2005/09/15 05:30:54 bjorng Exp $
+%%     $Id: wings_fr.lang,v 1.14 2006/02/05 15:31:47 bjorng Exp $
 %%
 
 {wings,
@@ -2060,5 +2060,28 @@
     {tess,"Mosaique"},
     {norms,"Exporter les normales/en lissant les groupes"},
     {color,"Exporter la couleur des points"}
+   ]}
+ ]}.
+
+{wings_file,
+ [
+  {wings_prop,
+   [
+    {1,"Fichier Wings"}
+   ]}
+ ]}.
+{wings_pref_dlg,
+ [
+  {ui_prefs,
+   [
+    {26,"Charger les images apres le rendu"}
+   ]},
+  {gen_prefs,
+   [
+    {48,"Affichage des normales"},
+    {47,"Couleur des normales"},
+    {46,"Couleur"},
+    {45,"Longueurs des normales"},
+    {44,"Longueur"}
    ]}
  ]}.

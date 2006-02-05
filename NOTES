@@ -1,6 +1,7 @@
---- 0.98.3XX -----------------------------------------------------------------
+--- 0.98.33 -----------------------------------------------------------------
 
 - Dan fixed (hopefully finally) the Rotate commands speed so they work as before.
+
 - Dan fixed rotate in vertex mode so it centers around all selected vertices.
 
 - Giniu made all active (compilable) plug-ins translatable and translated them to Polish 
@@ -13,6 +14,8 @@
   coordinates and "weld" for welding single vertex to other one.
 
 - DesiredUserName/MicrobeSoft implemented pick-up and drop images in outliner.
+
+- Syndarion updated the French translation.
 
 - AUTOUV changes (Dan): 
   - In face mode added a combined project from normal and unfolding command.
