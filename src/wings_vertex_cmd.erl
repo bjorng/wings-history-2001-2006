@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.61 2006/01/28 17:01:35 giniu Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.62 2006/02/06 12:20:18 giniu Exp $
 %%
 
 -module(wings_vertex_cmd).
@@ -505,7 +505,7 @@ weld([{_,{1,{Vert2,_,_}}}]=NewSel,#st{sel=[{Obj,{1,{Vert1,_,_}}}],shapes=Shs}=St
    NewHe = fix_hardedge(NewEs, We#we.he),
    NewWe = wings_we:rebuild(We#we{vp=NewVp, es=NewEs, he=NewHe, vc=undefined, fs=undefined, mat=NewMat}),
    NewShs = gb_trees:update(Obj,NewWe,Shs),
-   St#st{shapes=NewShs,sel=NewSel}.
+   {save_state,St#st{shapes=NewShs,sel=NewSel}}.
 
 get_edge_info(Vert1,Vert2,We) ->
    [{RemoveEdge,LF,RF}] = wings_vertex:edge_through(Vert1, Vert2, We),
