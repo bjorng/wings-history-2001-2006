@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_absolute_move_pl.lang,v 1.1 2006/01/13 21:04:26 giniu Exp $
+%%     $Id: wpc_absolute_move_pl.lang,v 1.2 2006/02/07 12:42:50 giniu Exp $
 %%
 %%  Translation:  Andrzej Giniewicz
 %%  Correction:   Małgorzata Napiontek
@@ -29,10 +29,9 @@
    ]},
   {move_to,
    [
-    {1,"Podaj pozycję"},
-    {2,"Przesuń grupę punktów"},
+    {1,"Podaj pozycję punktu"},
+    {2,"Pozycjonuj"},
     {3,"Podaj pozycję:"},
-    {4,"Wypłaszcz:"},
-    {5,"Podaj pozycję"}
+    {4,"Wypłaszcz:"}
    ]}
  ]}.

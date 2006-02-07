@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_absolute_move.erl,v 1.1 2006/01/13 21:04:26 giniu Exp $
+%%     $Id: wpc_absolute_move.erl,v 1.2 2006/02/07 12:42:50 giniu Exp $
 %%
 -module(wpc_absolute_move).
 
@@ -53,36 +53,29 @@ move_to(#st{selmode=vertex,sel=[{Obj,{1,{Vert,_,_}}}],shapes=Shs}=St) ->
       fun(Move) ->
          move_to1(Move,St)
       end);
-move_to(#st{selmode=vertex,sel=Sel,shapes=Shs}=St) ->
+move_to(#st{selmode=SelMode,shapes=Shs}=St) ->
+   VSt = case SelMode of
+       vertex -> St;
+       _ -> wings_sel_conv:mode(vertex,St)
+   end,
+   #st{sel=Sel} = VSt,
    Center = {XC,YC,ZC} = find_vert_center(Sel,Shs),
    wings_ask:dialog(
       ?__(2,"Numeric Input"), 
       [{hframe,
        [{vframe,
-        [{hframe,[{label,?__(3,"Set pozition:")}]},
+        [{hframe,[{label,?__(3,"Set position:")}]},
          {hframe,[{label,"X"},{text,XC}]},
          {hframe,[{label,"Y"},{text,YC}]},
          {hframe,[{label,"Z"},{text,ZC}]}]},
        {vframe,
-        [{hframe,[{label,?__(4,"Make planar:")}]},
+        [{hframe,[{label,?__(4,"Flatten:")}]},
          {hframe,[{"",false,[{key,x}]}]},
          {hframe,[{"",false,[{key,y}]}]},
          {hframe,[{"",false,[{key,z}]}]}]}]}],
       fun(Move) ->
-         move_to2(Move,Center,St)
-      end);
-move_to(#st{shapes=Shs}=St) ->
-   #st{sel=Sel} = VSt = wings_sel_conv:mode(vertex,St),
-   Center = {XC,YC,ZC} = find_vert_center(Sel,Shs),
-   wings_ask:dialog(
-      ?__(5,"Numeric Input"), 
-      [{hframe,[{label,"X"},{text,XC}]},
-       {hframe,[{label,"Y"},{text,YC}]},
-       {hframe,[{label,"Z"},{text,ZC}]}],
-      fun(Move) ->
-         move_to3(Move,Center,VSt,St)
-      end);
-move_to(St) -> St.
+         move_to2(Move,Center,VSt,St)
+      end).
 
 move_to1([X,Y,Z],#st{sel=[{Obj,{1,{Vert,_,_}}}],shapes=Shs}=St) ->
    We = gb_trees:get(Obj, Shs),
@@ -92,12 +85,8 @@ move_to1([X,Y,Z],#st{sel=[{Obj,{1,{Vert,_,_}}}],shapes=Shs}=St) ->
    NewShs = gb_trees:update(Obj,NewWe,Shs),
    St#st{shapes=NewShs}.
 
-move_to2([XN,YN,ZN,{x,PX},{y,PY},{z,PZ}],{XO,YO,ZO},#st{sel=Sel,shapes=Shapes}=St) -> 
-   NewShapes = do_move({XN,YN,ZN},{PX,PY,PZ},{XO,YO,ZO},Sel,Shapes),
-   St#st{shapes=NewShapes}.
-
-move_to3([XN,YN,ZN],Center,#st{sel=Sel,shapes=Shapes},St) ->
-   NewShapes = do_move({XN,YN,ZN},{false,false,false},Center,Sel,Shapes),
+move_to2([XN,YN,ZN,{x,PX},{y,PY},{z,PZ}],Center,#st{sel=Sel,shapes=Shapes},St) -> 
+   NewShapes = do_move({XN,YN,ZN},{PX,PY,PZ},Center,Sel,Shapes),
    St#st{shapes=NewShapes}.
 
 do_move(_,_,_,[],Shapes) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.62 2006/02/06 12:20:18 giniu Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.63 2006/02/07 12:42:50 giniu Exp $
 %%
 
 -module(wings_vertex_cmd).
@@ -43,7 +43,7 @@ menu(X, Y, St) ->
 	    {?STR(menu,12,"Collapse"),collapse,
 	     ?STR(menu,13,"Delete selected vertices (creating a face selection)")},
 	    {?STR(menu,17,"Weld"),weld,
-	     ?STR(menu,18,"Weld selected vertex to other one")},
+	     ?STR(menu,18,"Weld selected vertex to another (sharing common edge)")},
 	    separator,
 	    {?STR(menu,14,"Deform"),wings_deform:sub_menu(St)},
 	    separator,
@@ -467,7 +467,7 @@ weld(St) ->
    St.
 
 weld_select(OrigSt) ->
-    Desc = ?__(1,"Select target vertex you want weld to"),
+    Desc = ?__(1,"Select target vertex for weld operation (both verticies must share a common edge) "),
     Fun = fun(check, St) -> weld_check_selection(St, OrigSt);
 	     (exit, {_,_,#st{sel=Vert2}=St}) ->
 		  case weld_check_selection(St, OrigSt) of
