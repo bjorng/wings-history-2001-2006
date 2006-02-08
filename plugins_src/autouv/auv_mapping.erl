@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_mapping.erl,v 1.78 2005/12/13 22:29:50 dgud Exp $
+%%     $Id: auv_mapping.erl,v 1.79 2006/02/08 21:04:34 dgud Exp $
 %%
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
@@ -88,7 +88,7 @@ map_chart_1(Type, Chart, Loop, Options, We) ->
 
 map_chart_2(project, C, _, _, We) ->    projectFromChartNormal(C, We);
 map_chart_2(camera, C, _, Dir, We) ->   projectFromCamera(C, Dir, We);
-map_chart_2(lsqcm, C, Loop, Pinned, We) -> lsqcm(C, Pinned, Loop, We);
+map_chart_2(lsqcm, C, Loop, Pinned, We) -> ?TC(lsqcm(C, Pinned, Loop, We));
 map_chart_2(Op,C, Loop, Pinned, We) ->  volproject(Op,C, Pinned, Loop,We).
 
 volproject(Type,Chart,_Pinned,{_,BEdges},We) ->
@@ -419,41 +419,15 @@ sum_crossp([V1,V2|Vs], Acc) ->
 sum_crossp([_Last], Acc) ->
     Acc.
 
-project_faces([Face|Fs], We, I, Tris,Area) ->
-    Normal = wings_face:normal(Face, We),
-    Vs0 = wpa:face_vertices(Face, We),
-    Vs2 = rotate_to_z(Vs0, Normal, We),
-    NewArea = calc_area(Vs0, Normal, We) + Area,
-    case length(Vs2) of 
-	3 ->
-	    Vs3 = [{Vid, {Vx, Vy}} || {Vid,{Vx,Vy,_}} <- Vs2],
-	    project_faces(Fs,We,I,[{Face, Vs3}|Tris],NewArea);
-	_ ->
-	    io:format(?__(1,"Error: Face isn't triangulated ~p with ~p vertices")++"~n",
-		      [Face, Vs0]),
-	    erlang:error({triangulation_bug, [Face, Vs2]})
-    end;
-project_faces([],_,_,Tris,Area) -> 
-    {Tris,Area}.
-
-lsqcm(Fs, Pinned0, Loop, We) ->
+lsqcm(Fs, none, Loop, We) ->
+    %%	{V1, V2} = find_pinned_from_edges(Loop,We),
+    %%	[V1,V2];  % the new stuff picks different pinned 
+    {V3, V4} = find_pinned(Loop,We),
+    lsqcm(Fs,[V3,V4],Loop,We);
+lsqcm(Fs, Pinned, _Loop, We) ->
     ?DBG("Project and tri ~n", []),
-    TriWe = wings_tesselation:triangulate(Fs, We),
-    TriFs = Fs ++ wings_we:new_items_as_ordset(face, We, TriWe),
-    {Vs1,Area} = project_faces(TriFs,TriWe,-1,[],0.0),
-    Pinned = case Pinned0 of
-		 none -> 
-%		     {V1, V2} = find_pinned_from_edges(Loop,We),
-		     {V3, V4} = find_pinned(Loop,We),
-%%		     io:format("New ~p ~p~n",[V1,V2]),
-%%		     io:format("Old ~p ~p~n",[V3,V4]),
-%%		     [V1,V2];  % the new stuff picks different pinned 
-		     [V3,V4];  % from same input depening on starting point
-		 _ -> 
-		     Pinned0
-	     end,
-    %%io:format("LSQ ~p~n", [Pinned]),
-    case lsq(Vs1, Pinned) of
+    LSQState = lsq_setup(Fs,We,Pinned),
+    case lsq(LSQState, Pinned) of
 	{error, What} ->
 	    ?DBG("TXMAP error ~p~n", [What]),
 	    exit({txmap_error, What});
@@ -462,7 +436,8 @@ lsqcm(Fs, Pinned0, Loop, We) ->
 	    Patch = fun({Idt, {Ut,Vt}}) -> {Idt,{Ut,Vt,0.0}} end,
 	    Vs3 = lists:sort(lists:map(Patch, Vs2)),
 	    TempVs = gb_trees:from_orddict(Vs3),
-	    MappedArea = fs_area(TriFs, TriWe#we{vp=TempVs}, 0.0),
+	    Area = fs_area(Fs, We, 0.0),
+	    MappedArea = fs_area(Fs, We#we{vp=TempVs}, 0.0),
 	    Scale = Area/MappedArea,
 	    scaleVs(Vs3,math:sqrt(Scale),[])
     end.
@@ -472,7 +447,6 @@ scaleVs([{Id, {X,Y,_}}|Rest],Scale,Acc)
     scaleVs(Rest, Scale, [{Id, {X*Scale,Y*Scale,0.0}}|Acc]);
 scaleVs([],_,Acc) ->
     lists:reverse(Acc).
-
 
 -record(link,{no=0,pos={0.0,0.0,0.0}}).
 
@@ -588,14 +562,153 @@ reorder_edge_loop(V1, [H|Tail], Acc) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 
+-record(lsq,{a,x0,ap,temp1,temp2,dr}).
+
+lsq_setup(Fs,We,Pinned) ->
+    {M,N,D,DR,L1,L2,X0} = lsq_init(Fs,We,Pinned),
+    Lquv = 
+	lists:sort( % Must be sorted for pick() and insert() to work.
+	  lists:map(
+	    fun ({P,{U,V} = UV} = PUV) when number(U), number(V) ->
+		    case dict:find(P, D) of
+			{ok,Q} -> {Q,UV};
+			error -> throw({error,{invalid_arguments,[PUV]}})
+		    end;
+		(PUV) ->
+		    throw({error,{invalid_arguments,[PUV]}})
+	    end,
+	    Pinned)),
+    ?DBG("lsq_int - Lquv = ~p~n",[Lquv]),
+    %% Build the basic submatrixes 
+    %% M1 = Re(M), M2 = Im(M), M2n = -M2
+    {M1,M2,M2n} = build_basic(M,L1,L2),
+    %% Compile the basic submatrixes into the ones related to 
+    %% free points (Mf*) i.e unknown, 
+    %% and pinned points (Mp*).
+    {Mfp1c,Mfp2c,Mfp2nc,LuLv} = build_cols(M1,M2,M2n,Lquv),
+    ?DBG("lsq_int - LuLv = ~p~n", [LuLv]),
+    %% Compose the matrix and vector to solve
+    %% for a Least SQares solution.
+    {Af,Ap} = build_matrixes(N,Mfp1c,Mfp2c,Mfp2nc),
+    ?DBG("Solving matrices~n", []),
+    #lsq{a=Af,x0=X0,ap=Ap,temp1=LuLv,temp2=Lquv,dr=DR}.
+
+lsq_init(Fs0,We0,Pinned0) -> 
+    %% Do a real triangulation, might be optimized later.
+    We = wings_tesselation:triangulate(Fs0, We0),
+    Fs = Fs0 ++ wings_we:new_items_as_ordset(face,We0,We),
+    Pinned = gb_trees:from_orddict(lists:sort(Pinned0)),
+    lsq_init_fs(Fs,Pinned,We,{0,dict:new(),dict:new()},0,[],[],[]).
+
+lsq_init_fs([F|Fs],P,We = #we{vp=Vtab},Ds0,N,Re0,Im0,X0) ->
+    Vs = [[A0|_],[B0|_],[C0|_]] = wings_face:vinfo_ccw(F,We),
+    {[A,B,C],Ds} = update_dicts(Vs,Ds0),
+%%    {X1=Z0x,Y1=Z0y,X2=Z1x,Y2=Z1y,X3=Z2x,Y3=Z2y} = 
+    {X1,Y1,X2,Y2,X3,Y3} = 
+	project_tri(gb_trees:get(A0,Vtab),gb_trees:get(B0,Vtab),
+		    gb_trees:get(C0,Vtab)), 
+    %% Raimos old solution. 
+    SqrtDT = math:sqrt(abs((X2-X1)*(Y3-Y1) - 
+			   (Y2-Y1)*(X3-X1))),
+    W1re = X3-X2, W1im = Y3-Y2, 
+    W2re = X1-X3, W2im = Y1-Y3, 
+    W3re = X2-X1, W3im = Y2-Y1,
+    
+    Re=[[{A,W1re/SqrtDT},{B,W2re/SqrtDT},{C,W3re/SqrtDT}]|Re0],
+    Im=[[{A,W1im/SqrtDT},{B,W2im/SqrtDT},{C,W3im/SqrtDT}]|Im0],
+
+%% Levy's c-code
+    %%     Vector2 z01 = z1 - z0 ;
+    %% Vector2 z02 = z2 - z0 ;
+    %% double a = z01.x ;
+    %% double b = z01.y ;
+    %% double c = z02.x ;
+    %% double d = z02.y ;
+    %% assert(b == 0.0) ;
+
+    %% // Note  : 2*id + 0 --> u
+    %% //         2*id + 1 --> v
+    %% int u0_id = 2*id0     ;
+    %% int v0_id = 2*id0 + 1 ;
+    %% int u1_id = 2*id1     ;
+    %% int v1_id = 2*id1 + 1 ;
+    %% int u2_id = 2*id2     ;
+    %% int v2_id = 2*id2 + 1 ;
+
+    %% // Note : b = 0
+
+    %% // Real part
+    %% nlBegin(NL_ROW) ;
+    %% nlCoefficient(u0_id, -a+c)  ;
+    %% nlCoefficient(v0_id,  b-d)  ;
+    %% nlCoefficient(u1_id,   -c)  ;
+    %% nlCoefficient(v1_id,    d)  ;
+    %% nlCoefficient(u2_id,    a) ;
+    %% nlEnd(NL_ROW) ;
+
+    %% // Imaginary part
+    %% nlBegin(NL_ROW) ;
+    %% nlCoefficient(u0_id, -b+d) ;
+    %% nlCoefficient(v0_id, -a+c) ;
+    %% nlCoefficient(u1_id,   -d) ;
+    %% nlCoefficient(v1_id,   -c) ;
+    %% nlCoefficient(v2_id,    a) ;
+    %% nlEnd(NL_ROW) ;
+    %% }
+
+    lsq_init_fs(Fs,P,We,Ds,N+1,Re,Im,fixuv(Vs,P,Ds0)++X0);
+lsq_init_fs([],_,_We,{M,D,DR},N,Re0,Im0,X0) ->
+    io:format("X0 = ~p~n",[ X0]),
+    {M,N,D,DR,vecs(M,Re0,[]),vecs(M,Im0,[]),auv_matrix:vector(X0)}.
+
+vecs(M,[R|Rs],Acc) ->
+    vecs(M,Rs,[auv_matrix:vector(M,R)|Acc]);
+vecs(_,[],Acc) -> Acc.
+
+update_dicts(Ids,{N,D,DR}) ->
+    update_dicts(Ids,N,D,DR,[]).
+update_dicts([[P|_]|Rest],N,D,DR,Acc) ->
+    case dict:find(P,D) of
+	error ->
+	    N1 = N+1,
+	    update_dicts(Rest,N1,dict:store(P,N1,D),dict:store(N1,P,DR),[N1|Acc]);
+	{ok,Id} ->
+	    update_dicts(Rest,N,D,DR,[Id|Acc])
+    end;
+update_dicts([],N,D,DR,Acc) ->
+    {lists:reverse(Acc),{N,D,DR}}.
+
+fixuv([[Id|UV]|R],Pinned,Ds={_,D,_}) ->
+    case dict:find(Id,D) of
+	{ok, _} -> fixuv(R,Pinned,Ds);
+	error -> 
+	    case {gb_trees:is_defined(Id, Pinned),UV} of
+		{true,_} ->   fixuv(R,Pinned,Ds);
+		{_,{U,V}}  -> [U,V|fixuv(R,Pinned,Ds)];
+		{_,_What} ->      
+		    io:format("~p ~p",[Id,_What]),
+		    [0.5,0.5|fixuv(R,Pinned,Ds)]
+	    end
+    end;
+fixuv([],_,_) -> [].
+
+project_tri(P0,P1,P2) ->
+    L = e3d_vec:sub(P1,P0),
+    X = e3d_vec:norm(L),
+    T = e3d_vec:sub(P2,P0),
+    Z = e3d_vec:norm(e3d_vec:cross(X,T)),
+    Y = e3d_vec:cross(Z,X),
+    {0.0,0.0,
+     e3d_vec:len(L),0.0,
+     e3d_vec:dot(T,X), e3d_vec:dot(T,Y)}.
+    
 lsq(L, Lpuv) when list(Lpuv) ->
     lsq(L, Lpuv, env);
 lsq(Name, Method) when atom(Method) ->
     {ok, [{L, Lpuv}]} = file:consult(Name),
     lsq(L, Lpuv, Method).
 
-
-lsq(L, Lpuv, Method0) when is_list(L), is_list(Lpuv), is_atom(Method0) ->
+lsq(L, Lpuv, Method0) when is_record(L,lsq), is_list(Lpuv), is_atom(Method0) ->
     Method = case Method0 of 
 		 env ->
 		     case os:getenv("WINGS_AUTOUV_SOLVER") of
@@ -610,55 +723,23 @@ lsq(L, Lpuv, Method0) when is_list(L), is_list(Lpuv), is_atom(Method0) ->
     try lsq_int(L, Lpuv, Method)
     catch
 	error:badarg ->
-	    erlang:error(badarg, [L,Lpuv,Method])
+	    ST = erlang:get_stacktrace(),
+	    erlang:error(badarg, {[L,Lpuv,Method],ST})
     end;
 lsq(L, Lpuv, Method) ->
     erlang:error(badarg, [L, Lpuv, Method]).
 
-lsq_int(L, Lpuv, Method) ->
-    %% Create a dictionary and a reverse dictionary for all points
-    %% in the indata. Translate the point identities into a
-    %% continous integer sequence.
-    ?DBG("lsq_int - Lpuv = ~p~n", [Lpuv]),
-    {M,Dict,Rdict} = lsq_points(L),
-    {N,L1,L2} = lsq_triangles(L, Dict, M),
-    Lquv = 
-	lists:sort( % Must be sorted for pick() and insert() to work.
-	  lists:map(
-	    fun ({P,{U,V} = UV} = PUV) when number(U), number(V) ->
-		    case dict:find(P, Dict) of
-			{ok,Q} -> {Q,UV};
-			error -> throw({error,{invalid_arguments,[PUV]}})
-		    end;
-		(PUV) ->
-		    throw({error,{invalid_arguments,[PUV]}})
-	    end,
-	    Lpuv)),
-    ?DBG("lsq_int - Lquv = ~p~n", [Lquv]),
-    {Np,Usum,Vsum} =
-	lists:foldl(
-	  fun ({_,{U,V}}, {Np1,Usum1,Vsum1}) ->
-		  {Np1+1,Usum1+U,Vsum1+V}
-	  end,
-	  {0,0,0}, Lquv),
-    %% Build the basic submatrixes 
-    %% M1 = Re(M), M2 = Im(M), M2n = -M2
-    {M1,M2,M2n} = build_basic(M,L1,L2),
-    %% Compile the basic submatrixes into the ones related to 
-    %% free points (Mf*) i.e unknown, 
-    %% and pinned points (Mp*).
-    {Mfp1c,Mfp2c,Mfp2nc,LuLv} = build_cols(M1,M2,M2n,Lquv),
-    ?DBG("lsq_int - LuLv = ~p~n", [LuLv]),
-    %% Compose the matrix and vector to solve
-    %% for a Least SQares solution.
-    {Af,B} = build_matrixes(N,Mfp1c,Mfp2c,Mfp2nc,LuLv),
-    ?DBG("Solving matrices~n", []),
+lsq_int(#lsq{a=Af,x0=X0,ap=Ap,temp1=LuLv,temp2=Lquv,dr=Rdict},_Pinned,Method) ->
+    %% Clean this mess up    
+    {Np,K_LuLv} = keyseq_neg(LuLv),
+    U = auv_matrix:vector(Np, K_LuLv),
+    ?DBG("build_matrixes - U = ~p~n", [U]),
+    B = auv_matrix:mult(Ap, U),
+    
     X = case Method of
-	    ge -> minimize_ge(Af, B);
+	    ge -> minimize_ge(Af,B);
 	    _ ->
-		X0 = auv_matrix:vector(lists:duplicate(M-Np, Usum/Np)++
-				       lists:duplicate(M-Np, Vsum/Np)),
-		{_,X1} = minimize_cg(Af, X0, B),
+		{_,X1} = ?TC(minimize_cg(Af,X0,B)),
 		X1
 	end,
 %%    ?DBG("X=~p~n", [X]),
@@ -666,7 +747,6 @@ lsq_int(L, Lpuv, Method) ->
     %% and insert the pinned points. Re-translate the
     %% original point identities.
     lsq_result(X, Lquv, Rdict).
-
 
 build_basic(M,L1,L2) ->
     M1 = auv_matrix:rows(M, L1),
@@ -691,21 +771,17 @@ split_quv([], Lq, Lu, Lv) ->
 split_quv([{Q,{U,V}} | Lquv], Lq, Lu, Lv) ->
     split_quv(Lquv, [Q | Lq], [U | Lu], [V | Lv]).
 
-build_matrixes(N,{Mf1c,Mp1c},{Mf2c,Mp2c},{Mf2nc,Mp2nc},LuLv) ->
+build_matrixes(N,{Mf1c,Mp1c},{Mf2c,Mp2c},{Mf2nc,Mp2nc}) ->
     %% Build the matrixes Af and Ap, and vector B
     %% A = [ M1 -M2 ],  B = Ap U, U is vector of pinned points
     %%     [ M2  M1 ]
     Afu = auv_matrix:cols(N, Mf1c++Mf2nc),
     Afl = auv_matrix:cols(N, Mf2c++Mf1c),
-    Af = auv_matrix:cat_rows(Afu, Afl),
+    Af  = auv_matrix:cat_rows(Afu, Afl),
     Apu = auv_matrix:cols(N, Mp1c++Mp2nc),
     Apl = auv_matrix:cols(N, Mp2c++Mp1c),
-    Ap = auv_matrix:cat_rows(Apu, Apl),
-    {Np,K_LuLv} = keyseq_neg(LuLv),
-    U = auv_matrix:vector(Np, K_LuLv),
-    ?DBG("build_matrixes - U = ~p~n", [U]),
-    B = auv_matrix:mult(Ap, U),
-    {Af, B}.
+    Ap  = auv_matrix:cat_rows(Apu, Apl),
+    {Af, Ap}.
 
 keyseq_neg(L) ->
     keyseq(1, L, []).
@@ -834,62 +910,6 @@ minimize_cg_3(M_inv, At, A, AtB, Delta_max,
     minimize_cg(M_inv, At, A, AtB, Delta_max,
 		Delta_new, I-1, D_new, R_new, X_new).
 
-
-
-%% Extract all point identities from indata, and create
-%% forwards and backwards dictionaries for translation
-%% between point identity and point number.
-%%
-lsq_points(L) ->
-    PL1 = 
-	foldl(
-	  fun ({_,[{P1,_},{P2,_},{P3,_}]}, P) ->
-		  [P1, P2, P3 | P];
-	      (Invalid, _) ->
-		  throw({error, {invalid_triangle, Invalid}})
-	  end, [], L),
-    PL2 = lists:usort(PL1),
-    foldl(
-      fun (P, {N, D, DR}) ->
-	      N1 = N+1,
-	      {N1, dict:store(P, N1, D), dict:store(N1, P, DR)}
-      end, {0, dict:new(), dict:new()}, PL2).
-
-
-
-%% Create matrix M rows for all triangles in indata.
-%% Return number of triangles, and lists for Re(M) and Im(M).
-%%
-lsq_triangles(L, Dict, M) ->
-    {N, L1, L2} =
-	foldl(
-	  fun ({_,[{P1,{X1,Y1}},{P2,{X2,Y2}},{P3,{X3,Y3}}]}, {N,Re,Im})
-	      when number(X1), number(X2), number(X3),
-		   number(Y1), number(Y2), number(Y3) ->
-		  SqrtDT = math:sqrt(abs((X2-X1)*(Y3-Y1) - 
-					 (Y2-Y1)*(X3-X1))),
-		  W1re = X3-X2, W1im = Y3-Y2, 
-		  W2re = X1-X3, W2im = Y1-Y3, 
-		  W3re = X2-X1, W3im = Y2-Y1,
-		  Q1 = dict:fetch(P1, Dict),
-		  Q2 = dict:fetch(P2, Dict),
-		  Q3 = dict:fetch(P3, Dict),
-		  {N+1,
-		   [auv_matrix:vector(M, [{Q1,W1re/SqrtDT}, 
-					  {Q2,W2re/SqrtDT}, 
-					  {Q3,W3re/SqrtDT}])
-		    | Re],
-		   [auv_matrix:vector(M, [{Q1,W1im/SqrtDT}, 
-					  {Q2,W2im/SqrtDT}, 
-					  {Q3,W3im/SqrtDT}])
-		    | Im]};
-	      (Invalid, _) ->
-		  throw({error, {invalid_triangle, Invalid}})
-	  end, {0, [],[]}, L),
-    {N, lists:reverse(L1), lists:reverse(L2)}.
-
-
-
 %% Extract the result from vector X and combine it with the 
 %% pinned points. Re-translate the point identities.
 %%
@@ -912,10 +932,8 @@ lsq_result(X, Lquv, Rdict) ->
 		  {Q+1,[{dict:fetch(Q, Rdict),UV} | R]}
 	  end, {1,[]}, UVlist),
     TxMap = lists:reverse(TxMapR),
-    ?DBG("lsq_result - TxMap = ~p~n", [TxMap]),
+%%    ?DBG("lsq_result - TxMap = ~p~n", [TxMap]),
     {ok, TxMap}.
-
-
 
 %% Picks terms with specified indexes from a list.
 %%
