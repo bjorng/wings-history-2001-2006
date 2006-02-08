@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_texture.erl,v 1.34 2006/02/04 21:51:11 dgud Exp $
+%%     $Id: auv_texture.erl,v 1.35 2006/02/08 21:05:37 dgud Exp $
 %%
 
 -module(auv_texture).
@@ -112,7 +112,7 @@ draw_options() ->
 
 render_passes(Prefs,Shaders) ->
     %% Ugly count of shaders
-    NoOfPasses = length([ok || {{auv_pass,_},_} <- Prefs])-1, 
+    NoOfPasses = lists:max([length([ok||{{auv_pass,_},_}<- Prefs])-1,1]), 
     Menu = renderers(Shaders),
     Background = 
 	{hframe, 
