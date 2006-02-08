@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_absolute_move.erl,v 1.2 2006/02/07 12:42:50 giniu Exp $
+%%     $Id: wpc_absolute_move.erl,v 1.3 2006/02/08 01:58:53 giniu Exp $
 %%
 -module(wpc_absolute_move).
 
--include_lib("wings.hrl").
+-include("wings.hrl").
 
 -export([init/0,menu/2,command/2]).
 
@@ -25,16 +25,16 @@ menu({vertex,move}, Menu) ->
              ?__(2,"Move vertex/vertices to exact position in absolute coordinates.")}];
 menu({edge,move}, Menu) ->
    Menu ++ [separator,
-            {?__(3,"Absolute"),move_to,
-             ?__(4,"Move edges to exact position in absolute coordinates.")}];
+            {?__(1,"Absolute"),move_to,
+             ?__(3,"Move edges to exact position in absolute coordinates.")}];
 menu({face,move}, Menu) ->
    Menu ++ [separator,
-            {?__(5,"Absolute"),move_to,
-             ?__(6,"Move faces to exact position in absolute coordinates.")}];
+            {?__(1,"Absolute"),move_to,
+             ?__(4,"Move faces to exact position in absolute coordinates.")}];
 menu({body,move}, Menu) ->
    Menu ++ [separator,
-            {?__(7,"Absolute"),move_to,
-             ?__(8,"Move objects to exact position in absolute coordinates.")}];
+            {?__(1,"Absolute"),move_to,
+             ?__(5,"Move objects to exact position in absolute coordinates.")}];
 menu(_, Menu) -> Menu.
 
 command({_,{move,move_to}}, St) ->
@@ -47,11 +47,31 @@ move_to(#st{selmode=vertex,sel=[{Obj,{1,{Vert,_,_}}}],shapes=Shs}=St) ->
    {X,Y,Z}=gb_trees:get(Vert, Vtab),
    wings_ask:dialog(
       ?__(1,"Numeric Input"), 
-      [{hframe,[{label,"X"},{text,X}]},
-       {hframe,[{label,"Y"},{text,Y}]},
-       {hframe,[{label,"Z"},{text,Z}]}],
+      [{hframe,[{label,"X:"},{text,X}]},
+       {hframe,[{label,"Y:"},{text,Y}]},
+       {hframe,[{label,"Z:"},{text,Z}]},
+       {hframe,[{?__(2,"Apply to whole object"),false,[{key,all}]}]}],
       fun(Move) ->
          move_to1(Move,St)
+      end);
+move_to(#st{selmode=body,shapes=Shs}=St) ->
+   #st{sel=Sel} = VSt = wings_sel_conv:mode(vertex,St),
+   {XC,YC,ZC} = Center = find_vert_center(Sel,Shs),
+   wings_ask:dialog(
+      ?__(1,"Numeric Input"), 
+      [{hframe,
+       [{vframe,
+        [{hframe,[{label,?__(3,"Set position") ++ ":"}]},
+         {hframe,[{label,"X:"},{text,XC}]},
+         {hframe,[{label,"Y:"},{text,YC}]},
+         {hframe,[{label,"Z:"},{text,ZC}]}]},
+        {vframe,
+        [{hframe,[{label,?__(4,"Flatten") ++ ":"}]},
+         {hframe,[{"",false,[{key,x}]}]},
+         {hframe,[{"",false,[{key,y}]}]},
+         {hframe,[{"",false,[{key,z}]}]}]}]}],
+      fun(Move) ->
+         move_to2(Move,Center,VSt,St)
       end);
 move_to(#st{selmode=SelMode,shapes=Shs}=St) ->
    VSt = case SelMode of
@@ -61,33 +81,63 @@ move_to(#st{selmode=SelMode,shapes=Shs}=St) ->
    #st{sel=Sel} = VSt,
    Center = {XC,YC,ZC} = find_vert_center(Sel,Shs),
    wings_ask:dialog(
-      ?__(2,"Numeric Input"), 
-      [{hframe,
-       [{vframe,
-        [{hframe,[{label,?__(3,"Set position:")}]},
-         {hframe,[{label,"X"},{text,XC}]},
-         {hframe,[{label,"Y"},{text,YC}]},
-         {hframe,[{label,"Z"},{text,ZC}]}]},
-       {vframe,
-        [{hframe,[{label,?__(4,"Flatten:")}]},
-         {hframe,[{"",false,[{key,x}]}]},
-         {hframe,[{"",false,[{key,y}]}]},
-         {hframe,[{"",false,[{key,z}]}]}]}]}],
+      ?__(1,"Numeric Input"), 
+      [{vframe,
+       [{hframe,
+        [{vframe,
+         [{hframe,[{label,?__(3,"Set position") ++ ":"}]},
+          {hframe,[{label,"X:"},{text,XC}]},
+          {hframe,[{label,"Y:"},{text,YC}]},
+          {hframe,[{label,"Z:"},{text,ZC}]}]},
+         {vframe,
+         [{hframe,[{label,?__(4,"Flatten") ++ ":"}]},
+          {hframe,[{"",false,[{key,x}]}]},
+          {hframe,[{"",false,[{key,y}]}]},
+          {hframe,[{"",false,[{key,z}]}]}]}]},
+         {hframe,[{?__(2,"Apply to whole object"),false,[{key,all}]}]}]}],
       fun(Move) ->
-         move_to2(Move,Center,VSt,St)
+         move_to3(Move,Center,VSt,St)
       end).
 
-move_to1([X,Y,Z],#st{sel=[{Obj,{1,{Vert,_,_}}}],shapes=Shs}=St) ->
+move_to1([X,Y,Z,{all,false}],#st{sel=[{Obj,{1,{Vert,_,_}}}],shapes=Shs}=St) ->
    We = gb_trees:get(Obj, Shs),
    Vtab = We#we.vp,
    NewVtab = gb_trees:update(Vert,{X,Y,Z},Vtab),
    NewWe = We#we{vp=NewVtab},
    NewShs = gb_trees:update(Obj,NewWe,Shs),
+   St#st{shapes=NewShs};
+move_to1([X,Y,Z,{all,true}],#st{sel=[{Obj,{1,{Vert,_,_}}}],shapes=Shs}=St) ->
+   We = gb_trees:get(Obj, Shs),
+   Vtab = We#we.vp,
+   {X0,Y0,Z0}=gb_trees:get(Vert, Vtab),
+   {Dx,Dy,Dz}={X-X0,Y-Y0,Z-Z0},
+   NewVtab = move_all({Dx,Dy,Dz},Vtab),
+   NewWe = We#we{vp=NewVtab},
+   NewShs = gb_trees:update(Obj,NewWe,Shs),
    St#st{shapes=NewShs}.
 
-move_to2([XN,YN,ZN,{x,PX},{y,PY},{z,PZ}],Center,#st{sel=Sel,shapes=Shapes},St) -> 
-   NewShapes = do_move({XN,YN,ZN},{PX,PY,PZ},Center,Sel,Shapes),
+move_to2([X,Y,Z,{x,PX},{y,PY},{z,PZ}],Center,#st{sel=Sel},#st{shapes=Shapes}=St) -> 
+   NewShapes = do_move({X,Y,Z},{PX,PY,PZ},Center,Sel,Shapes),
    St#st{shapes=NewShapes}.
+
+move_to3([X,Y,Z,{x,PX},{y,PY},{z,PZ},{all,false}],Center,VSt,St) -> 
+   move_to2([X,Y,Z,{x,PX},{y,PY},{z,PZ}],Center,VSt,St);
+move_to3([X,Y,Z,{x,PX},{y,PY},{z,PZ},{all,true}],Center,VSt0,St) -> 
+   BSt = wings_sel_conv:mode(body,VSt0),
+   VSt = wings_sel_conv:mode(vertex,BSt),
+   St2 = move_to2([X,Y,Z,{x,false},{y,false},{z,false}],Center,VSt,St),
+   move_to2([X,Y,Z,{x,PX},{y,PY},{z,PZ}],{X,Y,Z},VSt0,St2).
+
+move_all({Dx,Dy,Dz},Vtab) ->
+   KList = gb_trees:keys(Vtab),
+   move_all({Dx,Dy,Dz},Vtab,KList).
+
+move_all(_,Vtab,[]) ->
+   Vtab;
+move_all({Dx,Dy,Dz},Vtab0,[First|Rest]) ->
+   {X0,Y0,Z0} = gb_trees:get(First,Vtab0),
+   Vtab = gb_trees:update(First,{X0+Dx,Y0+Dy,Z0+Dz},Vtab0),
+   move_all({Dx,Dy,Dz},Vtab,Rest).   
 
 do_move(_,_,_,[],Shapes) ->
    Shapes;
