@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_absolute_move.erl,v 1.4 2006/02/08 12:34:56 giniu Exp $
+%%     $Id: wpc_absolute_move.erl,v 1.5 2006/02/09 14:01:54 giniu Exp $
 %%
 -module(wpc_absolute_move).
 
@@ -19,29 +19,36 @@
 init() ->
    true.
 
-menu({vertex,move}, Menu) ->
+menu({Mode,move}, Menu) ->
    Menu ++ [separator,
-            {?__(1,"Absolute"),move_to,
-             ?__(2,"Move vertex/vertices to exact position in absolute coordinates.")}];
-menu({edge,move}, Menu) ->
-   Menu ++ [separator,
-            {?__(1,"Absolute"),move_to,
-             ?__(3,"Move edges to exact position in absolute coordinates.")}];
-menu({face,move}, Menu) ->
-   Menu ++ [separator,
-            {?__(1,"Absolute"),move_to,
-             ?__(4,"Move faces to exact position in absolute coordinates.")}];
-menu({body,move}, Menu) ->
-   Menu ++ [separator,
-            {?__(1,"Absolute"),move_to,
-             ?__(5,"Move objects to exact position in absolute coordinates.")}];
+            {?__(1,"Absolute"),absolute_fun(Mode),{draw_menu(Mode),[],
+             ?__(2,"Move object to exact position using center of selection as center of objecet")},[]}];
 menu(_, Menu) -> Menu.
 
-command({_,{move,move_to}}, St) ->
-   move_to(St);
+draw_menu(vertex) ->
+    ?__(1,"Move vertex/vertices to exact position in absolute coordinates.");
+draw_menu(edge) ->
+    ?__(2,"Move edges to exact position in absolute coordinates.");
+draw_menu(face) ->
+    ?__(3,"Move faces to exact position in absolute coordinates.");
+draw_menu(body) ->
+    ?__(4,"Move objects to exact position in absolute coordinates.").
+
+absolute_fun(Mode) ->
+    fun(1, _Ns) ->
+	    {Mode,{move,absolute_l}};
+       (3, _Ns) ->
+	    {Mode,{move,absolute_r}};
+       (_, _) -> ignore
+    end.
+
+command({_,{move,absolute_l}}, St) ->
+   move_to(St,false);
+command({_,{move,absolute_r}}, St) ->
+   move_to(St,true);
 command(_Cmd, _) -> next.
 
-move_to(#st{selmode=SelMode,shapes=Shs}=St) ->
+move_to(#st{selmode=SelMode,shapes=Shs}=St,ObjectOn) ->
    #st{sel=Sel} = VSt = case SelMode of
        vertex -> St;
        _ -> wings_sel_conv:mode(vertex,St)
@@ -80,7 +87,7 @@ move_to(#st{selmode=SelMode,shapes=Shs}=St) ->
                         [draw_options({XC,YC,ZC}),
                          draw_options(flatten)]
                   end},
-                  draw_options(object)]
+                  draw_options(ObjectOn)]
          end}],
       fun(Move) ->
          move_to1(Move,Center,VSt,VSt2,St)
@@ -100,9 +107,9 @@ draw_options(flatten) ->
     {hframe,[{"",false,[{key,y}]}]},
     {hframe,[{"",false,[{key,z}]}]}
    ]};
-draw_options(object) ->
+draw_options(ObjectOn) when is_boolean(ObjectOn) ->
    {hframe,[
-    {?__(3,"Apply to whole object"),false,[{key,all}]}
+    {?__(3,"Apply to whole object"),ObjectOn,[{key,all}]}
    ]}.
 
 move_to1([X,Y,Z],Center,VSt,VSt2,St) -> 
