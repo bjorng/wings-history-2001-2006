@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_absolute_move.erl,v 1.5 2006/02/09 14:01:54 giniu Exp $
+%%     $Id: wpc_absolute_move.erl,v 1.6 2006/02/09 14:28:25 giniu Exp $
 %%
 -module(wpc_absolute_move).
 
@@ -67,27 +67,28 @@ move_to(#st{selmode=SelMode,shapes=Shs}=St,ObjectOn) ->
    Center = {XC,YC,ZC} = find_vert_center(Sel,Shs),
    wings_ask:dialog(
       ?__(1,"Absolute move options"), 
-      [{vframe,
+      [{hframe,
          if
             WholeObject ->
-               [{hframe,
                   if
                      NoFlatten ->
                         [draw_options({XC,YC,ZC})];
                      true ->
                         [draw_options({XC,YC,ZC}),
                          draw_options(flatten)]
-                  end}];
+                  end;
             true ->
-               [{hframe,
                   if
                      NoFlatten ->
-                        [draw_options({XC,YC,ZC})];
+                        [{vframe,
+                         [draw_options({XC,YC,ZC}),
+                          draw_options(ObjectOn)]}];
                      true ->
-                        [draw_options({XC,YC,ZC}),
+                        [{vframe,
+                         [draw_options({XC,YC,ZC}),
+                          draw_options(ObjectOn)]},
                          draw_options(flatten)]
-                  end},
-                  draw_options(ObjectOn)]
+                  end
          end}],
       fun(Move) ->
          move_to1(Move,Center,VSt,VSt2,St)
@@ -109,7 +110,7 @@ draw_options(flatten) ->
    ]};
 draw_options(ObjectOn) when is_boolean(ObjectOn) ->
    {hframe,[
-    {?__(3,"Apply to whole object"),ObjectOn,[{key,all}]}
+    {?__(3,"Move objects"),ObjectOn,[{key,all}]}
    ]}.
 
 move_to1([X,Y,Z],Center,VSt,VSt2,St) -> 
