@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_absolute_move.erl,v 1.6 2006/02/09 14:28:25 giniu Exp $
+%%     $Id: wpc_absolute_move.erl,v 1.7 2006/02/10 11:56:34 giniu Exp $
 %%
 -module(wpc_absolute_move).
 
@@ -114,14 +114,14 @@ draw_options(ObjectOn) when is_boolean(ObjectOn) ->
    ]}.
 
 move_to1([X,Y,Z],Center,VSt,VSt2,St) -> 
-   move_to1([X,Y,Z,{x,false},{y,false},{z,false},{all,false}],Center,VSt,VSt2,St);
+   move_to1([X,Y,Z,{all,false},{x,false},{y,false},{z,false}],Center,VSt,VSt2,St);
 move_to1([X,Y,Z,{x,PX},{y,PY},{z,PZ}],Center,VSt,VSt2,St) -> 
-   move_to1([X,Y,Z,{x,PX},{y,PY},{z,PZ},{all,false}],Center,VSt,VSt2,St);
+   move_to1([X,Y,Z,{all,false},{x,PX},{y,PY},{z,PZ}],Center,VSt,VSt2,St);
 move_to1([X,Y,Z,{all,All}],Center,VSt,VSt2,St) -> 
-   move_to1([X,Y,Z,{x,false},{y,false},{z,false},{all,All}],Center,VSt,VSt2,St);
-move_to1([X,Y,Z,{x,PX},{y,PY},{z,PZ},{all,false}],Center,VSt,_,St) -> 
+   move_to1([X,Y,Z,{all,All},{x,false},{y,false},{z,false}],Center,VSt,VSt2,St);
+move_to1([X,Y,Z,{all,false},{x,PX},{y,PY},{z,PZ}],Center,VSt,_,St) -> 
    move_to2([X,Y,Z,{x,PX},{y,PY},{z,PZ}],Center,VSt,St);
-move_to1([X,Y,Z,{x,PX},{y,PY},{z,PZ},{all,true}],Center,VSt,VSt2,St) -> 
+move_to1([X,Y,Z,{all,true},{x,PX},{y,PY},{z,PZ}],Center,VSt,VSt2,St) -> 
    St2 = move_to2([X,Y,Z,{x,false},{y,false},{z,false}],Center,VSt2,St),
    move_to2([X,Y,Z,{x,PX},{y,PY},{z,PZ}],{X,Y,Z},VSt,St2).
 
