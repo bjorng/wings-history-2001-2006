@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_absolute_move_pl.lang,v 1.6 2006/02/09 14:28:25 giniu Exp $
+%%     $Id: wpc_absolute_move_pl.lang,v 1.7 2006/02/17 23:48:00 giniu Exp $
 %%
 %%  Translation:  Andrzej Giniewicz
 %%  Correction:   Małgorzata Napiontek
@@ -19,23 +19,15 @@
   {menu,
    [
     {1,"Pozycjonuj"},
-    {2,"Przesuń całe obiekty używając środka zaznaczenia jako środka obiektu."}
+    {2,"Przesuń w koordynatach bezwzględnych."}
    ]},
-  {move_to,
+  {draw_window1,
    [
-    {1,"Opcje pozycjonowania"}
-   ]},
-  {draw_menu,
-   [
-    {1,"Przesuń zaznaczone punkty w koordynatach bezwzględnych."},
-    {2,"Przesuń zaznaczone krawędzie w koordynatach bezwzględnych."},
-    {3,"Przesuń zaznaczone płaszczyzny w koordynatach bezwzględnych."},
-    {4,"Przesuń zaznaczone obiekty w koordynatach bezwzględnych."}
-   ]},
-  {draw_options,
-   [
-    {1,"Podaj współrzędne"},
-    {2,"Wypłaszcz"},
-    {3,"Przesuwaj obiekty"}
+    {1,"Opcje pozycjonowania"},
+    {2,"Podaj współrzędne"},
+    {3,"Przesuń obiekt"},
+    {4,"Przesuń obiekty"},
+    {5,"Wyrównaj"},
+    {6,"Wypłaszcz"}
    ]}
  ]}.
