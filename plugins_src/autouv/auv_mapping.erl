@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_mapping.erl,v 1.79 2006/02/08 21:04:34 dgud Exp $
+%%     $Id: auv_mapping.erl,v 1.80 2006/02/17 08:05:29 dgud Exp $
 %%
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
@@ -88,7 +88,7 @@ map_chart_1(Type, Chart, Loop, Options, We) ->
 
 map_chart_2(project, C, _, _, We) ->    projectFromChartNormal(C, We);
 map_chart_2(camera, C, _, Dir, We) ->   projectFromCamera(C, Dir, We);
-map_chart_2(lsqcm, C, Loop, Pinned, We) -> ?TC(lsqcm(C, Pinned, Loop, We));
+map_chart_2(lsqcm, C, Loop, Pinned, We) -> lsqcm(C, Pinned, Loop, We);
 map_chart_2(Op,C, Loop, Pinned, We) ->  volproject(Op,C, Pinned, Loop,We).
 
 volproject(Type,Chart,_Pinned,{_,BEdges},We) ->
@@ -609,7 +609,7 @@ lsq_init_fs([F|Fs],P,We = #we{vp=Vtab},Ds0,N,Re0,Im0,X0) ->
 		    gb_trees:get(C0,Vtab)), 
     %% Raimos old solution. 
     SqrtDT = math:sqrt(abs((X2-X1)*(Y3-Y1) - 
-			   (Y2-Y1)*(X3-X1))),
+ 			   (Y2-Y1)*(X3-X1))),
     W1re = X3-X2, W1im = Y3-Y2, 
     W2re = X1-X3, W2im = Y1-Y3, 
     W3re = X2-X1, W3im = Y2-Y1,
@@ -618,7 +618,7 @@ lsq_init_fs([F|Fs],P,We = #we{vp=Vtab},Ds0,N,Re0,Im0,X0) ->
     Im=[[{A,W1im/SqrtDT},{B,W2im/SqrtDT},{C,W3im/SqrtDT}]|Im0],
 
 %% Levy's c-code
-    %%     Vector2 z01 = z1 - z0 ;
+    %% Vector2 z01 = z1 - z0 ;
     %% Vector2 z02 = z2 - z0 ;
     %% double a = z01.x ;
     %% double b = z01.y ;
@@ -658,7 +658,7 @@ lsq_init_fs([F|Fs],P,We = #we{vp=Vtab},Ds0,N,Re0,Im0,X0) ->
 
     lsq_init_fs(Fs,P,We,Ds,N+1,Re,Im,fixuv(Vs,P,Ds0)++X0);
 lsq_init_fs([],_,_We,{M,D,DR},N,Re0,Im0,X0) ->
-    io:format("X0 = ~p~n",[ X0]),
+%%    io:format("X0 = ~p~n",[ X0]),
     {M,N,D,DR,vecs(M,Re0,[]),vecs(M,Im0,[]),auv_matrix:vector(X0)}.
 
 vecs(M,[R|Rs],Acc) ->
@@ -686,7 +686,7 @@ fixuv([[Id|UV]|R],Pinned,Ds={_,D,_}) ->
 		{true,_} ->   fixuv(R,Pinned,Ds);
 		{_,{U,V}}  -> [U,V|fixuv(R,Pinned,Ds)];
 		{_,_What} ->      
-		    io:format("~p ~p",[Id,_What]),
+%%		    io:format("~p ~p",[Id,_What]),
 		    [0.5,0.5|fixuv(R,Pinned,Ds)]
 	    end
     end;
@@ -739,10 +739,10 @@ lsq_int(#lsq{a=Af,x0=X0,ap=Ap,temp1=LuLv,temp2=Lquv,dr=Rdict},_Pinned,Method) ->
     X = case Method of
 	    ge -> minimize_ge(Af,B);
 	    _ ->
-		{_,X1} = ?TC(minimize_cg(Af,X0,B)),
+		{_,X1} = minimize_cg(Af,X0,B),
 		X1
 	end,
-%%    ?DBG("X=~p~n", [X]),
+    %%    ?DBG("X=~p~n", [X]),
     %% Extract the vector of previously unknown points,
     %% and insert the pinned points. Re-translate the
     %% original point identities.
