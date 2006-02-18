@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_absolute_move.erl,v 1.8 2006/02/17 23:48:00 giniu Exp $
+%%     $Id: wpc_absolute_move.erl,v 1.9 2006/02/18 00:16:23 giniu Exp $
 %%
 -module(wpc_absolute_move).
 
@@ -244,5 +244,5 @@ execute_move({Dx,Dy,Dz},{Nx,Ny,Nz},{Fx,Fy,Fz},Wo,Vset,Vtab,Now) ->
                     end
             end,
             NewNow = gb_trees:insert(Vertex,{X1,Y1,Z1},Now),
-            execute_move({Dx,Dy,Dz},{Nx,Ny,Nz},{Fx,Fy,Fz},true,Vset,Vtab2,NewNow)
+            execute_move({Dx,Dy,Dz},{Nx,Ny,Nz},{Fx,Fy,Fz},Wo,Vset,Vtab2,NewNow)
     end.
