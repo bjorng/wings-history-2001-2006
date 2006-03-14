@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_absolute_move_pl.lang,v 1.7 2006/02/17 23:48:00 giniu Exp $
+%%     $Id: wpc_absolute_move_pl.lang,v 1.8 2006/03/14 18:51:28 giniu Exp $
 %%
 %%  Translation:  Andrzej Giniewicz
 %%  Correction:   Małgorzata Napiontek
@@ -27,7 +27,8 @@
     {2,"Podaj współrzędne"},
     {3,"Przesuń obiekt"},
     {4,"Przesuń obiekty"},
-    {5,"Wyrównaj"},
-    {6,"Wypłaszcz"}
+    {5,"Kopie"},
+    {6,"Wyrównaj"},
+    {7,"Wypłaszcz"}
    ]}
  ]}.

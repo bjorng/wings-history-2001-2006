@@ -4,7 +4,13 @@
 
 - Fixed stored selection bug reported by LoTekK
 
+- Fixed very small bug in vertex weld (troubles with undo).
 
+- Added second vertex weld mode for those who prefers just moving vertices 
+  to target position and then clean mesh (it's under RMB click on "Weld").
+  
+- Totally rewrote absolute move so now is works for any selection mode, 
+  and is able to align, move whole objects and create multiple duplicates of object.
 
 --- 0.98.33 -----------------------------------------------------------------
 

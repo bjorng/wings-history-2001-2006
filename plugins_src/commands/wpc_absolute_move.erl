@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_absolute_move.erl,v 1.9 2006/02/18 00:16:23 giniu Exp $
+%%     $Id: wpc_absolute_move.erl,v 1.10 2006/03/14 18:51:28 giniu Exp $
 %%
 -module(wpc_absolute_move).
 
@@ -43,7 +43,7 @@ abs_move(St) ->
 %% functions that extracts all needed information from state
 %%  it returns {Options,Selection}, where options is:
 %%   {{move_obj,MoveO},{flatten,Flatten},{align,Align},{center,{CenterX,CenterY,CenterZ}}}
-%%  (return values: {{atom,atom(no/one/many)},{atom,bool},{atom,bool},{atom,{float,float,float}}})
+%%  (return values: {{atom,atom(duplionly/one/many)},{atom,bool},{atom,bool},{atom,{float,float,float}}})
 %%
 
 extract(#st{shapes=Shapes}=St) ->
@@ -58,7 +58,7 @@ extract(#st{shapes=Shapes}=St) ->
                            check_whole_obj(St)
                    end,
     MoveObj = if
-                  WholeObjects -> no;
+                  WholeObjects -> duplionly;
                   OneObject -> one;
                   true -> many
               end,
@@ -109,14 +109,9 @@ check_whole_obj(#st{selmode=SelMode}=St0) ->
 %%   
 
 draw_window({{move_obj,MoveObj},{flatten,Flatten},{align,Align},{center,Center}},Sel,St) ->
-    Frame1 = if
-                 MoveObj =/= no ->
-                     [{vframe,
-                         [draw_window1(center,Center)] ++
-                         [draw_window1(object,MoveObj)]}];
-                 true ->
-                     [draw_window1(center,Center)]
-             end,
+    Frame1 = [{vframe,
+                 [draw_window1(center,Center)] ++
+                 [draw_window1(object,MoveObj)]}],
     Frame2 = if
                  Align ->
                      [draw_window1(align,default)];
@@ -129,7 +124,19 @@ draw_window({{move_obj,MoveObj},{flatten,Flatten},{align,Align},{center,Center}}
                  true ->
                      []
              end,
-    Frame = [{hframe,Frame1++Frame2++Frame3}],
+    Frame23 = Frame2++Frame3,
+    Frame4 = if
+                 MoveObj =/= duplionly -> 
+                     [draw_window1(duplicate,true)];
+                 true ->
+                     []
+             end,
+    Frame = if
+                Frame23 =/= [] -> 
+                    [{hframe,Frame1++[{vframe,[{hframe,Frame23}]++Frame4}]}];
+                true ->
+                    [{vframe,Frame1++Frame4}]
+            end,
     Name = draw_window1(name,default),
     wings_ask:dialog(Name, Frame,
        fun(Move) ->
@@ -146,40 +153,78 @@ draw_window1(center,{XC,YC,ZC}) ->
         {hframe,[{label,"Z:"},{text,ZC}]}
     ]};
 draw_window1(object,one) ->
-    {hframe,[
-        {?__(3,"Move object"),false,[{key,all}]}
-    ]};
+    {?__(3,"Move object"),false,[{key,all}]};
 draw_window1(object,many) ->
+    {?__(4,"Move objects"),false,[{key,all}]};
+draw_window1(object,duplionly) ->
+    draw_window1(duplicate,false);
+draw_window1(duplicate,CheckAll) when is_boolean(CheckAll) ->
+    Label = if
+        CheckAll -> [disable(all)];
+        true -> []
+    end,
     {hframe,[
-        {?__(4,"Move objects"),false,[{key,all}]}
+        {text,0,[{key,dupli}]++Label},
+        {label,?__(5,"Duplicates")}
     ]};
 draw_window1(align,_) ->
     {vframe,[
-        {hframe,[{label,?__(5,"Align")++":"}]},
-        {hframe,[{"",false,[{key,ax}]}]},
-        {hframe,[{"",false,[{key,ay}]}]},
-        {hframe,[{"",false,[{key,az}]}]}
+        {hframe,[{label,?__(6,"Align")++":"}]},
+        {hframe,[{"",false,[{key,ax},disable(dupli)]}]},
+        {hframe,[{"",false,[{key,ay},disable(dupli)]}]},
+        {hframe,[{"",false,[{key,az},disable(dupli)]}]}
     ]};
 draw_window1(flatten,_) ->
     {vframe,[
-        {hframe,[{label,?__(6,"Flatten")++":"}]},
+        {hframe,[{label,?__(7,"Flatten")++":"}]},
         {hframe,[{"",false,[{key,fx}]}]},
         {hframe,[{"",false,[{key,fy}]}]},
         {hframe,[{"",false,[{key,fz}]}]}
     ]}.
 
-translate([X,Y,Z],Center,Sel,St) ->
-    do_move([Center,{X,Y,Z},true,{false,false,false},{false,false,false}],Sel,St);
-translate([X,Y,Z,{all,Object}],Center,Sel,St) ->
-    do_move([Center,{X,Y,Z},Object,{false,false,false},{false,false,false}],Sel,St);
-translate([X,Y,Z,{all,Object},{fx,Fx},{fy,Fy},{fz,Fz}],Center,Sel,St) ->
-    do_move([Center,{X,Y,Z},Object,{false,false,false},{Fx,Fy,Fz}],Sel,St);
-translate([X,Y,Z,{ax,Ax},{ay,Ay},{az,Az}],Center,Sel,St) ->
-    do_move([Center,{X,Y,Z},true,{Ax,Ay,Az},{false,false,false}],Sel,St);
-translate([X,Y,Z,{all,Object},{ax,Ax},{ay,Ay},{az,Az}],Center,Sel,St) ->
-    do_move([Center,{X,Y,Z},Object,{Ax,Ay,Az},{false,false,false}],Sel,St);
-translate([X,Y,Z,{all,Object},{ax,Ax},{ay,Ay},{az,Az},{fx,Fx},{fy,Fy},{fz,Fz}],Center,Sel,St) ->
-    do_move([Center,{X,Y,Z},Object,{Ax,Ay,Az},{Fx,Fy,Fz}],Sel,St).
+disable(all) ->
+    {hook,fun (is_disabled, {_Var,_I,Store}) ->
+                  not gb_trees:get(all, Store);
+              (_, _) -> void
+          end};
+disable(dupli) ->
+    {hook,fun (is_disabled, {_Var,_I,Store}) ->
+                  (gb_trees:get(dupli, Store) > 1) and 
+                  not ((gb_trees:is_defined(all,Store)) andalso (not gb_trees:get(all, Store)));
+              (_, _) -> void
+          end}.
+
+translate([X,Y,Z,{dupli,Dupli}],Center,Sel,St) ->
+    do_move([Center,{X,Y,Z},true,{false,false,false},{false,false,false},Dupli],Sel,St);
+translate([X,Y,Z,{all,Object},{dupli,Dupli}],Center,Sel,St) ->
+    Dupli2 = if
+                 Object -> Dupli;
+                 true -> 0
+             end,
+    do_move([Center,{X,Y,Z},Object,{false,false,false},{false,false,false},Dupli2],Sel,St);
+translate([X,Y,Z,{all,Object},{fx,Fx},{fy,Fy},{fz,Fz},{dupli,Dupli}],Center,Sel,St) ->
+    Dupli2 = if
+                 Object -> Dupli;
+                 true -> 0
+             end,
+    do_move([Center,{X,Y,Z},Object,{false,false,false},{Fx,Fy,Fz},Dupli2],Sel,St);
+translate([X,Y,Z,{dupli,Dupli},{ax,Ax},{ay,Ay},{az,Az}],Center,Sel,St) ->
+    AllowAlign = not (Dupli>1),
+    do_move([Center,{X,Y,Z},true,{Ax and AllowAlign,Ay and AllowAlign,Az and AllowAlign},{false,false,false},Dupli],Sel,St);
+translate([X,Y,Z,{all,Object},{ax,Ax},{ay,Ay},{az,Az},{dupli,Dupli}],Center,Sel,St) ->
+    Dupli2 = if
+                 Object -> Dupli;
+                 true -> 0
+             end,
+    AllowAlign = not (Dupli2>1),
+    do_move([Center,{X,Y,Z},Object,{Ax and AllowAlign,Ay and AllowAlign,Az and AllowAlign},{false,false,false},Dupli2],Sel,St);
+translate([X,Y,Z,{all,Object},{ax,Ax},{ay,Ay},{az,Az},{fx,Fx},{fy,Fy},{fz,Fz},{dupli,Dupli}],Center,Sel,St) ->
+    Dupli2 = if
+                 Object -> Dupli;
+                 true -> 0
+             end,
+    AllowAlign = not (Dupli2>1),
+    do_move([Center,{X,Y,Z},Object,{Ax and AllowAlign,Ay and AllowAlign,Az and AllowAlign},{Fx,Fy,Fz},Dupli2],Sel,St).
 
 %%
 %% do_move(Options,Selection,State)
@@ -187,30 +232,52 @@ translate([X,Y,Z,{all,Object},{ax,Ax},{ay,Ay},{az,Az},{fx,Fx},{fy,Fy},{fz,Fz}],C
 %% this is main absolute move command, it returns new state.
 %%
 
-do_move(_,[],St) ->
+do_move([_,XYZ,_,_,_,Dupli]=Move,Sel,St) ->
+    do_move1(XYZ,Dupli,Move,Sel,St).
+
+do_move1(_,_,_,[],St) ->
     St;
-do_move([{Cx,Cy,Cz},{X,Y,Z},Wo,{Ax,Ay,Az},{Fx,Fy,Fz}]=Move,[{Obj,Vset}|Rest],#st{shapes=Shapes}=St) ->
+do_move1({XO,YO,ZO},DuOrg,[{Cx,Cy,Cz},{X,Y,Z},Wo,{Ax,Ay,Az},{Fx,Fy,Fz},Du],[{Obj0,Vset}|Rest]=Sel,#st{shapes=Shapes0}=St0) ->
     Empty = gb_trees:empty(),
-    We = gb_trees:get(Obj, Shapes),
-    Vtab = We#we.vp,
-    {Ox,Oy,Oz} = get_center([{Obj,Vset}],Shapes),
+    We0 = gb_trees:get(Obj0, Shapes0),
+    #st{shapes=Shapes1,onext=Oid} = St1 = if
+                                              Du > 0 ->
+                                                  wings_shape:insert(We0, copy, St0);
+                                              true ->
+                                                  St0
+                                          end,
+    if
+        Du > 0 ->
+            Obj1 = Oid-1,
+            We1 = gb_trees:get(Obj1, Shapes1);
+        true ->
+            Obj1 = Obj0,
+            We1 = We0
+    end,
+    Vtab = We1#we.vp,
+    {Ox,Oy,Oz} = get_center([{Obj1,Vset}],Shapes1),
     Dx = if
              Ax -> X - Ox;
              true -> X - Cx
-    end,
+         end,
     Dy = if
              Ay -> Y - Oy;
              true -> Y - Cy
-    end,
+         end,
     Dz = if
              Az -> Z - Oz;
              true -> Z - Cz
-    end,
+         end,
     NewVtab = execute_move({Dx,Dy,Dz},{X,Y,Z},{Fx,Fy,Fz},Wo,Vset,Vtab,Empty),
-    NewWe = We#we{vp=NewVtab},
-    NewShapes = gb_trees:update(Obj,NewWe,Shapes),
-    NewSt = St#st{shapes=NewShapes},
-    do_move(Move,Rest,NewSt).
+    NewWe = We1#we{vp=NewVtab},
+    NewShapes = gb_trees:update(Obj1,NewWe,Shapes1),
+    NewSt = St1#st{shapes=NewShapes},
+    if
+        Du > 1 ->
+            do_move1({XO,YO,ZO},DuOrg,[{Cx,Cy,Cz},{XO+Dx,YO+Dy,ZO+Dz},Wo,{Ax,Ay,Az},{Fx,Fy,Fz},Du-1],Sel,NewSt);
+        true ->
+            do_move1({XO,YO,ZO},DuOrg,[{Cx,Cy,Cz},{XO,YO,ZO},Wo,{Ax,Ay,Az},{Fx,Fy,Fz},DuOrg],Rest,NewSt)
+    end.
 
 execute_move({Dx,Dy,Dz},{Nx,Ny,Nz},{Fx,Fy,Fz},Wo,Vset,Vtab,Now) ->
     case gb_trees:size(Vtab) of
