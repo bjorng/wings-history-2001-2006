@@ -1,3 +1,11 @@
+--- 0.98.NEXT -----------------------------------------------------------------
+
+- Minor autouv fixes
+
+- Fixed stored selection bug reported by LoTekK
+
+
+
 --- 0.98.33 -----------------------------------------------------------------
 
 - Dan fixed (hopefully finally) the Rotate commands speed so they work as before.
