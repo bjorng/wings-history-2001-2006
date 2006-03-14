@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_mapping.erl,v 1.80 2006/02/17 08:05:29 dgud Exp $
+%%     $Id: auv_mapping.erl,v 1.81 2006/03/14 13:52:20 dgud Exp $
 %%
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
@@ -40,9 +40,9 @@
 -module(auv_mapping).
 
 -export([stretch_opt/2, fs_area/2, area2d2/3,area3d/3, calc_area/3]).
--export([map_chart/3, projectFromChartNormal/2]).
+-export([map_chart/3, projectFromChartNormal/2, chart_normal/2]).
 
-%% Internal exports.
+%% Internal exports. 
 -export([model_l2/5]).
 
 -export([lsq/2, lsq/3,  % Debug entry points
@@ -355,9 +355,10 @@ chart_normal(Fs,We = #we{es=Etab}) ->
     N0 = foldl(CalcNormal, e3d_vec:zero(), Fs),
     case e3d_vec:norm(N0) of
 	{0.0,0.0,0.0} -> %% Bad normal Fallback1
-	    BE = auv_util:outer_edges(Fs,We,false),
+	    %%	    BE = auv_util:outer_edges(Fs,We,false),
+	    [{_,BE}|_] = auv_placement:group_edge_loops(Fs,We),
 	    EdgeNormals = 
-		fun({Edge,_Face}, Sum0) ->
+		fun(#be{edge=Edge}, Sum0) ->
 			#edge{lf=LF,rf=RF} = gb_trees:get(Edge, Etab),
 			Sum1 = CalcNormal(LF,Sum0),
 			CalcNormal(RF,Sum1)
@@ -367,7 +368,7 @@ chart_normal(Fs,We = #we{es=Etab}) ->
 		{0.0,0.0,0.0} -> %% Bad normal Fallback2
 		    NewFs = decrease_chart(Fs,BE),
 		    chart_normal(NewFs, We);
-		N -> e3d_vec:mul(N,-1.0)
+		N -> e3d_vec:neg(N)
 	    end;
 	N -> N
     end.
@@ -380,12 +381,12 @@ face_normal(Face,Sum,We) ->
 
 decrease_chart(Fs0,BE) ->
     Fs1 = gb_sets:from_list(Fs0),
-    Del = fun({_E,Face},FSin) ->
+    Del = fun(#be{face=Face},FSin) ->
 		  gb_sets:del_element(Face,FSin)
 	  end,
     Fs = foldl(Del, Fs1, BE),
     gb_sets:to_list(Fs).
-    
+
 rotate_to_z(Vs, Normal, We) ->
     Rot = e3d_mat:rotate_s_to_t(Normal,{0.0,0.0,1.0}),
     [{V,e3d_mat:mul_point(Rot, wings_vertex:pos(V, We))} || V <- Vs].

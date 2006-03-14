@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_seg_ui.erl,v 1.42 2006/01/11 22:10:10 dgud Exp $
+%%     $Id: auv_seg_ui.erl,v 1.43 2006/03/14 13:52:20 dgud Exp $
 %%
 
 -module(auv_seg_ui).
@@ -357,7 +357,8 @@ seg_map_charts_1([We0|Cs], Type, Id, N, Acc,Failed,Ss) ->
     case auv_mapping:map_chart(Type, We1, camera_dir(Type)) of
 	{error,Message} ->
 	    seg_map_charts_1(Cs,Type,Id+1,N,Acc,[We1|Failed],Ss#seg{err=Message});
-	Vs ->
+	Vs0 ->
+	    Vs = auv_placement:rotate_area(Vs0,We1),
 	    We = We1#we{vp=gb_trees:from_orddict(sort(Vs))},
 	    seg_map_charts_1(Cs, Type, Id+1, N, [We|Acc], Failed, Ss)
     end;

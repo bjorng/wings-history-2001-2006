@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.326 2006/01/27 19:16:09 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.327 2006/03/14 13:52:20 dgud Exp $
 %%
 
 -module(wpc_autouv).
@@ -1835,15 +1835,18 @@ remap(stretch_opt, _, _, We, St) ->
     ?SLOW(auv_mapping:stretch_opt(We, Vs3d));
 remap(proj_lsqcm, _, Sel, We0, St = #st{selmode=face}) ->
     Vs3d = orig_pos(We0, St),
-    Vs0 = auv_mapping:projectFromChartNormal(gb_sets:to_list(Sel),We0#we{vp=Vs3d}),
-    Vtab = gb_trees:from_orddict(Vs0),
-%%    We1 = #we{vs=Vtab} = update_and_scale_chart(Vs0,We0),
-    SelVs = wings_vertex:from_faces(Sel,We0),
-    Pinned = [begin
-		  {S,T,_} = gb_trees:get(V, Vtab),
-		  {V,{S,T}}
-	      end || V <- SelVs],
-    remap(lsqcm, Pinned, Sel, We0, St);    
+    try Vs0 = auv_mapping:projectFromChartNormal(gb_sets:to_list(Sel),We0#we{vp=Vs3d}),
+	Vtab = gb_trees:from_orddict(Vs0),
+	%%    We1 = #we{vs=Vtab} = update_and_scale_chart(Vs0,We0),
+	SelVs = wings_vertex:from_faces(Sel,We0),
+	Pinned = [begin
+		      {S,T,_} = gb_trees:get(V, Vtab),
+		      {V,{S,T}}
+		  end || V <- SelVs],
+	remap(lsqcm, Pinned, Sel, We0, St)
+    catch throw:What ->
+	    wpa:error(What)
+    end;
 remap(Type, Pinned, _, We0, St) ->
     %% Get 3d positions (even for mapped vs).
     Vs3d = orig_pos(We0, St),
