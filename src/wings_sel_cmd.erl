@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.64 2005/12/16 00:00:33 giniu Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.65 2006/03/14 14:07:53 dgud Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -505,9 +505,14 @@ combine_sel(Combine, [{Id,S0}|T]) ->
 combine_sel(_Combine, []) -> [].
 
 coerce_ssel({Mode,_}=Key, #st{ssels=Ssels}=St) ->
-    Ssel = gb_trees:get(Key, Ssels),
-    coerce_ssel(Mode, Ssel, St).
-    
+    case gb_trees:is_defined(Key,Ssels) of
+	true -> 
+	    Ssel = gb_trees:get(Key, Ssels),
+	    coerce_ssel(Mode, Ssel, St);
+	false ->
+	    []
+    end.
+
 coerce_ssel(Mode, Ssel, #st{selmode=Mode}) -> Ssel;
 coerce_ssel(Smode, Ssel0, #st{selmode=Mode}=St) ->
     StTemp = St#st{selmode=Smode,sel=wings_sel:valid_sel(Ssel0, Smode, St)},
