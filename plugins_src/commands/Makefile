@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.19 2006/01/13 21:04:26 giniu Exp $
+#     $Id: Makefile,v 1.20 2006/03/16 12:50:58 giniu Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -39,7 +39,8 @@ MODULES= \
 	wpc_shift \
 	wpc_turnedge \
 	wpc_tweak \
-	wpc_untriangulate
+	wpc_untriangulate \
+	wpc_weld
 
 TRANSLATABLE= \
 	wpc_absolute_move \
@@ -52,7 +53,8 @@ TRANSLATABLE= \
 	wpc_shift \
 	wpc_turnedge \
 	wpc_tweak \
-	wpc_untriangulate
+	wpc_untriangulate \
+	wpc_weld
 
 TARGET_FILES= $(MODULES:%=$(EBIN)/%.beam)
 
