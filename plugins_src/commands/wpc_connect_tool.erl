@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_connect_tool.erl,v 1.24 2005/11/09 20:37:42 dgud Exp $
+%%     $Id: wpc_connect_tool.erl,v 1.25 2006/03/25 09:45:47 dgud Exp $
 %%
 -module(wpc_connect_tool).
 
@@ -29,6 +29,7 @@
 	     st,    %% Working St
 	     cpos,  %% Cursor Position
 	     mode=normal, %% or slide
+	     loop_cut = false, %% Cut all around
 	     backup,%% State to go back when something is wrong
 	     ost}). %% Original St
 
@@ -88,6 +89,11 @@ handle_connect_event0(#mousemotion{}=Ev, #cs{st=St, v=VL}=C) ->
     case wings_pick:hilite_event(Ev, St, Redraw, Options) of
 	next -> handle_connect_event1(Ev, C);
 	Other -> Other
+    end;
+handle_connect_event0(Ev=#keyboard{unicode=Char}, S=#cs{loop_cut=LC}) ->
+    case Char of
+	$1 -> update_connect_handler(S#cs{loop_cut=(not LC)});
+	_ -> handle_connect_event1(Ev, S)
     end;
 handle_connect_event0(Ev, S) -> handle_connect_event1(Ev, S).
 
@@ -276,7 +282,7 @@ filter_hl(_, _) -> true.  %% Debug connection
 %%     length(ordsets:intersection(Fs,Ok)) == 1.
 
 do_connect(_X,_Y,MM,St0=#st{selmode=vertex,sel=[{Shape,Sel0}],shapes=Sh},
-	   C0=#cs{v=VL,we=Prev}) ->
+	   C0=#cs{v=VL,loop_cut=LC,we=Prev}) ->
     [Id1] = gb_sets:to_list(Sel0),
     We0 = gb_trees:get(Shape, Sh),
     Pos = gb_trees:get(Id1, We0#we.vp),
@@ -292,7 +298,7 @@ do_connect(_X,_Y,MM,St0=#st{selmode=vertex,sel=[{Shape,Sel0}],shapes=Sh},
 	    Ok = vertex_fs(Id2,We0),
 	    try 
 		We=#we{}=connect_link(get_line(Id1,Id2,MM,We0),
-				      Id1,Fs,Id2,Ok,MM,We0),
+				      Id1,Fs,Id2,Ok,LC,MM,We0),
 		St2 = St1#st{shapes=gb_trees:update(Shape,We, Sh)},
 		St = wings_undo:save(St0, St2),
 		C0#cs{v=[VI],we=Shape,last=Id1,st=St}
@@ -307,13 +313,13 @@ do_connect(_,_,_,_,C) ->
     C.
 
 connect_edge(C0=#cs{v=[_]}) -> C0;
-connect_edge(C0=#cs{v=[VI=#vi{id=Id1,mm=MM},#vi{id=Id2}],we=Shape,st=St0}) ->
+connect_edge(C0=#cs{v=[VI=#vi{id=Id1,mm=MM},#vi{id=Id2}],loop_cut=LC,we=Shape,st=St0}) ->
     We0 = gb_trees:get(Shape, St0#st.shapes),
     Fs = vertex_fs(Id1,We0),
     Ok = vertex_fs(Id2,We0),
     try 
 	We=#we{}= connect_link(get_line(Id1,Id2,MM,We0),
-			       Id1,Fs,Id2,Ok,MM,We0),
+			       Id1,Fs,Id2,Ok,LC,MM,We0),
 	St = St0#st{shapes=gb_trees:update(Shape,We,St0#st.shapes)},
 	C0#cs{v=[VI],last=Id1,st=St}
     catch _E:_What -> 
@@ -341,18 +347,25 @@ vertex_fs(Id, We) ->
     Fs = wings_vertex:fold(fun(_,Face,_,Acc) -> [Face|Acc] end, [], Id, We),
     ordsets:from_list(Fs).
 
-connect_link(CutLine,IdStart,FacesStart,IdEnd,FacesEnd,MM,We0) ->
+connect_link(CutLine,IdStart,FacesStart,IdEnd,FacesEnd,LC,MM,We0) ->
     Prev = gb_sets:from_list([IdStart,IdEnd]),
-    connect_link1(CutLine,IdStart,FacesStart,IdEnd,FacesEnd,Prev,MM,We0).
-connect_link1(CutLine,IdStart,FacesStart,IdEnd,FacesEnd,Prev0,MM,We0) ->
-%%    io:format("~p cut ~p <=> ~p ~n", [?LINE, IdStart, IdEnd]),    
-    case connect_done(FacesStart,FacesEnd,Prev0,MM,We0) of
+    We1 = connect_link1(CutLine,IdStart,FacesStart,IdEnd,FacesEnd,Prev,
+			{normal,MM},We0),
+    case LC of  %% loop cut
+	true ->
+	    connect_link1(CutLine,IdStart,FacesStart,IdEnd,FacesEnd,Prev,
+			  {inverted,MM},We1);
+	false ->  We1
+    end.
+connect_link1(CutLine,IdStart,FacesStart,IdEnd,FacesEnd,Prev0,NMM,We0) ->
+%%    io:format("~p cut ~p <=> ~p ~n", [?LINE, IdStart, IdEnd]),
+    case connect_done(FacesStart,FacesEnd,Prev0,NMM,We0) of
 	{true,LastFace} -> %% Done
 	    wings_vertex:connect(LastFace,[IdStart,IdEnd],We0);
 	{false,_} ->	    
-	    Find = check_possible(CutLine,Prev0,MM,We0),
+	    Find = check_possible(CutLine,Prev0,NMM,We0),
 	    Cuts = wings_face:fold_faces(Find,[],FacesStart,We0),
-	    Selected = select_way(lists:usort(Cuts),We0,MM),
+	    Selected = select_way(lists:usort(Cuts),We0,NMM),
 	    {We1,Id1} = case Selected of
 			    {vertex,Id,_Face} ->
 				{We0, Id};
@@ -364,10 +377,10 @@ connect_link1(CutLine,IdStart,FacesStart,IdEnd,FacesEnd,Prev0,MM,We0) ->
 	    [First] = ordsets:intersection(Ok,FacesStart),
 	    We = wings_vertex:connect(First,[Id1,IdStart],We1),
 	    Prev = gb_sets:insert(Id1, Prev0),
-	    connect_link1(CutLine,Id1,Ok,IdEnd,FacesEnd,Prev,MM,We)
+	    connect_link1(CutLine,Id1,Ok,IdEnd,FacesEnd,Prev,NMM,We)
     end.
 
-check_possible(CutLine,Prev,MM,We) ->
+check_possible(CutLine,Prev,{_,MM},We) ->
     fun(Face, _V, Edge, #edge{vs=Vs,ve=Ve}, Acc) -> 
 	    case gb_sets:is_member(Vs,Prev) orelse 
 		gb_sets:is_member(Ve,Prev) of
@@ -398,7 +411,7 @@ connect_done(End,Start,Prev,MM,We) ->
     First = gb_sets:size(Prev) == 2,
     case ordsets:intersection(Start,End) of
 	[LastFace] when First -> %% Done
-	    {check_normal(LastFace,MM,We), LastFace};	
+	    {check_normal(LastFace,MM,We), LastFace};
 	[LastFace] -> 
 	    {true,LastFace};
 	List ->  %% Arrgh imageplane like construction workarounds
@@ -412,32 +425,39 @@ connect_done(End,Start,Prev,MM,We) ->
 
 select_way([],_,_) -> exit(vertices_are_not_possible_to_connect);
 select_way([Cut],_,_) -> Cut;
-select_way(Cuts,We,MM) ->     
+select_way(Cuts,We,NMM = {Mode,_}) ->     
     Priortize = 
 	fun(Cut = {edge,_,Face,Intersect,_}) ->
-		FaceScreen = check_normal(Face,MM,We),
+		FaceScreen = check_normal(Face,NMM,We),
 		if 
 		    FaceScreen and Intersect ->  {1,Cut};
 		    FaceScreen -> {3,Cut};
-		    Intersect ->  {4,Cut};
+		    Intersect, Mode == normal ->    {4,Cut};
+		    Intersect, Mode == inverted ->  {7,Cut};
 		    true ->  {6,Cut}
 		end;
 	   (Cut = {vertex,_,Face}) ->
-		FaceScreen = check_normal(Face,MM,We),
+		FaceScreen = check_normal(Face,NMM,We),
 		if 
 		    FaceScreen -> {2,Cut};
 		    true -> {5,Cut}
 		end
 	end,
-    [{_P,Cut}|_R] =  lists:sort(lists:map(Priortize, Cuts)),
+    Sorted = lists:sort(lists:map(Priortize, Cuts)),
+%%    io:format("~p ~p~n",[?LINE, Sorted]),
+    [{_P,Cut}|_R] = Sorted,
     Cut.
 
-check_normal(Face,MM,We = #we{id=Id}) ->
+check_normal(Face,{Way,MM},We = #we{id=Id}) ->
     {MVM,_PM,_} = wings_u:get_matrices(Id, MM),
     Normal0 = wings_face:normal(Face,We),
     {_,_,Z} = e3d_mat:mul_vector(list_to_tuple(MVM),Normal0),
-    Z > 0.1.
-   
+    if 
+	Way == normal, Z > 0.1 -> true;
+	Way == inverted, Z < -0.1 -> true;
+	true -> false
+    end.
+
 pos2Dto3D({IX,IY}, {V1Sp,V2Sp}, V1,V2,#we{vp=Vs}) ->
     Pos1 = gb_trees:get(V1, Vs),
     Pos2 = gb_trees:get(V2, Vs),
@@ -525,18 +545,21 @@ line_intersect2d({X1,Y1},{X2,Y2},{X3,Y3},{X4,Y4}) ->
 obj_to_screen({MVM,PM,VP}, {X,Y,Z}) ->
     glu:project(X, Y, Z, MVM, PM, VP).
 
-help(#cs{v=[]}) ->
+help(Cs = #cs{v=[]}) ->
     Msg1 = wings_msg:button_format(?__(1,"Select vertex or cut edge [press button to slide]")),
     Msg2 = wings_camera:help(),
     Msg3 = wings_msg:button_format([], [], ?__(2,"Exit Connect")),
-    Msg = wings_msg:join([Msg1,Msg2,Msg3]),
-    wings_wm:message(Msg, "");
-help(_) ->
+    Msg = wings_msg:join([Msg1,Msg2,Msg3]),    
+    wings_wm:message(Msg, lc_help(Cs));
+help(Cs) ->
     Msg1 = wings_msg:button_format(?__(3,"Connects edges/vertices [reselect last vertex to end]")),
     Msg2 = wings_camera:help(),
     Msg3 = wings_msg:button_format([], [], ?__(4,"Exit Connect")),
     Msg = wings_msg:join([Msg1,Msg2,Msg3]),
-    wings_wm:message(Msg, "").
+    wings_wm:message(Msg, lc_help(Cs)).
+
+lc_help(#cs{loop_cut=true}) -> "[1] " ++ ?__(1,"Loop Cut Off");
+lc_help(_) ->                  "[1] " ++ ?__(2,"Loop Cut On").
 
 fake_selection(St) ->
     wings_dl:fold(fun(#dlo{src_sel=none}, S) ->
