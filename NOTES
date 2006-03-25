@@ -1,8 +1,10 @@
 --- 0.98.NEXT -----------------------------------------------------------------
 
-- Minor autouv fixes
+- Minor autouv fixes.
 
-- Fixed stored selection bug reported by LoTekK
+- Fixed stored selection bug reported by LoTekK.
+
+- Added a loop cut mode to (tools) connect tool.
 
 - Fixed very small bug in vertex weld (troubles with undo).
 
