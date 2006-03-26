@@ -1,4 +1,4 @@
---- 0.98.NEXT -----------------------------------------------------------------
+--- 0.98.34 -----------------------------------------------------------------
 
 - Minor autouv fixes.
 
@@ -13,6 +13,11 @@
   
 - Totally rewrote absolute move so now is works for any selection mode, 
   and is able to align, move whole objects and create multiple duplicates of object.
+  [Giniu]
+
+- Should now hopefully work on Mac OS 10.3.9 ("Panther").
+  Erlang/OTP updated to R10B-10, which has a fix for a rare
+  start-up problem. [Bjorn]
 
 --- 0.98.33 -----------------------------------------------------------------
 
