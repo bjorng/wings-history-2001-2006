@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_connect_tool.erl,v 1.25 2006/03/25 09:45:47 dgud Exp $
+%%     $Id: wpc_connect_tool.erl,v 1.26 2006/03/29 19:25:54 dgud Exp $
 %%
 -module(wpc_connect_tool).
 
@@ -353,7 +353,10 @@ connect_link(CutLine,IdStart,FacesStart,IdEnd,FacesEnd,LC,MM,We0) ->
 			{normal,MM},We0),
     case LC of  %% loop cut
 	true ->
-	    connect_link1(CutLine,IdStart,FacesStart,IdEnd,FacesEnd,Prev,
+%%	    io:format("**********Second**********~n",[]),
+	    FsStart = vertex_fs(IdStart,We1),
+	    FsEnd   = vertex_fs(IdEnd,We1),
+	    connect_link1(CutLine,IdStart,FsStart,IdEnd,FsEnd,Prev,
 			  {inverted,MM},We1);
 	false ->  We1
     end.
@@ -373,7 +376,8 @@ connect_link1(CutLine,IdStart,FacesStart,IdEnd,FacesEnd,Prev0,NMM,We0) ->
 				wings_edge:fast_cut(Edge, Pos, We0)
 			end,
 	    Ok = vertex_fs(Id1,We1),
-%%	    io:format("~p ~p of ~p fs ~w~n", [?LINE, Id1, Cuts, Selected]),
+%% 	    io:format("~p ~p of ~p fs ~w~n", [?LINE, Id1, Cuts, Selected]),
+%% 	    io:format("~p ~w ~w ~w~n", [?LINE, Ok,FacesStart,ordsets:intersection(Ok,FacesStart)]),
 	    [First] = ordsets:intersection(Ok,FacesStart),
 	    We = wings_vertex:connect(First,[Id1,IdStart],We1),
 	    Prev = gb_sets:insert(Id1, Prev0),
@@ -440,11 +444,12 @@ select_way(Cuts,We,NMM = {Mode,_}) ->
 		FaceScreen = check_normal(Face,NMM,We),
 		if 
 		    FaceScreen -> {2,Cut};
+		    Mode == inverted -> {8,Cut};
 		    true -> {5,Cut}
 		end
 	end,
     Sorted = lists:sort(lists:map(Priortize, Cuts)),
-%%    io:format("~p ~p~n",[?LINE, Sorted]),
+%%    io:format("~p ~p ~p~n",[?LINE, Mode, Sorted]),
     [{_P,Cut}|_R] = Sorted,
     Cut.
 
@@ -558,8 +563,8 @@ help(Cs) ->
     Msg = wings_msg:join([Msg1,Msg2,Msg3]),
     wings_wm:message(Msg, lc_help(Cs)).
 
-lc_help(#cs{loop_cut=true}) -> "[1] " ++ ?__(1,"Loop Cut Off");
-lc_help(_) ->                  "[1] " ++ ?__(2,"Loop Cut On").
+lc_help(#cs{loop_cut=true}) -> "[1] " ++ ?__(1,"Loop Connect Off");
+lc_help(_) ->                  "[1] " ++ ?__(2,"Loop Connect On").
 
 fake_selection(St) ->
     wings_dl:fold(fun(#dlo{src_sel=none}, S) ->
