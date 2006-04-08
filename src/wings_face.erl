@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face.erl,v 1.52 2005/06/07 17:40:18 bjorng Exp $
+%%     $Id: wings_face.erl,v 1.53 2006/04/08 12:35:34 dgud Exp $
 %%
 
 -module(wings_face).
@@ -216,9 +216,9 @@ vertices_cw(Face, Edge, #we{es=Etab}) ->
 vertices_cw_1(LastEdge, _, _, LastEdge, Acc) when Acc =/= [] -> Acc;
 vertices_cw_1(Edge, Etab, Face, LastEdge, Acc) ->
     case gb_trees:get(Edge, Etab) of
-	#edge{ve=V,lf=Face,ltpr=NextEdge} ->
+	#edge{vs=V,lf=Face,ltpr=NextEdge} ->
 	    vertices_cw_1(NextEdge, Etab, Face, LastEdge, [V|Acc]);
-	#edge{vs=V,rf=Face,rtpr=NextEdge} ->
+	#edge{ve=V,rf=Face,rtpr=NextEdge} ->
 	    vertices_cw_1(NextEdge, Etab, Face, LastEdge, [V|Acc])
     end.
 
@@ -232,9 +232,9 @@ vertices_ccw(Face, Edge, #we{es=Etab}) ->
 vertices_ccw_1(LastEdge, _, _, LastEdge, Acc) when Acc =/= [] -> Acc;
 vertices_ccw_1(Edge, Etab, Face, LastEdge, Acc) ->
     case gb_trees:get(Edge, Etab) of
-	#edge{ve=V,lf=Face,ltsu=NextEdge} ->
+	#edge{vs=V,lf=Face,ltsu=NextEdge} ->
 	    vertices_ccw_1(NextEdge, Etab, Face, LastEdge, [V|Acc]);
-	#edge{vs=V,rf=Face,rtsu=NextEdge} ->
+	#edge{ve=V,rf=Face,rtsu=NextEdge} ->
 	    vertices_ccw_1(NextEdge, Etab, Face, LastEdge, [V|Acc])
     end.
 
