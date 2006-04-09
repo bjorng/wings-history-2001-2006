@@ -8,13 +8,18 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_gl.erl,v 1.3 2005/08/18 09:29:11 dgud Exp $
+%%     $Id: wings_gl.erl,v 1.4 2006/04/09 12:50:01 dgud Exp $
 %%
 
 -module(wings_gl).
 -export([init_extensions/0,is_ext/1,is_ext/2,
 	 init_restrictions/0,is_restriction/1,
 	 error_string/1]).
+
+%% GLSL exports
+-export([support_shaders/0,
+	 uloc/2, set_uloc/3,
+	 compile/2,link_prog/1]).
 
 %% Debugging.
 -export([check_error/2]).
@@ -123,3 +128,92 @@ check_error(Mod, Line) ->
 check_error(_Mod, _Line) ->
     ok.
 -endif.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Shader compilation
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%% Use ARB functions until Mac OsX have been upgraded to opengl 2.0
+
+support_shaders() ->
+    is_ext(['GL_ARB_fragment_shader', 'GL_ARB_vertex_shader']). 
+
+uloc(Prog, What) ->
+    try gl:getUniformLocation(Prog, What) of
+	-1 -> 
+	    io:format("Warning the uniform variable '~p' is not used~n",[What]),
+	    -1;
+	Where -> 
+	    Where
+    catch _:_ -> 
+	    ErrStr = "ERROR The uniform variable ~p should be a string~n",
+	    Err = io_lib:format(ErrStr, [What]),
+	    throw(lists:flatten(Err))
+    end.
+
+set_uloc(Prog, Var, Val) ->
+    case uloc(Prog, Var) of
+	-1 ->  ok;
+	Pos -> set_uloc(Pos,Val)
+    end.
+
+set_uloc(Pos, A) when is_integer(A) ->
+    gl:uniform1i(Pos,A);
+set_uloc(Pos, A) when is_float(A) ->
+    gl:uniform1f(Pos,A);
+set_uloc(Pos, {A,B}) when is_float(A),is_float(B) ->
+    gl:uniform2f(Pos,A,B);
+set_uloc(Pos, {A,B,C}) when is_float(A),is_float(B),is_float(C) ->
+    gl:uniform3f(Pos,A,B,C).
+
+compile(vertex, Bin) when is_binary(Bin) ->
+    compile2(?GL_VERTEX_SHADER, "Vertex", Bin);
+compile(fragment, Bin) when is_binary(Bin) ->
+    compile2(?GL_FRAGMENT_SHADER, "Fragment", Bin).
+
+compile2(Type,Str,Src) ->
+    Handle = gl:createShaderObjectARB(Type),    
+    ok = gl:shaderSource(Handle, 1, [Src], [-1]),
+    ok = gl:compileShader(Handle),
+    check_status(Handle,Str, ?GL_OBJECT_COMPILE_STATUS),
+    Handle.
+
+link_prog(Objs) when is_list(Objs) ->    
+    Prog = gl:createProgramObjectARB(),
+    [gl:attachObjectARB(Prog,ObjCode) || ObjCode <- Objs],
+    [gl:deleteShader(ObjCode) || ObjCode <- Objs],
+    gl:linkProgram(Prog),
+    check_status(Prog,"Link result", ?GL_OBJECT_LINK_STATUS),
+    Prog.
+
+check_status(Handle,Str, What) ->
+    case gl:getObjectParameterivARB(Handle, What) of
+	1 -> 
+	    printInfo(Handle,Str), %% Check status even if ok
+	    Handle;
+	_E -> 	    
+	    printInfo(Handle,Str),
+	    throw("Compilation failed")
+    end.
+
+printInfo(ShaderObj,Str) ->
+    Len = gl:getObjectParameterivARB(ShaderObj, ?GL_OBJECT_INFO_LOG_LENGTH),
+    case Len > 0 of
+	true ->
+	    case catch gl:getInfoLogARB(ShaderObj, Len) of
+		{_, []} -> 
+		    ok;
+		{_, InfoStr} ->
+		    io:format("Info: ~s:~n ~s ~n", [Str,InfoStr]),
+		    case string:str(InfoStr, "oftware") of
+			0 -> ok;
+			_ -> 
+			    throw("Shader disabled would run in Software mode")
+		    end;
+		Error ->
+		    io:format("Internal error PrintInfo crashed with ~p ~n", 
+			      [Error])
+	    end;
+	false ->
+	    ok
+    end.

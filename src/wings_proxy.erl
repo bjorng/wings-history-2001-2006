@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_proxy.erl,v 1.2 2005/08/25 22:26:42 dgud Exp $
+%%     $Id: wings_proxy.erl,v 1.3 2006/04/09 12:50:01 dgud Exp $
 %%
 
 -module(wings_proxy).
@@ -138,7 +138,7 @@ draw(#dlo{proxy_faces=Dl}=D, Wire) ->
 draw_1(D, Dl, Wire, Key, EdgeStyleKey) ->
     draw_edges(D, Wire, EdgeStyleKey),
     gl:shadeModel(?GL_SMOOTH),
-    gl:enable(?GL_LIGHTING),
+    wings_render:enable_lighting(), 
     gl:enable(?GL_POLYGON_OFFSET_FILL),
     wings_render:polygonOffset(2),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
@@ -156,7 +156,7 @@ draw_1(D, Dl, Wire, Key, EdgeStyleKey) ->
     wings_dl:call(Dl),
     gl:disable(?GL_BLEND),
     gl:disable(?GL_POLYGON_OFFSET_FILL),
-    gl:disable(?GL_LIGHTING),
+    wings_render:disable_lighting(), 
     gl:shadeModel(?GL_FLAT).
 
 draw_smooth_edges(D) ->

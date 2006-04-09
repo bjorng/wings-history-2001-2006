@@ -9,14 +9,41 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_render.erl,v 1.9 2005/08/25 22:26:42 dgud Exp $
+%%     $Id: wings_render.erl,v 1.10 2006/04/09 12:50:01 dgud Exp $
 %%
 
 -module(wings_render).
--export([render/1,polygonOffset/1]).
+-export([init/0, render/1,polygonOffset/1,
+	 enable_lighting/0, disable_lighting/0]).
 
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
+
+init() ->
+    case wings_gl:support_shaders() of
+	true ->
+	    try 
+		Sh = wings_gl:compile(vertex, light_shader_src()),
+		Prog = wings_gl:link_prog([Sh]),
+ 		gl:useProgram(Prog),
+		wings_pref:set_default(hl_lightpos,  {3.0,10.0,1.0}),
+		wings_pref:set_default(hl_skycol,    {0.95,0.95,0.90}),
+		wings_pref:set_default(hl_groundcol, {0.026,0.024,0.021}),
+		wings_gl:set_uloc(Prog, "LightPosition", 
+				  wings_pref:get_value(hl_lightpos)),
+		wings_gl:set_uloc(Prog, "SkyColor",
+				  wings_pref:get_value(hl_skycol)),
+		wings_gl:set_uloc(Prog, "GroundColor",
+				  wings_pref:get_value(hl_groundcol)),
+		?CHECK_ERROR(),
+ 		gl:useProgram(0),
+		put(light_shader, Prog),
+		ok
+	    catch throw:_Err -> ok
+	    end;
+	false ->
+	    ok
+    end.
 
 %% render(St)
 %%  Render the entire contents of a Geometry or AutoUV window,
@@ -53,7 +80,7 @@ polygonOffset(M) ->
 	    R = wings_pref:get_value(polygon_offset_r,1.0),
 	    put(polygon_offset, {F,R}),
 	    gl:polygonOffset(M*F, M*R);
-	{F,R} ->
+	{F,R} -> 
 	    gl:polygonOffset(M*F, M*R)
     end.
 %%%
@@ -124,7 +151,8 @@ render_plain(#dlo{work=Faces,edges=Edges,open=Open,
 	    gl:enable(?GL_POLYGON_OFFSET_FILL),
 	    polygonOffset(2),
 	    gl:shadeModel(?GL_SMOOTH),
-	    gl:enable(?GL_LIGHTING),
+	    enable_lighting(),
+	    
 	    case Open of
 		false ->
 		    wings_dl:call(Faces);
@@ -133,7 +161,7 @@ render_plain(#dlo{work=Faces,edges=Edges,open=Open,
 		    wings_dl:call(Faces),
 		    gl:enable(?GL_CULL_FACE)
 	    end,
-	    gl:disable(?GL_LIGHTING),
+	    disable_lighting(),
 	    gl:shadeModel(?GL_FLAT);
 	true -> ok
     end,
@@ -191,7 +219,7 @@ render_smooth(#dlo{work=Work,edges=Edges,smooth=Smooth,transparent=Trans,
 	      RenderTrans) ->
     gl:shadeModel(?GL_SMOOTH),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
-    gl:enable(?GL_LIGHTING),
+    enable_lighting(),
     gl:enable(?GL_POLYGON_OFFSET_FILL),
     gl:polygonOffset(2, 2),
 
@@ -231,7 +259,7 @@ render_smooth(#dlo{work=Work,edges=Edges,smooth=Smooth,transparent=Trans,
 
     gl:disable(?GL_POLYGON_OFFSET_FILL),
     gl:depthMask(?GL_TRUE),
-    gl:disable(?GL_LIGHTING),
+    disable_lighting(),
     gl:shadeModel(?GL_FLAT),
     case wire(We) of
 	true when Pd =:= none ->
@@ -542,3 +570,44 @@ show_saved_bb(#st{bb=[{X1,Y1,Z1},{X2,Y2,Z2}]}) ->
 	    gl:disable(?GL_LINE_STIPPLE)
     end;
 show_saved_bb(_) -> ok.
+
+enable_lighting() ->
+    Prog = get(light_shader),
+    UseProg = 
+	(Prog /= undefined) andalso (not wings_pref:get_value(scene_lights)) 
+        andalso 2 == wings_pref:get_value(number_of_lights),
+    case UseProg of
+	false -> 
+	    gl:enable(?GL_LIGHTING);
+	true ->
+	    gl:useProgram(Prog)
+    end.
+
+
+disable_lighting() ->
+    gl:disable(?GL_LIGHTING),
+    case get(light_shader) /= undefined of
+ 	true -> gl:useProgram(0);
+	false -> ok
+    end.
+
+
+light_shader_src() ->
+    <<"							       
+       uniform vec3 LightPosition;				       
+       uniform vec3 SkyColor;					       
+       uniform vec3 GroundColor;				       
+       							       
+       void main() 						       
+       {							       
+           vec3 ecPosition = vec3(gl_ModelViewMatrix * gl_Vertex);    
+           vec3 tnorm      = normalize(gl_NormalMatrix * gl_Normal);  
+           vec3 lightVec   = normalize(LightPosition - ecPosition);   
+           float costheta  = dot(tnorm, lightVec);
+           float a         = 0.5 + 0.5 * costheta;
+           vec4 color      = gl_FrontMaterial.diffuse;
+           gl_FrontColor   = color * vec4(mix(GroundColor, SkyColor, a), 1.0);
+           gl_TexCoord[0]  = gl_MultiTexCoord0;
+           gl_Position     = ftransform();
+       }							       
+       ">>.

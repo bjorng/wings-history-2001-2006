@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.128 2005/04/14 14:39:30 dgud Exp $
+%%     $Id: wings_material.erl,v 1.129 2006/04/09 12:50:01 dgud Exp $
 %%
 
 -module(wings_material).
@@ -394,11 +394,13 @@ apply_texture_1(Image, TxId) ->
     end,
     case wings_image:info(Image) of
 	#e3d_image{bytes_pp=4} ->
+%	    gl:enable(?GL_BLEND),
 	    gl:enable(?GL_ALPHA_TEST),
-	    gl:alphaFunc(?GL_GREATER, 0.5);
+	    gl:alphaFunc(?GL_GREATER, 0.3);
 	#e3d_image{type=a8} ->
+%	    gl:enable(?GL_BLEND),
 	    gl:enable(?GL_ALPHA_TEST),
-	    gl:alphaFunc(?GL_GREATER, 0.5);
+	    gl:alphaFunc(?GL_GREATER, 0.3);
 	_ -> 
 	    gl:disable(?GL_ALPHA_TEST)
     end,
@@ -444,13 +446,28 @@ is_transparent(Name, Mtab) ->
 
 is_mat_transparent(Mat) ->
     OpenGL = prop_get(opengl, Mat),
-    foldl(fun(_, true) -> true;
-	     ({emission,_}, _) -> false;
-	     ({_,{_,_,_,1.0}}, _) -> false;
-	     ({_,{_,_,_,_}}, _) -> true;
-	     (_, _) -> false
-	  end, false, OpenGL).
+    Trans = foldl(fun(_, true) -> true;
+		   ({emission,_}, _) -> false;
+		     ({_,{_,_,_,1.0}}, _) -> false;
+		     ({_,{_,_,_,_}}, _) -> true;
+		     (_, _) -> false
+		  end, false, OpenGL),
+    Trans.
 
+%% case Trans of
+%% 	true -> true;
+%% 	false -> 
+%% 	    Maps = prop_get(maps, Mat),    
+%% 	    case prop_get(diffuse, Maps, none) of
+%% 		none -> false;
+%% 		DiffMap -> 		    
+%% 		    case wings_image:info(DiffMap) of
+%% 			#e3d_image{bytes_pp=4} -> true;
+%% 			#e3d_image{type=a8} -> true;
+%% 			_ -> false
+%% 		    end
+%% 	    end
+%%     end.
 %%% The material editor.
 
 -define(PREVIEW_SIZE, 100).

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.337 2005/09/06 22:51:47 raimo_niskanen Exp $
+%%     $Id: wings.erl,v 1.338 2006/04/09 12:50:01 dgud Exp $
 %%
 
 -module(wings).
@@ -121,7 +121,7 @@ init(File) ->
     wings_pb:init(),
     wings_ask:init(),
     wings_job:init(),
-
+    
     Op = main_loop_noredraw(St),		%Replace crash handler
 						%with this handler.
     
@@ -191,6 +191,7 @@ open_file(Name) -> wings_wm:send(geom, {open_file,Name}).
 
 init_opengl(St) ->
     wings_draw_util:init(),
+    wings_render:init(),
     wings_dl:init(),
     wings_draw:refresh_dlists(St),
     keep.
