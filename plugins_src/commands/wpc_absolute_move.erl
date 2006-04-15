@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_absolute_move.erl,v 1.10 2006/03/14 18:51:28 giniu Exp $
+%%     $Id: wpc_absolute_move.erl,v 1.11 2006/04/15 18:56:11 giniu Exp $
 %%
 -module(wpc_absolute_move).
 
@@ -23,13 +23,20 @@
 init() -> true.
 
 menu({_,move},Menu) ->
-    Menu ++ [separator,
-             {?__(1,"Absolute"),abs_move,
-              ?__(2,"Move to exact position in absolute coordinates.")}
-            ];
+    Menu ++ draw_menu();
+menu({_,move_light},Menu) ->
+    Menu ++ draw_menu();
 menu(_,Menu) -> Menu.
 
+draw_menu() ->
+    [separator,
+     {?__(1,"Absolute"),abs_move,
+      ?__(2,"Move to exact position in absolute coordinates.")}
+    ].
+
 command({_,{move,abs_move}},St) ->
+    abs_move(St);
+command({_,{move_light,abs_move}},St) ->
     abs_move(St);
 command(_,_) -> next.
 
@@ -48,22 +55,22 @@ abs_move(St) ->
 
 extract(#st{shapes=Shapes}=St) ->
     Sel = get_selection(St),
-    Center = get_center(Sel,Shapes),
+    {Center,Lights} = get_center_and_lights(Sel,Shapes),
     OneObject = check_single_obj(Sel),
     SinglePoints = check_single_vert(Sel),
     WholeObjects = if
-                       SinglePoints ->
+                       SinglePoints or Lights ->
                            false;
                        true ->
                            check_whole_obj(St)
                    end,
     MoveObj = if
-                  WholeObjects -> duplionly;
+                  WholeObjects or Lights -> duplionly;
                   OneObject -> one;
                   true -> many
               end,
     Flatten = if
-                  SinglePoints or WholeObjects -> false;
+                  SinglePoints or WholeObjects or Lights -> false;
                   true -> true
               end,
     Align = not OneObject,
@@ -77,16 +84,20 @@ get_selection(#st{selmode=SelMode}=St) ->
     Sel.
 
 get_center(Sel,Shapes) ->
-    get_center(Sel,Shapes,[]).
+    {Center,_} = get_center_and_lights(Sel,Shapes,[],false),
+    Center.
 
-get_center([],_,Now) ->
-    e3d_vec:average(Now);
-get_center([{Obj,Vset}|Rest],Shapes,Now) ->
+get_center_and_lights(Sel,Shapes) ->
+    get_center_and_lights(Sel,Shapes,[],true).
+
+get_center_and_lights([],_,Now,Lights) ->
+    {e3d_vec:average(Now),Lights};
+get_center_and_lights([{Obj,Vset}|Rest],Shapes,Now,Lights) ->
     We = gb_trees:get(Obj, Shapes),
     Positions = gb_sets:fold(fun(Vert, Acc) ->
                          [wings_vertex:pos(Vert, We)|Acc]
                       end, [], Vset),
-    get_center(Rest,Shapes,Now++Positions).
+    get_center_and_lights(Rest,Shapes,Now++Positions,Lights and ?IS_LIGHT(We)).
 
 check_single_obj([{_,_}]) -> true;
 check_single_obj(_) -> false.
@@ -268,7 +279,7 @@ do_move1({XO,YO,ZO},DuOrg,[{Cx,Cy,Cz},{X,Y,Z},Wo,{Ax,Ay,Az},{Fx,Fy,Fz},Du],[{Obj
              Az -> Z - Oz;
              true -> Z - Cz
          end,
-    NewVtab = execute_move({Dx,Dy,Dz},{X,Y,Z},{Fx,Fy,Fz},Wo,Vset,Vtab,Empty),
+    NewVtab = execute_move({Dx,Dy,Dz},{X,Y,Z},{Fx,Fy,Fz},Wo or ?IS_LIGHT(We1),Vset,Vtab,Empty),
     NewWe = We1#we{vp=NewVtab},
     NewShapes = gb_trees:update(Obj1,NewWe,Shapes1),
     NewSt = St1#st{shapes=NewShapes},
