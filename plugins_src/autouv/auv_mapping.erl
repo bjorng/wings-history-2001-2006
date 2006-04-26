@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_mapping.erl,v 1.81 2006/03/14 13:52:20 dgud Exp $
+%%     $Id: auv_mapping.erl,v 1.82 2006/04/26 12:25:41 dgud Exp $
 %%
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
@@ -566,19 +566,14 @@ reorder_edge_loop(V1, [H|Tail], Acc) ->
 -record(lsq,{a,x0,ap,temp1,temp2,dr}).
 
 lsq_setup(Fs,We,Pinned) ->
-    {M,N,D,DR,L1,L2,X0} = lsq_init(Fs,We,Pinned),
-    Lquv = 
-	lists:sort( % Must be sorted for pick() and insert() to work.
-	  lists:map(
-	    fun ({P,{U,V} = UV} = PUV) when number(U), number(V) ->
-		    case dict:find(P, D) of
-			{ok,Q} -> {Q,UV};
-			error -> throw({error,{invalid_arguments,[PUV]}})
-		    end;
-		(PUV) ->
-		    throw({error,{invalid_arguments,[PUV]}})
-	    end,
-	    Pinned)),
+    {M,N,D,DR,L1,L2,_X0} = lsq_init(Fs,We,Pinned),
+    {Lquv0,{Np,Usum,Vsum}} =  
+	lists:mapfoldl(
+	  fun({P,{U,V} = UV}, {I,X,Y}) ->
+		  {ok,Q} = dict:find(P, D),
+		  {{Q,UV}, {I+1,X+U,Y+V}}
+	  end,{0,0.0,0.0},Pinned),
+    Lquv = lists:sort(Lquv0), % Must be sorted for pick() and insert() to work.
     ?DBG("lsq_int - Lquv = ~p~n",[Lquv]),
     %% Build the basic submatrixes 
     %% M1 = Re(M), M2 = Im(M), M2n = -M2
@@ -592,7 +587,10 @@ lsq_setup(Fs,We,Pinned) ->
     %% for a Least SQares solution.
     {Af,Ap} = build_matrixes(N,Mfp1c,Mfp2c,Mfp2nc),
     ?DBG("Solving matrices~n", []),
-    #lsq{a=Af,x0=X0,ap=Ap,temp1=LuLv,temp2=Lquv,dr=DR}.
+    X0Fix = auv_matrix:vector(lists:duplicate(M-Np, Usum/Np)++
+			      lists:duplicate(M-Np, Vsum/Np)),
+
+    #lsq{a=Af,x0=X0Fix,ap=Ap,temp1=LuLv,temp2=Lquv,dr=DR}.
 
 lsq_init(Fs0,We0,Pinned0) -> 
     %% Do a real triangulation, might be optimized later.
@@ -609,8 +607,9 @@ lsq_init_fs([F|Fs],P,We = #we{vp=Vtab},Ds0,N,Re0,Im0,X0) ->
 	project_tri(gb_trees:get(A0,Vtab),gb_trees:get(B0,Vtab),
 		    gb_trees:get(C0,Vtab)), 
     %% Raimos old solution. 
-    SqrtDT = math:sqrt(abs((X2-X1)*(Y3-Y1) - 
- 			   (Y2-Y1)*(X3-X1))),
+    SqrtDT = try math:sqrt(abs((X2-X1)*(Y3-Y1)-(Y2-Y1)*(X3-X1))) 
+	     catch _:_ -> 0.000001
+	     end,
     W1re = X3-X2, W1im = Y3-Y2, 
     W2re = X1-X3, W2im = Y1-Y3, 
     W3re = X2-X1, W3im = Y2-Y1,
