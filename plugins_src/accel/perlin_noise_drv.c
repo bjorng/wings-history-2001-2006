@@ -8,7 +8,7 @@
  *  See the file "license.terms" for information on usage and redistribution
  *  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
  *
- *     $Id: perlin_noise_drv.c,v 1.3 2006/01/17 15:48:37 dgud Exp $
+ *     $Id: perlin_noise_drv.c,v 1.4 2006/04/27 13:46:55 dgud Exp $
  */
 
 #include <stdio.h>
@@ -49,7 +49,7 @@ double snoise2( double x, double y );
 double snoise3( double x, double y, double z );
 double snoise4( double x, double y, double z, double w );
 
-#define to_byte(X) floor(((X)+1.0)*127.5)  /* from -1,1 => 0 - 255 */
+#define to_byte(X) (((X)+1.0)*128.0)  /* from -1,1 => 0 - 255 */
 
 /*
  * Interface routines.
@@ -275,24 +275,24 @@ static int control(ErlDrvData handle, unsigned int command,
    case SNOISE_MAP3: {
       int sz = * ((unsigned int*) buff);
       int i,j,k;
-      unsigned char *noise;
+      unsigned char *noise, * ptr;
+
       bin = driver_alloc_binary(sz*sz*sz*4); 
       noise = bin->orig_bytes;
       
       for(i=0; i < sz ; i++) {
-	 for(j=0; j < sz ; j++) {
-	    for(k=0; k < sz ; k++) {		
-	       double 
-		  iv = (double)i/(sz-1),
-		  jv = (double)j/(sz-1),
-		  kv = (double)k/(sz-1);
-	       * noise++ = (unsigned char) to_byte(snoise3(iv,jv,kv));
-	       * noise++ = (unsigned char) to_byte(snoise3(iv*2.0,jv*2.0,kv*2.0));
-	       * noise++ = (unsigned char) to_byte(snoise3(iv*4.0,jv*4.0,kv*4.0));
-	       * noise++ = (unsigned char) to_byte(snoise3(iv*8.0,jv*8.0,kv*8.0));
-	    }
-	 } 
-      }	 
+	  double iv = (double)i/(sz-1);	  
+	  for(j=0; j < sz ; j++) {
+	      double jv = (double)j/(sz-1);
+	      for(k=0; k < sz ; k++) {
+		  double kv = (double)k/(sz-1);
+		  * noise++ = (unsigned char) to_byte(snoise3(iv,jv,kv));
+		  * noise++ = (unsigned char) to_byte(snoise3(iv*2.0,jv*2.0,kv*2.0));
+		  * noise++ = (unsigned char) to_byte(snoise3(iv*4.0,jv*4.0,kv*4.0));
+		  * noise++ = (unsigned char) to_byte(snoise3(iv*8.0,jv*8.0,kv*8.0));
+	      }
+	  }
+      }
       *res = (char *) bin;
       return sz*sz*sz*4;
    }

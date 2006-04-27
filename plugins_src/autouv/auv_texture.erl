@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_texture.erl,v 1.35 2006/02/08 21:05:37 dgud Exp $
+%%     $Id: auv_texture.erl,v 1.36 2006/04/27 13:46:55 dgud Exp $
 %%
 
 -module(auv_texture).
@@ -30,6 +30,7 @@
 -define(OPT_BG, [{type_sel,color},{undefined,ignore},{1.0,1.0,1.0}]).
 -define(OPT_EDGES, [all_edges,{0.0,0.0,0.0}, 1.0, false]).
 -define(OPT_FACES, [texture]).
+-define(OPT_LIGHT, [64]).
 
 -record(opt, {texsz = {512,512},   %% Texture size
 	      no_renderers = 4,
@@ -77,7 +78,8 @@
 -record(fs,
 	{vs,        % triangulated vertex id in uv window [[Id1,Id2,Id3]]
 	 vse,       % face vertex id's untriangulated for edge drawings
-	 mat}).     % material
+	 mat,       % material 
+	 id}).      % Face Id
 
 %% Menu
 
@@ -153,11 +155,16 @@ get_def(List, What, Id) ->
 background() ->
     [{?__(1,"Background"), auv_background}].
 renderers(Shaders) ->
+    Menu0 = [{"*"++Name++"*", {shader,Id}} || 
+		#sh{name=Name,id=Id} <- Shaders],
+    Menu1 = Menu0,
+%%     Menu1 = case Shaders of 
+%% 		[] -> Menu0;
+%% 		_ -> [{?__(4, "Lights"), auv_light}|Menu0]
+%% 	    end,
     [{?__(1,"None"), ignore},
      {?__(2,"Draw Edges"),auv_edges},
-     {?__(3,"Draw Faces"),auv_faces}|
-     [{"*"++Name++"*", {shader,Id}} || 
-	 #sh{name=Name,id=Id} <- Shaders]
+     {?__(3,"Draw Faces"),auv_faces}| Menu1
     ].
 
 options(auv_background, [{type_sel,Type},{Image,_},Color],_) ->
@@ -183,6 +190,9 @@ options(auv_faces,[Type],_) ->
 	      {?__(9,"Use (previous) Texture/Vertex colors"), texture}],
       Type, []}];
 options(auv_faces,_,Sh) -> options(auv_faces,?OPT_FACES,Sh);
+options(auv_light,[Size],_Sh) -> 
+    [{hframe,[{label,?__(10,"No Lights:")},{text,Size,[{range,{4,100}}]}]}];
+options(auv_light,_,Sh) -> options(auv_light,?OPT_LIGHT,Sh);
 options({shader,Id},Vals,Sh) ->
     {value,Shader} = lists:keysearch(Id,#sh.id,Sh),
     shader_options(Shader,Vals);
@@ -491,7 +501,7 @@ get_texture(Wc, Wd, Hc, Hd, {W,H}=Info, DL, UsingFbo, ImageAcc)
   when Wc < Wd, Hc < Hd ->
     gl:pixelStorei(?GL_UNPACK_ALIGNMENT, 1),
     gl:clearColor(1, 1, 1, 1),
-    gl:shadeModel(?GL_SMOOTH),
+%%    gl:shadeModel(?GL_SMOOTH),
     gl:disable(?GL_CULL_FACE),
     gl:disable(?GL_LIGHTING),
     texture_view(Wc, Wd, Hc, Hd),
@@ -706,8 +716,8 @@ create_faces(We = #we{vp=Vtab,name=#ch{vmap=Vmap}},
 	      Tangents = fix_tang_vecs(Vs,Coords,UVcoords,Normals,Reqs), 
 	      Indx = fun(I) -> [V+Cnt || V <- I] end,
 	      Mat  = GetMat(Face),
-	      {#fs{vs=Indx(Vs),vse=Indx(FaceVs),mat=Mat},
-	       {map_oes(OEs,Vs0,Cnt,Face,Mat),
+	      {#fs{vs=Indx(Vs),vse=Indx(FaceVs),mat=Mat,id=Face},
+	       {map_oes(OEs,Vs0,Cnt+Len-1,Face,Mat),
 		e3d_vec:bounding_box(UvBB ++ UVcoords),
 		{Cnt+Len,
 		 UVcoords ++ UVpos,
@@ -733,7 +743,7 @@ map_oes([Other|OEs],Vs0,Cnt,Face,Mat) ->
 map_oes([],_,_,_,_) -> [].
 
 member(Val,[Val|_],Pos) -> Pos;
-member(Val,[_|R],Pos) -> member(Val,R,Pos+1).
+member(Val,[_|R],Pos) -> member(Val,R,Pos-1).
 
 fix_normals(Vs,Vmap,VsI,Ns0) -> %% can be different order 
     fix_normals(Vs,n_zip(VsI,Ns0),Vmap).  
@@ -874,7 +884,7 @@ get_material(Face, We, OrigWe, Materials) ->
 
 outer_verts(We = #we{es=Etab}) ->
     Fs = wings_we:visible(We),
-    Outer = auv_util:outer_edges(Fs,We,false),
+    Outer = auv_util:outer_edges(Fs,We,false),    
     Verts = fun({Edge,Face}) -> 
 		    #edge{vs=Va,ve=Vb} = gb_trees:get(Edge, Etab),
 		    [Va,Vb,Face]
@@ -1032,6 +1042,33 @@ pass({auv_faces, [Type]},_) ->
     end;
 pass({auv_faces, _},Sh) ->
     pass({auv_faces,?OPT_FACES},Sh);
+pass({auv_light, _},_Sh) ->
+    Circle = fun(N, Y, R) ->
+		     Delta = math:pi()*2 / N,
+		     [{R*math:cos(I*Delta), Y, R*math:sin(I*Delta)} 
+		      || I <- lists:seq(0, N-1)]
+	     end,
+    Sphere = fun(Ns,Nl) ->
+		     Delta = math:pi() / Nl,
+		     PosAndRads= [{math:cos(I*Delta), math:sin(I*Delta)} 
+				  || I <- lists:seq(1, Nl-1)],
+		     Circles = [Circle(Ns, Pos, Rad) || {Pos, Rad} <- PosAndRads],
+		     lists:flatten(Circles)
+	     end,
+    %Lights = Sphere(8,4) ++ [{0.0,1.0,0.0}, {0.0,-1.0,0.0}],
+    Ligths = [{1.0,0.0,0.0}],
+    
+    VsS = wings_gl:compile(vertex, read_file("light1.vs")),
+    LP1 = wings_gl:link_prog([VsS]),
+    io:format("Light Prog ~p ~n",[LP1]),
+
+    fun(Ts = #ts{bb=BB=[Min,Max]},_) ->
+	    Center = e3d_vec:average(BB),
+	    Dist   = e3d_vec:dist(Min,Max),
+	    PM = get_lightProjM(Dist),
+	    render_lights(Ligths, PM, 10.0+Dist, Center,LP1,Ts)
+    end;
+
 pass({{shader,Id}, Opts},{Sh,Compiled}) ->
     shader_pass(lists:keysearch(Id,#sh.id,Sh),
 		lists:keysearch(Id,1,Compiled),Opts);
@@ -1109,31 +1146,31 @@ shader_pass({value,#sh{args=Args,tex_units=TexUnits,reqs=Reqs}},
     end.
 
 shader_uniforms([{uniform,color,Name,_,_}|As],[Val|Opts],Conf) ->
-    Loc = getLocation(Conf#sh_conf.prog,Name),
+    Loc = wings_gl:uloc(Conf#sh_conf.prog,Name),
     gl:uniform4fv(Loc,1,Val),
     shader_uniforms(As,Opts,Conf);
 shader_uniforms([{uniform,float,Name,_,_}|As],[Val|Opts],Conf) ->
-    Loc = getLocation(Conf#sh_conf.prog,Name),
+    Loc = wings_gl:uloc(Conf#sh_conf.prog,Name),
     gl:uniform1f(Loc,Val),
     shader_uniforms(As,Opts,Conf);
 shader_uniforms([{uniform,menu,Name,_,_}|As],[Vals|Opts],Conf) 
   when is_list(Vals) ->
-    Loc = getLocation(Conf#sh_conf.prog,Name),
+    Loc = wings_gl:uloc(Conf#sh_conf.prog,Name),
     %% Bug in esdl gl uniformXfv can't send arrays of values.
     foldl(fun(Val,Cnt) -> gl:uniform1f(Loc+Cnt,Val),Cnt+1 end,0,Vals),
     shader_uniforms(As,Opts,Conf);
 
 shader_uniforms([{uniform,bool,Name,_,_}|As],[Val|Opts],Conf) ->
-    Loc = getLocation(Conf#sh_conf.prog,Name),
+    Loc = wings_gl:uloc(Conf#sh_conf.prog,Name),
     BoolF = if Val -> 1.0; true -> 0.0 end,
     gl:uniform1f(Loc, BoolF),
     shader_uniforms(As,Opts,Conf);
 shader_uniforms([{uniform,{slider,_,_},Name,_,_}|As],[Val|Opts],Conf) ->
-    Loc = getLocation(Conf#sh_conf.prog,Name),
+    Loc = wings_gl:uloc(Conf#sh_conf.prog,Name),
     gl:uniform1f(Loc,Val),
     shader_uniforms(As,Opts,Conf);
 shader_uniforms([{uniform,{image,Unit},Name,_,_}|As],[{_,Id}|Opts],Conf) ->
-    Loc = getLocation(Conf#sh_conf.prog,Name),
+    Loc = wings_gl:uloc(Conf#sh_conf.prog,Name),
     gl:activeTexture(?GL_TEXTURE0 + Unit),
     TxId = wings_image:txid(Id),
     gl:bindTexture(?GL_TEXTURE_2D, TxId),
@@ -1143,26 +1180,26 @@ shader_uniforms([{auv,{auv_noise,Unit}}|Rest],Opts,Conf) ->
     case wings_image:pnoiseid() of
 	0 -> throw("No noise texture available");
 	TxId -> 
-	    Loc = getLocation(Conf#sh_conf.prog, "auv_noise"),
+	    Loc = wings_gl:uloc(Conf#sh_conf.prog, "auv_noise"),
 	    gl:activeTexture(?GL_TEXTURE0 + Unit),
 	    gl:bindTexture(?GL_TEXTURE_3D, TxId),
 	    gl:uniform1i(Loc, Unit),
             shader_uniforms(Rest,Opts,Conf)
     end;
 shader_uniforms([{auv,{auv_bg,Unit}}|Rest],Opts,Conf) ->
-    Loc = getLocation(Conf#sh_conf.prog, "auv_bg"),
+    Loc = wings_gl:uloc(Conf#sh_conf.prog, "auv_bg"),
     gl:activeTexture(?GL_TEXTURE0),
     gl:bindTexture(?GL_TEXTURE_2D, Conf#sh_conf.fbo_r),
     gl:uniform1i(Loc, Unit),
     shader_uniforms(Rest,Opts,Conf);
 shader_uniforms([{auv,auv_texsz}|As],Opts,Conf = #sh_conf{texsz={W,H}}) ->
-    Loc = getLocation(Conf#sh_conf.prog,"auv_texsz"),
+    Loc = wings_gl:uloc(Conf#sh_conf.prog,"auv_texsz"),
     gl:uniform2f(Loc,W,H),
     shader_uniforms(As,Opts,Conf);
 shader_uniforms([{auv,{auv_send_texture,_,_}}|As],[_Val|Opts],Conf) ->
     shader_uniforms(As,Opts,Conf);
 shader_uniforms([{auv,auv_bbpos3d}|R],Opts,Conf) ->
-    Loc = getLocation(Conf#sh_conf.prog,"auv_bbpos3d"),
+    Loc = wings_gl:uloc(Conf#sh_conf.prog,"auv_bbpos3d"),
     [{MinX,MinY,MinZ},{MaxX,MaxY,MaxZ}] = (Conf#sh_conf.ts)#ts.bb,
     gl:uniform3f(Loc,MinX,MinY,MinZ),
     gl:uniform3f(Loc+1,MaxX,MaxY,MaxZ),
@@ -1174,7 +1211,7 @@ shader_uniforms([],[],_) ->
 
 %% Per Face or per Chart uniforms
 sh_uniforms([auv_bbpos2d|R],Chart=#chart{bb_uv=BB},Conf) ->
-    Loc = getLocation(Conf#sh_conf.prog,"auv_bbpos2d"),
+    Loc = wings_gl:uloc(Conf#sh_conf.prog,"auv_bbpos2d"),
     [{MinX,MinY,_},{MaxX,MaxY,_}] = BB,
     gl:uniform2f(Loc,MinX,MinY),
     gl:uniform2f(Loc+1,MaxX,MaxY),
@@ -1197,6 +1234,72 @@ get_requirements(Shaders) ->
     lists:foldl(fun(#sh{reqs=List},Acc) ->
 			List ++ Acc
 		end, [], Shaders).
+
+%%%%%%%%%%%% Ligth shader funcs
+
+get_lightProjM(Dist) ->
+    %% Calc ProjMatrix
+    gl:matrixMode(?GL_PROJECTION),
+    gl:pushMatrix(),
+    gl:loadIdentity(),
+    Sz     = Dist*math:tan(45*math:pi()/180/2),
+    gl:ortho(-Sz, Sz, -Sz, Sz, 1.0, Dist*2+10),
+    PM = gl:getDoublev(?GL_PROJECTION_MATRIX),
+    gl:popMatrix(),
+    PM.
+
+id(Id) ->
+    <<R:8,G:8,B:8,A:8>> = <<Id:32/big>>,
+    V = {A/255,B/255,G/255,(255-R)/255},
+    io:format("~p ~n",[V]),
+    V.
+
+render_lights([{Lx,Ly,Lz}| Ligths], PM, Dist, C={Cx,Cy,Cz}, LP1,Ts = #ts{charts=Charts}) ->
+    io:format("~p ~p ~p ~n", [C, Dist, {Lx,Ly,Lz}]),
+    gl:matrixMode(?GL_PROJECTION),  gl:pushMatrix(),  gl:loadMatrixd(PM),
+    gl:matrixMode(?GL_MODELVIEW),   gl:pushMatrix(),  gl:loadIdentity(),
+    glu:lookAt(Lx*Dist,Ly*Dist,Lz*Dist,Cx,Cy,Cz,0.0,1.0,0.0),
+    MV = gl:getDoublev(?GL_MODELVIEW_MATRIX),
+    gl:clear(?GL_DEPTH_BUFFER_BIT bor ?GL_COLOR_BUFFER_BIT),
+%%    gl:enable(?GL_CULL_FACE),
+    gl:enable(?GL_DEPTH_TEST), 
+    gl:disable(?GL_BLEND), 
+    gl:disable(?GL_ALPHA_TEST), 
+    gl:disable(?GL_TEXTURE_2D), 
+    gl:shadeModel(?GL_FLAT),
+    gl:cullFace(?GL_BACK),
+    gl:enableClientState(?GL_VERTEX_ARRAY),
+    gl:disableClientState(?GL_COLOR_ARRAY),
+    gl:clientActiveTexture(?GL_TEXTURE1),
+    gl:enableClientState(?GL_TEXTURE_COORD_ARRAY),
+
+    gl:useProgram(LP1),    
+    IdPos = wings_gl:uloc(LP1,"id"),
+    
+    R = fun(#fs{vs=Vs,id=Id}) ->
+		%% gl:color4ubv(id(Id)),
+		gl:uniform4fv(IdPos, 1, id(Id)),
+		gl:drawElements(?GL_TRIANGLES,length(Vs),
+				?GL_UNSIGNED_INT,Vs)
+	end,
+    foreach(fun(#chart{fs=Fs}) -> foreach(R,Fs) end,Charts),
+    gl:popMatrix(),
+    gl:matrixMode(?GL_PROJECTION),
+    gl:popMatrix(),
+    
+%%     %% Pass 2
+%%     gl:useProgram(Vert2d),
+%%     MVP = e3d_mat:mul(MM,PM),
+%%     foreach(fun(#chart{fs=Fs}) -> foreach(R,Fs) end,Charts),
+    
+%%     %% Hmm kan vi verkligen använda DEPTH_BUFFERN HÄR utan 
+%%     %% att swappa render buffers?
+    render_lights(Ligths, PM, Dist, C, LP1, Ts);
+render_lights([],_,_,_,LP1,_) -> 
+    gl:deleteProgram(LP1),
+    ok.
+
+%%%%%%%%%%%% Ligth shader funcs
 
 %%%%%%%%%%%%%%%% 
 %% Materials
@@ -1235,9 +1338,7 @@ shaders() ->
     end.
 
 have_shaders() ->
-    wings_gl:is_ext(['GL_ARB_fragment_shader', 
-		     'GL_ARB_vertex_shader']) 
-	andalso wings_gl:is_ext('GL_EXT_framebuffer_object').
+    wings_gl:support_shaders() andalso wings_gl:is_ext('GL_EXT_framebuffer_object').
 
 load_shaders_cfg() ->
     Path  = filename:dirname(code:which(?MODULE)),
@@ -1323,39 +1424,22 @@ parse_sh_info([],Sh,NI,Acc) ->
 %%% Shader compilation
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-getLocation(Prog, What) ->
-    try gl:getUniformLocation(Prog, What) of
-	-1 -> io:format("AUV: Warning the uniform variable '~p' is not used~n",
-			[What]),
-	      -1;
-	Where -> 
-%%	    io:format("Location ~p ~p ~n",[What,Where]),
-	    Where
-    catch _:_ -> 
-	    Err = io_lib:format("AUV: ERROR The uniform variable"
-				" ~p should be a string~n",
-				[What]),
-	    throw(lists:flatten(Err))
-    end.
-
 compile_shaders(Passes, Available) ->
     foldl(fun({{shader,Id},_},Acc) -> 
 		  case lists:keysearch(Id,1,Acc) of
 		      {value, _} -> Acc; %  Already compiled
 		      false ->
 			  compile_shader(Id,lists:keysearch(Id,#sh.id,Available),Acc)
-		  end;	  
+		  end;
 	     (_NormalPass,Acc) -> 
 		  Acc
 	  end, [], Passes).
 		   
 compile_shader(Id, {value,#sh{name=Name,vs=VsF,fs=FsF}}, Acc) ->
     try 
-	Vs = compile(?GL_VERTEX_SHADER, "Vertex Shader", read_file(VsF)),
-        Fs = compile(?GL_FRAGMENT_SHADER, "Fragment Shader", read_file(FsF)),
-        Prog = link_prog(Vs,Fs),
-	gl:deleteShader(Vs), % Flag for delete
-        gl:deleteShader(Fs), % Flag for delete
+	Vs = wings_gl:compile(vertex, read_file(VsF)),
+        Fs = wings_gl:compile(fragment, read_file(FsF)),
+        Prog = wings_gl:link_prog([Vs,Fs]),
 	io:format("AUV: ~s ok~n", [Name]),
 	[{Id,Prog}|Acc]
     catch throw:What ->
@@ -1370,57 +1454,10 @@ compile_shader(Id, false, Acc) ->
     io:format("AUV: Error did not find shader ~p ~n",[Id]),
     Acc.
 
-compile(Type,Str,Src) ->
-    Handle = gl:createShaderObjectARB(Type),
-    ok = gl:shaderSource(Handle, 1, [Src], [-1]),
-    ok = gl:compileShader(Handle),
-    check_status(Handle,Str, ?GL_OBJECT_COMPILE_STATUS),
-    Handle.
-
-link_prog(Vs,Fs) ->
-    Prog = gl:createProgramObjectARB(),
-    gl:attachObjectARB(Prog,Vs),
-    gl:attachObjectARB(Prog,Fs),
-    gl:linkProgram(Prog),
-    check_status(Prog,"Link result", ?GL_OBJECT_LINK_STATUS),
-    Prog.
-    
-check_status(Handle,Str, What) ->
-    case gl:getObjectParameterivARB(Handle, What) of
-	1 -> 
-	    printInfo(Handle,Str), %% Check status even if ok
-	    Handle;
-	_E -> 	    
-	    printInfo(Handle,Str),
-	    throw("Compilation failed")
-    end.
-
 read_file(Name) ->
     Path = filename:dirname(code:which(?MODULE)),
     File = filename:join(Path,Name),
     case file:read_file(File) of
 	{ok, Bin} -> Bin;
 	_ -> throw("Couldn't read file: " ++ File)
-    end.
-	     
-printInfo(ShaderObj,Str) ->
-    Len = gl:getObjectParameterivARB(ShaderObj, ?GL_OBJECT_INFO_LOG_LENGTH),
-    case Len > 0 of
-	true ->
-	    case catch gl:getInfoLogARB(ShaderObj, Len) of
-		{_, []} ->
-		    ok;
-		{_, InfoStr} ->
-		    io:format("AUV: ~s:~n ~s ~n", [Str,InfoStr]),
-		    case string:str(InfoStr, "oftware") of
-			0 -> ok;
-			_ -> 
-			    throw("Shader disabled would run in Software mode")
-		    end;
-		Error ->
-		    io:format("AUV: Internal error PrintInfo crashed with ~p ~n", 
-			      [Error])
-	    end;
-	false ->
-	    ok
     end.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_gl.erl,v 1.4 2006/04/09 12:50:01 dgud Exp $
+%%     $Id: wings_gl.erl,v 1.5 2006/04/27 13:46:54 dgud Exp $
 %%
 
 -module(wings_gl).
@@ -189,7 +189,7 @@ link_prog(Objs) when is_list(Objs) ->
 check_status(Handle,Str, What) ->
     case gl:getObjectParameterivARB(Handle, What) of
 	1 -> 
-	    printInfo(Handle,Str), %% Check status even if ok
+	    %% printInfo(Handle,Str), %% Check status even if ok
 	    Handle;
 	_E -> 	    
 	    printInfo(Handle,Str),
