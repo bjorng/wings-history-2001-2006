@@ -2,6 +2,15 @@
 
 - Move absolute now works for lights. [Giniu]
 
+- An improved modelling lighting for people with newer gfx cards,
+  select 'one light' [Dgud]
+
+- Improved rotate command again when using constraints [Dgud]
+
+- Change the automatic chart rotation again in autouv [Dgud]
+
+- Hopefully fixed the unfold issue from inside the autouv window [Dgud]
+
 --- 0.98.34 -----------------------------------------------------------------
 
 - Minor autouv fixes.

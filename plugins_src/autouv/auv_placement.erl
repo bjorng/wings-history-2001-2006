@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_placement.erl,v 1.29 2006/03/14 13:52:20 dgud Exp $
+%%     $Id: auv_placement.erl,v 1.30 2006/05/16 18:18:47 dgud Exp $
 
 -module(auv_placement).
 
@@ -127,9 +127,11 @@ rotate_area(Vs, #we{vp=Orig}=We) ->
     VTab = gb_trees:from_orddict(lists:sort(Vs)),
     Fs = wings_we:visible(We),
     [{_,Eds3}|_] = group_edge_loops(Fs,We),
-    Half = (length(Eds3) div 2) + 1,
-    [#be{vs=LV1}|_] = Eds3,
-    #be{vs=LV2} = lists:nth(Half,Eds3),
+%%     Half = (length(Eds3) div 2) + 1,
+%%     [#be{vs=LV1}|_] = Eds3,
+%%     #be{vs=LV2} = lists:nth(Half,Eds3),
+    Eds4 = make_convex(reverse(Eds3), [], VTab),
+    [#be{vs=LV1,ve=LV2,dist=_Dist}|_] = lists:reverse(lists:keysort(5, Eds4)),
     LV1P = gb_trees:get(LV1, VTab),
     LV2P = gb_trees:get(LV2, VTab),
     O1 = gb_trees:get(LV1, Orig),
@@ -150,8 +152,8 @@ rotate_area(Vs, #we{vp=Orig}=We) ->
     Rotate = Angle - RealAngle,    
     ?DBG("Angle ~p~n  P1 ~p~n  P2 ~p~n",  
  	 [Angle*180/math:pi(), 
- 	  {auv_segment:map_vertex(LV1, Vmap), LV1P}, 
- 	  {auv_segment:map_vertex(LV2, Vmap),LV2P}]),
+ 	  {auv_segment:map_vertex(LV1, (We#we.name)#ch.vmap), LV1P}, 
+ 	  {auv_segment:map_vertex(LV2, (We#we.name)#ch.vmap), LV2P}]),
     ?DBG("Real ~p ~p~n  ~p~n  RAngle ~p  => ~p~n",
  	 [O1,O2,{O11,O12},RealAngle*180/math:pi(),Rotate*180/math:pi()]),
     Rot = e3d_mat:rotate(-(Rotate*180/math:pi()), {0.0,0.0,1.0}),
@@ -169,7 +171,37 @@ csys(Dir0,Z,X0) ->
     Y = e3d_vec:cross(Z,X1),
     X = e3d_vec:cross(Y,Z),
     {e3d_vec:norm(X),e3d_vec:norm(Y),Z}.
-			          
+		
+-define(PI, 3.141592).
+-define(ALMOSTPI, (?PI-(0.5/180*?PI))). %% cluster together straight lines
+
+make_convex([This, Next|Rest], Acc, Vs) ->
+    case calc_dir(This,Next,Vs) >= ?ALMOSTPI of
+	true ->
+	    New = #be{vs=This#be.vs, ve=Next#be.ve, 
+		      edge=[This#be.edge,Next#be.edge],
+		      dist=dist(This#be.vs,Next#be.ve,Vs)}, 
+	    if Acc == [] ->
+		    make_convex([New|Rest], Acc, Vs);
+	       true ->
+		    make_convex([hd(Acc),New|Rest], tl(Acc), Vs)
+	    end;
+	false ->
+	    make_convex([Next|Rest], [This|Acc], Vs)
+    end;
+make_convex([This],Acc, Vs) ->
+    [Next|Acc2] = lists:reverse(Acc),
+    case calc_dir(This,Next,Vs) >= ?ALMOSTPI of
+	true ->
+	    New = #be{vs=This#be.vs, ve=Next#be.ve,
+		      edge=[This#be.edge,Next#be.edge],
+		      dist=dist(This#be.vs,Next#be.ve,Vs)},
+	    Acc3 = reverse(Acc2),
+	    make_convex([hd(Acc3),New], tl(Acc3), Vs);
+	false ->
+	    [This|Acc]
+    end.
+	          
 %% Group edgeloops and return a list sorted by total dist.
 %% [{TotDist, [{V1,V2,Edge,Dist},...]}, ...]
 group_edge_loops(Fs, We = #we{name=#ch{emap=Emap}}) ->
@@ -200,6 +232,22 @@ group_edge_loops(Fs, We = #we{name=#ch{emap=Emap}}) ->
 	    lists:reverse(lists:sort(SumLoops))
     end.
 
+calc_dir(#be{vs=V11,ve=V12},#be{vs=V12,ve=V22}, Vs) ->    
+    C  = gb_trees:get(V12, Vs),
+    V1 = gb_trees:get(V11, Vs),
+    V2 = gb_trees:get(V22, Vs),
+    {X1,Y1,_} = e3d_vec:sub(V1, C),
+    {X2,Y2,_} = e3d_vec:sub(V2, C),
+    Angle = case (math:atan2(Y1,X1) - math:atan2(Y2,X2)) of 
+		A when A >= 0.0 ->
+		    A;
+		A -> 
+		    2 * math:pi() + A
+	    end,
+%    ?DBG("Angle Vertex ~p Edges ~w : ~p-~p = ~p ~n",
+%	[V12,{_E1,_E2},math:atan2(Y1,X1), math:atan2(Y2,X2),Angle]),
+    Angle.
+ 
 dist(V1, V2, Vs) ->
     e3d_vec:dist(gb_trees:get(V1, Vs), gb_trees:get(V2, Vs)).
 

@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_render.erl,v 1.11 2006/05/09 16:05:32 dgud Exp $
+%%     $Id: wings_render.erl,v 1.12 2006/05/16 18:18:47 dgud Exp $
 %%
 
 -module(wings_render).
@@ -606,7 +606,7 @@ light_shader_src() ->
            float costheta  = dot(tnorm, lightVec);
            float a         = 0.5 + 0.5 * costheta;
                              // ATI needs this for vcolors to work
-           vec4 color      = gl_FrontMaterial.diffuse * glColor; 
+           vec4 color      = gl_FrontMaterial.diffuse * gl_Color; 
            gl_FrontColor   = color * vec4(mix(GroundColor, SkyColor, a), 1.0);
            gl_TexCoord[0]  = gl_MultiTexCoord0;
            gl_Position     = ftransform();

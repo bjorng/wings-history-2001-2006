@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.198 2005/11/16 13:54:09 dgud Exp $
+%%     $Id: wings_drag.erl,v 1.199 2006/05/16 18:18:47 dgud Exp $
 %%
 
 -module(wings_drag).
@@ -55,8 +55,7 @@ setup(Tvs, Units, Flags, St) ->
     wings_io:grab(),
     wings_wm:grab_focus(),
     Offset0 = proplists:get_value(initial, Flags, []),
-    Offset1 = pad_offsets(Offset0),
-    Offset = setup_offsets(Offset1, Units),
+    Offset = pad_offsets(Offset0),
     UnitSc = unit_scales(Units),
     Falloff = falloff(Units),
     {ModeFun,ModeData} = setup_mode(Flags, Falloff),
@@ -110,6 +109,7 @@ unit_scales_1([U|Us], BasicSc, DistSc) ->
 	     dx -> DistSc;
 	     dy -> DistSc;
 	     dz -> DistSc;
+	     angle -> 1/50;
 	     _ -> BasicSc
 	 end,
     [Sc|unit_scales_1(Us, BasicSc, DistSc)];
@@ -124,17 +124,6 @@ pad_offsets(Ds) ->
 	L when L >= 4 -> Ds;
 	L -> Ds ++ lists:duplicate(4-L, 0.0)
     end.
-
-setup_offsets([O|Os], [U|Us]) ->
-    case clean_unit(U) of
-	angle ->
-	    [O/15.0E5/1.0E-5|setup_offsets(Os, Us)];
-	_Unit ->
-	    [O|setup_offsets(Os, Us)]
-    end;
-setup_offsets([O|Os], []) ->
-    [O|setup_offsets(Os, [])];
-setup_offsets([], []) -> [].
 
 %%
 %% Here we break apart the objects into two parts - static part
@@ -643,9 +632,10 @@ mouse_scale([D|Ds], [S|Ss]) ->
 mouse_scale(Ds, _) -> Ds.
 
 constraints_scale([U0|_],Mod,[UnitScales|_]) ->
-    case constraint_factor(clean_unit(U0),Mod,false) of
+    case constraint_factor(clean_unit(U0),Mod) of
 	none -> 1.0;
-	{_,What} -> What*0.01/UnitScales
+	{_,What} -> 
+	    What*0.01/UnitScales
     end.
 
 constrain(Ds0, Mod, #drag{unit=Unit}=Drag) ->
@@ -654,7 +644,7 @@ constrain(Ds0, Mod, #drag{unit=Unit}=Drag) ->
 
 constrain_0([U0|Us], [D0|Ds], Mod, Acc) ->
     U = clean_unit(U0),
-    D = case constraint_factor(U, Mod, true) of
+    D = case constraint_factor(U, Mod) of
 	    none -> D0;
 	    {F1,F2} -> 
 		round(D0*F1)*F2
@@ -673,16 +663,15 @@ clamp({_,{Min,_Max}}, D) when D < Min -> Min;
 clamp({_,{_Min,Max}}, D) when D > Max -> Max;
 clamp(_, D) -> D.
 
-constraint_factor(angle, Mod, Scale) ->
+constraint_factor(angle, Mod) ->
     if
 	Mod band ?SHIFT_BITS =/= 0,
 	Mod band ?CTRL_BITS =/= 0 -> {15,1/15};%{150,1/15};
 	Mod band ?CTRL_BITS =/= 0 -> {1,1.0};%{15,1.0};
 	Mod band ?SHIFT_BITS =/= 0 ->{1/15,15.0};%{1,15.0};
-	Scale == true -> {15.0E5,1.0E-5};
 	true -> none
     end;
-constraint_factor(_, Mod, _) ->
+constraint_factor(_, Mod) ->
     if
 	Mod band ?SHIFT_BITS =/= 0,
 	Mod band ?CTRL_BITS =/= 0 -> {100,1/100};
