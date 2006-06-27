@@ -2,6 +2,8 @@
 
 - Move absolute now works for lights. [Giniu]
 
+- Fixed bug in View -> Align to Selection. [Giniu]
+
 - An improved modelling lighting for people with newer gfx cards,
   select 'one light' [Dgud]
 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.168 2005/04/10 17:37:37 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.169 2006/06/27 16:46:37 giniu Exp $
 %%
 
 -module(wings_view).
@@ -1137,20 +1137,10 @@ align_to_selection({Nx,Ny,Nz}, St) ->
 	     Nx < 0 -> Az1;
 	     true -> -Az1
 	 end,
-    El0 = if
-	      abs(Nx) < abs(Nz) ->
-		  Nyz = e3d_vec:norm({0.0,Ny,Nz}),
-		  e3d_vec:cross(Nyz, Z);
-	      true ->
-		  X = {1.0,0.0,0.0},
-		  Nxy = e3d_vec:norm({Nx,Ny,0.0}),
-		  e3d_vec:cross(Nxy, X)
-	  end,
-    El1 = e3d_vec:len(El0),
-    El2 = to_degrees(math:asin(El1)),
+    El0 = to_degrees(math:asin(abs(Ny))),
     El = if
-	     Ny < 0.0 -> -El2;
-	     true -> El2
+	     Ny < 0 -> -El0;
+	     true -> El0
 	 end,
     View = current(),
     set_current(View#view{azimuth=Az,elevation=El}),
