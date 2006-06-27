@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.169 2006/06/27 16:46:37 giniu Exp $
+%%     $Id: wings_view.erl,v 1.170 2006/06/27 16:58:56 giniu Exp $
 %%
 
 -module(wings_view).
@@ -1137,11 +1137,7 @@ align_to_selection({Nx,Ny,Nz}, St) ->
 	     Nx < 0 -> Az1;
 	     true -> -Az1
 	 end,
-    El0 = to_degrees(math:asin(abs(Ny))),
-    El = if
-	     Ny < 0 -> -El0;
-	     true -> El0
-	 end,
+    El = to_degrees(math:asin(Ny)),
     View = current(),
     set_current(View#view{azimuth=Az,elevation=El}),
     St.
