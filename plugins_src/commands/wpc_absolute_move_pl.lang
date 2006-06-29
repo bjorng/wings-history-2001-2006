@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_absolute_move_pl.lang,v 1.8 2006/03/14 18:51:28 giniu Exp $
+%%     $Id: wpc_absolute_move_pl.lang,v 1.9 2006/06/29 19:57:58 giniu Exp $
 %%
 %%  Translation:  Andrzej Giniewicz
 %%  Correction:   Małgorzata Napiontek
@@ -16,10 +16,11 @@
 %%
 {wpc_absolute_move,
  [
-  {menu,
+  {draw,
    [
-    {1,"Pozycjonuj"},
-    {2,"Przesuń w koordynatach bezwzględnych."}
+    {1,"Operacje bezwzględne"},
+    {2,"Pozycjonuj"},
+    {3,"Przesuń w koordynatach bezwzględnych."}
    ]},
   {draw_window1,
    [

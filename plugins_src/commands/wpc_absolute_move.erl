@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_absolute_move.erl,v 1.11 2006/04/15 18:56:11 giniu Exp $
+%%     $Id: wpc_absolute_move.erl,v 1.12 2006/06/29 19:57:58 giniu Exp $
 %%
 -module(wpc_absolute_move).
 
@@ -22,21 +22,32 @@
 
 init() -> true.
 
-menu({_,move},Menu) ->
-    Menu ++ draw_menu();
-menu({_,move_light},Menu) ->
-    Menu ++ draw_menu();
-menu(_,Menu) -> Menu.
+menu({Mode},Menu) when Mode == vertex; Mode == edge; Mode == face; Mode == body; Mode == light -> 
+    parse(Menu);
+menu(_,Menu) -> 
+    Menu.
 
-draw_menu() ->
-    [separator,
-     {?__(1,"Absolute"),abs_move,
-      ?__(2,"Move to exact position in absolute coordinates.")}
-    ].
+parse(Menu) -> 
+    lists:reverse(parse(Menu, [], false)).
 
-command({_,{move,abs_move}},St) ->
-    abs_move(St);
-command({_,{move_light,abs_move}},St) ->
+parse([], NewMenu, true) ->
+    NewMenu;
+parse([], NewMenu, false) ->
+    [draw(all), separator|NewMenu];
+parse([{Name, {absolute, Commands}}|Rest], NewMenu, false) ->
+    parse(Rest, [{Name, {absolute, Commands++[draw(menu)]}}|NewMenu], true);
+parse([separator|Rest], NewMenu, false) ->
+    parse(Rest, [separator, draw(all)|NewMenu], true);
+parse([Elem|Rest], NewMenu, Found) ->
+    parse(Rest, [Elem|NewMenu], Found).
+
+draw(all) ->
+    {?__(1, "Absolute commands"), {absolute, [draw(menu)]}};
+draw(menu) ->
+     {?__(2,"Move"),move,
+      ?__(3,"Move to exact position in absolute coordinates.")}.
+
+command({_,{absolute,move}},St) ->
     abs_move(St);
 command(_,_) -> next.
 
@@ -117,9 +128,9 @@ check_whole_obj(#st{selmode=SelMode}=St0) ->
 %%
 %% functions that draws interface and translates entered options for further processing
 %%  and calls do_move(ProcessedOptions,Selection,State)
-%%   
+%%
 
-draw_window({{move_obj,MoveObj},{flatten,Flatten},{align,Align},{center,Center}},Sel,St) ->
+draw_window({{_,MoveObj},{_,Flatten},{_,Align},{_,Center}},Sel,St) ->
     Frame1 = [{vframe,
                  [draw_window1(center,Center)] ++
                  [draw_window1(object,MoveObj)]}],

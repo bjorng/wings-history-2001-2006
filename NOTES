@@ -2,6 +2,12 @@
 
 - Move absolute now works for lights. [Giniu]
 
+- Added very basic version of absolute scale, it would be extended 
+  after feedback. [Giniu]
+
+- Both absolute scale and move is now placed in one menu group,
+  in absolute commands. [Giniu]
+
 - Fixed bug in View -> Align to Selection. [Giniu]
 
 - An improved modelling lighting for people with newer gfx cards,

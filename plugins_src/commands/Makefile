@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.20 2006/03/16 12:50:58 giniu Exp $
+#     $Id: Makefile,v 1.21 2006/06/29 19:57:58 giniu Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -30,6 +30,7 @@ endif
 
 MODULES= \
 	wpc_absolute_move \
+	wpc_absolute_scale \
 	wpc_bend \
 	wpc_connect_tool \
 	wpc_doosabin \
@@ -44,6 +45,7 @@ MODULES= \
 
 TRANSLATABLE= \
 	wpc_absolute_move \
+	wpc_absolute_scale \
 	wpc_bend \
 	wpc_connect_tool \
 	wpc_doosabin \
