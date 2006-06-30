@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_weld_pl.lang,v 1.1 2006/03/16 12:50:58 giniu Exp $
+%%     $Id: wpc_weld_pl.lang,v 1.2 2006/06/30 20:26:34 giniu Exp $
 %%
 %%  Translation:  Andrzej Giniewicz
 %%  Correction:   Małgorzata Napiontek
@@ -19,8 +19,7 @@
   {draw_menu,
    [
     {1,"Spawaj"},
-    {2,"Przyspawaj zaznaczony punkt do innego punktu połączonego z nim krawędzią"},
-    {3,"Przesuń zaznaczone punkty do innego punktu"}
+    {2,"Przyspawaj zaznaczony punkt do innego punktu połączonego z nim krawędzią"}
    ]},
   {weld,
    [
@@ -36,21 +35,8 @@
     {4,"Nic nie zaznaczono"},
     {5,"Możesz spawać tylko w tym samym obiekcie"}
    ]},
-  {simple_weld,
-   [
-    {1,"Nie możesz przesuwać punktów płaszczyzny lustra"}
-   ]},
   {weld_select,
    [
     {1,"Zaznacz punkt do którego chcesz spawać"}
-   ]},
-  {simple_select,
-   [
-    {1,"Zaznacz punkt do którego chcesz przsunąć punkty"}
-   ]},
-  {simple_check_selection,
-   [
-    {1,"Możesz przesunąć punkty tylko do jednego punktu"},
-    {2,"Nic nie zaznaczono"}
    ]}
  ]}.

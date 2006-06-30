@@ -1,14 +1,14 @@
 %%
 %%  wpc_absolute_move.erl --
 %%
-%%     Plug-in for move -> absolute
+%%     Plug-in for absolute commands -> move and snap
 %%
 %%  Copyright (c) 2006 Andrzej Giniewicz
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_absolute_move.erl,v 1.12 2006/06/29 19:57:58 giniu Exp $
+%%     $Id: wpc_absolute_move.erl,v 1.13 2006/06/30 20:26:34 giniu Exp $
 %%
 -module(wpc_absolute_move).
 
@@ -23,69 +23,110 @@
 init() -> true.
 
 menu({Mode},Menu) when Mode == vertex; Mode == edge; Mode == face; Mode == body; Mode == light -> 
-    parse(Menu);
+    parse(Menu, Mode);
 menu(_,Menu) -> 
     Menu.
 
-parse(Menu) -> 
-    lists:reverse(parse(Menu, [], false)).
+parse(Menu, Mode) -> 
+    lists:reverse(parse(Menu, Mode, [], false)).
 
-parse([], NewMenu, true) ->
+parse([], _, NewMenu, true) ->
     NewMenu;
-parse([], NewMenu, false) ->
-    [draw(all), separator|NewMenu];
-parse([{Name, {absolute, Commands}}|Rest], NewMenu, false) ->
-    parse(Rest, [{Name, {absolute, Commands++[draw(menu)]}}|NewMenu], true);
-parse([separator|Rest], NewMenu, false) ->
-    parse(Rest, [separator, draw(all)|NewMenu], true);
-parse([Elem|Rest], NewMenu, Found) ->
-    parse(Rest, [Elem|NewMenu], Found).
+parse([], Mode, NewMenu, false) ->
+    [draw(all, Mode), separator|NewMenu];
+parse([{Name, {absolute, Commands}}|Rest], Mode, NewMenu, false) ->
+    parse(Rest, Mode, [{Name, {absolute, Commands++draw(menu, Mode)}}|NewMenu], true);
+parse([separator|Rest], Mode, NewMenu, false) ->
+    parse(Rest, Mode, [separator, draw(all, Mode)|NewMenu], true);
+parse([Elem|Rest], Mode, NewMenu, Found) ->
+    parse(Rest, Mode, [Elem|NewMenu], Found).
 
-draw(all) ->
-    {?__(1, "Absolute commands"), {absolute, [draw(menu)]}};
-draw(menu) ->
-     {?__(2,"Move"),move,
-      ?__(3,"Move to exact position in absolute coordinates.")}.
+draw(all, Mode) ->
+    {?__(1, "Absolute commands"), {absolute, draw(menu, Mode)}};
+draw(menu, Mode) ->
+    [{?__(2,"Move"),move,
+      ?__(3,"Move to exact position in absolute coordinates.")},
+     {?__(4,"Snap"), snap_fun(Mode), 
+      {?__(5,"Move to secondary selection."), [],
+       ?__(6,"Move to secondary selection and tweak the values.")},[]}].
+
+snap_fun(Mode) ->
+    fun(1, _Ns) ->
+	    {Mode,{absolute,snap}};
+       (3, _Ns) ->
+	    {Mode,{absolute,tsnap}};
+       (_, _) -> ignore
+    end.
 
 command({_,{absolute,move}},St) ->
     abs_move(St);
+command({_,{absolute,snap}},St) ->
+    abs_snap(St);
+command({_,{absolute,tsnap}},St) ->
+    abs_tsnap(St);
 command(_,_) -> next.
 
 abs_move(St) ->
-    {DisplayOptions,Selection} = extract(St),
-    draw_window(DisplayOptions,Selection,St).
+    Mirror = check_mirror(St),
+    if
+        Mirror -> 
+            mirror_error(),
+            St;
+        true ->
+            move(St)
+    end.
+
+abs_snap(St) ->
+    Mirror = check_mirror(St),
+    if
+        Mirror -> 
+            mirror_error(),
+            St;
+        true ->
+            wings:ask(simple_select(), St, fun snap/2)
+    end.
+
+abs_tsnap(St) ->
+    Mirror = check_mirror(St),
+    if
+        Mirror -> 
+            mirror_error(),
+            St;
+        true ->
+            wings:ask(simple_select(), St, fun tsnap/2)
+    end.
+
+%%%
+%%% core functions
+%%%
 
 %%
-%% extract(State)
-%%
-%% functions that extracts all needed information from state
-%%  it returns {Options,Selection}, where options is:
-%%   {{move_obj,MoveO},{flatten,Flatten},{align,Align},{center,{CenterX,CenterY,CenterZ}}}
-%%  (return values: {{atom,atom(duplionly/one/many)},{atom,bool},{atom,bool},{atom,{float,float,float}}})
+%% some helpful test and investigation functions
 %%
 
-extract(#st{shapes=Shapes}=St) ->
+check_mirror(#st{shapes=Shs}=St) ->
     Sel = get_selection(St),
-    {Center,Lights} = get_center_and_lights(Sel,Shapes),
-    OneObject = check_single_obj(Sel),
-    SinglePoints = check_single_vert(Sel),
-    WholeObjects = if
-                       SinglePoints or Lights ->
-                           false;
-                       true ->
-                           check_whole_obj(St)
-                   end,
-    MoveObj = if
-                  WholeObjects or Lights -> duplionly;
-                  OneObject -> one;
-                  true -> many
-              end,
-    Flatten = if
-                  SinglePoints or WholeObjects or Lights -> false;
-                  true -> true
-              end,
-    Align = not OneObject,
-    {{{move_obj,MoveObj},{flatten,Flatten},{align,Align},{center,Center}},Sel}.
+    check_mirror(Sel, Shs).
+
+check_mirror([],_) ->
+    false;
+check_mirror([{Obj,VSet}|Rest],Shs) ->
+    We = gb_trees:get(Obj, Shs),
+    Mirror = We#we.mirror,
+    case Mirror of
+        none -> 
+            check_mirror(Rest,Shs);
+        _ ->
+            MirrorVerts = wings_face:vertices_cw(Mirror,We),
+            MVSet = gb_sets:from_list(MirrorVerts),
+            case gb_sets:intersection(MVSet,VSet) of
+                {0,nil} -> check_mirror(Rest,Shs);
+                _ -> true
+            end
+    end.
+
+mirror_error() ->
+    wings_u:error(?__(1,"You cannot move vertices from mirror plane")).
 
 get_selection(#st{selmode=SelMode}=St) ->
     #st{sel=Sel} = case SelMode of
@@ -121,7 +162,26 @@ check_single_vert(_) -> false.
 check_whole_obj(#st{selmode=SelMode}=St0) ->
     St1 = wings_sel_conv:mode(body,St0),
     St2 = wings_sel_conv:mode(SelMode,St1),
-    St2 == St0.
+    St2#st.sel == St0#st.sel.
+
+simple_select() ->
+    Desc = ?__(1,"Select target for snap operation"),
+    Fun = fun
+              (check, St) -> 
+                  simple_check_selection(St);
+	      (exit, {_,_,St}) ->
+	          Sel = get_selection(St),
+		  case simple_check_selection(St) of
+		      {_,[]} -> {[],[Sel]};
+		      {_,_} -> error
+		  end
+	  end,
+    {[{Fun,Desc}],[],[],[vertex, edge, face, body]}.
+
+simple_check_selection(#st{sel=[]}) ->
+    {none,?__(1,"Nothing selected")};
+simple_check_selection(_) ->
+    {none,[]}.
 
 %%
 %% draw_window(Options,Selection,State)
@@ -130,9 +190,9 @@ check_whole_obj(#st{selmode=SelMode}=St0) ->
 %%  and calls do_move(ProcessedOptions,Selection,State)
 %%
 
-draw_window({{_,MoveObj},{_,Flatten},{_,Align},{_,Center}},Sel,St) ->
+draw_window({{_,MoveObj},{_,Flatten},{_,Align},{_,Center},{_,Default}},Sel,St) ->
     Frame1 = [{vframe,
-                 [draw_window1(center,Center)] ++
+                 [draw_window1(center,Default)] ++
                  [draw_window1(object,MoveObj)]}],
     Frame2 = if
                  Align ->
@@ -335,3 +395,68 @@ execute_move({Dx,Dy,Dz},{Nx,Ny,Nz},{Fx,Fy,Fz},Wo,Vset,Vtab,Now) ->
             NewNow = gb_trees:insert(Vertex,{X1,Y1,Z1},Now),
             execute_move({Dx,Dy,Dz},{Nx,Ny,Nz},{Fx,Fy,Fz},Wo,Vset,Vtab2,NewNow)
     end.
+
+%%%
+%%% absolute move
+%%%
+
+move(#st{shapes=Shapes}=St) ->
+    Sel = get_selection(St),
+    {Center,Lights} = get_center_and_lights(Sel,Shapes),
+    OneObject = check_single_obj(Sel),
+    SinglePoints = check_single_vert(Sel),
+    WholeObjects = if
+                       SinglePoints or Lights ->
+                           false;
+                       true ->
+                           check_whole_obj(St)
+                   end,
+    MoveObj = if
+                  WholeObjects or Lights -> duplionly;
+                  OneObject -> one;
+                  true -> many
+              end,
+    Flatten = if
+                  SinglePoints or WholeObjects or Lights -> false;
+                  true -> true
+              end,
+    Align = not OneObject,
+    draw_window({{move_obj,MoveObj},{flatten,Flatten},{align,Align},{from,Center},{to,Center}},Sel,St).
+
+%%%
+%%% absolute snap
+%%%
+
+snap(Sel0, #st{shapes=Shs}=St) ->
+    Sel = get_selection(St),
+    From = get_center(Sel, Shs),
+    To = get_center(Sel0, Shs),
+    do_move([From, To, false, {false, false, false}, {false, false, false}, 0], Sel, St).
+
+%%%
+%%% absolute snap with tweak
+%%%
+
+tsnap(Sel0, #st{shapes=Shs}=St) ->
+    Sel = get_selection(St),
+    {From, Lights} = get_center_and_lights(Sel, Shs),
+    To = get_center(Sel0, Shs),
+    OneObject = check_single_obj(Sel),
+    SinglePoints = check_single_vert(Sel),
+    WholeObjects = if
+                       SinglePoints or Lights ->
+                           false;
+                       true ->
+                           check_whole_obj(St)
+                   end,
+    MoveObj = if
+                  WholeObjects or Lights -> duplionly;
+                  OneObject -> one;
+                  true -> many
+              end,
+    Flatten = if
+                  SinglePoints or WholeObjects or Lights -> false;
+                  true -> true
+              end,
+    Align = not OneObject,
+    draw_window({{move_obj,MoveObj},{flatten,Flatten},{align,Align},{from,From},{to,To}},Sel,St).

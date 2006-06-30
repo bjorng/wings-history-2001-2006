@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: autouv_pl.lang,v 1.7 2006/02/01 16:19:35 giniu Exp $
+%%     $Id: autouv_pl.lang,v 1.8 2006/06/30 20:26:33 giniu Exp $
 %%
 %%  Translation:  Andrzej Giniewicz
 %%  Correction:   Małgorzata Napiontek
@@ -41,10 +41,6 @@
     {1,"Problem numeryczny, prawdopodobnie w modelu występuje płaszczyzna o zerowym polu."},
     {2,"Błąd programu:"},
     {3,"Błąd"}
-   ]},
-  {project_faces,
-   [
-    {1,"Błąd: Płaszczyzna ~p z punktami ~p nie tworzy trójkątu"}
    ]},
   {stretch_iter,
    [
@@ -134,7 +130,8 @@
     {6,"Grubość krawędzi:"},
     {7,"Użyj materiału płaszczyzn/punktów (na brzegu)"},
     {8,"Użyj koloru materiału"},
-    {9,"Użyj istniejącej tekstury/koloru punktów"}
+    {9,"Użyj istniejącej tekstury/koloru punktów"},
+    {10,"Ilość świateł:"}
    ]},
   {render_passes,
    [

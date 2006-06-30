@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_weld.erl,v 1.1 2006/03/16 12:50:58 giniu Exp $
+%%     $Id: wpc_weld.erl,v 1.2 2006/06/30 20:26:34 giniu Exp $
 %%
 -module(wpc_weld).
 
@@ -50,23 +50,12 @@ parse([First|Rest],MenuNew,State) ->
     parse(Rest,MenuNew2,State).
 
 draw_menu() -> 
-    [{?__(1,"Weld"),weld_fun(),
-     {?__(2,"Weld selected vertex to another (sharing common edge)"),[],
-      ?__(3,"Move selected vertices to another")},[]}].
+    [{?__(1,"Weld"),weld,
+      ?__(2,"Weld selected vertex to another (sharing common edge)")}].
 
 command({vertex,weld}, St) ->
     weld(St);
-command({vertex,sweld}, St) ->
-    simple_weld(St);
 command(_,_) -> next.
-
-weld_fun() ->
-    fun(1, _Ns) ->
-	    {vertex,weld};
-       (3, _Ns) ->
-	    {vertex,sweld};
-       (_, _) -> ignore
-    end.
 
 %%
 %% Weld one vertex to other
@@ -345,77 +334,3 @@ transformAB(Value,[]) -> Value;
 transformAB(_Value,[{_Value,To}|_]) -> To;
 transformAB(Value,[{_,_}|Rest]) ->
    transformAB(Value,Rest).
-
-%%
-%% Simple Weld
-%%
-
-simple_weld(#st{sel=Sel,shapes=Shs}=St) ->
-   case check_mirror(Sel,Shs) of
-            no ->
-               wings_u:error(?__(1,"You cannot move vertices from mirror plane")),
-               St;
-            _ -> ok
-   end,
-   wings:ask(simple_select(), St, fun simple_weld/2).
-
-check_mirror([],_) ->
-   ok;
-check_mirror([{Obj,VSet}|Rest],Shs) ->
-   We = gb_trees:get(Obj, Shs),
-   Mirror = We#we.mirror,
-   case Mirror of
-      none -> 
-         check_mirror(Rest,Shs);
-      _ ->
-         MirrorVerts = wings_face:vertices_cw(Mirror,We),
-         MVSet = gb_sets:from_list(MirrorVerts),
-         case gb_sets:intersection(MVSet,VSet) of
-            {0,nil} -> check_mirror(Rest,Shs);
-            _ -> no
-         end
-   end.
-
-simple_select() ->
-    Desc = ?__(1,"Select target vertex for move operation"),
-    Fun = fun(check, St) -> simple_check_selection(St);
-	     (exit, {_,_,#st{sel=Vert2}=St}) ->
-		  case simple_check_selection(St) of
-		      {_,[]} -> {[],[Vert2]};
-		      {_,_} -> error
-		  end
-	  end,
-    {[{Fun,Desc}],[],[],[vertex]}.
-
-simple_check_selection(#st{sel=[{_,{1,{_,_,_}}}]}) ->
-   {none,""};
-simple_check_selection(#st{sel=Sel}) when Sel =/= [] ->
-   {none,?__(1,"You can move to only one point")};
-simple_check_selection(#st{sel=[]}) ->
-   {none,?__(2,"Nothing selected")}.
-
-simple_weld([{Obj,{1,{V,_,_}}}],#st{sel=Sel,shapes=Shs}=St) ->
-   We = gb_trees:get(Obj, Shs),
-   Vtab = We#we.vp,
-   Target = gb_trees:get(V, Vtab),
-   NewShs = do_move(Target,Sel,Shs),
-   {save_state,St#st{shapes=NewShs}}.
-
-do_move(_,[],Shs) ->
-   Shs;
-do_move(Target,[{Obj,Vset}|Rest],Shapes) ->
-   We = gb_trees:get(Obj, Shapes),
-   Vtab = We#we.vp,
-   NewVtab = move_object(Target,Vset,Vtab),
-   NewWe = We#we{vp=NewVtab},
-   NewShapes = gb_trees:update(Obj,NewWe,Shapes),
-   do_move(Target,Rest,NewShapes).
-
-move_object(Target,Vset,Vtab) ->
-   case gb_sets:size(Vset) of
-      0 -> Vtab;
-      _ -> 
-         {Vertex,Vset2} = gb_sets:take_smallest(Vset),
-         NewVtab = gb_trees:update(Vertex,Target,Vtab),
-         move_object(Target,Vset2,NewVtab)
-   end.

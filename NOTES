@@ -8,6 +8,10 @@
 - Both absolute scale and move is now placed in one menu group,
   in absolute commands. [Giniu]
 
+- New absolute tool was added - snap - it is similar to move but
+  works with secondary selection. There two snap modes, quick LMB and
+  full RMB. Simple weld was eaten by quick version of snap. [Giniu]
+
 - Fixed bug in View -> Align to Selection. [Giniu]
 
 - An improved modelling lighting for people with newer gfx cards,

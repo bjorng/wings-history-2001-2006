@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_absolute_move_pl.lang,v 1.9 2006/06/29 19:57:58 giniu Exp $
+%%     $Id: wpc_absolute_move_pl.lang,v 1.10 2006/06/30 20:26:34 giniu Exp $
 %%
 %%  Translation:  Andrzej Giniewicz
 %%  Correction:   Małgorzata Napiontek
@@ -20,7 +20,10 @@
    [
     {1,"Operacje bezwzględne"},
     {2,"Pozycjonuj"},
-    {3,"Przesuń w koordynatach bezwzględnych."}
+    {3,"Przesuń w koordynatach bezwzględnych."},
+    {4,"Przyciągnij"},
+    {5,"Przesuń do drugiego zaznaczenia."},
+    {6,"Przesuń do drugiego zaznaczenia (z oknem opcji)."}
    ]},
   {draw_window1,
    [
@@ -31,5 +34,17 @@
     {5,"Kopie"},
     {6,"Wyrównaj"},
     {7,"Wypłaszcz"}
+   ]},
+  {simple_select,
+   [
+    {1,"Wybierz punkt docelowy"}
+   ]},
+  {simple_check_selection,
+   [
+    {1,"Nic nie zaznaczono"}
+   ]},
+  {mirror_error,
+   [
+    {1,"Nie możesz przesuwać punktów z lustra."}
    ]}
  ]}.
