@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_render.erl,v 1.12 2006/05/16 18:18:47 dgud Exp $
+%%     $Id: wings_render.erl,v 1.13 2006/07/07 11:22:12 dgud Exp $
 %%
 
 -module(wings_render).
@@ -580,6 +580,9 @@ enable_lighting() ->
 	false -> 
 	    gl:enable(?GL_LIGHTING);
 	true ->
+	    gl:color4ub(255,255,255,255), %% Reset color needed by crappy drivers.
+	    %% We put it here and not in apply_material because we can't use some
+	    %% optimizations (i.e. reuse display lists) when drawing selected objects
 	    gl:useProgram(Prog)
     end.
 

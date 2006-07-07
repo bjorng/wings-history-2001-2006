@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.130 2006/05/09 16:03:45 dgud Exp $
+%%     $Id: wings_material.erl,v 1.131 2006/07/07 11:22:12 dgud Exp $
 %%
 
 -module(wings_material).
@@ -355,7 +355,6 @@ new_name(Name0, Tab) ->
 apply_material(Name, Mtab) when is_atom(Name) ->
     Mat = gb_trees:get(Name, Mtab),
     OpenGL = prop_get(opengl, Mat),
-    gl:color4ub(255,255,255,255), %% Reset color needed by crappy drivers.
     gl:materialfv(?GL_FRONT_AND_BACK, ?GL_DIFFUSE, prop_get(diffuse, OpenGL)), 
     gl:materialfv(?GL_FRONT_AND_BACK, ?GL_AMBIENT, prop_get(ambient, OpenGL)),
     gl:materialfv(?GL_FRONT_AND_BACK, ?GL_SPECULAR, prop_get(specular, OpenGL)),
