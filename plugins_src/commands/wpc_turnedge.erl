@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_turnedge.erl,v 1.5 2005/10/04 20:31:15 giniu Exp $
+%%     $Id: wpc_turnedge.erl,v 1.6 2006/07/10 13:06:39 giniu Exp $
 %%
 
 -module(wpc_turnedge).
@@ -93,13 +93,11 @@ turn_edges(Edges, #we{id=Id}=We0, Opt, St) ->
     {Sel, St#st{shapes=Shapes}}.
 
 try_turn(Edge, #we{es=Etab,vp=Vtab}=We0, Opt) ->
-    #edge{vs=Vstart,ve=Vend,rf=RightFace,lf=LeftFace} =
+    #edge{vs=Vstart,ve=Vend,rtsu=RNext,ltsu=LNext} =
 	gb_trees:get(Edge, Etab),
-    LeftVs0 = wings_face:to_vertices([LeftFace], We0),
-    RightVs0 = wings_face:to_vertices([RightFace], We0),
-    LeftVs = lists:delete(Vstart, lists:delete(Vend, LeftVs0)),
-    RightVs = lists:delete(Vstart, lists:delete(Vend, RightVs0)),
-    case optimize(Vstart, Vend, LeftVs, RightVs, Opt, Vtab) of
+    RV = wings_vertex:other(Vend,gb_trees:get(RNext,Etab)),
+    LV = wings_vertex:other(Vstart,gb_trees:get(LNext,Etab)),
+    case optimize(Vstart, Vend, RV, LV, Opt, Vtab) of
 	{Vert1, Vert2} ->
 	    We1 = wings_edge:dissolve_edge(Edge, We0),
 	    case gb_trees:is_defined(Edge, We1#we.es) of
@@ -117,10 +115,8 @@ try_turn(Edge, #we{es=Etab,vp=Vtab}=We0, Opt) ->
 	    {Edge, We0}
     end.
 
-optimize(Evs1, Evs2, VsList1, VsList2, Opt, Vtab) ->
+optimize(Evs1, Evs2, V1, V2, Opt, Vtab) ->
     Dist1 = e3d_vec:dist(wings_vertex:pos(Evs1, Vtab), wings_vertex:pos(Evs2, Vtab)),
-    V1 = hd(VsList1),
-    V2 = hd(VsList2),
     Dist2 = e3d_vec:dist(wings_vertex:pos(V1, Vtab), wings_vertex:pos(V2, Vtab)),
     case Opt of 
         true when Dist2 < Dist1 -> {V1, V2};

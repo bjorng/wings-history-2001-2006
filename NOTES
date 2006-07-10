@@ -14,8 +14,7 @@
 
 - Fixed bug in View -> Align to Selection. [Giniu]
 
-- New selection method: by sharp edges.
-  [contributed by Anthony D'Agostino (Scorpius)]
+- Turn Edge plugin now rotates (clockwork) selected edge. [Giniu]
 
 - An improved modelling lighting for people with newer gfx cards,
   select 'one light' [Dgud]
@@ -25,6 +24,9 @@
 - Change the automatic chart rotation again in autouv [Dgud]
 
 - Hopefully fixed the unfold issue from inside the autouv window [Dgud]
+
+- New selection method: by sharp edges.
+  [contributed by Anthony D'Agostino (Scorpius)]
 
 --- 0.98.34 -----------------------------------------------------------------
 
