@@ -8,10 +8,10 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: autouv_pl.lang,v 1.8 2006/06/30 20:26:33 giniu Exp $
+%%     $Id: autouv_pl.lang,v 1.9 2006/07/10 17:15:37 giniu Exp $
 %%
 %%  Translation:  Andrzej Giniewicz
-%%  Correction:   Małgorzata Napiontek
+%%  Correction:   Małgorzata Napiontek & Maciej Milewski
 %%  Verification: Krzysztof Giniewicz
 %%
 {auv_mapping,
@@ -99,10 +99,10 @@
    ]},
   {seg_mode_menu,
    [
-    {1,"Oznakuj krawędzie do cięcia"},
-    {2,"Odznakuj krawędzie"},
-    {3,"Zaznacz oznakowane krawędzie"},
-    {4,"Ignoruj zaznaczone"},
+    {1,"Zaznacz krawędzie do cięcia"},
+    {2,"Odznacz krawędzie"},
+    {3,"Wybierz zaznaczone krawędzie"},
+    {4,"Ignoruj zaznaczone płaszczyzny"},
     {5,"Zaznacz"}
    ]}
  ]}.
@@ -115,9 +115,9 @@
   {draw_options,
    [
     {1,"Rozmiar"},
-    {2,"Renderuj kanały"},
+    {2,"Renderuj"},
     {3,"Opcje rysowania"},
-    {4,"Dodaj kanał"},
+    {4,"Nowy kanał"},
     {5,"Usuń nieużywane kanały"}
    ]},
   {options,
@@ -176,11 +176,11 @@
     {7,"Obróć zaznaczony arkusz"},
     {8,"Przesuń na..."},
     {9,"Środek"},
-    {10,"Wycentruj"},
+    {10,"Wyśrodkuj"},
     {11,"Środek X"},
-    {12,"Wycentruj poziomo"},
+    {12,"Wyśrodkuj poziomo"},
     {13,"Środek Y"},
-    {14,"Wycentruj pionowo"},
+    {14,"Wyśrodkuj pionowo"},
     {15,"Dół"},
     {16,"Przesuń zaznaczenie do dolnej krawędzi"},
     {17,"Górę"},
@@ -336,7 +336,7 @@
    ]},
   {start_uvmap,
    [
-    {1,"Nic nie jest zaznaczone"}
+    {1,"Nic nie zaznaczono"}
    ]},
   {stitch_charts,
    [
@@ -365,7 +365,7 @@
    ]},
   {select_image,
    [
-    {1,"Nie ma żadnych bitmap, użyj polecenia \"importuj obraz\"."},
+    {1,"Nie ma obrazów, musisz zaimportować obrazy."},
     {2,"Wybierz obraz do opuszczenia"}
    ]},
   {set_materials,
@@ -375,7 +375,7 @@
   {snap_menu,
    [
     {1,"Poziomo"},
-    {2,"Skalij obraz tła w poziomie"},
+    {2,"Skaluj obraz tła w poziomie"},
     {3,"Pionowo"},
     {4,"Skaluj obraz tła w pionie"},
     {5,"Dowolnie"},

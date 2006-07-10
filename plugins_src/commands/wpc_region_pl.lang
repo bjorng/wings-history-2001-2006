@@ -8,10 +8,10 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_region_pl.lang,v 1.1 2005/10/04 20:31:15 giniu Exp $
+%%     $Id: wpc_region_pl.lang,v 1.2 2006/07/10 17:16:09 giniu Exp $
 %%
 %%  Translation:  Andrzej Giniewicz
-%%  Correction:   Małgorzata Napiontek
+%%  Correction:   Małgorzata Napiontek & Maciej Milewski
 %%  Verification: Krzysztof Giniewicz
 %%
 {wpc_region,
@@ -19,7 +19,7 @@
   {menu,
    [
     {1,"Obszar"},
-    {2,"Przesuń obszar wzdłóż wektora normalnego jego pętli krawędziowej."},
+    {2,"Przesuń obszar wzdłuż wektora normalnego jego pętli krawędziowej."},
     {3,"Obszar"},
     {4,"Skaluj obszar po jego pętli krawędziowej."},
     {5,"Obszar"},

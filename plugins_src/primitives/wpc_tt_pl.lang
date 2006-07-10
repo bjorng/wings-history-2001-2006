@@ -8,10 +8,10 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tt_pl.lang,v 1.1 2005/12/12 18:03:59 giniu Exp $
+%%     $Id: wpc_tt_pl.lang,v 1.2 2006/07/10 17:17:03 giniu Exp $
 %%
 %%  Translation:  Andrzej Giniewicz
-%%  Correction:   Małgorzata Napiontek
+%%  Correction:   Małgorzata Napiontek & Maciej Milewski
 %%  Verification: Krzysztof Giniewicz
 %%
 {wpc_tt,
@@ -62,6 +62,6 @@
    ]},
   {trygen,
    [
-    {1,"Nie można odnaleść sekcji TrueType w "}
+    {1,"Nie można odnaleźć sekcji TrueType w "}
    ]}
  ]}.

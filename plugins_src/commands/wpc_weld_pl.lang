@@ -8,10 +8,10 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_weld_pl.lang,v 1.2 2006/06/30 20:26:34 giniu Exp $
+%%     $Id: wpc_weld_pl.lang,v 1.3 2006/07/10 17:16:15 giniu Exp $
 %%
 %%  Translation:  Andrzej Giniewicz
-%%  Correction:   Małgorzata Napiontek
+%%  Correction:   Małgorzata Napiontek & Maciej Milewski
 %%  Verification: Krzysztof Giniewicz
 %%
 {wpc_weld,
@@ -25,7 +25,7 @@
    [
     {1,"Nie możesz spawać punktów płaszczyzny lustra"},
     {2,"Obiekt musi mieć przynajmniej 4 punkty"},
-    {3,"Możesz spawać tylko pojedyńcze punkty"}
+    {3,"Możesz spawać tylko pojedyncze punkty"}
    ]},
   {weld_check_selection,
    [

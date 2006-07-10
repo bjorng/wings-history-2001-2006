@@ -8,10 +8,10 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_intersect_vertex_pl.lang,v 1.1 2005/10/04 20:31:15 giniu Exp $
+%%     $Id: wpc_intersect_vertex_pl.lang,v 1.2 2006/07/10 17:15:59 giniu Exp $
 %%
 %%  Translation:  Andrzej Giniewicz
-%%  Correction:   Małgorzata Napiontek
+%%  Correction:   Małgorzata Napiontek & Maciej Milewski
 %%  Verification: Krzysztof Giniewicz
 %%
 {wpc_intersect_vertex,
@@ -30,7 +30,7 @@
    [
     {1,"Rzutuj"},
     {2,"Pozostań na linii"},
-    {3,"Przesuń punkty wzdłóż linii wybranego kierunku do przecięcia z wybraną płaszczyzną"},
+    {3,"Przesuń punkty wzdłuż linii wybranego kierunku do przecięcia z wybraną płaszczyzną"},
     {4,"Pozostań na płaszczyźnie"},
     {5,"Przesuń punkty po płaszczyźnie o wybranym wektorze normalnym do przecięcia z wybraną linią"},
     {6,"Wybierz oba"},

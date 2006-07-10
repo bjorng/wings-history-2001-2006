@@ -8,10 +8,10 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl_pl.lang,v 1.1 2006/01/08 18:07:00 giniu Exp $
+%%     $Id: wpc_opengl_pl.lang,v 1.2 2006/07/10 17:16:37 giniu Exp $
 %%
 %%  Translation:  Andrzej Giniewicz
-%%  Correction:   Małgorzata Napiontek
+%%  Correction:   Małgorzata Napiontek & Maciej Milewski
 %%  Verification: Krzysztof Giniewicz
 %%
 {wpc_opengl,
@@ -30,7 +30,7 @@
    ]},
   {dialog_qs,
    [
-    {1,"PLiki Targa"},
+    {1,"Pliki Targa"},
     {2,"Kroki wygładzania"},
     {3,"Kolor tła"},
     {4,"Renderuj kanał alfa"},
