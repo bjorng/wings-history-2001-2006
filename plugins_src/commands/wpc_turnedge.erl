@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_turnedge.erl,v 1.6 2006/07/10 13:06:39 giniu Exp $
+%%     $Id: wpc_turnedge.erl,v 1.7 2006/07/10 18:28:18 giniu Exp $
 %%
 
 -module(wpc_turnedge).
@@ -92,12 +92,9 @@ turn_edges(Edges, #we{id=Id}=We0, Opt, St) ->
     Sel = {Id,gb_sets:from_list(Sel0)},
     {Sel, St#st{shapes=Shapes}}.
 
-try_turn(Edge, #we{es=Etab,vp=Vtab}=We0, Opt) ->
-    #edge{vs=Vstart,ve=Vend,rtsu=RNext,ltsu=LNext} =
-	gb_trees:get(Edge, Etab),
-    RV = wings_vertex:other(Vend,gb_trees:get(RNext,Etab)),
-    LV = wings_vertex:other(Vstart,gb_trees:get(LNext,Etab)),
-    case optimize(Vstart, Vend, RV, LV, Opt, Vtab) of
+try_turn(Edge, #we{vp=Vtab}=We0, Opt) ->
+    {Vstart, Vend, V1, V2} = choosemode(Edge,We0),
+    case optimize(Vstart, Vend, V1, V2, Opt, Vtab) of
 	{Vert1, Vert2} ->
 	    We1 = wings_edge:dissolve_edge(Edge, We0),
 	    case gb_trees:is_defined(Edge, We1#we.es) of
@@ -113,6 +110,29 @@ try_turn(Edge, #we{es=Etab,vp=Vtab}=We0, Opt) ->
 	    end;
 	_ ->
 	    {Edge, We0}
+    end.
+
+choosemode(Edge,#we{es=Etab}=We0) ->
+    case get_pref(mode, turn) of
+        turn ->
+            #edge{vs=Vstart,ve=Vend,rf=RightFace,lf=LeftFace} = gb_trees:get(Edge, Etab),
+            LeftVs0 = wings_face:to_vertices([LeftFace], We0),
+            RightVs0 = wings_face:to_vertices([RightFace], We0),
+            LeftVs = lists:delete(Vstart, lists:delete(Vend, LeftVs0)),
+            RightVs = lists:delete(Vstart, lists:delete(Vend, RightVs0)),
+            V1 = hd(LeftVs),
+            V2 = hd(RightVs),
+            {Vstart,Vend,V1,V2};
+        cw ->
+            #edge{vs=Vstart,ve=Vend,rtsu=RNext,ltsu=LNext} = gb_trees:get(Edge, Etab),
+            RV = wings_vertex:other(Vend,gb_trees:get(RNext,Etab)),
+            LV = wings_vertex:other(Vstart,gb_trees:get(LNext,Etab)),
+            {Vstart,Vend,RV,LV};
+        ccw ->
+            #edge{vs=Vstart,ve=Vend,rtpr=RNext,ltpr=LNext} = gb_trees:get(Edge, Etab),
+            RV = wings_vertex:other(Vstart,gb_trees:get(RNext,Etab)),
+            LV = wings_vertex:other(Vend,gb_trees:get(LNext,Etab)),
+            {Vstart,Vend,RV,LV}
     end.
 
 optimize(Evs1, Evs2, V1, V2, Opt, Vtab) ->
@@ -131,8 +151,18 @@ optimize(Evs1, Evs2, V1, V2, Opt, Vtab) ->
 pref_edit(St) ->
     Enabled = get_pref(enabled, false),
     wpa:dialog(?__(1,"Turn Edge Preferences"),
-	       [{hframe,[{?__(2,"Enabled"),Enabled,[{key,enabled}]}]}],
-	       fun(Attr) -> pref_result(Attr, St) end).
+	       [{vframe,[{?__(2,"Enabled"),Enabled,[{key,enabled}]},
+	                 {label,?__(3,"Turn mode")++":"},
+	                 {vradio,[{?__(4,"Turn Edge"),turn},
+	                          {?__(5,"Rotate clockwise"),cw},
+	                          {?__(6,"Rotate counterclockwise"),ccw}],
+	                          get_pref(mode,turn), 
+	                         [{key,mode},
+	                          {hook,fun (is_disabled, {_Var,_I,Store}) ->
+                                                not gb_trees:get(enabled, Store);
+                                            (_, _) -> void
+                                        end}]}]}],
+	                 fun(Attr) -> pref_result(Attr, St) end).
 
 pref_result(Attr, St) ->
     set_pref(Attr),
