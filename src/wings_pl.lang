@@ -8,10 +8,10 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pl.lang,v 1.23 2006/03/16 12:50:59 giniu Exp $
+%%     $Id: wings_pl.lang,v 1.24 2006/07/10 17:02:42 giniu Exp $
 %%
 %%  Translation:  Andrzej Giniewicz
-%%  Correction:   Małgorzata Napiontek
+%%  Correction:   Małgorzata Napiontek & Maciej Milewski
 %%  Verification: Krzysztof Giniewicz
 %%
 {wings,
@@ -143,9 +143,9 @@
     {11,"Przeskaluj do obramowania"},
     {12,"Przeskaluj proporcjonalnie do obramowania"},
     {13,"Przesuń do obramowania"},
-    {14,"Ustaw kierunek standardowy"},
+    {14,"Ustaw wektor standardowy"},
     {15,"Definiuje i zapamiętuje kierunek (z punktem odniesienia) dla późniejszego użycia z dowolnym "},
-    {16,"narzędziem obsługującym \"Kierunek standardowy\" (np. Skaluj|Kierunek standardowy)"},
+    {16,"narzędziem obsługującym \"Wektor standardowy\" (np. Skaluj|Wektor standardowy)"},
     {17,"Wirtualne lustro"},
     {18,"Stwórz"},
     {19,"Tworzy wirtualne lustro według zaznaczonych poligonów"},
@@ -201,7 +201,7 @@
   {arealight_conv,
    [
     {1,"Światło strefowe na obiekt"},
-    {2,"Konwertuj zaznaczone światło stefowe na obiekt"},
+    {2,"Konwertuj zaznaczone światło strefowe na obiekt"},
     {3,"Obiekt na światło strefowe"},
     {4,"Konwertuj zaznaczony obiekt na światło strefowe"}
    ]},
@@ -639,7 +639,7 @@
     {10,"Spłaszcz"},
     {11,"Spłaszcz krawędzie zaznaczonej płaszczyzny"},
     {12,"Most"},
-    {13,"Stwórz most (tunel) pomiędzy dwiema płaszczyznami"},
+    {13,"Stwórz most pomiędzy dwiema płaszczyznami"},
     {14,"Wyciągnij"},
     {15,"Wyciągnij zaznaczone płaszczyzny"},
     {16,"Unieś"},
@@ -1044,7 +1044,7 @@
     {14,"Narzędzia"},
     {15,"Wirtualne lustro"},
     {16,"."},
-    {17,"Ukryj obiekty nad którym nie pracujesz w danej chwili."},
+    {17,"Ukryj obiekty nad którymi nie pracujesz w danej chwili."},
     {18,"Użyj komendy "},
     {19,"Widok"},
     {20,"Pokaż kolory"},
@@ -1065,7 +1065,7 @@
     {2,"\"subdivision\", inspirowanym przez Nendo i Mirai z IZware."},
     {3,"Wings 3D nie zapewnia żadnych gwarancji osiągnięcia"},
     {4,"zamierzonych efektów, lecz jest programem zupełnie"},
-    {5,"darmowy do dowolnego użycia (włączając komercyjne)."},
+    {5,"darmowym do dowolnego użycia (włączając komercyjne)."},
     {6,"Copyright"},
     {7,"i inni"},
     {8,"Biblioteka JPEG: Copyright"}
@@ -1542,7 +1542,7 @@
     {7,"Zmień nazwę"},
     {8,"Zmień nazwę obrazu"},
     {9,"Wybierz obraz"},
-    {10,"Wybierz obraz do późniejszego opuszczenia na materiale jako teksture"}
+    {10,"Wybierz obraz do późniejszego opuszczenia na materiale jako teksturę"}
    ]},
   {delete_image,
    [
@@ -1688,7 +1688,7 @@
  [
   {def_ui_plugin,
    [
-    {1,"Zainstaluj ponownie program Wings 3D, wtyczka dla ~p nie może być odnaleziona."}
+    {1,"Zainstaluj ponownie program Wings 3D, nie można odnalźć wtyczki ~p."}
    ]},
   {install,
    [
@@ -2089,6 +2089,8 @@
     {84,"Tworzy nową grupę zaznaczenia"},
     {85,"Krzywizny"},
     {86,"Zaznacz wszystkie krzywizny"},
+    {87,"Kanty"},
+    {88,"Zaznacz wszystkie krawędzie tworzące kant"},
     {401,"6 lub więcej krawędziami"},
     {nq0,"Płaszczyzny nie kwadratowe"},
     {nq1,"Wszystkie płaszczyzny"},
@@ -2131,6 +2133,11 @@
     {2,"Wszystkie krawędzie"},
     {3,"Wszystkie płaszczyzny"},
     {4,"Wszystkie obiekty"}
+   ]},
+  {sharp_edges,
+   [
+    {1,"Maksymalny kąt:"},
+    {2,"Wybierz kanty"}
    ]},
   {short_edges,
    [

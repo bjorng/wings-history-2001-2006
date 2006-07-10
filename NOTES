@@ -14,7 +14,7 @@
 
 - Fixed bug in View -> Align to Selection. [Giniu]
 
-- Turn Edge plugin now rotates (clockwork) selected edge. [Giniu]
+- Turn Edge plugin now rotates (clockwise) selected edge. [Giniu]
 
 - An improved modelling lighting for people with newer gfx cards,
   select 'one light' [Dgud]
@@ -27,6 +27,9 @@
 
 - New selection method: by sharp edges.
   [contributed by Anthony D'Agostino (Scorpius)]
+
+- Polish translation fixes.
+  [contributed by Maciej Milewski]
 
 --- 0.98.34 -----------------------------------------------------------------
 
