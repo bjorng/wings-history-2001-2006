@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.65 2006/03/14 14:07:53 dgud Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.66 2006/07/10 10:56:15 giniu Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -96,6 +96,8 @@ menu(St) ->
 		     {"90%",90}]}},
 	   {?__(56,"Short Edges"),
 	    short_edges,?__(57,"Select (too) short edges"),[option]},
+           {?__(87,"Sharp Edges"),
+            sharp_edges,?__(88,"Select sharp edges"),[option]},
 	   {?__(58,"Material Edges"),material_edges,
 	    ?__(59,"Select all edges between different materials")},
 	   {?__(60,"UV-Mapped Faces"),uv_mapped_faces,
@@ -351,6 +353,8 @@ by_command({random,Percent}, St) ->
     {save_state,random(Percent, St)};
 by_command({short_edges,Ask}, St) ->
     short_edges(Ask, St);
+by_command({sharp_edges,Ask}, St) ->
+    sharp_edges(Ask, St);
 by_command(uv_mapped_faces, St) ->
     uv_mapped_faces(St);
 by_command(id, St) ->
@@ -918,3 +922,28 @@ any_matching_normal(CosTolerance, Normal, [N|T]) ->
       Dot >= CosTolerance -> true;
       true -> any_matching_normal(CosTolerance, Normal, T)
     end.
+
+%%%
+%%% Select sharp edges
+%%%
+
+sharp_edges(Ask, _St) when is_atom(Ask) ->
+    Qs = [{label,?__(1,"Max Angle")},
+          {text,120.0,[{range,{0.0,180.0}}]}],
+    wings_ask:dialog(Ask, 
+        ?__(2,"Select Sharp Edges"), [{hframe,Qs}],
+        fun(Res) ->
+            {select,{by,{sharp_edges,Res}}} 
+        end);
+sharp_edges([Tolerance], St0) ->
+    CosTolerance = -math:cos(Tolerance * math:pi() / 180.0),
+    St = wings_sel:make(fun(Edge, We) ->
+             sharp_edge(CosTolerance, Edge, We)
+         end, edge, St0),
+    {save_state,St}.
+
+sharp_edge(CosTolerance, Edge, #we{es=Etab}=We) ->
+    #edge{lf=Lf,rf=Rf} = gb_trees:get(Edge, Etab),
+    Lfn = wings_face:normal(Lf, Edge, We),
+    Rfn = wings_face:normal(Rf, Edge, We),
+    e3d_vec:dot(Lfn,Rfn) < CosTolerance.

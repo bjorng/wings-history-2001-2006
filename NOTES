@@ -14,6 +14,9 @@
 
 - Fixed bug in View -> Align to Selection. [Giniu]
 
+- New selection method: by sharp edges.
+  [contributed by Anthony D'Agostino (Scorpius)]
+
 - An improved modelling lighting for people with newer gfx cards,
   select 'one light' [Dgud]
 
