@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.140 2005/08/15 07:15:54 dgud Exp $
+%%     $Id: wings_io.erl,v 1.141 2006/07/13 17:33:07 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -617,14 +617,12 @@ grab() ->
     put_state(Io#io{grab_count=Cnt+1}).
 
 do_grab(0) ->
-    case os:type() of
-	{unix, darwin} ->
-	    ignore;  %% GRAB doesn't work good enough on Darwin
-	_ ->
-	    %% Good for Linux to read out any mouse events here.
-	    sdl_events:peepEvents(1, ?SDL_MOUSEMOTIONMASK),
-	    sdl_video:wm_grabInput(?SDL_GRAB_ON)
-    end;
+    %% On MacOS X, we used to not do any grab. With newer versions of SDL,
+    %% it seems to works better if we do a grab.
+    %% 
+    %% Good for Linux to read out any mouse events here.
+    sdl_events:peepEvents(1, ?SDL_MOUSEMOTIONMASK),
+    sdl_video:wm_grabInput(?SDL_GRAB_ON);
 do_grab(_N) -> ok.
 
 ungrab(X, Y) ->
