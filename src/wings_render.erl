@@ -4,12 +4,12 @@
 %%     Render all objects and helpers (such as axes) in the scene.
 %%     Used for the Geometry and AutoUV windows.
 %%
-%%  Copyright (c) 2001-2005 Bjorn Gustavsson
+%%  Copyright (c) 2001-2006 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_render.erl,v 1.13 2006/07/07 11:22:12 dgud Exp $
+%%     $Id: wings_render.erl,v 1.14 2006/07/18 08:34:07 bjorng Exp $
 %%
 
 -module(wings_render).
@@ -38,8 +38,9 @@ init() ->
 		?CHECK_ERROR(),
  		gl:useProgram(0),
 		put(light_shader, Prog),
+		io:format("Using GPU shaders.\n"),
 		ok
-	    catch throw:_Err -> ok
+	    catch _:_Err -> ok
 	    end;
 	false ->
 	    ok
