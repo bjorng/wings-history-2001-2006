@@ -1,4 +1,4 @@
---- 0.98.XX -----------------------------------------------------------------
+--- 0.98.35 -----------------------------------------------------------------
 
 - Move absolute now works for lights. [Giniu]
 
@@ -31,6 +31,10 @@
 
 - Polish translation fixes.
   [contributed by Maciej Milewski]
+
+- Minor corrections for Mac and Windows to work with R11B and newest
+  SDL and esdl. For Mac, Mac OS 10.4 or higher ("Tiger") is now required.
+  (Unless you build from source yourself.) Sorry for that. [bjorng]
 
 --- 0.98.34 -----------------------------------------------------------------
 
