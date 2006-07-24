@@ -8,13 +8,15 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_absolute_scale.erl,v 1.1 2006/06/29 19:57:58 giniu Exp $
+%%     $Id: wpc_absolute_scale.erl,v 1.2 2006/07/24 19:39:12 giniu Exp $
 %%
 -module(wpc_absolute_scale).
 
 -include("wings.hrl").
 
 -export([init/0,menu/2,command/2]).
+
+-define(EPSILON,0.0000005).
 
 %%%
 %%% plugin interface
@@ -143,9 +145,9 @@ draw_window1(name,_) ->
 draw_window1(size, {X,Y,Z}) ->
     {vframe,[
         {hframe,[{label,?__(2,"Set new size")++":"}]},
-        {hframe,[{label,"X:"},{text,X}]},
-        {hframe,[{label,"Y:"},{text,Y}]},
-        {hframe,[{label,"Z:"},{text,Z}]}
+        {hframe,[{label,"X:"},{text,X,[disable(eq,X,0.0)]}]},
+        {hframe,[{label,"Y:"},{text,Y,[disable(eq,Y,0.0)]}]},
+        {hframe,[{label,"Z:"},{text,Z,[disable(eq,Z,0.0)]}]}
     ]};
 draw_window1(center,{X,Y,Z}) ->
     {vframe,[
@@ -158,6 +160,11 @@ draw_window1(whole,true) ->
     {?__(4,"Scale whole object"),false,[{key,whole}]};
 draw_window1(whole,false) ->
     {?__(5,"Scale whole objects"),false,[{key,whole}]}.
+
+disable(eq,X,Value) ->
+    {hook, fun (is_disabled, _) -> X == Value;
+               (_, _) -> void
+           end}.
 
 translate([SX,SY,SZ,CX,CY,CZ],{OX,OY,OZ},Sel,St) ->
     do_scale([{SX,SY,SZ},{OX,OY,OZ},{CX,CY,CZ},{whole,true}],Sel,St);
@@ -172,15 +179,18 @@ translate([SX,SY,SZ,CX,CY,CZ,{whole,Whole}],{OX,OY,OZ},Sel,St) ->
 
 do_scale([{SX,SY,SZ},{OX,OY,OZ},{CX,CY,CZ},{_,Whole}], Sel, St) ->
     SX2 = if
-        OX == 0 -> 0;
+        OX == 0.0 -> 1.0;
+        Whole andalso (OX =< ?EPSILON) andalso (SX =< ?EPSILON) -> 1.0;
         true -> SX/OX
     end,
     SY2 = if
-        OY == 0 -> 0;
+        OY == 0.0 -> 1.0;
+        Whole andalso (OY =< ?EPSILON) andalso (SY =< ?EPSILON) -> 1.0;
         true -> SY/OY
     end,
     SZ2 = if
-        OZ == 0 -> 0;
+        OZ == 0.0 -> 1.0;
+        Whole andalso (OZ =< ?EPSILON) andalso SZ =< ?EPSILON -> 1.0;
         true -> SZ/OZ
     end,
     {TX,TY,TZ} = {CX - CX*SX2, CY - CY*SY2, CZ - CZ*SZ2},
