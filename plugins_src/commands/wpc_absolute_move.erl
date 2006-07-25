@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_absolute_move.erl,v 1.13 2006/06/30 20:26:34 giniu Exp $
+%%     $Id: wpc_absolute_move.erl,v 1.14 2006/07/25 21:54:55 giniu Exp $
 %%
 -module(wpc_absolute_move).
 
@@ -47,62 +47,110 @@ draw(menu, Mode) ->
     [{?__(2,"Move"),move,
       ?__(3,"Move to exact position in absolute coordinates.")},
      {?__(4,"Snap"), snap_fun(Mode), 
-      {?__(5,"Move to secondary selection."), [],
-       ?__(6,"Move to secondary selection and tweak the values.")},[]}].
+      {?__(5,"Move to secondary selection."),
+       ?__(6,"Move using center as reference."),
+       ?__(7,"Move and display numeric entry.")},[]}].
 
 snap_fun(Mode) ->
     fun(1, _Ns) ->
 	    {Mode,{absolute,snap}};
+       (2, _Ns) ->
+	    {Mode,{absolute,csnap}};
        (3, _Ns) ->
-	    {Mode,{absolute,tsnap}};
+	    {Mode,{absolute,nsnap}};
        (_, _) -> ignore
     end.
 
-command({_,{absolute,move}},St) ->
-    abs_move(St);
-command({_,{absolute,snap}},St) ->
-    abs_snap(St);
-command({_,{absolute,tsnap}},St) ->
-    abs_tsnap(St);
+command({_,{absolute,Mode}},St) ->
+    Mirror = check_mirror(St),
+    if
+        Mirror -> 
+            mirror_error(),
+            St;
+        true ->
+            case Mode of
+                move -> move(St);
+                snap -> wings:ask(selection_ask([reference,target]), St, fun snap/2);
+                csnap -> wings:ask(selection_ask([target]), St, fun csnap/2);
+                nsnap -> wings:ask(selection_ask([reference,target]), St, fun nsnap/2)
+            end
+    end;
 command(_,_) -> next.
 
-abs_move(St) ->
-    Mirror = check_mirror(St),
-    if
-        Mirror -> 
-            mirror_error(),
-            St;
-        true ->
-            move(St)
-    end.
-
-abs_snap(St) ->
-    Mirror = check_mirror(St),
-    if
-        Mirror -> 
-            mirror_error(),
-            St;
-        true ->
-            wings:ask(simple_select(), St, fun snap/2)
-    end.
-
-abs_tsnap(St) ->
-    Mirror = check_mirror(St),
-    if
-        Mirror -> 
-            mirror_error(),
-            St;
-        true ->
-            wings:ask(simple_select(), St, fun tsnap/2)
-    end.
-
 %%%
-%%% core functions
+%%% absolute move
 %%%
 
-%%
-%% some helpful test and investigation functions
-%%
+move(#st{shapes=Shapes}=St) ->
+    Sel = get_selection(St),
+    {Center,Lights} = get_center_and_lights(Sel,Shapes),
+    OneObject = check_single_obj(Sel),
+    SinglePoints = check_single_vert(Sel),
+    WholeObjects = if
+                       SinglePoints or Lights ->
+                           false;
+                       true ->
+                           check_whole_obj(St)
+                   end,
+    MoveObj = if
+                  WholeObjects or Lights -> duplionly;
+                  OneObject -> one;
+                  true -> many
+              end,
+    Flatten = if
+                  SinglePoints or WholeObjects or Lights -> false;
+                  true -> true
+              end,
+    Align = not OneObject,
+    draw_window({{move_obj,MoveObj},{flatten,Flatten},{align,Align},{from,Center},{to,Center}},Sel,St).
+
+%%%
+%%% absolute snap
+%%%
+
+snap({From,To}, St) ->
+    Sel = get_selection(St),
+    do_move([From, To, false, {false, false, false}, {false, false, false}, 0], Sel, St).
+
+%%%
+%%% absolute snap with center as reference
+%%%
+
+csnap(To, #st{shapes=Shs}=St) ->
+    Sel = get_selection(St),
+    From = get_center(Sel, Shs),
+    do_move([From, To, false, {false, false, false}, {false, false, false}, 0], Sel, St).
+
+%%%
+%%% absolute snap with numeric entry
+%%%
+
+nsnap({From,To}, #st{shapes=Shs}=St) ->
+    Sel = get_selection(St),
+    Lights = get_lights(Sel, Shs),
+    OneObject = check_single_obj(Sel),
+    SinglePoints = check_single_vert(Sel),
+    WholeObjects = if
+                       SinglePoints or Lights ->
+                           false;
+                       true ->
+                           check_whole_obj(St)
+                   end,
+    MoveObj = if
+                  WholeObjects or Lights -> duplionly;
+                  OneObject -> one;
+                  true -> many
+              end,
+    Flatten = if
+                  SinglePoints or WholeObjects or Lights -> false;
+                  true -> true
+              end,
+    Align = not OneObject,
+    draw_window({{move_obj,MoveObj},{flatten,Flatten},{align,Align},{from,From},{to,To}},Sel,St).
+
+%%%
+%%% some helpful test and investigation functions
+%%%
 
 check_mirror(#st{shapes=Shs}=St) ->
     Sel = get_selection(St),
@@ -139,6 +187,10 @@ get_center(Sel,Shapes) ->
     {Center,_} = get_center_and_lights(Sel,Shapes,[],false),
     Center.
 
+get_lights(Sel,Shapes) ->
+    {_,Lights} = get_center_and_lights(Sel,Shapes,[],false),
+    Lights.
+
 get_center_and_lights(Sel,Shapes) ->
     get_center_and_lights(Sel,Shapes,[],true).
 
@@ -164,24 +216,38 @@ check_whole_obj(#st{selmode=SelMode}=St0) ->
     St2 = wings_sel_conv:mode(SelMode,St1),
     St2#st.sel == St0#st.sel.
 
-simple_select() ->
-    Desc = ?__(1,"Select target for snap operation"),
-    Fun = fun
-              (check, St) -> 
-                  simple_check_selection(St);
-	      (exit, {_,_,St}) ->
-	          Sel = get_selection(St),
-		  case simple_check_selection(St) of
-		      {_,[]} -> {[],[Sel]};
-		      {_,_} -> error
-		  end
-	  end,
-    {[{Fun,Desc}],[],[],[vertex, edge, face, body]}.
+selection_ask(Asks) ->
+    Ask = selection_ask(Asks,[]),
+    {Ask,[],[],[vertex, edge, face, body]}.
 
-simple_check_selection(#st{sel=[]}) ->
-    {none,?__(1,"Nothing selected")};
-simple_check_selection(_) ->
-    {none,[]}.
+selection_ask([],Ask) -> lists:reverse(Ask);
+selection_ask([reference|Rest],Ask) ->
+    Desc = ?__(1,"Select reference point for snap operation"),
+    selection_ask(Rest,[{point,Desc}|Ask]);
+selection_ask([target|Rest],Ask) ->
+    Desc = ?__(2,"Select target point for snap operation"),
+    selection_ask(Rest,[{point,Desc}|Ask]).
+
+xyz2list({X,Y,Z}) ->
+    "("++float2list(X)++", "++float2list(Y)++", "++float2list(Z)++")".
+
+float2list(F) ->
+    Decimal = trunc(F),
+    Mant = lists:sublist(float_to_list(F-Decimal),8),
+    LDec = integer_to_list(Decimal),
+    if
+        F >= 0.0 ->
+            [Leading,$.|LMant] = Mant,
+            Sign = [];
+        true ->
+            [$-,Leading,$.|LMant] = Mant,
+            Sign = [$-]
+    end,
+    Sign ++ LDec ++ [$.,Leading] ++ LMant.
+
+%%%
+%%% Core functions
+%%%
 
 %%
 %% draw_window(Options,Selection,State)
@@ -206,19 +272,19 @@ draw_window({{_,MoveObj},{_,Flatten},{_,Align},{_,Center},{_,Default}},Sel,St) -
                  true ->
                      []
              end,
-    Frame23 = Frame2++Frame3,
     Frame4 = if
                  MoveObj =/= duplionly -> 
                      [draw_window1(duplicate,true)];
                  true ->
                      []
              end,
-    Frame = if
-                Frame23 =/= [] -> 
-                    [{hframe,Frame1++[{vframe,[{hframe,Frame23}]++Frame4}]}];
+    Frame5 = if
+                Frame2 =/= [] orelse Frame3 =/= [] -> 
+                    [{hframe,Frame1++[{vframe,[{hframe,Frame2++Frame3}]++Frame4}]}];
                 true ->
                     [{vframe,Frame1++Frame4}]
             end,
+    Frame = [{vframe,Frame5++[separator,draw_window1(reference,Center)]}],
     Name = draw_window1(name,default),
     wings_ask:dialog(Name, Frame,
        fun(Move) ->
@@ -262,7 +328,9 @@ draw_window1(flatten,_) ->
         {hframe,[{"",false,[{key,fx}]}]},
         {hframe,[{"",false,[{key,fy}]}]},
         {hframe,[{"",false,[{key,fz}]}]}
-    ]}.
+    ]};
+draw_window1(reference,Default) ->
+    {label,?__(8,"Reference point is") ++ ":" ++ xyz2list(Default)}.
 
 disable(all) ->
     {hook,fun (is_disabled, {_Var,_I,Store}) ->
@@ -395,68 +463,3 @@ execute_move({Dx,Dy,Dz},{Nx,Ny,Nz},{Fx,Fy,Fz},Wo,Vset,Vtab,Now) ->
             NewNow = gb_trees:insert(Vertex,{X1,Y1,Z1},Now),
             execute_move({Dx,Dy,Dz},{Nx,Ny,Nz},{Fx,Fy,Fz},Wo,Vset,Vtab2,NewNow)
     end.
-
-%%%
-%%% absolute move
-%%%
-
-move(#st{shapes=Shapes}=St) ->
-    Sel = get_selection(St),
-    {Center,Lights} = get_center_and_lights(Sel,Shapes),
-    OneObject = check_single_obj(Sel),
-    SinglePoints = check_single_vert(Sel),
-    WholeObjects = if
-                       SinglePoints or Lights ->
-                           false;
-                       true ->
-                           check_whole_obj(St)
-                   end,
-    MoveObj = if
-                  WholeObjects or Lights -> duplionly;
-                  OneObject -> one;
-                  true -> many
-              end,
-    Flatten = if
-                  SinglePoints or WholeObjects or Lights -> false;
-                  true -> true
-              end,
-    Align = not OneObject,
-    draw_window({{move_obj,MoveObj},{flatten,Flatten},{align,Align},{from,Center},{to,Center}},Sel,St).
-
-%%%
-%%% absolute snap
-%%%
-
-snap(Sel0, #st{shapes=Shs}=St) ->
-    Sel = get_selection(St),
-    From = get_center(Sel, Shs),
-    To = get_center(Sel0, Shs),
-    do_move([From, To, false, {false, false, false}, {false, false, false}, 0], Sel, St).
-
-%%%
-%%% absolute snap with tweak
-%%%
-
-tsnap(Sel0, #st{shapes=Shs}=St) ->
-    Sel = get_selection(St),
-    {From, Lights} = get_center_and_lights(Sel, Shs),
-    To = get_center(Sel0, Shs),
-    OneObject = check_single_obj(Sel),
-    SinglePoints = check_single_vert(Sel),
-    WholeObjects = if
-                       SinglePoints or Lights ->
-                           false;
-                       true ->
-                           check_whole_obj(St)
-                   end,
-    MoveObj = if
-                  WholeObjects or Lights -> duplionly;
-                  OneObject -> one;
-                  true -> many
-              end,
-    Flatten = if
-                  SinglePoints or WholeObjects or Lights -> false;
-                  true -> true
-              end,
-    Align = not OneObject,
-    draw_window({{move_obj,MoveObj},{flatten,Flatten},{align,Align},{from,From},{to,To}},Sel,St).
