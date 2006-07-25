@@ -1,3 +1,8 @@
+--- 0.98.XX -----------------------------------------------------------------
+
+- Absolute snap now can pick reference point, old snap that used center of
+  selection as reference point was moved to MMB option. [Giniu]
+
 --- 0.98.35 -----------------------------------------------------------------
 
 - Move absolute now works for lights. [Giniu]
