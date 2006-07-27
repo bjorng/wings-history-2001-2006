@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref_dlg.erl,v 1.13 2005/10/23 21:37:14 raimo_niskanen Exp $
+%%     $Id: wings_pref_dlg.erl,v 1.14 2006/07/27 02:22:24 antoneos Exp $
 %%
 
 -module(wings_pref_dlg).
@@ -109,6 +109,7 @@ gen_prefs() ->
       {hframe,
        [{vframe,
 	 [{?__(36,"Show Axis Letters"),show_axis_letters},
+	  {?__(49,"Constrain Axes to Grid"),constrain_axes},
 	  {hframe,
 	   [{label_column,
 	     [{color,?__(37,"+X Color"),x_color},

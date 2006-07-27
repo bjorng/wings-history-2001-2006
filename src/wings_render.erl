@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_render.erl,v 1.14 2006/07/18 08:34:07 bjorng Exp $
+%%     $Id: wings_render.erl,v 1.15 2006/07/27 02:22:24 antoneos Exp $
 %%
 
 -module(wings_render).
@@ -362,7 +362,10 @@ ground_and_axes() ->
     ?CHECK_ERROR(),
     groundplane(Axes),
     ?CHECK_ERROR(),
-    #view{yon=Yon} = wings_view:current(),
+    case wings_pref:get_value(constrain_axes) of
+	true -> Yon = ?GROUND_GRID_SIZE * 10.0;
+	false -> #view{yon=Yon} = wings_view:current()
+    end,
     case Axes of
 	true ->
 	    axis(1, Yon, get_pref(x_color), get_pref(neg_x_color)),
@@ -435,7 +438,10 @@ axis_letters() ->
 	    gl:matrixMode(?GL_MODELVIEW),
 	    gl:loadIdentity(),
 
-	    #view{yon=Yon} = wings_view:current(),
+	    case wings_pref:get_value(constrain_axes) of
+		true -> Yon = ?GROUND_GRID_SIZE * 11.0;
+		false -> #view{yon=Yon} = wings_view:current()
+	    end,
 	    axis_letter_1(1, Yon, axisx, x_color, Info),
 	    axis_letter_1(2, Yon, axisy, y_color, Info),
  	    axis_letter_1(3, Yon, axisz, z_color, Info)

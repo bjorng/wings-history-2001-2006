@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.136 2005/09/25 21:17:51 giniu Exp $
+%%     $Id: wings_pref.erl,v 1.137 2006/07/27 02:22:24 antoneos Exp $
 %%
 
 -module(wings_pref).
@@ -355,6 +355,7 @@ defaults() ->
      {edge_width,2.0},
      {selected_edge_width,2.0},
      {show_axis_letters,true},
+     {constrain_axes,false},
      {force_show_along_grid,false},
      {force_ortho_along_axis,false},
      {vertex_hilite,true},
