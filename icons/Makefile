@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.4 2006/07/28 18:54:27 antoneos Exp $
+#     $Id: Makefile,v 1.5 2006/07/28 22:52:55 antoneos Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -17,8 +17,6 @@
 ESRC=.
 EBIN=../ebin
 ERLC=erlc
-
-TARGET_FILES=$(EBIN)/wings_icon.bundle
 
 ICONSETS= \
 	classic \
@@ -34,12 +32,10 @@ ERL_COMPILE_FLAGS += -W
 # Targets
 # ----------------------------------------------------
 
-debug opt: $(TARGET_FILES)
-
-$(EBIN)/wings_icon.bundle: collect_bmp.erl
-	erl -compile collect_bmp
+debug opt:
+	$(ERLC) $(ERL_COMPILE_FLAGS) collect_bmp.erl
 	@for ICONSET in $(ICONSETS); do \
-		erl -noinput -run collect_bmp start $$ICONSET $(EBIN)/wings_icon_$$ICONSET.bundle -s erlang halt; \
+		erl $(ERL_FLAGS) -noinput -run collect_bmp start $(ESRC)/$$ICONSET $(EBIN)/wings_icon_$$ICONSET.bundle -s erlang halt; \
 	done
 
 clean:
