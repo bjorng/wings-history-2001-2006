@@ -5,6 +5,10 @@
 
 - Added new preference: constrain axes to grid. [Scorpius]
 
+- Added "Blue Cube" interface icons. The original icons are in the "Classic"
+  bundle. Switching between icon sets is easily accomplished through the
+  User Interface preference tab. [Scorpius]
+
 --- 0.98.35 -----------------------------------------------------------------
 
 - Move absolute now works for lights. [Giniu]

@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref_dlg.erl,v 1.14 2006/07/27 02:22:24 antoneos Exp $
+%%     $Id: wings_pref_dlg.erl,v 1.15 2006/07/28 18:54:27 antoneos Exp $
 %%
 
 -module(wings_pref_dlg).
@@ -165,6 +165,7 @@ advanced_prefs() ->
 ui_prefs() ->
     Fonts = wings_text:fonts(),
     Langs0 = wings_lang:available_languages(),
+    InterfaceIcons = [{"Classic", classic}, {"Blue Cube", bluecube}],
     Langs = [{language_name(L),L} || L <- Langs0],
     {vframe,
      [{hframe,
@@ -218,7 +219,10 @@ ui_prefs() ->
 			    {color,console_color},
 			    {color,console_text_color},
 			    {color,console_cursor_color}]}],
-	   [{title,?__(22,"Console")}]}]}
+	   [{title,?__(22,"Console")}]},
+	  {vframe,
+	   [{menu,InterfaceIcons,interface_icons}],
+	   [{title,?__(50,"Interface Icons")}]}]}
        ]},
       {?__(14,"No Progress Bar"),no_progress_bar},
       {?__(24,"Objects in Outliner"),objects_in_outliner},
@@ -362,6 +366,9 @@ smart_set_value_1(Key, Val, St) ->
 		new_system_font ->
 		    delayed_set_value(Key, OldVal, Val),
 		    wings_u:message(?__(1,"The change to the system font will take effect the next time Wings 3D is started."));
+		interface_icons ->
+		    delayed_set_value(Key, OldVal, Val),
+		    wings_u:message(?__(2,"The change to the interface icons will take\neffect the next time Wings 3D is started."));
 		new_console_font ->
 		    wings_console:window();
 		camera_mode ->
