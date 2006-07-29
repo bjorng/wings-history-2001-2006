@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.9 2005/12/12 18:00:32 giniu Exp $
+#     $Id: Makefile,v 1.10 2006/07/29 20:48:58 antoneos Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -33,6 +33,7 @@ MODULES= \
 	wpc_knot \
 	wpc_spiral \
 	wpc_torus \
+	wpc_plane \
 	wpc_tt
 	
 TRANSLATABLE= \

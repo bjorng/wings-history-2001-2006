@@ -9,6 +9,10 @@
   bundle. Switching between icon sets is easily accomplished through the
   User Interface preference tab. [Scorpius]
 
+- Revived the Plane Plugin, which was removed from a previous release
+  because it created invalid objects. This has been fixed by adding a
+  thickness parameter; thereby creating a properly closed mesh. [Scorpius]
+
 --- 0.98.35 -----------------------------------------------------------------
 
 - Move absolute now works for lights. [Giniu]
