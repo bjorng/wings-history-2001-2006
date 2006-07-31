@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.10 2006/07/29 20:48:58 antoneos Exp $
+#     $Id: Makefile,v 1.11 2006/07/31 19:57:38 antoneos Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -41,6 +41,7 @@ TRANSLATABLE= \
 	wpc_knot \
 	wpc_spiral \
 	wpc_torus \
+	wpc_plane \
 	wpc_tt
 
 TARGET_FILES= $(MODULES:%=$(EBIN)/%.beam)
