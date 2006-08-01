@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pl.lang,v 1.24 2006/07/10 17:02:42 giniu Exp $
+%%     $Id: wings_pl.lang,v 1.25 2006/08/01 15:19:57 giniu Exp $
 %%
 %%  Translation:  Andrzej Giniewicz
 %%  Correction:   Małgorzata Napiontek & Maciej Milewski
@@ -1799,6 +1799,7 @@
     {46,"Kolor"},
     {47,"Kolor wektorów normalnych"},
     {48,"Wyświetlanie wektorów normalnych"},
+    {49,"Długość osi zgodna z rozmiarem siatki"},
     {aa_ortho1,"Wymuś widok ortogonalny gdy prostopadły"},
     {aa_ortho2,"Zawsze przełączaj na widok ortograficzny gdy kamera jest ustawiona wzdłuż którejś z osi"}
    ]},
@@ -1835,7 +1836,8 @@
    ]},
   {smart_set_value_1,
    [
-    {1,"Czcionka zostanie zmieniona przy następnym uruchomieniu programu Wings 3D."}
+    {1,"Czcionka zostanie zmieniona przy następnym uruchomieniu programu Wings 3D."},
+    {2,"Zestaw ikon zostanie zmieniony przy następnym uruchomieniu programu Wings 3D."}
    ]},
   {ui_prefs,
    [
@@ -1864,7 +1866,8 @@
     {23,"Język"},
     {24,"Wyświetlaj obiekty w oknie schematu sceny"},
     {25,"Wyświetl gotowy obraz po zakończeniu renderingu"},
-    {26,"Załaduj gotowy obraz po zakończeniu renderingu"}
+    {26,"Załaduj gotowy obraz po zakończeniu renderingu"},
+    {50,"Zestaw ikon"}
    ]},
   {viewer_prefs,
    [
