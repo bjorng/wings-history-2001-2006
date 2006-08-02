@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_util.erl,v 1.1 2002/11/18 17:45:59 bjorng Exp $
+%%     $Id: e3d_util.erl,v 1.2 2006/08/02 20:25:02 antoneos Exp $
 %%
 
 -module(e3d_util).
--export([make_uniq/2]).
+-export([make_uniq/2, indexed_to_raw/2, raw_to_indexed/1]).
 
 -import(lists, [reverse/1,sort/1,sublist/2,sublist/3,all/2]).
 
@@ -61,3 +61,31 @@ remove_chars([], Max, Acc) ->
     L2 = sofs:relation(L1),
     L = sofs:relative_product(L2, sofs:relation(Acc)),
     sofs:to_external(L).
+
+%
+% Functions for meshes stored in indexed format (verts/faces lists)
+%
+indexed_to_raw(Verts, Faces) -> % replace indices with values
+    Make_Raw_Face = fun(Face) ->
+			[lists:nth(Index+1, Verts) || Index <- Face]
+		    end,
+    lists:map(Make_Raw_Face, Faces).
+
+raw_to_indexed(RawTriangles) -> % replace values with indices
+    VertsWithDups = lists:append(RawTriangles),
+    Verts = remove_dups(VertsWithDups),
+    IndexedVerts = dict:from_list(add_indices(Verts)),
+    Get_Index = fun(Vertex) -> dict:fetch(Vertex, IndexedVerts) end,
+    Process_Face = fun(Face) -> lists:map(Get_Index, Face) end,
+    Faces = lists:map(Process_Face, RawTriangles),  % re-indexes the Faces list
+    {Verts, Faces}.
+
+remove_dups(List) -> % remove duplicates (uses Zero tolerance)
+    lists:usort(List).
+
+add_indices(List) ->
+    ListLen = length(List),
+    Indices = lists:seq(0, ListLen-1),
+    IndexedList = lists:zip(List, Indices),
+    IndexedList.
+
