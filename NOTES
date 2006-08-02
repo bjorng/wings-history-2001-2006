@@ -24,6 +24,10 @@
   Ngon: Generates a polygon with an arbitrary number of vertices. This may
   look like a single-sided polygon but, in fact, has two faces. [Scorpius]
 
+- New GeoDome primitive. Generates a geodesic dome with an arbitrary level
+  of subdivisions. Has three base objects, spherize and half-dome options.
+  [Scorpius]
+
 --- 0.98.35 -----------------------------------------------------------------
 
 - Move absolute now works for lights. [Giniu]
