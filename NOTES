@@ -13,6 +13,11 @@
   because it created invalid objects. This has been fixed by adding a
   thickness parameter; thereby creating a properly closed mesh. [Scorpius]
 
+- Added two new primitives (look under the More menu):
+  Tube: generates a hollow tube or pipe with an actual wall-thickness.
+  Gear: generates a very simple gear. Allows the user to specify the number
+  of teeth and the tooth height. [Scorpius]
+
 --- 0.98.35 -----------------------------------------------------------------
 
 - Move absolute now works for lights. [Giniu]
