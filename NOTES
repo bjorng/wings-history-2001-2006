@@ -28,6 +28,10 @@
   of subdivisions. Has three base objects, spherize and half-dome options.
   [Scorpius]
 
+- New *.stl import/export plugin. Stereolithography files can be sent to
+  a service bureau to create an actual plastic prototype of your model.
+  [Scorpius]
+
 --- 0.98.35 -----------------------------------------------------------------
 
 - Move absolute now works for lights. [Giniu]
