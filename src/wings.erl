@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.338 2006/04/09 12:50:01 dgud Exp $
+%%     $Id: wings.erl,v 1.339 2006/08/05 19:27:51 antoneos Exp $
 %%
 
 -module(wings).
@@ -649,6 +649,9 @@ command({tools,{virtual_mirror,Cmd}}, St) ->
 command({tools, screenshot}, St) ->
     wings_image:screenshot(),
     St;
+command({tools, area_volume_info}, St) ->
+    area_volume_info(St),
+    St;
 
 %% wings_job action events.
 command({wings_job,Command}, St) ->
@@ -741,8 +744,11 @@ tools_menu(_) ->
 	{?__(22,"Freeze"),freeze,
 	 ?__(23,"Create real geometry from the virtual mirrors")}]}},
      separator,
-     {?__(24,"Screenshot"), screenshot, 
-      ?__(25,"Grab an image of the window (export it from the outliner)")}].
+     {?__(24,"Screenshot"), screenshot,
+      ?__(25,"Grab an image of the window (export it from the outliner)")},
+     separator,
+     {?__(26,"Scene Info: Area & Volume"), area_volume_info,
+      ?__(27,"Calculate area and volume for each object in the scene")}].
 
 window_menu(_) ->
     Name = case wings_wm:this() of
@@ -1306,3 +1312,30 @@ get_mode_restriction() ->
 	none -> [edge,vertex,face,body];
 	{value,Other} -> Other
     end.
+
+area_volume_info(St) ->
+    #st{shapes=Shapes} = St,
+    Header = io_lib:fwrite("~s: '~s' [~s] (~s)\n", ["#", "Object Name", "Area", "Volume"]),
+    Info = [get_object_info(Id, Shapes) || Id <- gb_trees:keys(Shapes)],
+    Msg = lists:flatten(Header ++ Info),
+    wings_help:help_window("Scene Info: Area & Volume", [Msg]).
+
+get_object_info(Id, Shapes) ->
+    We0 = gb_trees:get(Id, Shapes),
+    We = wings_tesselation:triangulate(We0),
+    #we{id=Id,name=Name,fs=Ftab} = We,
+    Both = [area_volume(Face, We) || Face <- gb_trees:keys(Ftab)],
+    Area =  lists:sum([A || {A,_} <- Both]),
+    Volume =lists:sum([V || {_,V} <- Both]),
+    io_lib:fwrite("~p: '~s' [~f] (~f)\n", [Id,Name,Area,Volume]).
+
+area_volume(Face, We) ->
+    [V1,V2,V3] = wings_face:vertex_positions(Face, We),
+    E1 = e3d_vec:sub(V1, V2),
+    E2 = e3d_vec:sub(V3, V2),
+    Cp = e3d_vec:cross(E1, E2),
+    Bc = e3d_vec:cross(V2, V3),
+    Area = e3d_vec:len(Cp)/2.0,
+    Volume = e3d_vec:dot(V1, Bc)/6.0,
+    {Area, Volume}.
+

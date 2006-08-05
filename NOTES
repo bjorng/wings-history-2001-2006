@@ -32,6 +32,10 @@
   a service bureau to create an actual plastic prototype of your model.
   [Scorpius]
 
+- New command in tools menu: "Scene Info: Area & Volume." Calculates the
+  area and volume for each object in the scene and displays the info in
+  a pop-up window. [Scorpius]
+
 --- 0.98.35 -----------------------------------------------------------------
 
 - Move absolute now works for lights. [Giniu]
