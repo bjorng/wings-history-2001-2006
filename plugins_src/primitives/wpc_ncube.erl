@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_ncube.erl,v 1.1 2006/08/02 20:25:02 antoneos Exp $
+%%     $Id: wpc_ncube.erl,v 1.2 2006/08/05 21:14:58 antoneos Exp $
 %%
 
 -module(wpc_ncube).
@@ -51,7 +51,7 @@ make_ncube(Arg) ->
 	true -> Verts2 = lists:map({e3d_vec, norm}, Verts);
 	false ->  Verts2 = Verts
     end,
-    {Vs, Fs} = clean_quad_mesh(Verts2, Faces),
+    {Vs, Fs} = clean_indexed_mesh(Verts2, Faces),
     {new_shape,"N-Cube",Fs,Vs}.
 
 ncube_dialog() ->
@@ -145,29 +145,13 @@ ngon_faces(NumVerts) ->
     Faces = [TopFaces, BotFaces],
     Faces.
 
+clean_indexed_mesh(Verts, Faces) ->
+    Raw = e3d_util:indexed_to_raw(Verts, Faces),
+    e3d_util:raw_to_indexed(Raw).
+
 get_pref(Key, Def) ->
     wpa:pref_get(?MODULE, Key, Def).
 
 % set_pref(KeyVals) ->
 %     wpa:pref_set(?MODULE, KeyVals).
-
-clean_quad_mesh(Verts, Faces) ->
-    Triangles = quads_to_triangles(Faces),
-    RawTriangles = e3d_util:indexed_to_raw(Verts, Triangles),
-    {Vs, Tris} = e3d_util:raw_to_indexed(RawTriangles),
-    Fs = triangles_to_quads(Tris),
-    {Vs, Fs}.
-
-quads_to_triangles(Faces) ->
-    Triangulate_A_Quad = fun([A,B,C,D]) -> [[A,B,C],[C,D,A]] end,
-    Triangles = lists:map(Triangulate_A_Quad, Faces),
-    lists:append(Triangles).		    % convert to a list of lists
-
-triangles_to_quads([]) -> [];		    % Only for use in conjunction with
-triangles_to_quads(Faces) ->		    % quads_to_triangles().
-    [Face1,Face2 | RestOfFaces] = Faces,
-    [Index1,Index2,Index3] = Face1,
-    Index4 = lists:nth(2, Face2),
-    Quad = [Index1,Index2,Index3,Index4],
-    [Quad | triangles_to_quads(RestOfFaces)].
 
