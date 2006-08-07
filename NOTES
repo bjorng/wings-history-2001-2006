@@ -36,6 +36,9 @@
   area and volume for each object in the scene and displays the info in
   a pop-up window. [Scorpius]
 
+- Bug fix: Language support now works for all operating systems, regardless 
+  if the file path has an underscore. [Scorpius]
+
 --- 0.98.35 -----------------------------------------------------------------
 
 - Move absolute now works for lights. [Giniu]

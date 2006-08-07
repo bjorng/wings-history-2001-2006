@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_lang.erl,v 1.20 2005/09/13 09:15:58 giniu Exp $
+%%     $Id: wings_lang.erl,v 1.21 2006/08/07 01:41:17 antoneos Exp $
 %%
 %%  Totally rewritten but Riccardo is still the one who did the hard work.
 %%
@@ -175,7 +175,8 @@ available_languages() ->
 	filelib:wildcard(filename:join([Root,"src","*.lang"])) ++ 
 	filelib:wildcard(filename:join([Root,"ebin","*.lang"])),
     Extract = fun(File, Acc) ->
-		      case string:tokens(filename:rootname(File),[$_]) of
+		      BaseName = filename:basename(File),
+		      case string:tokens(filename:rootname(BaseName),[$_]) of
 			  [_Name,Lang] -> [Lang|Acc];
 			  _ -> Acc
 		      end
