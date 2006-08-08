@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_absolute_move.erl,v 1.14 2006/07/25 21:54:55 giniu Exp $
+%%     $Id: wpc_absolute_move.erl,v 1.15 2006/08/08 18:17:05 giniu Exp $
 %%
 -module(wpc_absolute_move).
 
@@ -228,23 +228,6 @@ selection_ask([target|Rest],Ask) ->
     Desc = ?__(2,"Select target point for snap operation"),
     selection_ask(Rest,[{point,Desc}|Ask]).
 
-xyz2list({X,Y,Z}) ->
-    "("++float2list(X)++", "++float2list(Y)++", "++float2list(Z)++")".
-
-float2list(F) ->
-    Decimal = trunc(F),
-    Mant = lists:sublist(float_to_list(F-Decimal),8),
-    LDec = integer_to_list(Decimal),
-    if
-        F >= 0.0 ->
-            [Leading,$.|LMant] = Mant,
-            Sign = [];
-        true ->
-            [$-,Leading,$.|LMant] = Mant,
-            Sign = [$-]
-    end,
-    Sign ++ LDec ++ [$.,Leading] ++ LMant.
-
 %%%
 %%% Core functions
 %%%
@@ -329,8 +312,11 @@ draw_window1(flatten,_) ->
         {hframe,[{"",false,[{key,fy}]}]},
         {hframe,[{"",false,[{key,fz}]}]}
     ]};
-draw_window1(reference,Default) ->
-    {label,?__(8,"Reference point is") ++ ":" ++ xyz2list(Default)}.
+draw_window1(reference,{X,Y,Z}) ->
+    {label,?__(8,"Reference point is") ++ ": (" ++
+    wings_util:nice_float(X)++", "++
+    wings_util:nice_float(Y)++", "++
+    wings_util:nice_float(Z)++")"}.
 
 disable(all) ->
     {hook,fun (is_disabled, {_Var,_I,Store}) ->
