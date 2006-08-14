@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_texture.erl,v 1.36 2006/04/27 13:46:55 dgud Exp $
+%%     $Id: auv_texture.erl,v 1.37 2006/08/14 08:45:19 dgud Exp $
 %%
 
 -module(auv_texture).
@@ -1147,7 +1147,7 @@ shader_pass({value,#sh{args=Args,tex_units=TexUnits,reqs=Reqs}},
 
 shader_uniforms([{uniform,color,Name,_,_}|As],[Val|Opts],Conf) ->
     Loc = wings_gl:uloc(Conf#sh_conf.prog,Name),
-    gl:uniform4fv(Loc,1,Val),
+    gl:uniform4fv(Loc,1,[Val]),
     shader_uniforms(As,Opts,Conf);
 shader_uniforms([{uniform,float,Name,_,_}|As],[Val|Opts],Conf) ->
     Loc = wings_gl:uloc(Conf#sh_conf.prog,Name),
@@ -1156,7 +1156,6 @@ shader_uniforms([{uniform,float,Name,_,_}|As],[Val|Opts],Conf) ->
 shader_uniforms([{uniform,menu,Name,_,_}|As],[Vals|Opts],Conf) 
   when is_list(Vals) ->
     Loc = wings_gl:uloc(Conf#sh_conf.prog,Name),
-    %% Bug in esdl gl uniformXfv can't send arrays of values.
     foldl(fun(Val,Cnt) -> gl:uniform1f(Loc+Cnt,Val),Cnt+1 end,0,Vals),
     shader_uniforms(As,Opts,Conf);
 
