@@ -39,6 +39,9 @@
 - Bug fix: Language support now works for all operating systems, regardless 
   if the file path has an underscore. [Scorpius]
 
+- Added X export plugin.
+  [contributed by Ed Kolis (Ekolis)]
+
 --- 0.98.35 -----------------------------------------------------------------
 
 - Move absolute now works for lights. [Giniu]
