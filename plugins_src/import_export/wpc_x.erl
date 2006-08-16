@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_x.erl,v 1.1 2006/08/14 21:11:03 giniu Exp $
+%%     $Id: wpc_x.erl,v 1.2 2006/08/16 23:29:41 giniu Exp $
 %%
 
 -module(wpc_x).
@@ -24,6 +24,7 @@
 
 -include("e3d.hrl").
 -include("e3d_image.hrl").
+-include("wings_intl.hrl").
 
 init() ->
     true.
@@ -43,13 +44,13 @@ command({file,{export_selected,{x,Ask}}}, St) ->
 command(_, _) -> next.
 
 menu_entry(Menu) ->
-    Menu ++ [{"DirectX (.x)...", x, [option]}].
+    Menu ++ [{?__(1,"DirectX (.x)..."), x, [option]}].
 
 props() ->
-    [{ext, ".x"},{ext_desc, "DirectX File"}].
+    [{ext, ".x"},{ext_desc, ?__(1,"DirectX File")}].
 
 do_export(Ask, Op, _Exporter, _St) when is_atom(Ask) ->
-    wpa:dialog(Ask, "DirectX Export Options", dialog(export),
+    wpa:dialog(Ask, ?__(1,"DirectX Export Options"), dialog(export),
 	       fun(Res) ->
 		       {file,{Op,{x,Res}}}
 	       end);
@@ -91,7 +92,7 @@ export(File_name, Export0, Attr) ->
 	foreach(fun({Name, M}) -> def_material(F, Name, M) end, Mat),
 	
     	% export objects
-    	foldl(fun(#e3d_object{name = Name, obj=Obj}, Used_mats0) ->
+    	foldl(fun(#e3d_object{name = Name, obj=Obj}, _) ->
 		      io:format(F, "Frame ~s {\r\n",[clean_id(Name)]),
 		      ObjMesh = e3d_mesh:vertex_normals(Obj),
 		      export_object(F, ObjMesh, Mat, ExportN),
@@ -99,7 +100,7 @@ export(File_name, Export0, Attr) ->
 		      ok
 	      end, [], Objs)
     catch _:Err -> 
-	    io:format("DirectX Error: ~P in ~p~n", [Err,30, erlang:get_stacktrace()])
+	    io:format(?__(1,"DirectX Error: ~P in ~p~n"), [Err,30, erlang:get_stacktrace()])
     end,
     ok = file:close(F).
 
@@ -107,11 +108,11 @@ export_transform(Contents, Attr) ->
     Mat = wpa:export_matrix(Attr),
     e3d_file:transform(Contents, Mat).
 
-export_object(F, #e3d_mesh{fs=Fs0,ns=NTab,vs=VTab,tx=UVTab,vc=ColTab}, 
+export_object(F, #e3d_mesh{fs=Fs0,ns=NTab,vs=VTab,tx=UVTab}, 
 	      Mat_defs, ExportN) ->
     io:format(F, "\tMesh {\r\n",[]),
     Fs = reorder(Fs0),
-    [#e3d_face{mat=[Material|_]}|_] = Fs,
+    [#e3d_face{}|_] = Fs,
     %% Duplicate stuff, once for each face each vertex/normal/UV is on
     Vdup = duplicate(Fs, VTab, vs),
     Ndup = duplicate(Fs, NTab, ns),
@@ -166,16 +167,6 @@ export_object(F, #e3d_mesh{fs=Fs0,ns=NTab,vs=VTab,tx=UVTab,vc=ColTab},
     %% Close Mesh
     io:put_chars(F, "\t}").
 
-material(F, Name, Mat_defs, Used) ->
-    case lists:member(Name, Used) of
-	true ->
-	    use_material(F, Name),
-	    Used;
-	false ->
-	    def_material(F, Name, lookup(Name, Mat_defs)),
-	    [Name|Used]
-    end.
-
 % Note: directx does not seem to support "ambient" color
 def_material(F, Name, Mat0) ->
     Mat = lookup(opengl, Mat0),
@@ -202,22 +193,17 @@ def_material(F, Name, Mat0) ->
     end,
     io:put_chars(F, "\t\t}\r\n").
     
-use_material(F, Mat) ->
-    io:format(F, "      appearance Appearance {\r\n",[]),
-    io:format(F, "        material USE ~s\r\n",[clean_id(Mat)]),
-    io:format(F, "      }\r\n", []).
-
 %% this is really simple since verts are duplicated
 %% according to their appearance on the faces
 print_face(F, Vs, StartNum) ->
     io:format(F, "\t\t~p;", [length(Vs)]),
-    PrintVertex = fun(N, StartNum) -> io:format(F, "~p", [N]), StartNum + 1 end,
+    PrintVertex = fun(N, StartNum2) -> io:format(F, "~p", [N]), StartNum2 + 1 end,
     Indices = create_list(StartNum, length(Vs)),
     all(PrintVertex, F, Indices, " ", "", StartNum),
     io:put_chars(F, ";"),
     StartNum + length(Vs).
 
-create_list(Min, Len) when Len == 0 ->
+create_list(_Min, Len) when Len == 0 ->
     [];
     
 create_list(Min, Len) ->
@@ -242,7 +228,7 @@ duplicate_face([Pt|T], Tab, ResultSoFar) ->
     NewResult = lists:nth(Pt + 1, Tab), 
     duplicate_face(T, Tab, [ResultSoFar, NewResult]);
 
-duplicate_face([], Tab, Result) ->
+duplicate_face([], _Tab, Result) ->
     Result.
     
 %%  The reorder is cludge to sort faces (vertex lists) after order,
@@ -285,28 +271,21 @@ all(F, IO, [H], Separator, Ender, StartNum) when is_integer(StartNum) ->
     io:format(IO, "~s~s", [Ender, Separator]),
     Result;
 all(F, IO, [H], Separator, Ender, StartNum) ->
-    Result = F(H, StartNum),
+    F(H, StartNum),
     io:format(IO, "~s~s", [Ender, Separator]),
     ok.
-
-%all(F, IO, AccIn, [H,H1|T]) ->
-%    Acc = F(H, AccIn),
-%    io:put_chars(IO, ",\r\n"),    
-%    all(F,IO,Acc,[H1|T]);
-%all(F, _, AccIn, [H]) ->
-%    F(H, AccIn).
 
 lookup(K, L) ->
     {value, {K, V}} =  lists:keysearch(K, 1, L),
     V.
     
-index_of([Item], [{Key, Value}|T], StartCount) when Item == Key ->
+index_of([Item], [{Key, _Value}|_T], StartCount) when Item == Key ->
     StartCount;
 
-index_of(Item, [{Key, Value}|T], StartCount) ->
+index_of(Item, [{_Key, _Value}|T], StartCount) ->
     index_of(Item, T, StartCount + 1);
 
-index_of(Item, [], StartCount) ->
+index_of(_Item, [], _StartCount) ->
     notfound.
 
 % Fix to SF bug report 539951 - invalid ids
