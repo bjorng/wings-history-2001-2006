@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_absolute_move.erl,v 1.16 2006/08/22 20:23:36 giniu Exp $
+%%     $Id: wpc_absolute_move.erl,v 1.17 2006/08/27 11:11:41 giniu Exp $
 %%
 -module(wpc_absolute_move).
 
@@ -61,7 +61,7 @@ snap_fun(Mode) ->
        (_, _) -> ignore
     end.
 
-command({_,{absolute,Mode}},St) when Mode == snap; Mode == csnap; Mode == nsnap ->
+command({_,{absolute,Mode}},St) when Mode == move; Mode == snap; Mode == csnap; Mode == nsnap ->
     Mirror = check_mirror(St),
     if
         Mirror -> 
