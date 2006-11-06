@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face.erl,v 1.53 2006/04/08 12:35:34 dgud Exp $
+%%     $Id: wings_face.erl,v 1.54 2006/11/06 00:54:11 antoneos Exp $
 %%
 
 -module(wings_face).
@@ -152,8 +152,8 @@ area(Face, #we{fs=Ftab,es=Etab,vp=Vtab}=We) ->
     %% Traverse ccw
     {V0,V1,E1} = 
 	case Edge of
-	    #edge{vs=Vs,ve=Ve,lf=Face,ltsu=E} -> {Vs,Ve,E};
-	    #edge{vs=Vs,ve=Ve,rf=Face,rtsu=E} -> {Ve,Vs,E}
+	    #edge{vs=Vs,ve=Ve,lf=Face,ltsu=E} -> {Ve,Vs,E};
+	    #edge{vs=Vs,ve=Ve,rf=Face,rtsu=E} -> {Vs,Ve,E}
 	end,
     P0 = gb_trees:get(V0, Vtab),
     P1 = gb_trees:get(V1, Vtab),
