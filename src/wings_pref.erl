@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.138 2006/07/28 18:54:27 antoneos Exp $
+%%     $Id: wings_pref.erl,v 1.139 2007/05/29 21:27:15 antoneos Exp $
 %%
 
 -module(wings_pref).
@@ -132,7 +132,7 @@ win32_pref_1(R, [FolderType|T]) ->
             end
     end;
 win32_pref_1(R, []) ->
-    case try_location(code:lib_dir(wings), ?WIN32_PREFS) of
+    case try_location(wings_util:lib_dir(wings), ?WIN32_PREFS) of
         none -> win32_pref_2(R);
         File -> File
     end.
@@ -250,7 +250,7 @@ win32_new_pref_1(R, [FolderType|T]) ->
 win32_new_pref_1(_, []) ->
     %% Desperate fallback for very old Window systems.
     %% (No "My Documents" folder.)
-    filename:join(code:lib_dir(wings), ?WIN32_PREFS).
+    filename:join(wings_util:lib_dir(wings), ?WIN32_PREFS).
 
 %%%
 %%% Utilities.
@@ -397,6 +397,31 @@ defaults() ->
      {use_super_temp_sel,false},
      {use_mirror_for_sels,true},
 
+	 	 %% Constraints preferences.
+	 {dist_con_shift,1.0},
+	 {dist_con_ctrl,0.10},
+	 {dist_con_ctrl_shift,0.010},
+	 {dist_con_alt,10.0},
+	 {dist_con_ctrl_alt,0.0010},
+	 {dist_con_shift_alt,0.00010},
+	 {dist_con_ctrl_shift_alt,0.0250},
+
+	 {rot_con_shift,15.0},
+	 {rot_con_ctrl,1.0},
+	 {rot_con_ctrl_shift,0.10},
+	 {rot_con_alt,180.0},
+	 {rot_con_ctrl_alt,22.50},
+	 {rot_con_shift_alt,135.0},
+	 {rot_con_ctrl_shift_alt,144.0},
+
+	 {scale_con_shift,100.0},
+	 {scale_con_ctrl,10.0},
+	 {scale_con_ctrl_shift,1.0},
+	 {scale_con_alt,200.0},
+	 {scale_con_ctrl_alt,50.0},
+	 {scale_con_shift_alt,25.0},
+	 {scale_con_ctrl_shift_alt,20.0},
+	 
      %% Proxy preferences.
      {proxy_shaded_edge_style,some},
      {proxy_static_opacity,1.0},
@@ -416,6 +441,8 @@ defaults() ->
      {no_progress_bar,false},
      {interface_icons,classic},
      {objects_in_outliner,true},
+     {extended_toolbar,true},
+
      %% Console
      {console_width,80},
      {console_height,12},
