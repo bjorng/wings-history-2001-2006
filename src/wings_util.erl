@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.111 2005/11/09 21:00:28 dgud Exp $
+%%     $Id: wings_util.erl,v 1.112 2007/05/29 21:37:45 antoneos Exp $
 %%
 %% Note: To keep the call graph clean, wings_util MUST NOT call
 %%       other wings_* modules (except wings_pref).
@@ -25,6 +25,7 @@
 	 gb_trees_map/2,gb_trees_to_gb_set/1,
 	 nice_float/1,
 	 unique_name/2,
+	 lib_dir/1,
 	 tc/3,
 	 min/2,max/2,limit/2]).
 
@@ -313,3 +314,15 @@ format_p(Str) when is_list(Str)  ->
     [$",Str,$"];
 format_p(Str) ->
     io_lib:format("~p", [Str]).
+
+lib_dir(wings) ->
+    case code:lib_dir(wings) of
+	{error,bad_name} ->
+	    ["wings.beam","ebin"|Rev] = lists:reverse(filename:split(code:which(wings))),
+	    filename:join(lists:reverse(Rev));
+	Dir -> 
+	    Dir
+    end;
+lib_dir(Lib) ->
+    code:lib_dir(Lib).
+    
