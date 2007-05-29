@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.145 2007/03/19 23:14:05 antoneos Exp $
+%%     $Id: wings_io.erl,v 1.146 2007/05/29 20:55:26 antoneos Exp $
 %%
 
 -module(wings_io).
@@ -831,22 +831,22 @@ stop_data() ->
 	"     xxxxxx     ".
 
 pointing_hand_data() ->
-	"       xx       "
-	"  xxx x..xxx    "
-	"  x..xx..x..x   "
-	"  x..xx..x..x x "
-	"   x..x..x..xx.x"
-	"   x..x..x..x..x"
-	" xxxx.......x..x"
-	"x..xx..........x"
-	"x...x.........x "
-	" x............x "
-	"  x...........x "
-	"   x.........x  "
-	"    x........x  "
-	"     x......x   "
-	"     x......x   "
-	"     x......x   ".
+	"      XX        "
+	"     X..X       "
+	"     X..X       "
+	"     X..XXX     "
+	"     X..X.XXX   "
+	"     X..X.X.XXX "
+	"  XX X..X.X.X.X "
+	" X..XX......X.X "
+	" X...X........X "
+	"  X...........X "
+	"   X..........X "
+	"   X.........X  "
+	"    X........X  "
+	"     X......X   "
+	"     X......X   "
+	"     XXXXXXXX   ".
 
 closed_hand_data() ->
 	"                "
