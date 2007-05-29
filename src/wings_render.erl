@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_render.erl,v 1.15 2006/07/27 02:22:24 antoneos Exp $
+%%     $Id: wings_render.erl,v 1.16 2007/05/29 20:36:52 antoneos Exp $
 %%
 
 -module(wings_render).
@@ -62,6 +62,7 @@ render(#st{selmode=Mode}=St) ->
     gl:enable(?GL_CULL_FACE),
     wings_view:load_matrices(true),
     ground_and_axes(),
+    mini_axis_icon(),
     show_saved_bb(St),
     render_objects(Mode),
     axis_letters(),
@@ -622,3 +623,108 @@ light_shader_src() ->
            gl_Position     = ftransform();
        }							       
        ">>.
+
+mini_axis_icon() ->
+    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
+    {W,H} = wings_wm:win_size(),
+    Matrix1 = list_to_tuple(gl:getDoublev(?GL_MODELVIEW_MATRIX)),
+    Matrix2 = setelement(13, Matrix1, -W/H+0.11),
+    Matrix3 = setelement(14, Matrix2, -1.0+0.11),
+    Matrix4 = setelement(15, Matrix3, 0.0),
+    gl:matrixMode(?GL_PROJECTION),
+    gl:pushMatrix(),
+    gl:loadIdentity(),
+    gl:ortho(-W/H, W/H, -1, 1, 0.00001, 10000000.0),
+    gl:matrixMode(?GL_MODELVIEW),
+    gl:pushMatrix(),
+    gl:loadIdentity(),
+    gl:loadMatrixd(Matrix4),
+    draw_mini_axis(),
+    gl:popMatrix(),
+    gl:matrixMode(?GL_PROJECTION),
+    gl:popMatrix(),
+    gl:matrixMode(?GL_MODELVIEW),
+    gl:popAttrib().
+
+draw_mini_axis() ->
+    {PA,PB} = {0.08,0.01},
+    {Red,Green,Blue} = {{1,0,0},{0,1,0},{0,0,1}},
+    gl:'begin'(?GL_LINES),
+    %% X Axis
+    gl:color3fv(Red),
+    gl:vertex3f(0,0,0),
+    gl:vertex3f(0.1,0.0,0.0),
+    %% Y Axis
+    gl:color3fv(Green),
+    gl:vertex3f(0,0,0),
+    gl:vertex3f(0.0,0.1,0.0),
+    %% Z Axis
+    gl:color3fv(Blue),
+    gl:vertex3f(0,0,0),
+    gl:vertex3f(0.0,0.0,0.1),
+    View = wings_view:current(),
+    case View#view.along_axis of
+        none ->
+            %% X Arrows
+            gl:color3fv(Red),
+            gl:vertex3f(PA,0.0,-PB),
+            gl:vertex3f(0.1,0.0,0.0),
+            gl:vertex3f(PA,0.0,PB),
+            gl:vertex3f(0.1,0.0,0.0),
+            %% Y Arrows
+            gl:color3fv(Green),
+            gl:vertex3f(-PB,PA,0.0),
+            gl:vertex3f(0.0,0.1,0.0),
+            gl:vertex3f(PB,PA,0.0),
+            gl:vertex3f(0.0,0.1,0.0),
+            %% Z Arrows
+            gl:color3fv(Blue),
+            gl:vertex3f(-PB,0.0,PA),
+            gl:vertex3f(0.0,0.0,0.1),
+            gl:vertex3f(PB,0.0,PA),
+            gl:vertex3f(0.0,0.0,0.1);
+        x ->
+            %% Y Arrows
+            gl:color3fv(Green),
+            gl:vertex3f(0.0,PA,-PB),
+            gl:vertex3f(0.0,0.1,0.0),
+            gl:vertex3f(0.0,PA,PB),
+            gl:vertex3f(0.0,0.1,0.0),
+            %% Z Arrows
+            gl:color3fv(Blue),
+            gl:vertex3f(0.0,-PB,PA),
+            gl:vertex3f(0.0,0.0,0.1),
+            gl:vertex3f(0.0,PB,PA),
+            gl:vertex3f(0.0,0.0,0.1);
+        y ->
+            %% X Arrows
+            gl:color3fv(Red),
+            gl:vertex3f(PA,0.0,-PB),
+            gl:vertex3f(0.1,0.0,0.0),
+            gl:vertex3f(PA,0.0,PB),
+            gl:vertex3f(0.1,0.0,0.0),
+            %% Z Arrows
+            gl:color3fv(Blue),
+            gl:vertex3f(-PB,0.0,PA),
+            gl:vertex3f(0.0,0.0,0.1),
+            gl:vertex3f(PB,0.0,PA),
+            gl:vertex3f(0.0,0.0,0.1);
+        z ->
+            %% X Arrows
+            gl:color3fv(Red),
+            gl:vertex3f(PA,-PB,0.0),
+            gl:vertex3f(0.1,0.0,0.0),
+            gl:vertex3f(PA,PB,0.0),
+            gl:vertex3f(0.1,0.0,0.0),
+            %% Y Arrows
+            gl:color3fv(Green),
+            gl:vertex3f(-PB,PA,0.0),
+            gl:vertex3f(0.0,0.1,0.0),
+            gl:vertex3f(PB,PA,0.0),
+            gl:vertex3f(0.0,0.1,0.0),
+            ok;
+        _ ->
+            ok
+    end,
+    gl:'end'().
+
