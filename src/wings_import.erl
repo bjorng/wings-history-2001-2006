@@ -3,12 +3,12 @@
 %%
 %%     This module handles import of foreign objects.
 %%
-%%  Copyright (c) 2001-2005 Bjorn Gustavsson
+%%  Copyright (c) 2001-2007 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_import.erl,v 1.27 2005/09/28 05:57:41 bjorng Exp $
+%%     $Id: wings_import.erl,v 1.28 2007/05/29 21:49:19 antoneos Exp $
 %%
 
 -module(wings_import).
@@ -39,16 +39,12 @@ translate_objects([#e3d_object{name=Name,mat=Mat,obj=#e3d_mesh{fs=Fs}}=Obj|Os],
     Fsum = Fsum0 + length(Fs) + 1,
     wings_pb:update(Fsum/Faces,
 		    integer_to_list(I) ++ " of " ++ integer_to_list(N)),
-    case import_object(Obj) of
-        error ->
-            translate_objects(Os, I+1, N, Fsum, Faces, Dir, St0);
-        We0 ->
-            {St1,NameMap} = wings_material:add_materials(Mat, Dir, St0),
-            We1 = rename_materials(NameMap, We0),
-            We = import_attributes(We1, Obj),
-            St = store_object(Name, We, St1),
-            translate_objects(Os, I+1, N, Fsum, Faces, Dir, St)
-    end;
+    We0 = import_object(Obj),
+    {St1,NameMap} = wings_material:add_materials(Mat, Dir, St0),
+    We1 = rename_materials(NameMap, We0),
+    We = import_attributes(We1, Obj),
+    St = store_object(Name, We, St1),
+    translate_objects(Os, I+1, N, Fsum, Faces, Dir, St);
 translate_objects([], _, _, _, _, _, St) -> St.
 
 import_attributes(We, #e3d_object{attr=Attr}) ->

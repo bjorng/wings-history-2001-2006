@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_text.erl,v 1.33 2005/04/23 16:52:18 bjorng Exp $
+%%     $Id: wings_text.erl,v 1.34 2007/05/29 21:49:19 antoneos Exp $
 %%
 
 -module(wings_text).
@@ -431,7 +431,7 @@ bad_char(C) ->
 %%%
 
 load_fonts() ->
-    Wc = filename:join([code:lib_dir(wings),"fonts","*.wingsfont"]),
+    Wc = filename:join([wings_util:lib_dir(wings),"fonts","*.wingsfont"]),
     Fonts = filelib:wildcard(Wc),
     foreach(fun(F) -> load_font(F) end, Fonts).
 

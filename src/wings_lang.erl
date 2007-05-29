@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_lang.erl,v 1.21 2006/08/07 01:41:17 antoneos Exp $
+%%     $Id: wings_lang.erl,v 1.22 2007/05/29 21:49:19 antoneos Exp $
 %%
 %%  Totally rewritten but Riccardo is still the one who did the hard work.
 %%
@@ -64,7 +64,7 @@ load_language_only(Lang0) when is_list(Lang0) ->
 	?DEF_LANG_ATOM -> ok;
 	_  ->
 	    ets:new(?MODULE, [named_table]),
-	    Root = code:lib_dir(wings),
+	    Root = wings_util:lib_dir(wings),
 	    LangFile = "_"++Lang0++".lang",
 	    load_language(Root, ?LANG_DIRS, LangFile)
     end.
@@ -170,7 +170,7 @@ load_file_2(Trans) ->
     Trav(Trans,[],Trav).
 
 available_languages() ->
-    Root = code:lib_dir(wings),
+    Root = wings_util:lib_dir(wings),
     Files = 
 	filelib:wildcard(filename:join([Root,"src","*.lang"])) ++ 
 	filelib:wildcard(filename:join([Root,"ebin","*.lang"])),

@@ -5,12 +5,12 @@
 %%     we records (winged-edged records, the central data structure
 %%     in Wings 3D).
 %%
-%%  Copyright (c) 2001-2005 Bjorn Gustavsson
+%%  Copyright (c) 2001-2007 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.110 2006/01/27 09:20:55 dgud Exp $
+%%     $Id: wings_we.erl,v 1.111 2007/05/29 21:49:19 antoneos Exp $
 %%
 
 -module(wings_we).
@@ -246,10 +246,7 @@ visible_vs(Vs, #we{mirror=Face,es=Etab}=We) ->
 		[_|_] ->
 		    ordsets:intersection(Vis0, Vs);
 		[] ->
-		    [];
-		true ->
-		    Vis = gb_sets:from_ordset(Vis0),
-		    gb_sets:intersection(Vis, Vs)
+		    []
 	    end
     end.
 
@@ -513,7 +510,6 @@ build_faces_1([{Face,[Edge|_]}|Fs], Acc) ->
     build_faces_1(Fs, [{Face,Edge}|Acc]);
 build_faces_1([], Acc) -> gb_trees:from_orddict(reverse(Acc)).
 
-fill_holes([]) ->  [];
 fill_holes(Es) ->
     G = digraph:new(),
     make_digraph(Es, G),

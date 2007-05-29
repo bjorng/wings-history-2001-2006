@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_start.erl,v 1.5 2004/11/14 12:17:40 bjorng Exp $
+%%     $Id: wings_start.erl,v 1.6 2007/05/29 21:49:19 antoneos Exp $
 %%
 
 -module(wings_start).
@@ -62,4 +62,4 @@ disable_patches() ->
     file:delete(Name).
 
 patch_dir() ->
-    filename:join(code:lib_dir(wings), "patches").
+    filename:join(wings_util:lib_dir(wings), "patches").
