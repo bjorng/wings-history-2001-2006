@@ -1,5 +1,26 @@
 --- 0.98.XX -----------------------------------------------------------------
 
+- Ability to set drag constraints. [contributed by Richard Jones (Optigon)]
+
+- Small add to right mouse button absolute snap, now you can lock movement
+  in x, y or z. [Giniu]
+
+- Changes to absolute scale, ability to link sizes (uniform scale), ability to
+  pick scale centre from scene using RMB absolute scale, ability to pick target
+  size from scene using MMB absolute scale and option to fit selection into
+  picked target by automatically adjusting scale centre. [Giniu]
+
+- PovRay exporter and renderer added.
+  [contributed by Chris Hegarty (Avariant)]
+
+- Added a live miniature-axis icon to the lower-left corner of the screen.
+  [Scorpius]
+
+- Added a user defined clipping-plane. Use 'Set Default Axis' to interactively
+  change the orientation of the plane, [Scorpius]
+
+--- 0.98.36 -----------------------------------------------------------------
+
 - Absolute snap now can pick reference point, old snap that used center of
   selection as reference point was moved to MMB option. [Giniu]
 
@@ -61,6 +82,15 @@
 
 - Tweak tool extended with new features like tangent, relax, slide and more.
   [contributed by Andrew Shpagin (AndrewShpagin)]
+
+- French translation updated, with many more plug-ins translated.
+  [contributed by Nicolas Bouillard (syndarion)]
+
+- The Mac version of Wings is now a Universal Binary that runs on both
+  PowerPC and Intel Macs. [bjorng]
+
+- The Windows version now includes the correct (latest) version of the
+  SDL dll, correcting numerous problems. [bjorng]
 
 --- 0.98.35 -----------------------------------------------------------------
 
