@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.140 2007/06/03 01:49:48 antoneos Exp $
+%%     $Id: wings_pref.erl,v 1.141 2007/06/11 18:24:14 antoneos Exp $
 %%
 
 -module(wings_pref).
@@ -355,7 +355,7 @@ defaults() ->
      {edge_width,2.0},
      {selected_edge_width,2.0},
      {show_axis_letters,true},
-     {constrain_axes,false},
+     {constrain_axes,true},
      {force_show_along_grid,false},
      {force_ortho_along_axis,false},
      {vertex_hilite,true},
@@ -396,6 +396,8 @@ defaults() ->
      {use_temp_sel,false},
      {use_super_temp_sel,false},
      {use_mirror_for_sels,true},
+     {clip_plane_color,{0.8,0.3,0.0}},
+     {clip_plane_size,1.5},
 
      %% Constraints preferences.
      {dist_con_shift,1.0},
@@ -439,7 +441,7 @@ defaults() ->
      {title_passive_color,{0.325,0.4,0.325,1.0}},
      {title_text_color,{1.0,1.0,1.0}},
      {no_progress_bar,false},
-     {interface_icons,classic},
+     {interface_icons,bluecube},
      {objects_in_outliner,true},
      {aa_edges,false},
      {extended_toolbar,true},

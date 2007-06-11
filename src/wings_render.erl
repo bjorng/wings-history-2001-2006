@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_render.erl,v 1.19 2007/06/04 20:53:34 antoneos Exp $
+%%     $Id: wings_render.erl,v 1.20 2007/06/11 18:24:14 antoneos Exp $
 %%
 
 -module(wings_render).
@@ -764,7 +764,7 @@ draw_clip_disk(Direction, Expand) ->
     glu:quadricDrawStyle(Obj, ?GLU_SILHOUETTE),
     gl:pushMatrix(),
     gl:multMatrixd(M),
-    gl:color3f(0.8,0.8,0.5),
-    glu:disk(Obj, 0.0, 1.5, 35, 1),
+    gl:color3fv(wings_pref:get_value(clip_plane_color)),
+    glu:disk(Obj, 0.0, wings_pref:get_value(clip_plane_size), 35, 1),
     gl:popMatrix(),
     glu:deleteQuadric(Obj).
