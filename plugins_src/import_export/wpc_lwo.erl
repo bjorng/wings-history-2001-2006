@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_lwo.erl,v 1.1 2006/09/06 22:50:49 antoneos Exp $
+%%     $Id: wpc_lwo.erl,v 1.2 2007/06/26 23:11:51 antoneos Exp $
 %%
 
 -module(wpc_lwo).
@@ -351,8 +351,12 @@ read_vx(Data) ->
     {Index, Rest}.
 
 read_rgb(Data) ->
-    <<_:16,"COLR",_:16, R:32/float,G:32/float,B:32/float, _More/binary>> = Data,
-    {R,G,B}.
+    try
+	<<_:16,"COLR",_:16, R:32/float,G:32/float,B:32/float, _More/binary>> = Data,
+	{R,G,B}
+    catch _:_ ->
+	{0.9,0.9,0.9}
+    end.
 
 read_surf(Data) ->
     {MaterialName, Rest} = read_cstring(Data),
