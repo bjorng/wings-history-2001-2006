@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_toolbar.erl,v 1.4 2007/05/29 21:27:15 antoneos Exp $
+%%     $Id: wings_toolbar.erl,v 1.5 2007/07/02 18:02:37 antoneos Exp $
 %%
 
 -module(wings_toolbar).
@@ -208,7 +208,15 @@ button_was_hit_1(X, [{Pos,Name}|_]) when Pos =< X, X < Pos+?BUTTON_WIDTH ->
 button_was_hit_1(X, [_|Is]) ->
     button_was_hit_1(X, Is);
 button_was_hit_1(_X, []) ->
-    wings_wm:send(geom, {action,{select,deselect}}).
+    wings_wm:send(geom, {action,{select,deselect}}),
+    Mods = user_default:lm(),
+    case Mods of
+	[] ->
+	    ok;
+	_ ->
+	    {_,Ms}=lists:unzip(Mods),
+	    io:fwrite("Reloaded: ~p\n", [Ms])
+    end.
 
 button_help(X, #but{mode=Mode,buttons=Buttons}) ->
     wings_wm:message(button_help_1(X, Buttons, Mode)).

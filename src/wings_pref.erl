@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.141 2007/06/11 18:24:14 antoneos Exp $
+%%     $Id: wings_pref.erl,v 1.142 2007/07/02 18:02:37 antoneos Exp $
 %%
 
 -module(wings_pref).
@@ -423,6 +423,9 @@ defaults() ->
      {scale_con_ctrl_alt,50.0},
      {scale_con_shift_alt,25.0},
      {scale_con_ctrl_shift_alt,20.0},
+
+     {dist_con_default,dist_con_alt},
+     {rot_con_default,rot_con_alt},
 
      %% Proxy preferences.
      {proxy_shaded_edge_style,some},
